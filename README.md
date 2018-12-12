@@ -43,3 +43,13 @@ tasks.
     snake dist                 # Create a distribution tarball and wheel
     snake lint                 # Run static analysis tools
     snake rebuild              # Rebuild the module
+
+The task `rebuild` doesn't really build (no need to compile Python),
+but it does run the unit tests.
+
+### Bumping to the next version
+If you need to increase the version number of the project, don't
+forget to edit the following:
+
+    CHANGELOG.md
+    lta/__init__.py
