@@ -1,0 +1,85 @@
+#!/usr/bin/env python3.7
+
+import subprocess
+import sys
+import webbrowser
+
+
+def doCleanTask():
+    subprocess.run(["rm", "-fr", ".pytest_cache"])
+    subprocess.run(["rm", "-fr", "build"])
+    subprocess.run(["rm", "-fr", "dist"])
+    subprocess.run(["rm", "-fr", "htmlcov"])
+    subprocess.run(["find", "lta", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
+    subprocess.run(["find", "tests", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
+    subprocess.run(["rm", "-fr", ".coverage"])
+
+
+def doCoverageTask():
+    doCleanTask()
+    subprocess.run(["pytest", "--cov=lta", "--cov-report=html", "--no-cov-on-fail", "--cov-branch", "tests"])
+    webbrowser.open_new_tab("htmlcov/index.html")
+
+
+def doDistTask():
+    doCleanTask()
+    doRebuildTask()
+    subprocess.run(["python", "setup.py", "sdist", "bdist_wheel"])
+
+
+def doLintTask():
+    subprocess.run(["flake8", "lta"])
+
+
+def doRebuildTask():
+    doCleanTask()
+    subprocess.run(["pytest", "tests"])
+    doLintTask()
+
+# ---------------------------------------------------------------------
+
+
+def spaces(count):
+    result = ""
+    while count > 0:
+        result += " "
+        count -= 1
+    return result
+
+
+def task(name, description, action):
+    tasks[name] = {
+        "name": name,
+        "description": description,
+        "action": action
+    }
+
+
+tasks = {}
+
+if __name__ == "__main__":
+    # define tasks
+    task("clean", "Remove build cruft", doCleanTask)
+    task("coverage", "Perform coverage analysis", doCoverageTask)
+    task("dist", "Create a distribution tarball and wheel", doDistTask)
+    task("lint", "Run static analysis tools", doLintTask)
+    task("rebuild", "Rebuild the module", doRebuildTask)
+
+    # if the user didn't supply a task
+    if len(sys.argv) < 2:
+        # provide a menu of tasks to run
+        print("Try one of the following tasks:\n")
+        taskList = list(tasks.keys())
+        taskList.sort()
+        for taskName in taskList:
+            print(f"snake {taskName}{spaces(20-len(taskName))} # {tasks[taskName]['description']}")
+        sys.exit(1)
+
+    # if the user supplied a task that wasn't defined
+    if sys.argv[1] not in tasks:
+        # tell them and show them how to get the menu
+        print(f"No such task: {sys.argv[1]}\n\nTo see a list of all tasks/options, run 'snake'")
+        sys.exit(1)
+
+    # run the task the user supplied
+    tasks[sys.argv[1]]["action"]()
