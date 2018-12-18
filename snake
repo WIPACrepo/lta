@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python
 
 import subprocess
 import sys
@@ -11,6 +11,7 @@ def doCleanTask():
     subprocess.run(["rm", "-fr", "dist"])
     subprocess.run(["rm", "-fr", "htmlcov"])
     subprocess.run(["find", "lta", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
+    subprocess.run(["rm", "-fr", "lta.egg-info"])
     subprocess.run(["find", "tests", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
     subprocess.run(["rm", "-fr", ".coverage"])
 
@@ -39,14 +40,6 @@ def doRebuildTask():
 # ---------------------------------------------------------------------
 
 
-def spaces(count):
-    result = ""
-    while count > 0:
-        result += " "
-        count -= 1
-    return result
-
-
 def task(name, description, action):
     tasks[name] = {
         "name": name,
@@ -72,7 +65,7 @@ if __name__ == "__main__":
         taskList = list(tasks.keys())
         taskList.sort()
         for taskName in taskList:
-            print(f"snake {taskName}{spaces(20-len(taskName))} # {tasks[taskName]['description']}")
+            print(f"snake {taskName:20} # {tasks[taskName]['description']}")
         sys.exit(1)
 
     # if the user supplied a task that wasn't defined
