@@ -4,7 +4,6 @@ Long Term Archive REST API server.
 Run with `python -m lta.rest_server`.
 """
 
-import asyncio
 import logging
 
 from tornado.ioloop import IOLoop
