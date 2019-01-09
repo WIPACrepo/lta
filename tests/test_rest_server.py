@@ -11,6 +11,7 @@ def test_server_startup():
     s = start()
     s.stop()
 
+@pytest.mark.asyncio
 async def test_server_reachability(monkeypatch):
     """
     Check that we can reach the server.
