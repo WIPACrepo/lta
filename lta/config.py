@@ -2,9 +2,8 @@
 
 import os
 
-NA = (0,) # use a tuple so 'is' operator works correctly
-
 def from_environment(keys):
+    NA = (0,) # use a tuple so 'is' operator works correctly
     if isinstance(keys, str):
         keys = {keys: NA}
     elif isinstance(keys, list):
