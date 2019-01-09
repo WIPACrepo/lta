@@ -5,6 +5,7 @@ Run with `python -m lta.rest_server`.
 """
 
 import logging
+from functools import wraps
 
 from tornado.ioloop import IOLoop
 
@@ -47,7 +48,7 @@ def lta_auth(**_auth):
             if roles and auth_role in roles:
                 authorized = True
             else:
-                logging.info('roles: %r    attrs: %r', roles, attrs)
+                logging.info('roles: %r', roles)
                 logging.info('token_role: %r', auth_role)
                 logging.info('role mismatch')
 
