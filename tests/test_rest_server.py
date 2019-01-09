@@ -1,4 +1,4 @@
-
+import asyncio
 import pytest
 
 from lta.rest_server import start
@@ -19,6 +19,7 @@ async def test_server_reachability(monkeypatch):
     monkeypatch.setenv("LTA_REST_PORT", "8080")
     s = start()
     r = AsyncSession()
-    req = await r.get('http://localhost:8080/')
+    req = await asyncio.wrap_future(r.get('http://localhost:8080/'))
     req.raise_for_status()
+    assert req.text == '{}'
     s.stop()
