@@ -18,7 +18,7 @@ def doCleanTask():
 
 def doCoverageTask():
     doCleanTask()
-    subprocess.run(["pytest", "--cov=lta", "--cov-report=html", "--no-cov-on-fail", "--cov-branch", "tests"])
+    subprocess.run(["pytest", "--cov=lta", "--cov-config=.coveragerc", "--cov-report=html", "--no-cov-on-fail", "tests"])
     webbrowser.open_new_tab("htmlcov/index.html")
 
 
