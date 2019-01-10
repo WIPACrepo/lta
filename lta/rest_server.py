@@ -7,6 +7,7 @@ Run with `python -m lta.rest_server`.
 import logging
 from functools import wraps
 
+import tornado.web
 from tornado.ioloop import IOLoop
 
 from rest_tools.client import json_decode
