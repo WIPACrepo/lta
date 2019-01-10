@@ -1,9 +1,20 @@
 # config.py
 
+from typing import Dict
 import os
+from typing import Sequence
+from typing import Tuple
+from typing import Union
 
-def from_environment(keys):
-    NA = (0,) # use a tuple so 'is' operator works correctly
+# we use a Tuple as a pseudo-None, so instead of Optional[str]...
+NotQuiteOptional = Union[str, Tuple[int]]
+NotQuiteOptionalDict = Dict[str, NotQuiteOptional]
+# all the different ways we can request environment variable substitution
+KeySpec = Union[str, Sequence[str], NotQuiteOptionalDict]
+
+
+def from_environment(keys: KeySpec) -> NotQuiteOptionalDict:
+    NA = (0,)  # use a tuple so 'is' operator works correctly
     if isinstance(keys, str):
         keys = {keys: NA}
     elif isinstance(keys, list):

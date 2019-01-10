@@ -1,13 +1,30 @@
 # test_picker.py
 
+import asyncio
+from unittest.mock import call
 from concurrent.futures import Future
 import logging
+from unittest.mock import MagicMock
+from lta.picker import main
 from lta.picker import patch_status_heartbeat
 from lta.picker import Picker
 import pytest
 import requests
+from lta.picker import status_loop
+from lta.picker import work_loop
 
 null_logger = logging.getLogger("just_testing")
+
+
+class AsyncMock(MagicMock):
+    """
+    AsyncMock allows us to mock asynchronous callables. The async
+    version of a MagicMock.
+
+    Source: https://stackoverflow.com/a/32498408
+    """
+    async def __call__(self, *args, **kwargs):
+        return super(AsyncMock, self).__call__(*args, **kwargs)
 
 
 class ObjectLiteral:
@@ -289,3 +306,119 @@ async def test_patch_status_heartbeat_patch_call_4xx(mocker):
     await patch_status_heartbeat(p)
     assert p.lta_ok is False
     logger_mock.error.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_status_loop(mocker):
+    """
+    Ensure the status loop will loop
+    """
+    # NOTE: The Exception() is a hack to get around the infinite loop in status_loop()
+    patch_mock = mocker.patch("lta.picker.patch_status_heartbeat", new_callable=AsyncMock)
+    patch_mock.side_effect = [True, Exception()]
+
+    sleep_mock = mocker.patch("asyncio.sleep", new_callable=AsyncMock)
+    sleep_mock.side_effect = [None, None]
+
+    logger_mock = mocker.MagicMock()
+    config = {
+        "FILE_CATALOG_REST_URL": "http://localhost/",
+        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "LTA_REST_URL": "http://localhost/",
+        "PICKER_NAME": "picker",
+        "WORK_SLEEP_DURATION_SECONDS": "300"
+    }
+    p = Picker(config, logger_mock)
+    # NOTE: This is a hack to get around the infinite loop in status_loop()
+    try:
+        await status_loop(p)
+        assert False, "This should have exited with an Exception"
+    except Exception:
+        pass
+    patch_mock.assert_called_with(p)
+    sleep_mock.assert_called_with(60)
+
+
+@pytest.mark.asyncio
+async def test_work_loop(mocker):
+    """
+    Ensure the work loop will loop
+    """
+    # NOTE: The Exception() is a hack to get around the infinite loop in work_loop()
+    run_mock = mocker.patch("lta.picker.Picker.run", new_callable=AsyncMock)
+    run_mock.side_effect = [None, Exception()]
+
+    sleep_mock = mocker.patch("asyncio.sleep", new_callable=AsyncMock)
+    sleep_mock.side_effect = [None, None]
+
+    logger_mock = mocker.MagicMock()
+    config = {
+        "FILE_CATALOG_REST_URL": "http://localhost/",
+        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "LTA_REST_URL": "http://localhost/",
+        "PICKER_NAME": "picker",
+        "WORK_SLEEP_DURATION_SECONDS": "300"
+    }
+    p = Picker(config, logger_mock)
+    # NOTE: This is a hack to get around the infinite loop in work_loop()
+    try:
+        await work_loop(p)
+        assert False, "This should have exited with an Exception"
+    except Exception:
+        pass
+    run_mock.assert_called()
+    sleep_mock.assert_called_with(300)
+
+
+@pytest.mark.asyncio
+async def test_script_main(mocker, monkeypatch):
+    """
+    Test to make sure running the Picker as a script does the setup work
+    that we expect and then launches the picker service.
+    """
+    config = {
+        "FILE_CATALOG_REST_URL": "http://localhost/",
+        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "LTA_REST_URL": "http://localhost/",
+        "PICKER_NAME": "picker",
+        "WORK_SLEEP_DURATION_SECONDS": "300"
+    }
+    for key in config.keys():
+        monkeypatch.setenv(key, config[key])
+    mock_event_loop = mocker.patch("asyncio.get_event_loop")
+    mock_root_logger = mocker.patch("logging.getLogger")
+    mock_status_loop = mocker.patch("lta.picker.status_loop")
+    mock_work_loop = mocker.patch("lta.picker.work_loop")
+    main()
+    mock_event_loop.assert_called()
+    mock_root_logger.assert_called()
+    mock_status_loop.assert_called()
+    mock_work_loop.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_picker_run(mocker):
+    """
+    Test to make sure the Picker does the work the picker should do.
+    """
+    logger_mock = mocker.MagicMock()
+    config = {
+        "FILE_CATALOG_REST_URL": "http://localhost/fc/api",
+        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "LTA_REST_URL": "http://localhost/lta/api",
+        "PICKER_NAME": "testing-muh-picker",
+        "WORK_SLEEP_DURATION_SECONDS": "300"
+    }
+    p = Picker(config, logger_mock)
+    await p.run()
+    EXPECTED_LOGGER_CALLS = [
+        call("Picker 'testing-muh-picker' is configured:"),
+        call('FILE_CATALOG_REST_URL = http://localhost/fc/api'),
+        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 60'),
+        call('LTA_REST_URL = http://localhost/lta/api'),
+        call('PICKER_NAME = testing-muh-picker'),
+        call('WORK_SLEEP_DURATION_SECONDS = 300'),
+        call('Starting picker work cycle'),
+        call('Ending picker work cycle')
+    ]
+    logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)

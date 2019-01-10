@@ -1,5 +1,5 @@
 # square.py
 
 
-def square(x):
+def square(x: float) -> float:
     return x * x
