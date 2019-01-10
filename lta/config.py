@@ -4,7 +4,7 @@ from typing import Dict
 from typing import Optional
 import os
 from typing import Sequence
-from typing import Union
+from typing import Dict, Optional, Sequence, Union
 
 OptionalDict = Dict[str, Optional[str]]
 KeySpec = Union[str, Sequence[str], OptionalDict]
