@@ -1,6 +1,5 @@
 # test_picker.py
 
-import asyncio
 from unittest.mock import call
 from concurrent.futures import Future
 import logging
@@ -38,35 +37,35 @@ class ObjectLiteral:
         self.__dict__.update(kwds)
 
 
-@pytest.mark.xfail(raises=TypeError, strict=True)
 def test_constructor_missing_config():
     """
     Fail with a TypeError if a configuration object isn't provided.
     """
-    Picker()
+    with pytest.raises(TypeError):
+        Picker()
 
 
-@pytest.mark.xfail(raises=TypeError, strict=True)
 def test_constructor_missing_logging():
     """
     Fail with a TypeError if a logging object isn't provided.
     """
-    config = {
-        "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
-    }
-    Picker(config)
+    with pytest.raises(TypeError):
+        config = {
+            "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
+        }
+        Picker(config)
 
 
-@pytest.mark.xfail(raises=ValueError, strict=True)
 def test_constructor_config_missing_values():
     """
     Fail with a ValueError if the configuration object is missing required
     configuration variables.
     """
-    config = {
-        "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
-    }
-    Picker(config, null_logger)
+    with pytest.raises(ValueError):
+        config = {
+            "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
+        }
+        Picker(config, null_logger)
 
 
 def test_constructor_config():

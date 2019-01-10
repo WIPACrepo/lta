@@ -1,30 +1,26 @@
 # config.py
 
 from typing import Dict
+from typing import Optional
 import os
 from typing import Sequence
-from typing import Tuple
 from typing import Union
 
-# we use a Tuple as a pseudo-None, so instead of Optional[str]...
-NotQuiteOptional = Union[str, Tuple[int]]
-NotQuiteOptionalDict = Dict[str, NotQuiteOptional]
-# all the different ways we can request environment variable substitution
-KeySpec = Union[str, Sequence[str], NotQuiteOptionalDict]
+OptionalDict = Dict[str, Optional[str]]
+KeySpec = Union[str, Sequence[str], OptionalDict]
 
 
-def from_environment(keys: KeySpec) -> NotQuiteOptionalDict:
-    NA = (0,)  # use a tuple so 'is' operator works correctly
+def from_environment(keys: KeySpec) -> OptionalDict:
     if isinstance(keys, str):
-        keys = {keys: NA}
+        keys = {keys: None}
     elif isinstance(keys, list):
-        keys = dict.fromkeys(keys, NA)
+        keys = dict.fromkeys(keys, None)
     elif not isinstance(keys, dict):
         raise TypeError(f"keys: Expected string, list or dict")
     config = keys.copy()
     for key in config:
         if key in os.environ:
             config[key] = os.environ[key]
-        elif config[key] is NA:
+        elif config[key] is None:
             raise OSError(f"Missing environment variable '{key}'")
     return config
