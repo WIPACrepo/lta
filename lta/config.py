@@ -1,16 +1,13 @@
 # config.py
 
-from typing import Dict
-from typing import Optional
 import os
-from typing import Sequence
-from typing import Dict, Optional, Sequence, Union
+from typing import cast, Dict, Optional, Sequence, Union
 
 OptionalDict = Dict[str, Optional[str]]
 KeySpec = Union[str, Sequence[str], OptionalDict]
 
 
-def from_environment(keys: KeySpec) -> OptionalDict:
+def from_environment(keys: KeySpec) -> Dict[str, str]:
     if isinstance(keys, str):
         keys = {keys: None}
     elif isinstance(keys, list):
@@ -23,4 +20,4 @@ def from_environment(keys: KeySpec) -> OptionalDict:
             config[key] = os.environ[key]
         elif config[key] is None:
             raise OSError(f"Missing environment variable '{key}'")
-    return config
+    return cast(Dict[str, str], config)

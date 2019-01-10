@@ -1,9 +1,8 @@
 # log_format.py
 
 from datetime import datetime
-from logging import Formatter
 import json
-from logging import LogRecord
+from logging import Formatter, LogRecord
 from typing import Optional
 
 
@@ -24,8 +23,8 @@ class StructuredFormatter(Formatter):
             'timestamp': datetime.utcnow().isoformat()
         }
         # copy everything provided to us in the LogRecord object
-        for key in record.__dict__:
-            data[key] = record.__dict__[key]
+        for key in vars(record):
+            data[key] = vars(record)[key]
         # add the component type if it was configured
         if self.component_type:
             data['component_type'] = self.component_type
