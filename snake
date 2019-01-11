@@ -29,7 +29,7 @@ def doDistTask():
 
 
 def doLintTask():
-    subprocess.run(["flake8", "lta"])
+    subprocess.run(["flake8", "--ignore", "E302,E305,E501", "lta"])
 
 
 def doRebuildTask():
