@@ -1,4 +1,5 @@
 # picker.py
+"""Module to implement the Picker component of the Long Term Archive."""
 
 import asyncio
 from datetime import datetime
@@ -28,7 +29,22 @@ EXPECTED_STATE = [
 
 
 class Picker:
+    """
+    Picker is a Long Term Archive component.
+
+    A Picker is responsible for choosing the files that need to be bundled
+    and sent to remote archival destinations. It requests work from the
+    LTA REST API and then queries the file catalog to determine which files
+    to add to the LTA REST API.
+    """
+
     def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+        """
+        Create a Picker component.
+
+        config - A dictionary of required configuration values.
+        logger - The object the picker should use for logging.
+        """
         # validate provided configuration
         for name in EXPECTED_CONFIG:
             if name not in config:
@@ -52,6 +68,7 @@ class Picker:
             self.logger.info(f"{name} = {config[name]}")
 
     async def run(self) -> None:
+        """Perform the component's work cycle."""
         self.logger.info("Starting picker work cycle")
         # start the work cycle stopwatch
         self.last_work_begin_timestamp = datetime.utcnow().isoformat()
@@ -76,6 +93,7 @@ class Picker:
 
 
 async def patch_status_heartbeat(picker: Picker) -> bool:
+    """PATCH /status/picker to update LTA with a status heartbeat."""
     picker.logger.info("Sending status heartbeat")
     # determine which resource to PATCH
     status_url = urljoin(picker.lta_rest_url, "/status/picker")
@@ -106,6 +124,7 @@ async def patch_status_heartbeat(picker: Picker) -> bool:
 
 
 async def status_loop(picker: Picker) -> None:
+    """Run status heartbeat updates as an infinite loop."""
     picker.logger.info("Starting status loop")
     while True:
         # PATCH /status/picker
@@ -115,6 +134,7 @@ async def status_loop(picker: Picker) -> None:
 
 
 async def work_loop(picker: Picker) -> None:
+    """Run picker work cycles as an infinite loop."""
     picker.logger.info("Starting work loop")
     while True:
         # Do the work of the picker
@@ -124,6 +144,7 @@ async def work_loop(picker: Picker) -> None:
 
 
 def main() -> None:
+    """Configure a Picker component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
     # configure structured logging for the application

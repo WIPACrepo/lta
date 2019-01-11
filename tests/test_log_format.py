@@ -1,20 +1,26 @@
 # test_log_format.py
+"""Unit tests for lta/log_format.py."""
 
 from lta.log_format import StructuredFormatter
 
 
 class ObjectLiteral:
     """
-    ObjectLiteral is a helper class to define object literals. Useful for
-    creating objects used as return values from a mocked API call.
+    ObjectLiteral transforms named arguments into object attributes.
+
+    This is useful for creating object literals to be used as return
+    values from mocked API calls.
 
     Source: https://stackoverflow.com/a/3335732
     """
+
     def __init__(self, **kwds):
+        """Add attributes to ourself with the provided named arguments."""
         self.__dict__.update(kwds)
 
 
 def test_constructor_default() -> None:
+    """Test that StructuredFormatter can be created without any parameters."""
     sf = StructuredFormatter()
     assert sf.component_type is None
     assert sf.component_name is None
@@ -23,6 +29,7 @@ def test_constructor_default() -> None:
 
 
 def test_constructor_supplied() -> None:
+    """Test that StructuredFormatter can be created with parameters."""
     sf = StructuredFormatter(component_type="Picker", component_name="test-picker", ndjson=False)
     assert sf.component_type == "Picker"
     assert sf.component_name == "test-picker"
@@ -31,6 +38,7 @@ def test_constructor_supplied() -> None:
 
 
 def test_format_default() -> None:
+    """Test that StructuredFormatter (no params) provides proper output."""
     sf = StructuredFormatter()
     log_record = ObjectLiteral(
         name="lta.picker",
@@ -64,6 +72,7 @@ def test_format_default() -> None:
 
 
 def test_format_supplied() -> None:
+    """Test that StructuredFormatter (with params) provides proper output."""
     sf = StructuredFormatter(component_type="Picker", component_name="test-picker", ndjson=False)
     log_record = ObjectLiteral(
         name="lta.picker",
