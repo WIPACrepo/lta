@@ -5,7 +5,7 @@ import pytest
 from lta.square import square
 
 
-@pytest.mark.parameterize("x, expected", [
+@pytest.mark.parametrize("x, expected", [
     pytest.param(-3, 9),
     pytest.param(-2, 4),
     pytest.param(-1, 1),

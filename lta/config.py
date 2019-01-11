@@ -38,7 +38,7 @@ def from_environment(keys: KeySpec) -> Dict[str, str]:
            the values were not defined in the environment, the default values
            from default_config would be returned in config_dict.
 
-           Also note, that is 'REQUIRED_FROM_ENVIRONMENT' is not defined,
+           Also note, that if 'REQUIRED_FROM_ENVIRONMENT' is not defined,
            an OSError will be raised. The sentinel value of None indicates
            that the configuration parameter MUST be sourced from the
            environment.
