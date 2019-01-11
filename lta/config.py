@@ -1,19 +1,23 @@
 # config.py
 
 import os
+from typing import cast, Dict, Optional, Sequence, Union
 
-def from_environment(keys):
-    NA = (0,) # use a tuple so 'is' operator works correctly
+OptionalDict = Dict[str, Optional[str]]
+KeySpec = Union[str, Sequence[str], OptionalDict]
+
+
+def from_environment(keys: KeySpec) -> Dict[str, str]:
     if isinstance(keys, str):
-        keys = {keys: NA}
+        keys = {keys: None}
     elif isinstance(keys, list):
-        keys = dict.fromkeys(keys, NA)
+        keys = dict.fromkeys(keys, None)
     elif not isinstance(keys, dict):
         raise TypeError(f"keys: Expected string, list or dict")
     config = keys.copy()
     for key in config:
         if key in os.environ:
             config[key] = os.environ[key]
-        elif config[key] is NA:
+        elif config[key] is None:
             raise OSError(f"Missing environment variable '{key}'")
-    return config
+    return cast(Dict[str, str], config)
