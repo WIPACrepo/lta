@@ -4,28 +4,28 @@ Long Term Archive REST API server.
 Run with `python -m lta.rest_server`.
 """
 
+import asyncio
 import logging
 from functools import wraps
 from uuid import uuid1
+from typing import Any, Callable
 
-import tornado.web
-from tornado.ioloop import IOLoop
-
-from rest_tools.client import json_decode
-from rest_tools.server import RestServer, RestHandler, RestHandlerSetup, authenticated, catch_error
+import tornado.web  # type: ignore
+from rest_tools.client import json_decode  # type: ignore
+from rest_tools.server import RestServer, RestHandler, RestHandlerSetup, authenticated, catch_error  # type: ignore
 
 from .config import from_environment
 
 
 EXPECTED_CONFIG = {
     'LTA_REST_URL': 'localhost',
-    'LTA_REST_PORT': 8080,
+    'LTA_REST_PORT': '8080',
     'LTA_AUTH_SECRET': 'secret',
     'LTA_AUTH_ISSUER': 'lta',
     'LTA_AUTH_ALGORITHM': 'RS256',
 }
 
-def lta_auth(**_auth):
+def lta_auth(**_auth: Any) -> Callable[..., Any]:
     """
     Handle RBAC authorization for LTA.
 
@@ -40,11 +40,11 @@ def lta_auth(**_auth):
     Raises:
         :py:class:`tornado.web.HTTPError`
     """
-    def make_wrapper(method):
-        @authenticated
-        @catch_error
+    def make_wrapper(method: Callable[..., Any]) -> Any:
+        @authenticated  # type: ignore
+        @catch_error  # type: ignore
         @wraps(method)
-        async def wrapper(self, *args, **kwargs):
+        async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
             roles = _auth.get('roles', [])
 
             authorized = False
@@ -65,24 +65,24 @@ def lta_auth(**_auth):
     return make_wrapper
 
 class BaseLTAHandler(RestHandler):
-    def initialize(self, db, *args, **kwargs):
+    def initialize(self, db: Any, *args: Any, **kwargs: Any) -> None:
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.db = db
 
 class MainHandler(BaseLTAHandler):
-    def get(self):
+    def get(self) -> None:
         self.write({})
 
 class TransferRequestsHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'user', 'system'])
-    async def get(self):
+    async def get(self) -> None:
         ret = {
             'results': list(self.db['TransferRequests'].values()),
         }
         self.write(ret)
 
     @lta_auth(roles=['admin', 'user', 'system'])
-    async def post(self):
+    async def post(self) -> None:
         req = json_decode(self.request.body)
         req['uuid'] = uuid1().hex
         self.db['TransferRequests'][req['uuid']] = req
@@ -91,13 +91,13 @@ class TransferRequestsHandler(BaseLTAHandler):
 
 class TransferRequestSingleHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'user', 'system'])
-    async def get(self, request_id):
+    async def get(self, request_id: str) -> None:
         if request_id not in self.db['TransferRequests']:
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(self.db['TransferRequests'][request_id])
 
     @lta_auth(roles=['admin', 'user', 'system'])
-    async def patch(self, request_id):
+    async def patch(self, request_id: str) -> None:
         if request_id not in self.db['TransferRequests']:
             raise tornado.web.HTTPError(404, reason="not found")
         req = json_decode(self.request.body)
@@ -107,20 +107,20 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         self.write({})
 
     @lta_auth(roles=['admin', 'user', 'system'])
-    async def delete(self, request_id):
+    async def delete(self, request_id: str) -> None:
         if request_id in self.db['TransferRequests']:
             del self.db['TransferRequests'][request_id]
             self.set_status(204)
 
 class TransferRequestActionsPopHandler(BaseLTAHandler):
     @lta_auth(roles=['system'])
-    async def post(self):
+    async def post(self) -> None:
         raise tornado.web.HTTPError(500, reason="not implemented")
         self.write({})
 
-def start(debug=False):
+def start(debug: bool = False) -> RestServer:
     config = from_environment(EXPECTED_CONFIG)
-    logger = logging.getLogger('lta.rest')
+    # logger = logging.getLogger('lta.rest')
 
     args = RestHandlerSetup({
         'auth': {
@@ -143,7 +143,11 @@ def start(debug=False):
                    port=int(config['LTA_REST_PORT']))
     return server
 
-if __name__ == '__main__':
+def main() -> None:
     logging.basicConfig(level=logging.DEBUG)
     start(debug=True)
-    IOLoop.current().start()
+    loop = asyncio.get_event_loop()
+    loop.run_forever()
+
+if __name__ == '__main__':
+    main()

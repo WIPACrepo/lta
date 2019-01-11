@@ -1,6 +1,4 @@
-import asyncio
 import pytest
-import logging
 
 from lta.rest_server import start
 from rest_tools.client import RestClient
@@ -14,9 +12,11 @@ async def rest(monkeypatch):
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
     s = start(debug=True)
     a = Auth('secret', issuer='lta', algorithm='HS512')
+
     def client(role='admin'):
-        t = a.create_token('foo', payload={'long-term-archive':{'role':role}})
+        t = a.create_token('foo', payload={'long-term-archive': {'role': role}})
         return RestClient('http://localhost:8080', token=t, timeout=0.1, retries=0)
+
     yield client
     s.stop()
 
@@ -53,12 +53,12 @@ async def test_transfer_request_crud(rest):
     assert ret == {}
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
-    assert ret == None
+    assert ret is None
 
     with pytest.raises(Exception):
         await r.request('GET', f'/TransferRequests/{uuid}')
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
-    assert ret == None
+    assert ret is None
 
     ret = await r.request('GET', '/TransferRequests')
     assert len(ret['results']) == 0
