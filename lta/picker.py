@@ -1,11 +1,15 @@
 # picker.py
+"""Module to implement the Picker component of the Long Term Archive."""
 
 import asyncio
 from datetime import datetime
-from lta.config import from_environment
-from requests_futures.sessions import FuturesSession
-from logging import getLogger
+from typing import Dict
+from .config import from_environment
+from requests_futures.sessions import FuturesSession  # type: ignore
+from logging import Logger
+import logging
 import requests
+from .log_format import StructuredFormatter
 from urllib.parse import urljoin
 
 EXPECTED_CONFIG = [
@@ -25,7 +29,22 @@ EXPECTED_STATE = [
 
 
 class Picker:
-    def __init__(self, config, logger):
+    """
+    Picker is a Long Term Archive component.
+
+    A Picker is responsible for choosing the files that need to be bundled
+    and sent to remote archival destinations. It requests work from the
+    LTA REST API and then queries the file catalog to determine which files
+    to add to the LTA REST API.
+    """
+
+    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+        """
+        Create a Picker component.
+
+        config - A dictionary of required configuration values.
+        logger - The object the picker should use for logging.
+        """
         # validate provided configuration
         for name in EXPECTED_CONFIG:
             if name not in config:
@@ -44,8 +63,13 @@ class Picker:
         self.last_work_begin_timestamp = timestamp
         self.last_work_end_timestamp = timestamp
         self.lta_ok = False
+        self.logger.info(f"Picker '{self.picker_name}' is configured:")
+        for name in EXPECTED_CONFIG:
+            self.logger.info(f"{name} = {config[name]}")
 
-    async def run(self):
+    async def run(self) -> None:
+        """Perform the component's work cycle."""
+        self.logger.info("Starting picker work cycle")
         # start the work cycle stopwatch
         self.last_work_begin_timestamp = datetime.utcnow().isoformat()
         try:
@@ -63,11 +87,14 @@ class Picker:
             self.logger.error(e, exc_info=True)
         # stop the work cycle stopwatch
         self.last_work_end_timestamp = datetime.utcnow().isoformat()
+        self.logger.info("Ending picker work cycle")
 
     # -----------------------------------------------------------------------
 
 
-async def patch_status_heartbeat(picker):
+async def patch_status_heartbeat(picker: Picker) -> bool:
+    """PATCH /status/picker to update LTA with a status heartbeat."""
+    picker.logger.info("Sending status heartbeat")
     # determine which resource to PATCH
     status_url = urljoin(picker.lta_rest_url, "/status/picker")
     # determine the body to PATCH with
@@ -79,6 +106,7 @@ async def patch_status_heartbeat(picker):
     for name in EXPECTED_STATE:
         status_body[picker.picker_name][name] = getattr(picker, name)  # smh; picker[name]
     # attempt to PATCH the status resource
+    picker.logger.info(f"PATCH {status_url} - {status_body}")
     try:
         session = FuturesSession()
         # r = requests.patch(status_url, data=status_body)
@@ -86,7 +114,7 @@ async def patch_status_heartbeat(picker):
         if (r.status_code < 200) or (r.status_code > 299):
             picker.logger.error("Unable to PATCH /status/picker with heartbeat")
             picker.lta_ok = False
-            return
+            return picker.lta_ok
         picker.lta_ok = True
     except requests.exceptions.ConnectionError:
         picker.logger.error("ConnectionError trying to PATCH /status/picker with heartbeat")
@@ -95,8 +123,9 @@ async def patch_status_heartbeat(picker):
     return picker.lta_ok
 
 
-async def picker_status_loop(picker):
-    # until somebody kills this process dead
+async def status_loop(picker: Picker) -> None:
+    """Run status heartbeat updates as an infinite loop."""
+    picker.logger.info("Starting status loop")
     while True:
         # PATCH /status/picker
         await patch_status_heartbeat(picker)
@@ -104,19 +133,40 @@ async def picker_status_loop(picker):
         await asyncio.sleep(picker.heartbeat_sleep_duration_seconds)
 
 
-async def main():
-    # create our Picker service
-    config = from_environment(EXPECTED_CONFIG)
-    logger = getLogger("lta.picker")
-    picker = Picker(config, logger)
-    # start the heartbeat thread
-    asyncio.get_event_loop().call_soon(picker_status_loop, picker)
-    # until somebody kills this process dead
+async def work_loop(picker: Picker) -> None:
+    """Run picker work cycles as an infinite loop."""
+    picker.logger.info("Starting work loop")
     while True:
-        # do our picker work
+        # Do the work of the picker
         await picker.run()
-        # then sleep until we should run again
-        await asyncio.sleep(picker.sleep_duration_seconds)
+        # sleep until we need to work again
+        await asyncio.sleep(picker.work_sleep_duration_seconds)
+
+
+def main() -> None:
+    """Configure a Picker component from the environment and set it running."""
+    # obtain our configuration from the environment
+    config = from_environment(EXPECTED_CONFIG)
+    # configure structured logging for the application
+    structured_formatter = StructuredFormatter(
+        component_type='Picker',
+        component_name=config["PICKER_NAME"],
+        ndjson=False)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(structured_formatter)
+    root_logger = logging.getLogger(None)
+    root_logger.setLevel(logging.NOTSET)
+    root_logger.addHandler(stream_handler)
+    logger = logging.getLogger("lta.picker")
+    # create our Picker service
+    picker = Picker(config, logger)
+    # let's get to work
+    picker.logger.info("Starting asyncio loop")
+    loop = asyncio.get_event_loop()
+    loop.create_task(status_loop(picker))
+    loop.create_task(work_loop(picker))
+    loop.run_forever()
+
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    main()

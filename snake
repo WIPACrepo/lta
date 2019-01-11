@@ -1,11 +1,15 @@
 #!/usr/bin/env python
 
+from typing import Callable
+from typing import Dict
 import subprocess
 import sys
+from typing import Union
 import webbrowser
 
 
-def doCleanTask():
+def doCleanTask() -> None:
+    subprocess.run(["rm", "-fr", ".mypy_cache"])
     subprocess.run(["rm", "-fr", ".pytest_cache"])
     subprocess.run(["rm", "-fr", "build"])
     subprocess.run(["rm", "-fr", "dist"])
@@ -16,31 +20,43 @@ def doCleanTask():
     subprocess.run(["rm", "-fr", ".coverage"])
 
 
-def doCoverageTask():
+def doCoverageTask() -> None:
     doCleanTask()
     subprocess.run(["pytest", "--cov=lta", "--cov-config=.coveragerc", "--cov-report=html", "--no-cov-on-fail", "tests"])
     webbrowser.open_new_tab("htmlcov/index.html")
 
 
-def doDistTask():
+def doDistTask() -> None:
     doCleanTask()
     doRebuildTask()
     subprocess.run(["python", "setup.py", "sdist", "bdist_wheel"])
 
 
-def doLintTask():
-    subprocess.run(["flake8", "--ignore", "E302,E305,E501", "lta"])
+def doLintTask() -> None:
+    flake8_ignore = "E302,E305,E501"
+    subprocess.run(["flake8", "--ignore", flake8_ignore, "tests"])
+    # TODO: Maybe when pytest has a library stub
+    # subprocess.run(["mypy", "--strict", "tests"])
+    subprocess.run(["flake8", "--ignore", flake8_ignore, "lta"])
+    subprocess.run(["mypy", "--strict", "lta"])
 
 
-def doRebuildTask():
+def doRebuildTask() -> None:
     doCleanTask()
     subprocess.run(["pytest", "tests"])
     doLintTask()
 
+
+def doTestTask() -> None:
+    doCleanTask()
+    subprocess.run(["pytest", "tests"])
+
 # ---------------------------------------------------------------------
 
 
-def task(name, description, action):
+def task(name: str,
+         description: str,
+         action: Callable[[], None]) -> None:
     tasks[name] = {
         "name": name,
         "description": description,
@@ -48,7 +64,7 @@ def task(name, description, action):
     }
 
 
-tasks = {}
+tasks: Dict[str, Dict[str, Union[str, Callable[[], None]]]] = {}
 
 if __name__ == "__main__":
     # define tasks
@@ -56,7 +72,8 @@ if __name__ == "__main__":
     task("coverage", "Perform coverage analysis", doCoverageTask)
     task("dist", "Create a distribution tarball and wheel", doDistTask)
     task("lint", "Run static analysis tools", doLintTask)
-    task("rebuild", "Rebuild the module", doRebuildTask)
+    task("rebuild", "Test and lint the module", doRebuildTask)
+    task("test", "Test the module", doTestTask)
 
     # if the user didn't supply a task
     if len(sys.argv) < 2:
@@ -75,4 +92,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # run the task the user supplied
+    # NOTE: mypy doesn't like the fact that we might accidentally try to call
+    #       a string, if such were returned from our Dict
+    #       I'm thinking about refactoring tasks to be tuples; but I'm not
+    #       going to do that right now, just make a note about it
     tasks[sys.argv[1]]["action"]()
