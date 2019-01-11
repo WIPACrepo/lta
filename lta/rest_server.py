@@ -5,6 +5,7 @@ Run with `python -m lta.rest_server`.
 """
 
 import asyncio
+from datetime import datetime, timedelta
 import logging
 from functools import wraps
 from uuid import uuid1
@@ -24,6 +25,10 @@ EXPECTED_CONFIG = {
     'LTA_AUTH_ISSUER': 'lta',
     'LTA_AUTH_ALGORITHM': 'RS256',
 }
+
+def now() -> str:
+    """Return string timestamp for current time, to the second"""
+    return datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
 
 def lta_auth(**_auth: Any) -> Callable[..., Any]:
     """
@@ -84,7 +89,18 @@ class TransferRequestsHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'user', 'system'])
     async def post(self) -> None:
         req = json_decode(self.request.body)
+        if 'source' not in req:
+            raise tornado.web.HTTPError(400, reason="missing source field")
+        if 'dest' not in req:
+            raise tornado.web.HTTPError(400, reason="missing dest field")
+        if not isinstance(req['dest'], list):
+            raise tornado.web.HTTPError(400, reason="dest field is not a list")
+        if not req['dest']:
+            raise tornado.web.HTTPError(400, reason="dest field is empty")
+
         req['uuid'] = uuid1().hex
+        req['claimed'] = False
+        req['claim_time'] = ''
         self.db['TransferRequests'][req['uuid']] = req
         self.set_status(201)
         self.write({'TransferRequest': req['uuid']})
@@ -112,11 +128,32 @@ class TransferRequestSingleHandler(BaseLTAHandler):
             del self.db['TransferRequests'][request_id]
             self.set_status(204)
 
+def old_claim(stamp: str) -> bool:
+    """True if claim is old"""
+    cutoff_time = datetime.utcnow() - timedelta(hours=12)
+    stamp_time = datetime.strptime(stamp, '%Y-%m-%dT%H:%M:%S')
+    return bool(cutoff_time > stamp_time)
+
 class TransferRequestActionsPopHandler(BaseLTAHandler):
     @lta_auth(roles=['system'])
     async def post(self) -> None:
-        raise tornado.web.HTTPError(500, reason="not implemented")
-        self.write({})
+        src = self.get_argument('source')
+        limit = self.get_argument('limit', 10)
+        try:
+            limit = int(limit)
+        except Exception:
+            raise tornado.web.HTTPError(400, reason="limit is not an int")
+        ret = []
+        for req in self.db['TransferRequests'].values():
+            if (req['source'].split(':', 1)[0] == src and
+                    (req['claimed'] is False or old_claim(req['claim_time']))):
+                ret.append(req)
+                req['claimed'] = True
+                req['claim_time'] = now()
+                limit -= 1
+                if limit <= 0:
+                    break
+        self.write({'results': ret})
 
 def start(debug: bool = False) -> RestServer:
     config = from_environment(EXPECTED_CONFIG)

@@ -29,6 +29,36 @@ async def test_server_reachability(rest):
     ret = await r.request('GET', '/')
     assert ret == {}
 
+@pytest.mark.asyncio
+async def test_server_bad_auth(rest):
+    """
+    Check for bad auth role
+    """
+    r = rest('')
+    with pytest.raises(Exception):
+        await r.request('GET', '/TransferRequests')
+
+@pytest.mark.asyncio
+async def test_transfer_request_fail(rest):
+    """
+    Check for bad transfer request handling
+    """
+    r = rest()
+    request = {'dest': ['bar']}
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests', request)
+
+    request = {'source': 'foo'}
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests', request)
+
+    request = {'source': 'foo', 'dest': 'bar'}
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests', request)
+
+    request = {'source': 'foo', 'dest': []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests', request)
 
 @pytest.mark.asyncio
 async def test_transfer_request_crud(rest):
@@ -36,7 +66,7 @@ async def test_transfer_request_crud(rest):
     Check CRUD semantics for transfer requests.
     """
     r = rest()
-    request = {'foo': 'bar'}
+    request = {'source': 'foo', 'dest': ['bar']}
     ret = await r.request('POST', '/TransferRequests', request)
     uuid = ret['TransferRequest']
     assert uuid
@@ -52,6 +82,9 @@ async def test_transfer_request_crud(rest):
     ret = await r.request('PATCH', f'/TransferRequests/{uuid}', request2)
     assert ret == {}
 
+    with pytest.raises(Exception):
+        await r.request('PATCH', f'/TransferRequests/foo', request2)
+
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert ret is None
 
@@ -62,3 +95,41 @@ async def test_transfer_request_crud(rest):
 
     ret = await r.request('GET', '/TransferRequests')
     assert len(ret['results']) == 0
+
+@pytest.mark.asyncio
+async def test_transfer_request_pop(rest):
+    """
+    Check pop action for transfer requests.
+    """
+    r = rest('system')
+    request = {
+        'source': 'WIPAC:/data/exp/foo/bar',
+        'dest': ['NERSC:/tape/icecube/foo/bar'],
+    }
+    ret = await r.request('POST', '/TransferRequests', request)
+    uuid = ret['TransferRequest']
+    assert uuid
+
+    # I'm at NERSC, and should have no work
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=NERSC')
+    assert ret['results'] == []
+
+    # I'm the picker at WIPAC, and should have one work item
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC')
+    assert len(ret['results']) == 1
+    for k in request:
+        assert request[k] == ret['results'][0][k]
+
+    # repeating gets no work
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC')
+    assert ret['results'] == []
+
+    # test limit
+    await r.request('POST', '/TransferRequests', request)
+    await r.request('POST', '/TransferRequests', request)
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC&limit=1')
+    assert len(ret['results']) == 1
+
+    # test non-int limit
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC&limit=foo')
