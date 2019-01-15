@@ -1,5 +1,6 @@
 import asyncio
 import pytest
+from datetime import datetime, timedelta
 
 from lta.rest_server import start
 from rest_tools.client import RestClient
@@ -135,3 +136,39 @@ async def test_transfer_request_pop(rest):
     # test non-int limit
     with pytest.raises(Exception):
         await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC&limit=foo')
+
+@pytest.mark.asyncio
+async def test_status(rest):
+    """
+    Check for status handling
+    """
+    r = rest('system')
+    ret = await r.request('GET', '/status')
+    assert ret['health'] == 'OK'
+
+    request = {'1.1': {'t': datetime.utcnow().isoformat(), 'foo': 'bar'}}
+    await r.request('PATCH', '/status/1', request)
+
+    ret = await r.request('GET', '/status')
+    assert ret['health'] == 'OK'
+    assert ret['1'] == 'OK'
+
+    ret = await r.request('GET', '/status/1')
+    assert ret == request
+
+    with pytest.raises(Exception):
+        await r.request('GET', '/status/2')
+
+    request2 = {'1.2': {'t': datetime.utcnow().isoformat(), 'baz': 2}}
+    await r.request('PATCH', '/status/1', request2)
+    request_all = dict(request)
+    request_all.update(request2)
+    ret = await r.request('GET', '/status/1')
+    assert ret == request_all
+
+    request = {'2.1': {'t': (datetime.utcnow() - timedelta(hours=1)).isoformat(), 'foo': 'bar'}}
+    await r.request('PATCH', '/status/2', request)
+    ret = await r.request('GET', '/status')
+    assert ret['health'] == 'WARN'
+    assert ret['1'] == 'OK'
+    assert ret['2'] == 'WARN'

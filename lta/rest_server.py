@@ -163,6 +163,45 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
                     break
         self.write({'results': ret})
 
+class StatusHandler(BaseLTAHandler):
+    @lta_auth(roles=['admin', 'user', 'system'])
+    async def get(self) -> None:
+        """Get the overall status of the system"""
+        ret = {}
+        health = 'OK'
+        old_data = (datetime.utcnow() - timedelta(seconds=60*5)).isoformat()
+
+        def date_ok(d: str) -> bool:
+            return d > old_data
+
+        for name in self.db['status']:
+            component_health = 'OK'
+            if not any(date_ok(c['t']) for c in self.db['status'][name].values()):
+                component_health = 'WARN'
+                health = 'WARN'
+            ret[name] = component_health
+        ret['health'] = health
+        self.write(ret)
+
+class StatusComponentHandler(BaseLTAHandler):
+    @lta_auth(roles=['admin', 'user', 'system'])
+    async def get(self, component: str) -> None:
+        """Get the detailed status of a component"""
+        if component not in self.db['status']:
+            raise tornado.web.HTTPError(404, reason="not found")
+        self.write(self.db['status'][component])
+
+    @lta_auth(roles=['system'])
+    async def patch(self, component: str) -> None:
+        """Update the detailed status of a component"""
+        req = json_decode(self.request.body)
+        if component in self.db['status']:
+            self.db['status'][component].update(req)
+        else:
+            self.db['status'][component] = req
+        self.write({})
+
+
 def start(debug: bool = False) -> RestServer:
     config = from_environment(EXPECTED_CONFIG)
     # logger = logging.getLogger('lta.rest')
@@ -176,7 +215,7 @@ def start(debug: bool = False) -> RestServer:
         'debug': debug
     })
     # this could be a DB, but a dict works for now
-    args['db'] = {'TransferRequests': {}}
+    args['db'] = {'TransferRequests': {}, 'status': {}}
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
 
     server = RestServer(debug=debug)
@@ -184,6 +223,8 @@ def start(debug: bool = False) -> RestServer:
     server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
+    server.add_route(r'/status', StatusHandler, args)
+    server.add_route(r'/status/(?P<component>\w+)', StatusComponentHandler, args)
 
     server.startup(address=config['LTA_REST_HOST'],
                    port=int(config['LTA_REST_PORT']))
