@@ -33,7 +33,7 @@ def doDistTask() -> None:
 
 
 def doLintTask() -> None:
-    flake8_cmd = ["flake8", "--ignore", "E302,E305,E501,W503,W504"]
+    flake8_cmd = ["flake8"]
     mypy_cmd = ["mypy", "--strict", "--allow-subclassing-any"]
     subprocess.run(flake8_cmd + ["tests"])
     # TODO: Maybe when pytest has a library stub

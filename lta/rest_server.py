@@ -19,16 +19,17 @@ from .config import from_environment
 
 
 EXPECTED_CONFIG = {
-    'LTA_REST_URL': 'localhost',
+    'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
     'LTA_AUTH_SECRET': 'secret',
     'LTA_AUTH_ISSUER': 'lta',
     'LTA_AUTH_ALGORITHM': 'RS256',
+    'LTA_MAX_CLAIM_AGE_HOURS': '12',
 }
 
 def now() -> str:
     """Return string timestamp for current time, to the second"""
-    return datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+    return datetime.utcnow().isoformat(timespec='seconds')
 
 def lta_auth(**_auth: Any) -> Callable[..., Any]:
     """
@@ -69,10 +70,22 @@ def lta_auth(**_auth: Any) -> Callable[..., Any]:
         return wrapper
     return make_wrapper
 
+class CheckClaims:
+    def __init__(self, claim_age: int = 12):
+        self.claim_age = claim_age
+
+    def old_claim(self, stamp: str) -> bool:
+        """True if claim is old"""
+        cutoff_time = datetime.utcnow() - timedelta(hours=self.claim_age)
+        stamp_time = datetime.strptime(stamp, '%Y-%m-%dT%H:%M:%S')
+        return bool(cutoff_time > stamp_time)
+
+
 class BaseLTAHandler(RestHandler):
-    def initialize(self, db: Any, *args: Any, **kwargs: Any) -> None:
+    def initialize(self, db: Any, check_claims: CheckClaims, *args: Any, **kwargs: Any) -> None:
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.db = db
+        self.check_claims = check_claims
 
 class MainHandler(BaseLTAHandler):
     def get(self) -> None:
@@ -128,12 +141,6 @@ class TransferRequestSingleHandler(BaseLTAHandler):
             del self.db['TransferRequests'][request_id]
             self.set_status(204)
 
-def old_claim(stamp: str) -> bool:
-    """True if claim is old"""
-    cutoff_time = datetime.utcnow() - timedelta(hours=12)
-    stamp_time = datetime.strptime(stamp, '%Y-%m-%dT%H:%M:%S')
-    return bool(cutoff_time > stamp_time)
-
 class TransferRequestActionsPopHandler(BaseLTAHandler):
     @lta_auth(roles=['system'])
     async def post(self) -> None:
@@ -146,7 +153,8 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
         ret = []
         for req in self.db['TransferRequests'].values():
             if (req['source'].split(':', 1)[0] == src and
-                    (req['claimed'] is False or old_claim(req['claim_time']))):
+                    (req['claimed'] is False or
+                     self.check_claims.old_claim(req['claim_time']))):
                 ret.append(req)
                 req['claimed'] = True
                 req['claim_time'] = now()
@@ -169,6 +177,7 @@ def start(debug: bool = False) -> RestServer:
     })
     # this could be a DB, but a dict works for now
     args['db'] = {'TransferRequests': {}}
+    args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)
@@ -176,7 +185,7 @@ def start(debug: bool = False) -> RestServer:
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
 
-    server.startup(address=config['LTA_REST_URL'],
+    server.startup(address=config['LTA_REST_HOST'],
                    port=int(config['LTA_REST_PORT']))
     return server
 

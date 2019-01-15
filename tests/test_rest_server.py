@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 
 from lta.rest_server import start
@@ -19,6 +20,7 @@ async def rest(monkeypatch):
 
     yield client
     s.stop()
+    await asyncio.sleep(0.01)
 
 @pytest.mark.asyncio
 async def test_server_reachability(rest):
