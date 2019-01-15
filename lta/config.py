@@ -2,9 +2,9 @@
 """Module to provide configuration support."""
 
 import os
-from typing import cast, Dict, Optional, Sequence, Union
+from typing import cast, Dict, Mapping, Optional, Sequence, Union
 
-OptionalDict = Dict[str, Optional[str]]
+OptionalDict = Mapping[str, Optional[str]]
 KeySpec = Union[str, Sequence[str], OptionalDict]
 
 

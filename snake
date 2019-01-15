@@ -33,11 +33,13 @@ def doDistTask() -> None:
 
 
 def doLintTask() -> None:
-    subprocess.run(["flake8", "tests"])
+    flake8_cmd = ["flake8"]
+    mypy_cmd = ["mypy", "--strict", "--allow-subclassing-any"]
+    subprocess.run(flake8_cmd + ["tests"])
     # TODO: Maybe when pytest has a library stub
-    # subprocess.run(["mypy", "--strict", "tests"])
-    subprocess.run(["flake8", "lta"])
-    subprocess.run(["mypy", "--strict", "lta"])
+    # subprocess.run(mypy_cmd + ["tests"])
+    subprocess.run(flake8_cmd + ["lta"])
+    subprocess.run(mypy_cmd + ["lta"])
 
 
 def doRebuildTask() -> None:
