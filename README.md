@@ -53,3 +53,13 @@ forget to edit the following:
 
     CHANGELOG.md
     lta/__init__.py
+
+### Log Lens
+There is a small helper script `loglens` that can be used to format
+structured log output in a human-readable way; like you might see in a
+traditional log file.
+
+For example, running a Picker and sending its log output through the
+log lens:
+
+    picker.sh | loglens

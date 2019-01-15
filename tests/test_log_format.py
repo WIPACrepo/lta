@@ -19,6 +19,22 @@ class ObjectLiteral:
         self.__dict__.update(kwds)
 
 
+class LiteralRecord(ObjectLiteral):
+    """
+    LiteralRecord is a literal LogRecord.
+
+    This class creates an ObjectLiteral that also implements the (getMessage)
+    method which is often called on LogRecord objects.
+
+    This is useful for creating LogRecord literals to be used as return
+    values from mocked API calls.
+    """
+
+    def getMessage(self):
+        """Format the log message"""
+        return self.msg % self.args
+
+
 def test_constructor_default() -> None:
     """Test that StructuredFormatter can be created without any parameters."""
     sf = StructuredFormatter()
@@ -40,7 +56,7 @@ def test_constructor_supplied() -> None:
 def test_format_default() -> None:
     """Test that StructuredFormatter (no params) provides proper output."""
     sf = StructuredFormatter()
-    log_record = ObjectLiteral(
+    log_record = LiteralRecord(
         name="lta.picker",
         msg="ConnectionError trying to PATCH /status/picker with heartbeat",
         args=[],
@@ -74,7 +90,7 @@ def test_format_default() -> None:
 def test_format_supplied() -> None:
     """Test that StructuredFormatter (with params) provides proper output."""
     sf = StructuredFormatter(component_type="Picker", component_name="test-picker", ndjson=False)
-    log_record = ObjectLiteral(
+    log_record = LiteralRecord(
         name="lta.picker",
         msg="ConnectionError trying to PATCH /status/picker with heartbeat",
         args=[],

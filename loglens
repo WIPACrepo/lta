@@ -1,0 +1,20 @@
+#!/usr/bin/env python
+import json
+import sys
+
+for line in sys.stdin:
+    record = json.loads(line)
+
+    # Output the record as Pretty-Print JSON
+    # print(json.dumps(record, indent=4, separators=(', ', ': ')))
+
+    # Output the record like JADE does
+    # %d [%t] %-5p (%C:%L) - %m%n
+    # 2019-01-15 00:03:48,053 [ConcurrentDownload-0] INFO  (edu.wisc.icecube.jade.process.downloader.ConcurrentDownloader:108) - /mnt/data/jade/download_pending/s333_190113_0020_8d2b5d30-060a-4b7c-9153-162e2c15d417 size 910499840 matches SPTR s333_190113_0020_8d2b5d30-060a-4b7c-9153-162e2c15d417 size 910499840
+    timestamp = record["timestamp"].replace("T", " ").replace(".", ",")[0:23]
+    threadName = record["threadName"]
+    levelname = record["levelname"]
+    filename = record["filename"]
+    lineno = record["lineno"]
+    message = record["message"]
+    print(f"{timestamp:23} [{threadName}] {levelname:5} ({filename}:{lineno}) - {message}")
