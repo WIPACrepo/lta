@@ -4,8 +4,9 @@ import asyncio
 import logging
 import time
 import sys
+from typing import cast, Any, Dict, Mapping
 
-from rest_tools.client import RestClient
+from rest_tools.client import RestClient  # type: ignore
 
 from .config import from_environment
 from .log_format import StructuredFormatter
@@ -29,14 +30,15 @@ class Monitor:
         token (str): token for LTA REST API
         interval (int): time interval between monitoring points
     """
-    def __init__(self, lta_rest_url, lta_rest_token, monitoring_interval=60, logger=None):
+    def __init__(self, lta_rest_url: str, lta_rest_token: str,
+                 monitoring_interval: str = '60', logger: Any = None) -> None:
         self.logger = logger if logger else logging
         self.interval = int(monitoring_interval)
         self.rest = RestClient(lta_rest_url, lta_rest_token,
                                timeout=self.interval//10, retries=1)
         self.running = True
 
-    async def get_from_rest(self):
+    async def get_from_rest(self) -> Mapping[Any, Any]:
         """
         Get status data from LTA REST API.
 
@@ -44,9 +46,10 @@ class Monitor:
             dict: overall health, and health of each component
         """
         self.logger.info('make REST API /status request')
-        return await self.rest.request('GET', '/status')
+        ret = await self.rest.request('GET', '/status')
+        return cast(Mapping[Any, Any], ret)
 
-    async def do(self):
+    async def do(self) -> None:
         """
         Actually do the monitoring.
 
@@ -54,7 +57,7 @@ class Monitor:
         """
         raise NotImplementedError()
 
-    async def run(self):
+    async def run(self) -> None:
         """Run in a loop, calling `do`."""
         while self.running:
             start = time.time()
@@ -62,33 +65,33 @@ class Monitor:
             sleep_time = max(0.1, self.interval - (time.time() - start))
             await asyncio.sleep(sleep_time)
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop a monitor's `run` loop."""
         self.running = False
 
 MONITOR_NAMES = {}
 
 try:
-    from prometheus_client import start_http_server, Info, Enum
+    from prometheus_client import start_http_server, Enum  # type: ignore
 except ImportError:
     pass
 else:
     class PrometheusMonitor(Monitor):
-        def __init__(self, port=8000, **kwargs):
+        def __init__(self, port: str = '8000', **kwargs: Any) -> None:
             super(PrometheusMonitor, self).__init__(**kwargs)
             start_http_server(int(port))
-            self.state = {}
+            self.state: Dict[str, Any] = {}
 
-        def register_enum(self, name):
+        def register_enum(self, name: str) -> None:
             """Register enum"""
             desc = 'Health of '+name
             if name == 'health':
                 desc = 'Overall LTA health'
-            
+
             self.state[name] = Enum(name, desc,
                                     states=['OK', 'WARN', 'ERROR'])
 
-        async def do(self):
+        async def do(self) -> None:
             self.logger.info('do Prometheus monitor')
             ret = await self.get_from_rest()
             for n in ret:
@@ -99,7 +102,7 @@ else:
     MONITOR_NAMES['PROMETHEUS'] = PrometheusMonitor
 
 
-def check_bool(text):
+def check_bool(text: str) -> bool:
     """Check if a string is bool-like and return that"""
     text = text.lower()
     if text in ('true', 't', '1', 'yes', 'y', 'on'):

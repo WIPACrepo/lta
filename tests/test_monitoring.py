@@ -1,6 +1,5 @@
 import asyncio
 import pytest
-from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 import requests
@@ -59,7 +58,7 @@ async def test_base_run(monitor):
 
     m.interval = 0.1
     await m.run()
-    assert m.running == False
+    assert m.running is False
 
 @pytest.mark.asyncio
 async def test_prometheus(monitor):
@@ -70,9 +69,9 @@ async def test_prometheus(monitor):
     monitor.return_value = {'health': 'OK'}
     await m.do()
 
-    r = requests.request('GET','http://localhost:8888')
+    r = requests.request('GET', 'http://localhost:8888')
     for line in r.text.split('\n'):
-        if line.startswith('health') and line.split('{',1)[0] == 'health':
+        if line.startswith('health') and line.split('{', 1)[0] == 'health':
             if 'health="OK"' in line:
                 assert line.split()[-1] == '1.0'
             elif 'health="WARN"' in line:
@@ -87,7 +86,7 @@ def test_main(monitor, monkeypatch, mocker):
     monkeypatch.setenv("ENABLE_PROMETHEUS", "true")
     monkeypatch.setenv("PROMETHEUS_MONITORING_INTERVAL", "1")
     monkeypatch.setenv("PROMETHEUS_PORT", "23456")
-    
+
     monitor.side_effect = [{'health': 'OK'}, Exception()]
 
     loop = asyncio.get_event_loop()
@@ -95,13 +94,12 @@ def test_main(monitor, monkeypatch, mocker):
 
     lta.monitoring.main()
 
-    r = requests.request('GET','http://localhost:23456')
+    r = requests.request('GET', 'http://localhost:23456')
     for line in r.text.split('\n'):
-        if line.startswith('health') and line.split('{',1)[0] == 'health':
+        if line.startswith('health') and line.split('{', 1)[0] == 'health':
             if 'health="OK"' in line:
                 assert line.split()[-1] == '1.0'
             elif 'health="WARN"' in line:
                 assert line.split()[-1] == '0.0'
             elif 'health="ERROR"' in line:
                 assert line.split()[-1] == '0.0'
-
