@@ -3,14 +3,16 @@
 
 import asyncio
 from datetime import datetime
-from typing import Dict
-from .config import from_environment
-from requests_futures.sessions import FuturesSession  # type: ignore
 from logging import Logger
 import logging
 import requests
-from .log_format import StructuredFormatter
+from requests_futures.sessions import FuturesSession  # type: ignore
+import sys
+from typing import Dict
 from urllib.parse import urljoin
+
+from .config import from_environment
+from .log_format import StructuredFormatter
 
 EXPECTED_CONFIG = [
     "FILE_CATALOG_REST_URL",
@@ -151,8 +153,8 @@ def main() -> None:
     structured_formatter = StructuredFormatter(
         component_type='Picker',
         component_name=config["PICKER_NAME"],
-        ndjson=False)
-    stream_handler = logging.StreamHandler()
+        ndjson=True)
+    stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(structured_formatter)
     root_logger = logging.getLogger(None)
     root_logger.setLevel(logging.NOTSET)

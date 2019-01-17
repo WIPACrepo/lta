@@ -8,7 +8,7 @@ Example code to enable structured logging might look as follows:
         component_type='Transmogrifier',
         component_name='transmog-node-1',
         ndjson=True)
-    stream_handler = logging.StreamHandler()
+    stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(structured_formatter)
     root_logger = logging.getLogger(None)
     root_logger.setLevel(logging.NOTSET)
@@ -59,7 +59,8 @@ class StructuredFormatter(Formatter):
         """
         # ensure our log message has an ISO 8601 timestamp
         data = {
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.utcnow().isoformat(),
+            'message': record.getMessage()
         }
         # copy everything provided to us in the LogRecord object
         for key in vars(record):
