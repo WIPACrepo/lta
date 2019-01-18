@@ -1,6 +1,9 @@
 # test_log_format.py
 """Unit tests for lta/log_format.py."""
 
+import sys
+from requests.exceptions import HTTPError
+
 from lta.log_format import StructuredFormatter
 
 
@@ -31,7 +34,7 @@ class LiteralRecord(ObjectLiteral):
     """
 
     def getMessage(self):
-        """Format the log message"""
+        """Format the log message."""
         return self.msg % self.args
 
 
@@ -119,3 +122,73 @@ def test_format_supplied() -> None:
     assert json_text.find("component_type") != -1
     assert json_text.find("component_name") != -1
     assert json_text.find("timestamp") != -1
+
+
+def test_missing_exc_info() -> None:
+    """Test that StructuredFormatter (no params) provides proper output."""
+    sf = StructuredFormatter()
+    log_record = LiteralRecord(
+        name="lta.picker",
+        msg="ConnectionError trying to PATCH /status/picker with heartbeat",
+        args=[],
+        levelname="ERROR",
+        levelno=40,
+        pathname="/home/pmeade/github/lta/lta/picker.py",
+        filename="picker.py",
+        module="picker",
+        exc_text=None,
+        stack_info=None,
+        lineno=102,
+        funcName="patch_status_heartbeat",
+        created=1547003161.046467,
+        msecs=46.46706581115723,
+        relativeCreated=93.13035011291504,
+        thread=140013641434880,
+        threadName="MainThread",
+        processName="MainProcess",
+        process=8147
+    )
+    json_text = sf.format(log_record)
+    assert json_text.startswith("{")
+    assert json_text.endswith("}")
+    assert json_text.find("\n") == -1
+    assert json_text.find("component_type") == -1
+    assert json_text.find("component_name") == -1
+    assert json_text.find("timestamp") != -1
+
+
+def test_exc_info_tuple() -> None:
+    """Test that StructuredFormatter (no params) provides proper output."""
+    sf = StructuredFormatter()
+    log_record = LiteralRecord(
+        name="lta.picker",
+        msg="ConnectionError trying to PATCH /status/picker with heartbeat",
+        args=[],
+        levelname="ERROR",
+        levelno=40,
+        pathname="/home/pmeade/github/lta/lta/picker.py",
+        filename="picker.py",
+        module="picker",
+        exc_text=None,
+        stack_info=None,
+        lineno=102,
+        funcName="patch_status_heartbeat",
+        created=1547003161.046467,
+        msecs=46.46706581115723,
+        relativeCreated=93.13035011291504,
+        thread=140013641434880,
+        threadName="MainThread",
+        processName="MainProcess",
+        process=8147
+    )
+    try:
+        raise HTTPError("451 Unavailable For Legal Reasons")
+    except HTTPError:
+        log_record.exc_info = sys.exc_info()
+        json_text = sf.format(log_record)
+        assert json_text.startswith("{")
+        assert json_text.endswith("}")
+        assert json_text.find("\n") == -1
+        assert json_text.find("component_type") == -1
+        assert json_text.find("component_name") == -1
+        assert json_text.find("timestamp") != -1

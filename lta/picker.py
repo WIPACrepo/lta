@@ -5,8 +5,8 @@ import asyncio
 from datetime import datetime
 from logging import Logger
 import logging
-import requests
-from requests_futures.sessions import FuturesSession  # type: ignore
+from requests.exceptions import HTTPError
+from rest_tools.client import RestClient  # type: ignore
 import sys
 from typing import Dict
 from urllib.parse import urljoin
@@ -16,7 +16,10 @@ from .log_format import StructuredFormatter
 
 EXPECTED_CONFIG = [
     "FILE_CATALOG_REST_URL",
+    "HEARTBEAT_PATCH_RETRIES",
+    "HEARTBEAT_PATCH_TIMEOUT_SECONDS",
     "HEARTBEAT_SLEEP_DURATION_SECONDS",
+    "LTA_REST_TOKEN",
     "LTA_REST_URL",
     "PICKER_NAME",
     "WORK_SLEEP_DURATION_SECONDS"
@@ -53,10 +56,13 @@ class Picker:
                 raise ValueError(f"Missing expected configuration parameter: '{name}'")
         # assimilate provided configuration
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
-        self.heartbeat_sleep_duration_seconds = int(config["HEARTBEAT_SLEEP_DURATION_SECONDS"])
+        self.heartbeat_patch_retries = int(config["HEARTBEAT_PATCH_RETRIES"])
+        self.heartbeat_patch_timeout_seconds = float(config["HEARTBEAT_PATCH_TIMEOUT_SECONDS"])
+        self.heartbeat_sleep_duration_seconds = float(config["HEARTBEAT_SLEEP_DURATION_SECONDS"])
+        self.lta_rest_token = config["LTA_REST_TOKEN"]
         self.lta_rest_url = config["LTA_REST_URL"]
         self.picker_name = config["PICKER_NAME"]
-        self.work_sleep_duration_seconds = int(config["WORK_SLEEP_DURATION_SECONDS"])
+        self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
         # assimilate provided logger
         self.logger = logger
         # record some default state
@@ -110,16 +116,18 @@ async def patch_status_heartbeat(picker: Picker) -> bool:
     # attempt to PATCH the status resource
     picker.logger.info(f"PATCH {status_url} - {status_body}")
     try:
-        session = FuturesSession()
-        # r = requests.patch(status_url, data=status_body)
-        r = await asyncio.wrap_future(session.patch(status_url, data=status_body))
-        if (r.status_code < 200) or (r.status_code > 299):
-            picker.logger.error("Unable to PATCH /status/picker with heartbeat")
-            picker.lta_ok = False
-            return picker.lta_ok
+        # TODO: Will probably refactor this into some function -- get a configured RestClient
+        rc = RestClient(picker.lta_rest_url,
+                        token=picker.lta_rest_token,
+                        timeout=picker.heartbeat_patch_timeout_seconds,
+                        retries=picker.heartbeat_patch_retries)
+        # Use the RestClient to PATCH our heartbeat to the LTA REST DB
+        await rc.request('PATCH', "/status/picker", status_body)
         picker.lta_ok = True
-    except requests.exceptions.ConnectionError:
-        picker.logger.error("ConnectionError trying to PATCH /status/picker with heartbeat")
+    except HTTPError as e:
+        # if there was a problem, yo I'll solve it
+        picker.logger.error("Error trying to PATCH /status/picker with heartbeat")
+        picker.logger.error(f"Error was: '{e}'")
         picker.lta_ok = False
     # indicate to the caller if the heartbeat was successful
     return picker.lta_ok

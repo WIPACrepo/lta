@@ -1,17 +1,13 @@
 # test_picker.py
 """Unit tests for lta/picker.py."""
 
-from unittest.mock import call
-from concurrent.futures import Future
+from asyncio import Future
+from unittest.mock import call, MagicMock
 import logging
-from unittest.mock import MagicMock
-from lta.picker import main
-from lta.picker import patch_status_heartbeat
-from lta.picker import Picker
 import pytest
 import requests
-from lta.picker import status_loop
-from lta.picker import work_loop
+
+from lta.picker import main, patch_status_heartbeat, Picker, status_loop, work_loop
 
 null_logger = logging.getLogger("just_testing")
 
@@ -46,6 +42,21 @@ class ObjectLiteral:
         self.__dict__.update(kwds)
 
 
+@pytest.fixture
+def config():
+    """Supply a stock Picker component configuration."""
+    return {
+        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
+        "HEARTBEAT_PATCH_RETRIES": "3",
+        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
+        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "LTA_REST_TOKEN": "fake-lta-rest-token",
+        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "PICKER_NAME": "testing-picker",
+        "WORK_SLEEP_DURATION_SECONDS": "60"
+    }
+
+
 def test_constructor_missing_config():
     """Fail with a TypeError if a configuration object isn't provided."""
     with pytest.raises(TypeError):
@@ -70,51 +81,30 @@ def test_constructor_config_missing_values():
         Picker(config, null_logger)
 
 
-def test_constructor_config():
+def test_constructor_config(config):
     """Test that a Picker can be constructed with a configuration object and a logging object."""
-    config = {
-        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://59F9jQx9Z2cVQOTuQXnTgigy7Mq9CfvPatLeVjnvN7c.com/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": "60"
-    }
     p = Picker(config, null_logger)
     assert p.file_catalog_rest_url == "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/"
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_url == "http://59F9jQx9Z2cVQOTuQXnTgigy7Mq9CfvPatLeVjnvN7c.com/"
-    assert p.picker_name == "picker"
+    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.picker_name == "testing-picker"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == null_logger
 
 
-def test_constructor_config_sleep_type_int():
+def test_constructor_config_sleep_type_int(config):
     """Ensure that sleep seconds can also be provided as an integer."""
-    config = {
-        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": 60,
-        "LTA_REST_URL": "http://59F9jQx9Z2cVQOTuQXnTgigy7Mq9CfvPatLeVjnvN7c.com/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": 60
-    }
     p = Picker(config, null_logger)
     assert p.file_catalog_rest_url == "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/"
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_url == "http://59F9jQx9Z2cVQOTuQXnTgigy7Mq9CfvPatLeVjnvN7c.com/"
-    assert p.picker_name == "picker"
+    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.picker_name == "testing-picker"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == null_logger
 
 
-def test_constructor_state():
+def test_constructor_state(config):
     """Verify that the Picker has a reasonable state when it is first constructed."""
-    config = {
-        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://59F9jQx9Z2cVQOTuQXnTgigy7Mq9CfvPatLeVjnvN7c.com/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": "60"
-    }
     p = Picker(config, null_logger)
     assert p.file_catalog_ok is False
     assert p.last_work_begin_timestamp is p.last_work_end_timestamp
@@ -122,7 +112,7 @@ def test_constructor_state():
 
 
 @pytest.mark.asyncio
-async def test_patch_status_heartbeat_connection_error(mocker):
+async def test_patch_status_heartbeat_connection_error(config, mocker):
     """
     Verify Picker behavior when status heartbeat patches fail.
 
@@ -130,16 +120,9 @@ async def test_patch_status_heartbeat_connection_error(mocker):
     not OK, and it will log an error, if the PATCH call results in a
     ConnectionError being raised.
     """
-    patch_mock = mocker.patch("requests_futures.sessions.FuturesSession.patch")
-    patch_mock.side_effect = requests.exceptions.ConnectionError
+    patch_mock = mocker.patch("rest_tools.client.RestClient.request")
+    patch_mock.side_effect = requests.exceptions.HTTPError
     logger_mock = mocker.MagicMock()
-    config = {
-        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://59F9jQx9Z2cVQOTuQXnTgigy7Mq9CfvPatLeVjnvN7c.com/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": "60"
-    }
     p = Picker(config, logger_mock)
     assert p.lta_ok is False
     p.lta_ok = True
@@ -150,7 +133,7 @@ async def test_patch_status_heartbeat_connection_error(mocker):
 
 
 @pytest.mark.asyncio
-async def test_patch_status_heartbeat_patch_call(mocker):
+async def test_patch_status_heartbeat_patch_call(config, mocker):
     """
     Verify Picker behavior when status heartbeat patches succeed.
 
@@ -158,55 +141,43 @@ async def test_patch_status_heartbeat_patch_call(mocker):
     route, and on success (200), updates its internal status to say that the
     connection to LTA is OK.
     """
-    patch_mock = mocker.patch("requests_futures.sessions.FuturesSession.patch")
+    patch_mock = mocker.patch("rest_tools.client.RestClient.request")
     patch_mock.return_value = Future()
     patch_mock.return_value.set_result(ObjectLiteral(
         status_code=200
     ))
     logger_mock = mocker.MagicMock()
-    config = {
-        "FILE_CATALOG_REST_URL": "http://localhost/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://localhost/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": "60"
-    }
     p = Picker(config, logger_mock)
     assert p.lta_ok is False
     retVal = await patch_status_heartbeat(p)
     assert p.lta_ok is True
     assert retVal is True
-    patch_mock.assert_called_with("http://localhost/status/picker", data=mocker.ANY)
+    patch_mock.assert_called_with("PATCH", "/status/picker", mocker.ANY)
     logger_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_patch_status_heartbeat_patch_call_data(mocker):
+async def test_patch_status_heartbeat_patch_call_data(config, mocker):
     """
     Verify Picker behavior when status heartbeat patches succeed.
 
     Test that the Picker provides proper status data to the
     PATCH /status/{component} route.
     """
-    patch_mock = mocker.patch("requests_futures.sessions.FuturesSession.patch")
+    patch_mock = mocker.patch("rest_tools.client.RestClient.request")
     patch_mock.return_value = Future()
     patch_mock.return_value.set_result(ObjectLiteral(
         status_code=200
     ))
     logger_mock = mocker.MagicMock()
-    config = {
-        "FILE_CATALOG_REST_URL": "http://localhost/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://localhost/",
-        "PICKER_NAME": "special-picker-name",
-        "WORK_SLEEP_DURATION_SECONDS": "60"
-    }
-    p = Picker(config, logger_mock)
+    picker_config = config.copy()
+    picker_config["PICKER_NAME"] = "special-picker-name"
+    p = Picker(picker_config, logger_mock)
     assert p.lta_ok is False
     retVal = await patch_status_heartbeat(p)
     assert p.lta_ok is True
     assert retVal is True
-    patch_mock.assert_called_with(mocker.ANY, data={
+    patch_mock.assert_called_with(mocker.ANY, mocker.ANY, {
         "special-picker-name": {
             "timestamp": mocker.ANY,
             "file_catalog_ok": False,
@@ -219,71 +190,7 @@ async def test_patch_status_heartbeat_patch_call_data(mocker):
 
 
 @pytest.mark.asyncio
-async def test_patch_status_heartbeat_patch_call_1xx(mocker):
-    """
-    Verify Picker behavior when status heartbeat patches fail.
-
-    The Picker will change state to indicate that its connection to LTA is
-    not OK, and that it will log an error, if the PATCH call results in a
-    1xx series response.
-    """
-    patch_mock = mocker.patch("requests_futures.sessions.FuturesSession.patch")
-    patch_mock.return_value = Future()
-    patch_mock.return_value.set_result(ObjectLiteral(
-        # 103 Early Hints: https://tools.ietf.org/html/rfc8297
-        status_code=103
-    ))
-    logger_mock = mocker.MagicMock()
-    config = {
-        "FILE_CATALOG_REST_URL": "http://localhost/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://localhost/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": "60"
-    }
-    p = Picker(config, logger_mock)
-    assert p.lta_ok is False
-    p.lta_ok = True
-    assert p.lta_ok is True
-    await patch_status_heartbeat(p)
-    assert p.lta_ok is False
-    logger_mock.error.assert_called()
-
-
-@pytest.mark.asyncio
-async def test_patch_status_heartbeat_patch_call_3xx(mocker):
-    """
-    Verify Picker behavior when status heartbeat patches fail.
-
-    The Picker will change state to indicate that its connection to LTA is
-    not OK, and that it will log an error, if the PATCH call results in a
-    3xx series response.
-    """
-    patch_mock = mocker.patch("requests_futures.sessions.FuturesSession.patch")
-    patch_mock.return_value = Future()
-    patch_mock.return_value.set_result(ObjectLiteral(
-        # 304 Not Modified: https://tools.ietf.org/html/rfc7232
-        status_code=304
-    ))
-    logger_mock = mocker.MagicMock()
-    config = {
-        "FILE_CATALOG_REST_URL": "http://localhost/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://localhost/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": "60"
-    }
-    p = Picker(config, logger_mock)
-    assert p.lta_ok is False
-    p.lta_ok = True
-    assert p.lta_ok is True
-    await patch_status_heartbeat(p)
-    assert p.lta_ok is False
-    logger_mock.error.assert_called()
-
-
-@pytest.mark.asyncio
-async def test_patch_status_heartbeat_patch_call_4xx(mocker):
+async def test_patch_status_heartbeat_patch_call_4xx(config, mocker):
     """
     Verify Picker behavior when status heartbeat patches fail.
 
@@ -291,20 +198,9 @@ async def test_patch_status_heartbeat_patch_call_4xx(mocker):
     not OK, and that it will log an error, if the PATCH call results in a
     4xx series response.
     """
-    patch_mock = mocker.patch("requests_futures.sessions.FuturesSession.patch")
-    patch_mock.return_value = Future()
-    patch_mock.return_value.set_result(ObjectLiteral(
-        # 400 Bad Request
-        status_code=400
-    ))
+    patch_mock = mocker.patch("rest_tools.client.RestClient.request")
+    patch_mock.side_effect = requests.exceptions.HTTPError("400 Bad Request")
     logger_mock = mocker.MagicMock()
-    config = {
-        "FILE_CATALOG_REST_URL": "http://localhost/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://localhost/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": "60"
-    }
     p = Picker(config, logger_mock)
     assert p.lta_ok is False
     p.lta_ok = True
@@ -315,7 +211,7 @@ async def test_patch_status_heartbeat_patch_call_4xx(mocker):
 
 
 @pytest.mark.asyncio
-async def test_status_loop(mocker):
+async def test_status_loop(config, mocker):
     """Ensure the status loop will loop."""
     # NOTE: The Exception() is a hack to get around the infinite loop in status_loop()
     patch_mock = mocker.patch("lta.picker.patch_status_heartbeat", new_callable=AsyncMock)
@@ -325,13 +221,6 @@ async def test_status_loop(mocker):
     sleep_mock.side_effect = [None, None]
 
     logger_mock = mocker.MagicMock()
-    config = {
-        "FILE_CATALOG_REST_URL": "http://localhost/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://localhost/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": "300"
-    }
     p = Picker(config, logger_mock)
     # NOTE: This is a hack to get around the infinite loop in status_loop()
     try:
@@ -344,7 +233,7 @@ async def test_status_loop(mocker):
 
 
 @pytest.mark.asyncio
-async def test_work_loop(mocker):
+async def test_work_loop(config, mocker):
     """Ensure the work loop will loop."""
     # NOTE: The Exception() is a hack to get around the infinite loop in work_loop()
     run_mock = mocker.patch("lta.picker.Picker.run", new_callable=AsyncMock)
@@ -354,14 +243,9 @@ async def test_work_loop(mocker):
     sleep_mock.side_effect = [None, None]
 
     logger_mock = mocker.MagicMock()
-    config = {
-        "FILE_CATALOG_REST_URL": "http://localhost/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://localhost/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": "300"
-    }
-    p = Picker(config, logger_mock)
+    picker_config = config.copy()
+    picker_config["WORK_SLEEP_DURATION_SECONDS"] = "300"
+    p = Picker(picker_config, logger_mock)
     # NOTE: This is a hack to get around the infinite loop in work_loop()
     try:
         await work_loop(p)
@@ -373,20 +257,13 @@ async def test_work_loop(mocker):
 
 
 @pytest.mark.asyncio
-async def test_script_main(mocker, monkeypatch):
+async def test_script_main(config, mocker, monkeypatch):
     """
     Verify Picker component behavior when run as a script.
 
     Test to make sure running the Picker as a script does the setup work
     that we expect and then launches the picker service.
     """
-    config = {
-        "FILE_CATALOG_REST_URL": "http://localhost/",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://localhost/",
-        "PICKER_NAME": "picker",
-        "WORK_SLEEP_DURATION_SECONDS": "300"
-    }
     for key in config.keys():
         monkeypatch.setenv(key, config[key])
     mock_event_loop = mocker.patch("asyncio.get_event_loop")
@@ -401,25 +278,23 @@ async def test_script_main(mocker, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_picker_run(mocker):
+async def test_picker_run(config, mocker):
     """Test to make sure the Picker does the work the picker should do."""
     logger_mock = mocker.MagicMock()
-    config = {
-        "FILE_CATALOG_REST_URL": "http://localhost/fc/api",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
-        "LTA_REST_URL": "http://localhost/lta/api",
-        "PICKER_NAME": "testing-muh-picker",
-        "WORK_SLEEP_DURATION_SECONDS": "300"
-    }
+    picker_config = config.copy()
+    config["PICKER_NAME"] = "testing-muh-picker"
     p = Picker(config, logger_mock)
     await p.run()
     EXPECTED_LOGGER_CALLS = [
         call("Picker 'testing-muh-picker' is configured:"),
-        call('FILE_CATALOG_REST_URL = http://localhost/fc/api'),
+        call('FILE_CATALOG_REST_URL = http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
+        call('HEARTBEAT_PATCH_RETRIES = 3'),
+        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 30'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 60'),
-        call('LTA_REST_URL = http://localhost/lta/api'),
+        call('LTA_REST_TOKEN = fake-lta-rest-token'),
+        call('LTA_REST_URL = http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('PICKER_NAME = testing-muh-picker'),
-        call('WORK_SLEEP_DURATION_SECONDS = 300'),
+        call('WORK_SLEEP_DURATION_SECONDS = 60'),
         call('Starting picker work cycle'),
         call('Ending picker work cycle')
     ]
