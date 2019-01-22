@@ -5,7 +5,6 @@ import asyncio
 from datetime import datetime
 from logging import Logger
 import logging
-from requests.exceptions import HTTPError
 from rest_tools.client import RestClient  # type: ignore
 import sys
 from typing import Dict

@@ -282,8 +282,8 @@ async def test_picker_run(config, mocker):
     """Test to make sure the Picker does the work the picker should do."""
     logger_mock = mocker.MagicMock()
     picker_config = config.copy()
-    config["PICKER_NAME"] = "testing-muh-picker"
-    p = Picker(config, logger_mock)
+    picker_config["PICKER_NAME"] = "testing-muh-picker"
+    p = Picker(picker_config, logger_mock)
     await p.run()
     EXPECTED_LOGGER_CALLS = [
         call("Picker 'testing-muh-picker' is configured:"),
