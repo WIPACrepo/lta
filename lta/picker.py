@@ -124,7 +124,7 @@ async def patch_status_heartbeat(picker: Picker) -> bool:
         # Use the RestClient to PATCH our heartbeat to the LTA REST DB
         await rc.request('PATCH', "/status/picker", status_body)
         picker.lta_ok = True
-    except HTTPError as e:
+    except Exception as e:
         # if there was a problem, yo I'll solve it
         picker.logger.error("Error trying to PATCH /status/picker with heartbeat")
         picker.logger.error(f"Error was: '{e}'")
