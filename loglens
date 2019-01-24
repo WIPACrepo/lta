@@ -18,3 +18,8 @@ for line in sys.stdin:
     lineno = record["lineno"]
     message = record["message"]
     print(f"{timestamp:23} [{threadName}] {levelname:5} ({filename}:{lineno}) - {message}")
+    # if there was an exception, print the stack trace too
+    if "exc_info" in record:
+        if record["exc_info"]:
+            for line in record["exc_info"]:
+                print(line)

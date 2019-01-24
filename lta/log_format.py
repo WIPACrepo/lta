@@ -18,8 +18,8 @@ Example code to enable structured logging might look as follows:
 from datetime import datetime
 import json
 from logging import Formatter, LogRecord
-from typing import Optional
-
+import traceback
+from typing import Dict, List, Optional, Union
 
 class StructuredFormatter(Formatter):
     """
@@ -58,13 +58,19 @@ class StructuredFormatter(Formatter):
         pretty-printed block of JSON.
         """
         # ensure our log message has an ISO 8601 timestamp
-        data = {
+        data: Dict[str, Union[str, List[str]]] = {
             'timestamp': datetime.utcnow().isoformat(),
             'message': record.getMessage()
         }
         # copy everything provided to us in the LogRecord object
-        for key in vars(record):
-            data[key] = vars(record)[key]
+        record_dict = vars(record)
+        for key in record_dict:
+            data[key] = record_dict[key]
+        # if the LogRecord contained an Exception Tuple, format it
+        if "exc_info" in record_dict:
+            if record_dict["exc_info"]:
+                exc_type, exc_value, exc_tb = record_dict["exc_info"]
+                data["exc_info"] = traceback.format_exception(exc_type, exc_value, exc_tb)
         # add the component type if it was configured
         if self.component_type:
             data['component_type'] = self.component_type
