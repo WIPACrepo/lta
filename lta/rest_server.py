@@ -87,6 +87,26 @@ class BaseLTAHandler(RestHandler):
         self.db = db
         self.check_claims = check_claims
 
+class FilesActionsBulkCreateHandler(BaseLTAHandler):
+    @lta_auth(roles=['system'])
+    async def post(self) -> None:
+        req = json_decode(self.request.body)
+        if 'files' not in req:
+            raise tornado.web.HTTPError(400, reason="missing files field")
+        if not isinstance(req['files'], list):
+            raise tornado.web.HTTPError(400, reason="files field is not a list")
+        if not req['files']:
+            raise tornado.web.HTTPError(400, reason="files field is empty")
+
+        for xfer_file in req["files"]:
+            xfer_file["uuid"] = uuid1().hex
+            xfer_file["create_timestamp"] = datetime.utcnow().isoformat()
+            self.db['Files'][xfer_file['uuid']] = xfer_file
+
+        uuids = [x["uuid"] for x in req["files"]]
+        self.set_status(201)
+        self.write({'files': uuids})
+
 class MainHandler(BaseLTAHandler):
     def get(self) -> None:
         self.write({})
@@ -215,11 +235,16 @@ def start(debug: bool = False) -> RestServer:
         'debug': debug
     })
     # this could be a DB, but a dict works for now
-    args['db'] = {'TransferRequests': {}, 'status': {}}
+    args['db'] = {
+        'Files': {},
+        'status': {},
+        'TransferRequests': {}
+    }
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)
+    server.add_route(r'/Files/actions/bulk_create', FilesActionsBulkCreateHandler, args)
     server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)

@@ -3,6 +3,7 @@
 
 import asyncio
 from datetime import datetime
+import json
 from logging import Logger
 import logging
 from rest_tools.client import RestClient  # type: ignore
@@ -14,6 +15,7 @@ from .config import from_environment
 from .log_format import StructuredFormatter
 
 EXPECTED_CONFIG = [
+    "FILE_CATALOG_REST_TOKEN",
     "FILE_CATALOG_REST_URL",
     "HEARTBEAT_PATCH_RETRIES",
     "HEARTBEAT_PATCH_TIMEOUT_SECONDS",
@@ -21,7 +23,9 @@ EXPECTED_CONFIG = [
     "LTA_REST_TOKEN",
     "LTA_REST_URL",
     "PICKER_NAME",
-    "WORK_SLEEP_DURATION_SECONDS"
+    "WORK_RETRIES",
+    "WORK_SLEEP_DURATION_SECONDS",
+    "WORK_TIMEOUT_SECONDS"
 ]
 
 EXPECTED_STATE = [
@@ -54,6 +58,7 @@ class Picker:
             if name not in config:
                 raise ValueError(f"Missing expected configuration parameter: '{name}'")
         # assimilate provided configuration
+        self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.heartbeat_patch_retries = int(config["HEARTBEAT_PATCH_RETRIES"])
         self.heartbeat_patch_timeout_seconds = float(config["HEARTBEAT_PATCH_TIMEOUT_SECONDS"])
@@ -61,7 +66,9 @@ class Picker:
         self.lta_rest_token = config["LTA_REST_TOKEN"]
         self.lta_rest_url = config["LTA_REST_URL"]
         self.picker_name = config["PICKER_NAME"]
+        self.work_retries = int(config["WORK_RETRIES"])
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
+        self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         # assimilate provided logger
         self.logger = logger
         # record some default state
@@ -79,24 +86,116 @@ class Picker:
         self.logger.info("Starting picker work cycle")
         # start the work cycle stopwatch
         self.last_work_begin_timestamp = datetime.utcnow().isoformat()
+        # perform the work
         try:
-            # TODO: Some actual work
-            # 1. Ask the REST DB for the next TransferRequest to be picked
-            # 2. Ask the File Catalog about the files indicated by the TransferRequest
-            # 3. Update the REST DB with Files needed for bundling
-            # 4. Return the TransferRequest to the REST DB as picked
-            # 5. Repeat again starting at Step 1
-            pass
-
+            await self._do_work()
+            self.file_catalog_ok = True
+            self.lta_ok = True
         except Exception as e:
             # ut oh, something went wrong; log about it
             self.logger.error("Error occurred during the Picker work cycle")
-            self.logger.error(e, exc_info=True)
+            self.logger.error(f"Error was: '{e}'", exc_info=True)
         # stop the work cycle stopwatch
         self.last_work_end_timestamp = datetime.utcnow().isoformat()
         self.logger.info("Ending picker work cycle")
 
-    # -----------------------------------------------------------------------
+    async def _do_work(self) -> None:
+        # 1. Ask the REST DB for the next TransferRequest to be picked
+        # configure a RestClient to talk to the LTA DB
+        lta_rc = RestClient(self.lta_rest_url,
+                            token=self.lta_rest_token,
+                            timeout=self.work_timeout_seconds,
+                            retries=self.work_retries)
+        self.logger.info("Asking the LTA DB for a TransferRequest to work on.")
+        response = await lta_rc.request('POST', '/TransferRequests/actions/pop?source=WIPAC')
+        self.logger.info(f"LTA DB responded with: {response}")
+        results = response["results"]
+        if len(results) < 1:
+            self.logger.info(f"No TransferRequests are available to work on. Going on vacation.")
+            return
+        self.logger.info(f"There are {len(results)} TransferRequest(s) to work on.")
+        # for each TransferRequest that we were given
+        for tr in results:
+            await self._do_work_transfer_request(lta_rc, tr)
+        # log a friendly message
+        self.logger.info(f'Done working on all TransferRequests.')
+
+    async def _do_work_transfer_request(self, lta_rc, tr) -> None:
+        self.logger.info(f"Processing TransferRequest: {tr}")
+        # configure a RestClient to talk to the File Catalog
+        fc_rc = RestClient(self.file_catalog_rest_url,
+                           token=self.file_catalog_rest_token,
+                           timeout=self.work_timeout_seconds,
+                           retries=self.work_retries)
+        # figure out which files need to go
+        src_split = tr['source'].split(':', 1)
+        src_site = src_split[0]
+        src_path = src_split[1]
+        # figure out where they need to go to
+        dests = []
+        for dst in tr['dest']:
+            dst_split = dst.split(':', 1)
+            dests.append((dst_split[0], dst_split[1]))
+        # query the file catalog for the source files
+        self.logger.info(f"Asking the File Catalog about files in {src_split}:{src_path}")
+        query_dict = {
+            "locations.site": {
+                "$eq": f"{src_site}"
+            },
+            "locations.path": {
+                "$regex": f"^{src_path}"
+            }
+        }
+        query_json = json.dumps(query_dict)
+        fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}')
+        self.logger.info(f'File Catalog returned {len(fc_response["files"])} file(s) to process.')
+        # for each file provided by the catalog
+        bulk_create = []
+        for catalog_file in fc_response["files"]:
+            await self._do_work_catalog_file(lta_rc, tr, fc_rc, dests, catalog_file, bulk_create)
+        # 3. Update the REST DB with Files needed for bundling
+        self.logger.info(f'Identified {len(bulk_create)} transfer(s) to add to the REST DB.')
+        create_body = {
+            "files": bulk_create
+        }
+        await lta_rc.request('POST', '/Files/actions/bulk_create', create_body)
+        # 4. Return the TransferRequest to the REST DB as picked
+        self.logger.info(f'Marking TransferRequest {tr["uuid"]} as complete in the REST DB.')
+        complete = {
+            "complete": {
+                "timestamp": datetime.utcnow().isoformat(),
+                "picker": self.picker_name
+            }
+        }
+        await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', complete)
+        self.logger.info(f'Done working on TransferRequest {tr["uuid"]}.')
+
+    async def _do_work_catalog_file(self, lta_rc, tr, fc_rc, dests, catalog_file, bulk_create) -> None:
+        self.logger.info(f'Processing catalog file: {catalog_file["logical_name"]}')
+        # ask the File Catalog for the full record of the file
+        fc_response2 = await fc_rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
+        # for each destination in the transfer request
+        for dest in dests:
+            # check to see if our full record contains that location
+            already_there = False
+            for loc in fc_response2["locations"]:
+                if (loc["site"] is dest[0]) and (loc["path"] is dest[1]):
+                    already_there = True
+                    break
+            # if the file is already at that destination
+            if already_there:
+                self.logger.info(f'Catalog file {catalog_file["logical_name"]} is already at {dest[0]}:{dest[1]}')
+                # move on to the next destination
+                continue
+            # otherwise, we need to create this File object in the REST DB
+            self.logger.info(f'Adding catalog file {catalog_file["logical_name"]} transfer {tr["source"]} -> {dest[0]}:{dest[1]} to bulk create list.')
+            file_obj = {
+                "source": tr["source"],
+                "dest": f"{dest[0]}:{dest[1]}",
+                "request": tr["uuid"],
+                "catalog": fc_response2
+            }
+            bulk_create.append(file_obj)
 
 
 async def patch_status_heartbeat(picker: Picker) -> bool:
@@ -115,7 +214,6 @@ async def patch_status_heartbeat(picker: Picker) -> bool:
     # attempt to PATCH the status resource
     picker.logger.info(f"PATCH {status_url} - {status_body}")
     try:
-        # TODO: Will probably refactor this into some function -- get a configured RestClient
         rc = RestClient(picker.lta_rest_url,
                         token=picker.lta_rest_token,
                         timeout=picker.heartbeat_patch_timeout_seconds,
@@ -126,7 +224,7 @@ async def patch_status_heartbeat(picker: Picker) -> bool:
     except Exception as e:
         # if there was a problem, yo I'll solve it
         picker.logger.error("Error trying to PATCH /status/picker with heartbeat")
-        picker.logger.error(f"Error was: '{e}'")
+        picker.logger.error(f"Error was: '{e}'", exc_info=True)
         picker.lta_ok = False
     # indicate to the caller if the heartbeat was successful
     return picker.lta_ok
