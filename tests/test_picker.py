@@ -46,6 +46,7 @@ class ObjectLiteral:
 def config():
     """Supply a stock Picker component configuration."""
     return {
+        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
@@ -53,7 +54,9 @@ def config():
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "PICKER_NAME": "testing-picker",
-        "WORK_SLEEP_DURATION_SECONDS": "60"
+        "WORK_RETRIES": "3",
+        "WORK_SLEEP_DURATION_SECONDS": "60",
+        "WORK_TIMEOUT_SECONDS": "30"
     }
 
 
@@ -287,6 +290,7 @@ async def test_picker_run(config, mocker):
     await p.run()
     EXPECTED_LOGGER_CALLS = [
         call("Picker 'testing-muh-picker' is configured:"),
+        call('FILE_CATALOG_REST_TOKEN = fake-file-catalog-rest-token'),
         call('FILE_CATALOG_REST_URL = http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 3'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 30'),
@@ -294,8 +298,11 @@ async def test_picker_run(config, mocker):
         call('LTA_REST_TOKEN = fake-lta-rest-token'),
         call('LTA_REST_URL = http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('PICKER_NAME = testing-muh-picker'),
+        call('WORK_RETRIES = 3'),
         call('WORK_SLEEP_DURATION_SECONDS = 60'),
+        call('WORK_TIMEOUT_SECONDS = 30'),
         call('Starting picker work cycle'),
+        call('Asking the LTA DB for a TransferRequest to work on.'),
         call('Ending picker work cycle')
     ]
     logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
