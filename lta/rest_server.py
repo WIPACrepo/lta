@@ -100,7 +100,7 @@ class FilesActionsBulkCreateHandler(BaseLTAHandler):
 
         for xfer_file in req["files"]:
             xfer_file["uuid"] = uuid1().hex
-            xfer_file["create_timestamp"] = datetime.utcnow().isoformat()
+            xfer_file["create_timestamp"] = now()
             self.db['Files'][xfer_file['uuid']] = xfer_file
 
         uuids = [x["uuid"] for x in req["files"]]
