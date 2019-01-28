@@ -58,7 +58,7 @@ class Picker:
         logger - The object the picker should use for logging.
         """
         # validate provided configuration
-        for name in EXPECTED_CONFIG.keys():
+        for name in EXPECTED_CONFIG:
             if name not in config:
                 raise ValueError(f"Missing expected configuration parameter: '{name}'")
             if not config[name]:
@@ -84,7 +84,7 @@ class Picker:
         self.last_work_end_timestamp = timestamp
         self.lta_ok = False
         self.logger.info(f"Picker '{self.picker_name}' is configured:")
-        for name in EXPECTED_CONFIG.keys():
+        for name in EXPECTED_CONFIG:
             self.logger.info(f"{name} = {config[name]}")
 
     async def run(self) -> None:
