@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 from logging import Logger
 import logging
+import platform
 from rest_tools.client import RestClient  # type: ignore
 import sys
 from typing import Dict
@@ -14,21 +15,21 @@ from urllib.parse import urljoin
 from .config import from_environment
 from .log_format import StructuredFormatter
 
-EXPECTED_CONFIG = [
-    "FILE_CATALOG_REST_TOKEN",
-    "FILE_CATALOG_REST_URL",
-    "HEARTBEAT_PATCH_RETRIES",
-    "HEARTBEAT_PATCH_TIMEOUT_SECONDS",
-    "HEARTBEAT_SLEEP_DURATION_SECONDS",
-    "LTA_REST_TOKEN",
-    "LTA_REST_URL",
-    "PICKER_NAME",
-    "WORK_RETRIES",
-    "WORK_SLEEP_DURATION_SECONDS",
-    "WORK_TIMEOUT_SECONDS"
-]
+EXPECTED_CONFIG = {
+    "FILE_CATALOG_REST_TOKEN": None,
+    "FILE_CATALOG_REST_URL": None,
+    "HEARTBEAT_PATCH_RETRIES": "3",
+    "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
+    "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+    "LTA_REST_TOKEN": None,
+    "LTA_REST_URL": None,
+    "PICKER_NAME": f"{platform.node()}-picker",
+    "WORK_RETRIES": "3",
+    "WORK_SLEEP_DURATION_SECONDS": "300",
+    "WORK_TIMEOUT_SECONDS": "30"
+}
 
-EXPECTED_STATE = [
+HEARTBEAT_STATE = [
     "file_catalog_ok",
     "last_work_begin_timestamp",
     "last_work_end_timestamp",
@@ -54,7 +55,7 @@ class Picker:
         logger - The object the picker should use for logging.
         """
         # validate provided configuration
-        for name in EXPECTED_CONFIG:
+        for name in EXPECTED_CONFIG.keys():
             if name not in config:
                 raise ValueError(f"Missing expected configuration parameter: '{name}'")
         # assimilate provided configuration
@@ -78,7 +79,7 @@ class Picker:
         self.last_work_end_timestamp = timestamp
         self.lta_ok = False
         self.logger.info(f"Picker '{self.picker_name}' is configured:")
-        for name in EXPECTED_CONFIG:
+        for name in EXPECTED_CONFIG.keys():
             self.logger.info(f"{name} = {config[name]}")
 
     async def run(self) -> None:
@@ -211,7 +212,7 @@ async def patch_status_heartbeat(picker: Picker) -> bool:
             "timestamp": datetime.utcnow().isoformat()
         }
     }
-    for name in EXPECTED_STATE:
+    for name in HEARTBEAT_STATE:
         status_body[picker.picker_name][name] = getattr(picker, name)  # smh; picker[name]
     # attempt to PATCH the status resource
     picker.logger.info(f"PATCH {status_url} - {status_body}")
