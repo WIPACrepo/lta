@@ -9,7 +9,7 @@ import logging
 import platform
 from rest_tools.client import RestClient  # type: ignore
 import sys
-from typing import Dict
+from typing import Any, Dict, List, Union
 from urllib.parse import urljoin
 
 from .config import from_environment
@@ -35,6 +35,9 @@ HEARTBEAT_STATE = [
     "last_work_end_timestamp",
     "lta_ok"
 ]
+
+FileType = Dict[str, Union[str, Dict[Any, Any]]]
+FileList = List[FileType]
 
 
 class Picker:
@@ -154,9 +157,9 @@ class Picker:
         fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}')
         self.logger.info(f'File Catalog returned {len(fc_response["files"])} file(s) to process.')
         # for each file provided by the catalog
-        bulk_create = []
+        bulk_create: FileList = []
         for catalog_file in fc_response["files"]:
-            await self._do_work_catalog_file(lta_rc, tr, fc_rc, dests, catalog_file, bulk_create)
+            bulk_create = bulk_create + await self._do_work_catalog_file(lta_rc, tr, fc_rc, dests, catalog_file)
         # 3. Update the REST DB with Files needed for bundling
         self.logger.info(f'Identified {len(bulk_create)} transfer(s) to add to the REST DB.')
         create_body = {
@@ -175,10 +178,12 @@ class Picker:
         await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', complete)
         self.logger.info(f'Done working on TransferRequest {tr["uuid"]}.')
 
-    async def _do_work_catalog_file(self, lta_rc, tr, fc_rc, dests, catalog_file, bulk_create) -> None:
+    async def _do_work_catalog_file(self, lta_rc, tr, fc_rc, dests, catalog_file) -> FileList:
         self.logger.info(f'Processing catalog file: {catalog_file["logical_name"]}')
         # ask the File Catalog for the full record of the file
         fc_response2 = await fc_rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
+        # create a container to hold our results
+        bulk_create: FileList = []
         # for each destination in the transfer request
         for dest in dests:
             # check to see if our full record contains that location
@@ -201,6 +206,8 @@ class Picker:
                 "catalog": fc_response2
             }
             bulk_create.append(file_obj)
+        # return our list to the caller
+        return bulk_create
 
 
 async def patch_status_heartbeat(picker: Picker) -> bool:
