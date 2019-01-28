@@ -13,7 +13,9 @@ def doCleanTask() -> None:
     subprocess.run(["rm", "-fr", "dist"])
     subprocess.run(["rm", "-fr", "htmlcov"])
     subprocess.run(["find", "lta", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
+    subprocess.run(["find", "lta", "-name", "__init__.pyc", "-exec", "rm", "-fr", "{}", "+"])
     subprocess.run(["rm", "-fr", "lta.egg-info"])
+    subprocess.run(["find", "resources", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
     subprocess.run(["find", "tests", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
     subprocess.run(["rm", "-fr", ".coverage"])
 

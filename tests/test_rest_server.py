@@ -1,6 +1,8 @@
+# test_rest_server.py
+"""Unit tests for lta/rest_server.py."""
+
 import asyncio
 from datetime import datetime, timedelta
-from json.decoder import JSONDecodeError
 import pytest
 from tornado.web import HTTPError
 from unittest.mock import MagicMock
@@ -220,31 +222,31 @@ async def test_script_main(mocker):
 @pytest.mark.asyncio
 async def test_FilesActionsBulkCreateHandler_no_body(mocker, fabch):
     """Send an error if not provided with a POST body in the request."""
-    mock_auth = mocker.patch("rest_tools.server.RestHandler.get_current_user")
+    mocker.patch("rest_tools.server.RestHandler.get_current_user")
     fabch.request = ObjectLiteral(
         # look ma, no "body"!
         connection=MagicMock(),
         method="POST"
     )
-    result = await fabch.post()
+    await fabch.post()
     fabch.send_error.assert_called_with(500, reason='Error in FilesActionsBulkCreateHandler')
 
 @pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_empty_body(mocker,fabch):
+async def test_FilesActionsBulkCreateHandler_empty_body(mocker, fabch):
     """Send an error if provided with an empty POST body in the request."""
-    mock_auth = mocker.patch("rest_tools.server.RestHandler.get_current_user")
+    mocker.patch("rest_tools.server.RestHandler.get_current_user")
     fabch.request = ObjectLiteral(
         body="",
         connection=MagicMock(),
         method="POST"
     )
-    result = await fabch.post()
+    await fabch.post()
     fabch.send_error.assert_called_with(500, reason='Error in FilesActionsBulkCreateHandler')
 
 @pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_body_empty_obj(mocker,fabch):
+async def test_FilesActionsBulkCreateHandler_body_empty_obj(mocker, fabch):
     """Throw an HTTPError if the POST body does not contain a 'files' field."""
-    mock_auth = mocker.patch("rest_tools.server.RestHandler.get_current_user")
+    mocker.patch("rest_tools.server.RestHandler.get_current_user")
     fabch.request = ObjectLiteral(
         body="{}",
         connection=MagicMock(),
@@ -254,9 +256,9 @@ async def test_FilesActionsBulkCreateHandler_body_empty_obj(mocker,fabch):
         await fabch.post()
 
 @pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_body_files_not_list(mocker,fabch):
+async def test_FilesActionsBulkCreateHandler_body_files_not_list(mocker, fabch):
     """Throw an HTTPError if the POST body contains a non-array 'files' field."""
-    mock_auth = mocker.patch("rest_tools.server.RestHandler.get_current_user")
+    mocker.patch("rest_tools.server.RestHandler.get_current_user")
     fabch.request = ObjectLiteral(
         body='''{
             "files": "are like, your opinion, man"
@@ -268,9 +270,9 @@ async def test_FilesActionsBulkCreateHandler_body_files_not_list(mocker,fabch):
         await fabch.post()
 
 @pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_body_files_empty_list(mocker,fabch):
+async def test_FilesActionsBulkCreateHandler_body_files_empty_list(mocker, fabch):
     """Throw an HTTPError if the POST body contains an empty array 'files' field."""
-    mock_auth = mocker.patch("rest_tools.server.RestHandler.get_current_user")
+    mocker.patch("rest_tools.server.RestHandler.get_current_user")
     fabch.request = ObjectLiteral(
         body='''{
             "files": []
@@ -282,9 +284,9 @@ async def test_FilesActionsBulkCreateHandler_body_files_empty_list(mocker,fabch)
         await fabch.post()
 
 @pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_body_files(mocker,fabch):
+async def test_FilesActionsBulkCreateHandler_body_files(mocker, fabch):
     """Process bulk_create 'files' provided in the POST body."""
-    mock_auth = mocker.patch("rest_tools.server.RestHandler.get_current_user")
+    mocker.patch("rest_tools.server.RestHandler.get_current_user")
     fabch.db = {
         "Files": {}
     }
@@ -306,8 +308,8 @@ async def test_FilesActionsBulkCreateHandler_body_files(mocker,fabch):
     )
     fabch.set_status = MagicMock()
     fabch.write = MagicMock()
-    result = await fabch.post()
+    await fabch.post()
     fabch.set_status.assert_called_with(201)
     fabch.write.assert_called_with({
-        "files": [ mocker.ANY, mocker.ANY ]
+        "files": [mocker.ANY, mocker.ANY]
     })

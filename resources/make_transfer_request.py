@@ -8,7 +8,7 @@ import asyncio
 from rest_tools.client import RestClient  # type: ignore
 import sys
 
-from .config import from_environment
+from lta.config import from_environment
 
 EXPECTED_CONFIG = {
     'LTA_REST_TOKEN': None,

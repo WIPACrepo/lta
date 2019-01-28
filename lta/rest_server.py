@@ -88,8 +88,11 @@ class BaseLTAHandler(RestHandler):
         self.check_claims = check_claims
 
 class FilesActionsBulkCreateHandler(BaseLTAHandler):
+    """Handler for /Files/actions/bulk_create."""
+
     @lta_auth(roles=['system'])
     async def post(self) -> None:
+        """Handle POST /Files/actions/bulk_create."""
         req = json_decode(self.request.body)
         if 'files' not in req:
             raise tornado.web.HTTPError(400, reason="missing files field")
