@@ -281,7 +281,7 @@ async def test_script_main(config, mocker, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_picker_run(config, mocker):
+async def xtest_picker_run(config, mocker):
     """Test to make sure the Picker does the work the picker should do."""
     logger_mock = mocker.MagicMock()
     picker_config = config.copy()

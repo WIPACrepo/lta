@@ -108,6 +108,7 @@ class Picker:
                             retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a TransferRequest to work on.")
         response = await lta_rc.request('POST', '/TransferRequests/actions/pop?source=WIPAC')
+        # TODO: Which picker is popping these TransferRequest(s)
         self.logger.info(f"LTA DB responded with: {response}")
         results = response["results"]
         if len(results) < 1:
@@ -161,6 +162,7 @@ class Picker:
         await lta_rc.request('POST', '/Files/actions/bulk_create', create_body)
         # 4. Return the TransferRequest to the REST DB as picked
         self.logger.info(f'Marking TransferRequest {tr["uuid"]} as complete in the REST DB.')
+        # TODO: DELETE the TransferRequest ...
         complete = {
             "complete": {
                 "timestamp": datetime.utcnow().isoformat(),
