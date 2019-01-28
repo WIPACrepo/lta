@@ -159,7 +159,7 @@ class Picker:
         # for each file provided by the catalog
         bulk_create: FileList = []
         for catalog_file in fc_response["files"]:
-            bulk_create = bulk_create + await self._do_work_catalog_file(lta_rc, tr, fc_rc, dests, catalog_file)
+            bulk_create.extend(await self._do_work_catalog_file(lta_rc, tr, fc_rc, dests, catalog_file))
         # 3. Update the REST DB with Files needed for bundling
         self.logger.info(f'Identified {len(bulk_create)} transfer(s) to add to the REST DB.')
         create_body = {
