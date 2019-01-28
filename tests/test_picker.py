@@ -9,8 +9,6 @@ import requests
 
 from lta.picker import main, patch_status_heartbeat, Picker, status_loop, work_loop
 
-null_logger = logging.getLogger("just_testing")
-
 
 class AsyncMock(MagicMock):
     """
@@ -75,40 +73,53 @@ def test_constructor_missing_logging():
         Picker(config)
 
 
-def test_constructor_config_missing_values():
+def test_constructor_config_missing_values(mocker):
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
+    config = {
+        "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
+    }
+    logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
-        config = {
-            "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
-        }
-        Picker(config, null_logger)
+        Picker(config, logger_mock)
 
 
-def test_constructor_config(config):
+def test_constructor_config_poison_values(config, mocker):
+    """Fail with a ValueError if the configuration object is missing required configuration variables."""
+    picker_config = config.copy()
+    picker_config["LTA_REST_URL"] = None
+    logger_mock = mocker.MagicMock()
+    with pytest.raises(ValueError):
+        Picker(picker_config, logger_mock)
+
+
+def test_constructor_config(config, mocker):
     """Test that a Picker can be constructed with a configuration object and a logging object."""
-    p = Picker(config, null_logger)
+    logger_mock = mocker.MagicMock()
+    p = Picker(config, logger_mock)
     assert p.file_catalog_rest_url == "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/"
     assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
     assert p.picker_name == "testing-picker"
     assert p.work_sleep_duration_seconds == 60
-    assert p.logger == null_logger
+    assert p.logger == logger_mock
 
 
-def test_constructor_config_sleep_type_int(config):
+def test_constructor_config_sleep_type_int(config, mocker):
     """Ensure that sleep seconds can also be provided as an integer."""
-    p = Picker(config, null_logger)
+    logger_mock = mocker.MagicMock()
+    p = Picker(config, logger_mock)
     assert p.file_catalog_rest_url == "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/"
     assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
     assert p.picker_name == "testing-picker"
     assert p.work_sleep_duration_seconds == 60
-    assert p.logger == null_logger
+    assert p.logger == logger_mock
 
 
-def test_constructor_state(config):
+def test_constructor_state(config, mocker):
     """Verify that the Picker has a reasonable state when it is first constructed."""
-    p = Picker(config, null_logger)
+    logger_mock = mocker.MagicMock()
+    p = Picker(config, logger_mock)
     assert p.file_catalog_ok is False
     assert p.last_work_begin_timestamp is p.last_work_end_timestamp
     assert p.lta_ok is False

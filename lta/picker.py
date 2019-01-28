@@ -58,6 +58,8 @@ class Picker:
         for name in EXPECTED_CONFIG.keys():
             if name not in config:
                 raise ValueError(f"Missing expected configuration parameter: '{name}'")
+            if not config[name]:
+                raise ValueError(f"Missing expected configuration parameter: '{name}'")
         # assimilate provided configuration
         self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
