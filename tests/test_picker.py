@@ -3,7 +3,6 @@
 
 from asyncio import Future
 from unittest.mock import call, MagicMock
-import logging
 import pytest
 import requests
 

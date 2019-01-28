@@ -9,7 +9,7 @@ import logging
 import platform
 from rest_tools.client import RestClient  # type: ignore
 import sys
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Tuple, Union
 from urllib.parse import urljoin
 
 from .config import from_environment
@@ -36,8 +36,12 @@ HEARTBEAT_STATE = [
     "lta_ok"
 ]
 
+CatalogFileType = Dict[str, Any]
+DestType = Tuple[str, str]
+DestList = List[DestType]
 FileType = Dict[str, Union[str, Dict[Any, Any]]]
 FileList = List[FileType]
+TransferRequestType = Dict[str, Any]
 
 
 class Picker:
@@ -127,7 +131,9 @@ class Picker:
         # log a friendly message
         self.logger.info(f'Done working on all TransferRequests.')
 
-    async def _do_work_transfer_request(self, lta_rc, tr) -> None:
+    async def _do_work_transfer_request(self,
+                                        lta_rc: RestClient,
+                                        tr: TransferRequestType) -> None:
         self.logger.info(f"Processing TransferRequest: {tr}")
         # configure a RestClient to talk to the File Catalog
         fc_rc = RestClient(self.file_catalog_rest_url,
@@ -139,7 +145,7 @@ class Picker:
         src_site = src_split[0]
         src_path = src_split[1]
         # figure out where they need to go to
-        dests = []
+        dests: DestList = []
         for dst in tr['dest']:
             dst_split = dst.split(':', 1)
             dests.append((dst_split[0], dst_split[1]))
@@ -178,7 +184,12 @@ class Picker:
         await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', complete)
         self.logger.info(f'Done working on TransferRequest {tr["uuid"]}.')
 
-    async def _do_work_catalog_file(self, lta_rc, tr, fc_rc, dests, catalog_file) -> FileList:
+    async def _do_work_catalog_file(self,
+                                    lta_rc: RestClient,
+                                    tr: TransferRequestType,
+                                    fc_rc: RestClient,
+                                    dests: DestList,
+                                    catalog_file: CatalogFileType) -> FileList:
         self.logger.info(f'Processing catalog file: {catalog_file["logical_name"]}')
         # ask the File Catalog for the full record of the file
         fc_response2 = await fc_rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
