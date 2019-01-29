@@ -173,12 +173,14 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
             limit = int(limit)
         except Exception:
             raise tornado.web.HTTPError(400, reason="limit is not an int")
+        pop_body = json_decode(self.request.body)
         ret = []
         for req in self.db['TransferRequests'].values():
             if (req['source'].split(':', 1)[0] == src and
                     (req['claimed'] is False or
                      self.check_claims.old_claim(req['claim_time']))):
                 ret.append(req)
+                req['claimant'] = pop_body
                 req['claimed'] = True
                 req['claim_time'] = now()
                 limit -= 1

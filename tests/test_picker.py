@@ -3,8 +3,9 @@
 
 from asyncio import Future
 from unittest.mock import call, MagicMock
-import pytest
+import pytest  # type: ignore
 import requests
+from tornado.web import HTTPError  # type: ignore
 
 from lta.picker import main, patch_status_heartbeat, Picker, status_loop, work_loop
 
@@ -291,28 +292,108 @@ async def test_script_main(config, mocker, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def xtest_picker_run(config, mocker):
-    """Test to make sure the Picker does the work the picker should do."""
+async def test_picker_logs_configuration(mocker):
+    """Test to make sure the Picker logs its configuration."""
     logger_mock = mocker.MagicMock()
-    picker_config = config.copy()
-    picker_config["PICKER_NAME"] = "testing-muh-picker"
+    picker_config = {
+        "FILE_CATALOG_REST_TOKEN": "logme-fake-file-catalog-rest-token",
+        "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
+        "HEARTBEAT_PATCH_RETRIES": "1",
+        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
+        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
+        "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "PICKER_NAME": "logme-testing-picker",
+        "WORK_RETRIES": "5",
+        "WORK_SLEEP_DURATION_SECONDS": "70",
+        "WORK_TIMEOUT_SECONDS": "90"
+    }
     p = Picker(picker_config, logger_mock)
-    await p.run()
     EXPECTED_LOGGER_CALLS = [
-        call("Picker 'testing-muh-picker' is configured:"),
-        call('FILE_CATALOG_REST_TOKEN = fake-file-catalog-rest-token'),
-        call('FILE_CATALOG_REST_URL = http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
-        call('HEARTBEAT_PATCH_RETRIES = 3'),
-        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 30'),
-        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 60'),
-        call('LTA_REST_TOKEN = fake-lta-rest-token'),
-        call('LTA_REST_URL = http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
-        call('PICKER_NAME = testing-muh-picker'),
-        call('WORK_RETRIES = 3'),
-        call('WORK_SLEEP_DURATION_SECONDS = 60'),
-        call('WORK_TIMEOUT_SECONDS = 30'),
-        call('Starting picker work cycle'),
-        call('Asking the LTA DB for a TransferRequest to work on.'),
-        call('Ending picker work cycle')
+        call("Picker 'logme-testing-picker' is configured:"),
+        call('FILE_CATALOG_REST_TOKEN = logme-fake-file-catalog-rest-token'),
+        call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
+        call('HEARTBEAT_PATCH_RETRIES = 1'),
+        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
+        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
+        call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
+        call('PICKER_NAME = logme-testing-picker'),
+        call('WORK_RETRIES = 5'),
+        call('WORK_SLEEP_DURATION_SECONDS = 70'),
+        call('WORK_TIMEOUT_SECONDS = 90')
     ]
     logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
+
+
+@pytest.mark.asyncio
+async def test_picker_run(config, mocker):
+    """Test the Picker does the work the picker should do."""
+    logger_mock = mocker.MagicMock()
+    p = Picker(config, logger_mock)
+    p._do_work = AsyncMock()
+    await p.run()
+    p._do_work.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_picker_run_exception(config, mocker):
+    """Test an error doesn't kill the Picker."""
+    logger_mock = mocker.MagicMock()
+    p = Picker(config, logger_mock)
+    p.last_work_end_timestamp = None
+    p._do_work = AsyncMock()
+    p._do_work.side_effect = [Exception("bad thing happen!")]
+    await p.run()
+    p._do_work.assert_called()
+    assert p.last_work_end_timestamp
+
+
+@pytest.mark.asyncio
+async def test_picker_do_work_pop_exception(config, mocker):
+    """Test that _do_work raises when the RestClient can't pop."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.side_effect = HTTPError(500, "REST DB on fire. Again.")
+    p = Picker(config, logger_mock)
+    with pytest.raises(HTTPError):
+        await p._do_work()
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'picker': 'testing-picker'})
+
+
+@pytest.mark.asyncio
+async def test_picker_do_work_no_results(config, mocker):
+    """Test that _do_work goes on vacation when the REST DB has no work."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "results": []
+    }
+    p = Picker(config, logger_mock)
+    await p._do_work()
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'picker': 'testing-picker'})
+
+
+@pytest.mark.asyncio
+async def test_picker_do_work_yes_results(config, mocker):
+    """Test that _do_work processes each TransferRequest it gets from the REST DB."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "results": [
+            {
+                "one": 1
+            },
+            {
+                "two": 2
+            },
+            {
+                "three": 3
+            }
+        ]
+    }
+    dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
+    p = Picker(config, logger_mock)
+    await p._do_work()
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'picker': 'testing-picker'})
+    dwtr_mock.assert_called_with(mocker.ANY, {"three":3})
