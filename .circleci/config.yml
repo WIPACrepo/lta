@@ -6,8 +6,9 @@ jobs:
         steps:
             - checkout
             - run: ./setupenv.sh
-            - run: . env/bin/activate
-            - run: ./snake rebuild
+            - run: |
+                . env/bin/activate &&
+                ./snake rebuild
 workflows:
     version: 2
     build_and_test:
