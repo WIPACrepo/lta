@@ -3,4 +3,4 @@ unset PYTHONPATH
 virtualenv -p python3 env
 echo "unset PYTHONPATH" >> env/bin/activate
 . env/bin/activate
-pip install requests tornado prometheus_client flake8 flake8-docstrings pytest pytest-mock pytest-cov pytest-asyncio git+https://github.com/WIPACrepo/rest-tools
+pip install requests tornado prometheus_client mypy flake8 flake8-docstrings pytest pytest-mock pytest-cov pytest-asyncio git+https://github.com/WIPACrepo/rest-tools
