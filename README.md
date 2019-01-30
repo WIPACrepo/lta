@@ -1,7 +1,7 @@
 # lta
 Long Term Archive
 
-[![CircleCI](https://circleci.com/gh/WIPACrepo/lta/tree/master.svg?style=svg)](https://circleci.com/gh/WIPACrepo/lta/tree/master)
+[![CircleCI](https://circleci.com/gh/WIPACrepo/lta/tree/master.svg?style=shield)](https://circleci.com/gh/WIPACrepo/lta/tree/master)
 
 ## Development
 
