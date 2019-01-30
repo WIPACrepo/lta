@@ -1,23 +1,15 @@
 version: 2
 jobs:
-    build:
-        docker:
-            - image: circleci/python:3.7.2
-        steps:
-            - checkout
-            - run: ./setupenv.sh
     test:
         docker:
             - image: circleci/python:3.7.2
         steps:
             - checkout
+            - run: ./setupenv.sh
             - run: . env/bin/activate
             - run: ./snake rebuild
 workflows:
     version: 2
     build_and_test:
         jobs:
-            - build
-            - test:
-                requires:
-                    - build
+            - test
