@@ -36,6 +36,7 @@ HEARTBEAT_STATE = [
     "lta_ok"
 ]
 
+# TODO: This list should almost certainly be refactored out into a common types module; FC and LTA DB
 CatalogFileType = Dict[str, Any]
 DestType = Tuple[str, str]
 DestList = List[DestType]
@@ -129,6 +130,12 @@ class Picker:
         self.logger.info(f"There are {len(results)} TransferRequest(s) to work on.")
         # for each TransferRequest that we were given
         for tr in results:
+            # TODO: what do we do with broken transfer requests?
+            # try:
+            #     await self._do_work_transfer_request(lta_rc, tr)
+            # except Exception as e:
+            #     self.logger.error("Unable to process TR {UUID}")
+            #     lta_rc.request('PATCH', '/TransferRequest/{uuid}', {"quarantine": f"exception: {e}"})
             await self._do_work_transfer_request(lta_rc, tr)
         # log a friendly message
         self.logger.info(f'Done working on all TransferRequests.')
@@ -164,6 +171,11 @@ class Picker:
         query_json = json.dumps(query_dict)
         fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}')
         self.logger.info(f'File Catalog returned {len(fc_response["files"])} file(s) to process.')
+        # TODO: If there are no files, that seems like something to alert on
+        # if len(fc_response["files"]) < 1:
+        #     self.alerter.error("TR {UUID} wanted to archive {site}:{path} but the File Catalog reported 0 files!")
+        #     lta_rc.request('PATCH', '/TransferRequest/{uuid}', {"quarantine": "file_catalog_count == 0"})
+        #     return
         # for each file provided by the catalog
         bulk_create: FileList = []
         for catalog_file in fc_response["files"]:
@@ -203,7 +215,7 @@ class Picker:
             # check to see if our full record contains that location
             already_there = False
             for loc in fc_response2["locations"]:
-                if (loc["site"] is dest[0]) and (loc["path"] is dest[1]):
+                if (loc["site"] is dest[0]) and (loc["path"].startswith(dest[1])):
                     already_there = True
                     break
             # if the file is already at that destination

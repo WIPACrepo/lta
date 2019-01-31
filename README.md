@@ -66,7 +66,10 @@ log lens:
 
 ### Local test environment
 A file `local-secret` contains the secret credentials used by the REST DB
-to secure itself. (Note: Bring Your Own Secret (BYOS))
+to secure itself. Note, this is Bring Your Own Secret (BYOS) software, so
+may want to run this command to create a secret:
+
+    dd if=/dev/urandom bs=1 count=64 2>/dev/null | base64 >local-secret
 
 A script `lta-db.sh` is used to start the REST DB service, secured with
 the local secret.
