@@ -43,6 +43,7 @@ async def fabch():
 
 @pytest.fixture
 async def rest(monkeypatch):
+    """Provide RestClient as a test fixture."""
     monkeypatch.setenv("LTA_REST_PORT", "8080")
     monkeypatch.setenv("LTA_AUTH_SECRET", "secret")
     monkeypatch.setenv("LTA_AUTH_ISSUER", "lta")
@@ -60,27 +61,21 @@ async def rest(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_server_reachability(rest):
-    """
-    Check that we can reach the server.
-    """
+    """Check that we can reach the server."""
     r = rest()
     ret = await r.request('GET', '/')
     assert ret == {}
 
 @pytest.mark.asyncio
 async def test_server_bad_auth(rest):
-    """
-    Check for bad auth role
-    """
+    """Check for bad auth role."""
     r = rest('')
     with pytest.raises(Exception):
         await r.request('GET', '/TransferRequests')
 
 @pytest.mark.asyncio
 async def test_transfer_request_fail(rest):
-    """
-    Check for bad transfer request handling
-    """
+    """Check for bad transfer request handling."""
     r = rest()
     request = {'dest': ['bar']}
     with pytest.raises(Exception):
@@ -100,9 +95,7 @@ async def test_transfer_request_fail(rest):
 
 @pytest.mark.asyncio
 async def test_transfer_request_crud(rest):
-    """
-    Check CRUD semantics for transfer requests.
-    """
+    """Check CRUD semantics for transfer requests."""
     r = rest()
     request = {'source': 'foo', 'dest': ['bar']}
     ret = await r.request('POST', '/TransferRequests', request)
@@ -136,9 +129,7 @@ async def test_transfer_request_crud(rest):
 
 @pytest.mark.asyncio
 async def test_transfer_request_pop(rest):
-    """
-    Check pop action for transfer requests.
-    """
+    """Check pop action for transfer requests."""
     r = rest('system')
     request = {
         'source': 'WIPAC:/data/exp/foo/bar',
@@ -174,9 +165,7 @@ async def test_transfer_request_pop(rest):
 
 @pytest.mark.asyncio
 async def test_status(rest):
-    """
-    Check for status handling
-    """
+    """Check for status handling."""
     r = rest('system')
     ret = await r.request('GET', '/status')
     assert ret['health'] == 'OK'
