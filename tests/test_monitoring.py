@@ -1,3 +1,6 @@
+# test_monitoring.py
+"""Unit tests for lta/monitoring.py."""
+
 import asyncio
 import pytest
 from unittest.mock import MagicMock
@@ -23,6 +26,7 @@ class AsyncMock(MagicMock):
 
 @pytest.fixture
 def monitor(monkeypatch, mocker):
+    """Provide a RestClient fixture."""
     monkeypatch.setenv("LTA_REST_URL", "foo")
     monkeypatch.setenv("LTA_REST_TOKEN", "bar")
 
@@ -32,9 +36,7 @@ def monitor(monkeypatch, mocker):
 
 @pytest.mark.asyncio
 async def test_base_init(monitor):
-    """
-    Check basic properties of monitoring, without specifics.
-    """
+    """Check basic properties of monitoring, without specifics."""
     monitor.return_value = {'health': 'OK'}
 
     m = lta.monitoring.Monitor('foo', 'bar')
@@ -50,9 +52,7 @@ async def test_base_init(monitor):
 
 @pytest.mark.asyncio
 async def test_base_run(monitor):
-    """
-    Check the run() method of the base class.
-    """
+    """Check the run() method of the base class."""
     m = lta.monitoring.Monitor('foo', 'bar')
     m.do = AsyncMock(side_effect=m.stop)
 
@@ -62,9 +62,7 @@ async def test_base_run(monitor):
 
 @pytest.mark.asyncio
 async def test_prometheus(monitor):
-    """
-    Check the prometheus class.
-    """
+    """Check the prometheus class."""
     m = lta.monitoring.PrometheusMonitor(port=8888, lta_rest_url='foo', lta_rest_token='bar')
     monitor.return_value = {'health': 'OK'}
     await m.do()
@@ -80,9 +78,7 @@ async def test_prometheus(monitor):
                 assert line.split()[-1] == '0.0'
 
 def test_main(monitor, monkeypatch, mocker):
-    """
-    Check the `main` function.
-    """
+    """Check the `main` function."""
     monkeypatch.setenv("ENABLE_PROMETHEUS", "true")
     monkeypatch.setenv("PROMETHEUS_MONITORING_INTERVAL", "1")
     monkeypatch.setenv("PROMETHEUS_PORT", "23456")

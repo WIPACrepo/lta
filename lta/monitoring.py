@@ -11,32 +11,32 @@ from rest_tools.client import RestClient  # type: ignore
 from .config import from_environment
 from .log_format import StructuredFormatter
 
-EXPECTED_CONFIG = [
-    'LTA_REST_URL',
-    'LTA_REST_TOKEN',
-]
-EXPECTED_CONFIG_DEFAULTS = {
+EXPECTED_CONFIG = {
     'ENABLE_PROMETHEUS': 'false',
+    'LTA_REST_URL': None,
+    'LTA_REST_TOKEN': None,
     'PROMETHEUS_MONITORING_INTERVAL': '60',  # seconds
     'PROMETHEUS_PORT': '8000',
 }
 
 class Monitor:
     """
-    Generic monitor class
+    Generic monitor class.
 
     Args:
         rest_url (str): url to LTA REST API
         token (str): token for LTA REST API
         interval (int): time interval between monitoring points
     """
+
     def __init__(self, lta_rest_url: str, lta_rest_token: str,
                  monitoring_interval: str = '60', logger: Any = None) -> None:
+        """Initialize a Monitor object."""
         self.logger = logger if logger else logging
         self.interval = int(monitoring_interval)
         self.rest = RestClient(lta_rest_url, lta_rest_token,
                                timeout=self.interval//10, retries=1)
-        self.running = True
+        self.running = False
 
     async def get_from_rest(self) -> Mapping[Any, Any]:
         """
@@ -44,6 +44,7 @@ class Monitor:
 
         Returns:
             dict: overall health, and health of each component
+
         """
         self.logger.info('make REST API /status request')
         ret = await self.rest.request('GET', '/status')
@@ -59,6 +60,7 @@ class Monitor:
 
     async def run(self) -> None:
         """Run in a loop, calling `do`."""
+        self.running = True
         while self.running:
             start = time.time()
             await self.do()
@@ -77,13 +79,16 @@ except ImportError:
     pass
 else:
     class PrometheusMonitor(Monitor):
+        """PrometheusMonitor implements monitoring using the Prometheus service."""
+
         def __init__(self, port: str = '8000', **kwargs: Any) -> None:
+            """Initialize a PrometheusMonitor object."""
             super(PrometheusMonitor, self).__init__(**kwargs)
             start_http_server(int(port))
             self.state: Dict[str, Any] = {}
 
         def register_enum(self, name: str) -> None:
-            """Register enum"""
+            """Register enum."""
             desc = 'Health of '+name
             if name == 'health':
                 desc = 'Overall LTA health'
@@ -92,6 +97,7 @@ else:
                                     states=['OK', 'WARN', 'ERROR'])
 
         async def do(self) -> None:
+            """Do the monitoring, Prometheus style."""
             self.logger.info('do Prometheus monitor')
             ret = await self.get_from_rest()
             for n in ret:
@@ -103,7 +109,7 @@ else:
 
 
 def check_bool(text: str) -> bool:
-    """Check if a string is bool-like and return that"""
+    """Check if a string is bool-like and return that."""
     text = text.lower()
     if text in ('true', 't', '1', 'yes', 'y', 'on'):
         return True
@@ -113,7 +119,6 @@ def check_bool(text: str) -> bool:
 def main() -> None:
     """Configure a monitoring component from the environment and set it running."""
     config = from_environment(EXPECTED_CONFIG)
-    config.update(from_environment(EXPECTED_CONFIG_DEFAULTS))
 
     # configure structured logging for the application
     structured_formatter = StructuredFormatter(
