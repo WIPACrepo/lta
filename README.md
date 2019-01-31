@@ -77,7 +77,7 @@ components to authenticate themselves with the REST DB.
 A script `picker.sh` is used to generate a token and start a Picker component
 that interacts with the REST DB.
 
-A script `make-transfer-request.sh` can used to POST a TransferRequest object
+A script `make-transfer-request.sh` can be used to POST a TransferRequest object
 to the REST DB and get the data archival process started. An example of usage
 would be:
 
