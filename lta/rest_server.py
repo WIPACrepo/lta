@@ -87,6 +87,29 @@ class BaseLTAHandler(RestHandler):
         self.db = db
         self.check_claims = check_claims
 
+class FilesActionsBulkCreateHandler(BaseLTAHandler):
+    """Handler for /Files/actions/bulk_create."""
+
+    @lta_auth(roles=['system'])
+    async def post(self) -> None:
+        """Handle POST /Files/actions/bulk_create."""
+        req = json_decode(self.request.body)
+        if 'files' not in req:
+            raise tornado.web.HTTPError(400, reason="missing files field")
+        if not isinstance(req['files'], list):
+            raise tornado.web.HTTPError(400, reason="files field is not a list")
+        if not req['files']:
+            raise tornado.web.HTTPError(400, reason="files field is empty")
+
+        for xfer_file in req["files"]:
+            xfer_file["uuid"] = uuid1().hex
+            xfer_file["create_timestamp"] = now()
+            self.db['Files'][xfer_file['uuid']] = xfer_file
+
+        uuids = [x["uuid"] for x in req["files"]]
+        self.set_status(201)
+        self.write({'files': uuids})
+
 class MainHandler(BaseLTAHandler):
     def get(self) -> None:
         self.write({})
@@ -150,12 +173,14 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
             limit = int(limit)
         except Exception:
             raise tornado.web.HTTPError(400, reason="limit is not an int")
+        pop_body = json_decode(self.request.body)
         ret = []
         for req in self.db['TransferRequests'].values():
             if (req['source'].split(':', 1)[0] == src and
                     (req['claimed'] is False or
                      self.check_claims.old_claim(req['claim_time']))):
                 ret.append(req)
+                req['claimant'] = pop_body
                 req['claimed'] = True
                 req['claim_time'] = now()
                 limit -= 1
@@ -215,11 +240,16 @@ def start(debug: bool = False) -> RestServer:
         'debug': debug
     })
     # this could be a DB, but a dict works for now
-    args['db'] = {'TransferRequests': {}, 'status': {}}
+    args['db'] = {
+        'Files': {},
+        'status': {},
+        'TransferRequests': {}
+    }
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)
+    server.add_route(r'/Files/actions/bulk_create', FilesActionsBulkCreateHandler, args)
     server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
