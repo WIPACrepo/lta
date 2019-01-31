@@ -124,7 +124,7 @@ class Picker:
         response = await lta_rc.request('POST', '/TransferRequests/actions/pop?source=WIPAC', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         results = response["results"]
-        if len(results) < 1:
+        if not results:
             self.logger.info(f"No TransferRequests are available to work on. Going on vacation.")
             return
         self.logger.info(f"There are {len(results)} TransferRequest(s) to work on.")
