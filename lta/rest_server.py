@@ -28,7 +28,7 @@ EXPECTED_CONFIG = {
 }
 
 def now() -> str:
-    """Return string timestamp for current time, to the second"""
+    """Return string timestamp for current time, to the second."""
     return datetime.utcnow().isoformat(timespec='seconds')
 
 def lta_auth(**_auth: Any) -> Callable[..., Any]:
@@ -45,6 +45,7 @@ def lta_auth(**_auth: Any) -> Callable[..., Any]:
 
     Raises:
         :py:class:`tornado.web.HTTPError`
+
     """
     def make_wrapper(method: Callable[..., Any]) -> Any:
         @authenticated  # type: ignore
@@ -71,18 +72,24 @@ def lta_auth(**_auth: Any) -> Callable[..., Any]:
     return make_wrapper
 
 class CheckClaims:
+    """CheckClaims determines if claims are old/expired."""
+
     def __init__(self, claim_age: int = 12):
+        """Intialize a CheckClaims object."""
         self.claim_age = claim_age
 
     def old_claim(self, stamp: str) -> bool:
-        """True if claim is old"""
+        """Determine if a claim is old/expired."""
         cutoff_time = datetime.utcnow() - timedelta(hours=self.claim_age)
         stamp_time = datetime.strptime(stamp, '%Y-%m-%dT%H:%M:%S')
         return bool(cutoff_time > stamp_time)
 
 
 class BaseLTAHandler(RestHandler):
+    """BaseLTAHandler is a RestHandler for all LTA routes."""
+
     def initialize(self, db: Any, check_claims: CheckClaims, *args: Any, **kwargs: Any) -> None:
+        """Initialize a BaseLTAHandler object."""
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.db = db
         self.check_claims = check_claims
@@ -111,12 +118,18 @@ class FilesActionsBulkCreateHandler(BaseLTAHandler):
         self.write({'files': uuids})
 
 class MainHandler(BaseLTAHandler):
+    """MainHandler is a BaseLTAHandler that handles the root route."""
+
     def get(self) -> None:
+        """Handle GET /."""
         self.write({})
 
 class TransferRequestsHandler(BaseLTAHandler):
+    """TransferRequestsHandler is a BaseLTAHandler that handles TransferRequests routes."""
+
     @lta_auth(roles=['admin', 'user', 'system'])
     async def get(self) -> None:
+        """Handle GET /TransferRequests."""
         ret = {
             'results': list(self.db['TransferRequests'].values()),
         }
@@ -124,6 +137,7 @@ class TransferRequestsHandler(BaseLTAHandler):
 
     @lta_auth(roles=['admin', 'user', 'system'])
     async def post(self) -> None:
+        """Handle POST /TransferRequests."""
         req = json_decode(self.request.body)
         if 'source' not in req:
             raise tornado.web.HTTPError(400, reason="missing source field")
@@ -142,14 +156,18 @@ class TransferRequestsHandler(BaseLTAHandler):
         self.write({'TransferRequest': req['uuid']})
 
 class TransferRequestSingleHandler(BaseLTAHandler):
+    """TransferRequestSingleHandler is a BaseLTAHandler that handles routes related to single TransferRequest objects."""
+
     @lta_auth(roles=['admin', 'user', 'system'])
     async def get(self, request_id: str) -> None:
+        """Handle GET /TransferRequests/{uuid}."""
         if request_id not in self.db['TransferRequests']:
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(self.db['TransferRequests'][request_id])
 
     @lta_auth(roles=['admin', 'user', 'system'])
     async def patch(self, request_id: str) -> None:
+        """Handle PATCH /TransferRequests/{uuid}."""
         if request_id not in self.db['TransferRequests']:
             raise tornado.web.HTTPError(404, reason="not found")
         req = json_decode(self.request.body)
@@ -160,13 +178,17 @@ class TransferRequestSingleHandler(BaseLTAHandler):
 
     @lta_auth(roles=['admin', 'user', 'system'])
     async def delete(self, request_id: str) -> None:
+        """Handle DELETE /TransferRequests/{uuid}."""
         if request_id in self.db['TransferRequests']:
             del self.db['TransferRequests'][request_id]
             self.set_status(204)
 
 class TransferRequestActionsPopHandler(BaseLTAHandler):
+    """TransferRequestActionsPopHandler handles /TransferRequests/actions/pop."""
+
     @lta_auth(roles=['system'])
     async def post(self) -> None:
+        """Handle POST /TransferRequests/actions/pop."""
         src = self.get_argument('source')
         limit = self.get_argument('limit', 10)
         try:
@@ -189,9 +211,11 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
         self.write({'results': ret})
 
 class StatusHandler(BaseLTAHandler):
+    """StatusHandler is a BaseLTAHandler that handles system status routes."""
+
     @lta_auth(roles=['admin', 'user', 'system'])
     async def get(self) -> None:
-        """Get the overall status of the system"""
+        """Get the overall status of the system."""
         ret = {}
         health = 'OK'
         old_data = (datetime.utcnow() - timedelta(seconds=60*5)).isoformat()
@@ -209,16 +233,18 @@ class StatusHandler(BaseLTAHandler):
         self.write(ret)
 
 class StatusComponentHandler(BaseLTAHandler):
+    """StatusComponentHandler is a BaseLTAHandler that handles component status routes."""
+
     @lta_auth(roles=['admin', 'user', 'system'])
     async def get(self, component: str) -> None:
-        """Get the detailed status of a component"""
+        """Get the detailed status of a component."""
         if component not in self.db['status']:
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(self.db['status'][component])
 
     @lta_auth(roles=['system'])
     async def patch(self, component: str) -> None:
-        """Update the detailed status of a component"""
+        """Update the detailed status of a component."""
         req = json_decode(self.request.body)
         if component in self.db['status']:
             self.db['status'][component].update(req)
@@ -228,6 +254,7 @@ class StatusComponentHandler(BaseLTAHandler):
 
 
 def start(debug: bool = False) -> RestServer:
+    """Start a LTA REST DB service."""
     config = from_environment(EXPECTED_CONFIG)
     # logger = logging.getLogger('lta.rest')
 
@@ -261,6 +288,7 @@ def start(debug: bool = False) -> RestServer:
     return server
 
 def main() -> None:
+    """Configure logging and start a LTA REST DB service."""
     logging.basicConfig(level=logging.DEBUG)
     start(debug=True)
     loop = asyncio.get_event_loop()
