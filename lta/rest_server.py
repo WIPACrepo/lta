@@ -17,7 +17,6 @@ from rest_tools.server import RestServer, RestHandler, RestHandlerSetup, authent
 
 from .config import from_environment
 
-
 EXPECTED_CONFIG = {
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
@@ -26,6 +25,8 @@ EXPECTED_CONFIG = {
     'LTA_AUTH_ALGORITHM': 'RS256',
     'LTA_MAX_CLAIM_AGE_HOURS': '12',
 }
+
+# -----------------------------------------------------------------------------
 
 def now() -> str:
     """Return string timestamp for current time, to the second."""
@@ -71,6 +72,8 @@ def lta_auth(**_auth: Any) -> Callable[..., Any]:
         return wrapper
     return make_wrapper
 
+# -----------------------------------------------------------------------------
+
 class CheckClaims:
     """CheckClaims determines if claims are old/expired."""
 
@@ -84,6 +87,7 @@ class CheckClaims:
         stamp_time = datetime.strptime(stamp, '%Y-%m-%dT%H:%M:%S')
         return bool(cutoff_time > stamp_time)
 
+# -----------------------------------------------------------------------------
 
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
@@ -93,6 +97,8 @@ class BaseLTAHandler(RestHandler):
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.db = db
         self.check_claims = check_claims
+
+# -----------------------------------------------------------------------------
 
 class FilesActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Files/actions/bulk_create."""
@@ -108,14 +114,143 @@ class FilesActionsBulkCreateHandler(BaseLTAHandler):
         if not req['files']:
             raise tornado.web.HTTPError(400, reason="files field is empty")
 
+        create_count = 0
         for xfer_file in req["files"]:
             xfer_file["uuid"] = uuid1().hex
             xfer_file["create_timestamp"] = now()
+            xfer_file["status"] = "waiting"
             self.db['Files'][xfer_file['uuid']] = xfer_file
+            create_count = create_count + 1
 
         uuids = [x["uuid"] for x in req["files"]]
         self.set_status(201)
-        self.write({'files': uuids})
+        self.write({'files': uuids, 'count': create_count})
+
+class FilesActionsBulkDeleteHandler(BaseLTAHandler):
+    """Handler for /Files/actions/bulk_delete."""
+
+    @lta_auth(roles=['system'])
+    async def post(self) -> None:
+        """Handle POST /Files/actions/bulk_delete."""
+        req = json_decode(self.request.body)
+        if 'files' not in req:
+            raise tornado.web.HTTPError(400, reason="missing files field")
+        if not isinstance(req['files'], list):
+            raise tornado.web.HTTPError(400, reason="files field is not a list")
+        if not req['files']:
+            raise tornado.web.HTTPError(400, reason="files field is empty")
+
+        results = []
+        for uuid in req["files"]:
+            if uuid in self.db['Files']:
+                del self.db['Files'][uuid]
+                results.append(uuid)
+
+        self.set_status(200)
+        self.write({'files': results, 'count': len(results)})
+
+class FilesActionsBulkUpdateHandler(BaseLTAHandler):
+    """Handler for /Files/actions/bulk_update."""
+
+    @lta_auth(roles=['system'])
+    async def post(self) -> None:
+        """Handle POST /Files/actions/bulk_update."""
+        req = json_decode(self.request.body)
+        if 'update' not in req:
+            raise tornado.web.HTTPError(400, reason="missing update field")
+        if not isinstance(req['update'], dict):
+            raise tornado.web.HTTPError(400, reason="update field is not an object")
+        if 'files' not in req:
+            raise tornado.web.HTTPError(400, reason="missing files field")
+        if not isinstance(req['files'], list):
+            raise tornado.web.HTTPError(400, reason="files field is not a list")
+        if not req['files']:
+            raise tornado.web.HTTPError(400, reason="files field is empty")
+
+        print(req["update"])
+        print(req["files"])
+
+        results = []
+        for uuid in req["files"]:
+            if uuid in self.db['Files']:
+                self.db['Files'][uuid].update(req["update"])
+                results.append(uuid)
+
+        self.set_status(200)
+        self.write({'files': results, 'count': len(results)})
+
+class FilesHandler(BaseLTAHandler):
+    """FilesHandler handles collection level routes for Files."""
+
+    @lta_auth(roles=['admin', 'user', 'system'])
+    async def get(self) -> None:
+        """Handle GET /Files."""
+        location = self.get_query_argument("location", default=None)
+        transfer_request_uuid = self.get_query_argument("transfer_request_uuid", default=None)
+        bundle_uuid = self.get_query_argument("bundle_uuid", default=None)
+        status = self.get_query_argument("status", default=None)
+
+        results = []
+        for file_uuid in self.db['Files']:
+            lta_file = self.db['Files'][file_uuid]
+            if location:
+                if lta_file["source"].startswith(location):
+                    results.append(file_uuid)
+                    continue
+            if transfer_request_uuid:
+                if lta_file["request"] is transfer_request_uuid:
+                    results.append(file_uuid)
+                    continue
+            if bundle_uuid:
+                if lta_file["bundle"] is bundle_uuid:
+                    results.append(file_uuid)
+                    continue
+            if status:
+                if lta_file["status"] is status:
+                    results.append(file_uuid)
+                    continue
+            if (location is None) and (transfer_request_uuid is None) and (bundle_uuid is None) and (status is None):
+                results.append(file_uuid)
+
+        ret = {
+            'results': results,
+        }
+        self.set_status(200)
+        self.write(ret)
+
+class FilesSingleHandler(BaseLTAHandler):
+    """FilesSingleHandler handles object level routes for Files."""
+
+    @lta_auth(roles=['admin', 'user', 'system'])
+    async def get(self, file_id: str) -> None:
+        """Handle GET /Files/{uuid}."""
+        if file_id not in self.db['Files']:
+            raise tornado.web.HTTPError(404, reason="not found")
+        self.set_status(200)
+        self.write(self.db['Files'][file_id])
+
+    @lta_auth(roles=['admin', 'user', 'system'])
+    async def patch(self, file_id: str) -> None:
+        """Handle PATCH /Files/{uuid}."""
+        if file_id not in self.db['Files']:
+            raise tornado.web.HTTPError(404, reason="not found")
+        req = json_decode(self.request.body)
+        if 'uuid' in req and req['uuid'] != file_id:
+            raise tornado.web.HTTPError(400, reason="bad request")
+        self.db['Files'][file_id].update(req)
+        self.set_status(200)
+        self.write(self.db['Files'][file_id])
+
+    @lta_auth(roles=['admin', 'user', 'system'])
+    async def delete(self, file_id: str) -> None:
+        """Handle DELETE /Files/{uuid}."""
+        if file_id in self.db['Files']:
+            del self.db['Files'][file_id]
+            self.set_status(204)
+            return
+        self.set_status(404)
+
+# -----------------------------------------------------------------------------
 
 class MainHandler(BaseLTAHandler):
     """MainHandler is a BaseLTAHandler that handles the root route."""
@@ -123,6 +258,8 @@ class MainHandler(BaseLTAHandler):
     def get(self) -> None:
         """Handle GET /."""
         self.write({})
+
+# -----------------------------------------------------------------------------
 
 class TransferRequestsHandler(BaseLTAHandler):
     """TransferRequestsHandler is a BaseLTAHandler that handles TransferRequests routes."""
@@ -182,6 +319,8 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         if request_id in self.db['TransferRequests']:
             del self.db['TransferRequests'][request_id]
             self.set_status(204)
+            return
+        self.set_status(404)
 
 class TransferRequestActionsPopHandler(BaseLTAHandler):
     """TransferRequestActionsPopHandler handles /TransferRequests/actions/pop."""
@@ -209,6 +348,8 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
                 if limit <= 0:
                     break
         self.write({'results': ret})
+
+# -----------------------------------------------------------------------------
 
 class StatusHandler(BaseLTAHandler):
     """StatusHandler is a BaseLTAHandler that handles system status routes."""
@@ -252,6 +393,7 @@ class StatusComponentHandler(BaseLTAHandler):
             self.db['status'][component] = req
         self.write({})
 
+# -----------------------------------------------------------------------------
 
 def start(debug: bool = False) -> RestServer:
     """Start a LTA REST DB service."""
@@ -276,7 +418,12 @@ def start(debug: bool = False) -> RestServer:
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)
+    server.add_route(r'/Files', FilesHandler, args)
     server.add_route(r'/Files/actions/bulk_create', FilesActionsBulkCreateHandler, args)
+    server.add_route(r'/Files/actions/bulk_delete', FilesActionsBulkDeleteHandler, args)
+    server.add_route(r'/Files/actions/bulk_update', FilesActionsBulkUpdateHandler, args)
+    # server.add_route(r'/Files/actions/pop', FilesActionsPopHandler, args)
+    server.add_route(r'/Files/(?P<file_id>\w+)', FilesSingleHandler, args)
     server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)

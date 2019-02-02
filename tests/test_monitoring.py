@@ -2,7 +2,7 @@
 """Unit tests for lta/monitoring.py."""
 
 import asyncio
-import pytest
+import pytest  # type: ignore
 from unittest.mock import MagicMock
 
 import requests
@@ -46,9 +46,6 @@ async def test_base_init(monitor):
 
     with pytest.raises(NotImplementedError):
         await m.run()
-
-    m.running = False
-    await m.run()
 
 @pytest.mark.asyncio
 async def test_base_run(monitor):
