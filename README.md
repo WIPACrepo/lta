@@ -10,9 +10,9 @@ Source: https://tecadmin.net/install-python-3-7-on-ubuntu-linuxmint/
 
     sudo apt-get install build-essential
     sudo apt-get install libreadline-gplv2-dev libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev
-    wget https://www.python.org/ftp/python/3.7.1/Python-3.7.1.tar.xz
-    tar xvJf Python-3.7.1.tar.xz
-    cd Python-3.7.1/
+    wget https://www.python.org/ftp/python/3.7.2/Python-3.7.2.tar.xz
+    tar xvJf Python-3.7.2.tar.xz
+    cd Python-3.7.2/
     ./configure --enable-optimizations
     sudo make altinstall
 
@@ -25,6 +25,7 @@ Follow these steps to get a development environment for LTA:
     python3.7 -m venv ./env
     source env/bin/activate
     pip install --upgrade pip
+    pip install git+https://github.com/WIPACrepo/rest-tools
     pip install -r requirements.txt
 
 ### Updating requirements.txt after a pip install
@@ -40,11 +41,13 @@ tasks.
 
     Try one of the following tasks:
 
+    snake check                # Check dependency package versions
     snake clean                # Remove build cruft
     snake coverage             # Perform coverage analysis
     snake dist                 # Create a distribution tarball and wheel
     snake lint                 # Run static analysis tools
-    snake rebuild              # Rebuild the module
+    snake rebuild              # Test and lint the module
+    snake test                 # Test the module
 
 The task `rebuild` doesn't really build (no need to compile Python),
 but it does run the unit tests.
