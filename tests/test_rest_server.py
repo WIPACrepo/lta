@@ -3,13 +3,12 @@
 
 import asyncio
 from datetime import datetime, timedelta
-import pytest
-from tornado.web import HTTPError
-from unittest.mock import MagicMock
+import pytest  # type: ignore
+import socket
 
-from lta.rest_server import FilesActionsBulkCreateHandler, main, start
-from rest_tools.client import RestClient
-from rest_tools.server import Auth
+from lta.rest_server import main, start
+from rest_tools.client import RestClient  # type: ignore
+from rest_tools.server import Auth  # type: ignore
 
 class ObjectLiteral:
     """
@@ -26,25 +25,20 @@ class ObjectLiteral:
         self.__dict__.update(kwds)
 
 @pytest.fixture
-async def fabch():
-    """Create a properly authenticated FilesActionsBulkCreateHandler."""
-    fabch = FilesActionsBulkCreateHandler()
-    fabch._finished = False
-    fabch._headers_written = False
-    fabch._transforms = []
-    fabch.application = MagicMock()
-    fabch.auth_data = {
-        "long-term-archive": {
-            "role": "system"
-        }
-    }
-    fabch.send_error = MagicMock()
-    return fabch
+def port():
+    """Get an ephemeral port number."""
+    # https://unix.stackexchange.com/a/132524
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('', 0))
+    addr = s.getsockname()
+    ephemeral_port = addr[1]
+    s.close()
+    return ephemeral_port
 
 @pytest.fixture
-async def rest(monkeypatch):
+async def rest(monkeypatch, port):
     """Provide RestClient as a test fixture."""
-    monkeypatch.setenv("LTA_REST_PORT", "8080")
+    monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_AUTH_SECRET", "secret")
     monkeypatch.setenv("LTA_AUTH_ISSUER", "lta")
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
@@ -53,7 +47,7 @@ async def rest(monkeypatch):
 
     def client(role='admin'):
         t = a.create_token('foo', payload={'long-term-archive': {'role': role}})
-        return RestClient('http://localhost:8080', token=t, timeout=0.1, retries=0)
+        return RestClient(f'http://localhost:{port}', token=t, timeout=0.1, retries=0)
 
     yield client
     s.stop()
@@ -121,6 +115,7 @@ async def test_transfer_request_crud(rest):
 
     with pytest.raises(Exception):
         await r.request('GET', f'/TransferRequests/{uuid}')
+
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert ret is None
 
@@ -209,96 +204,328 @@ async def test_script_main(mocker):
     mock_event_loop.assert_called()
 
 @pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_no_body(mocker, fabch):
-    """Send an error if not provided with a POST body in the request."""
-    mocker.patch("rest_tools.server.RestHandler.get_current_user")
-    fabch.request = ObjectLiteral(
-        # look ma, no "body"!
-        connection=MagicMock(),
-        method="POST"
-    )
-    await fabch.post()
-    fabch.send_error.assert_called_with(500, reason='Error in FilesActionsBulkCreateHandler')
+async def test_files_bulk_crud(rest):
+    """Check CRUD semantics for files."""
+    r = rest('system')
+
+    #
+    # Create - POST /Files/actions/bulk_create
+    #
+    request = {'files': [{"name": "one"}, {"name": "two"}]}
+    ret = await r.request('POST', '/Files/actions/bulk_create', request)
+    assert len(ret["files"]) == 2
+    assert ret["count"] == 2
+
+    #
+    # Read - GET /Files
+    #
+    ret = await r.request('GET', '/Files')
+    results = ret["results"]
+    assert len(results) == 2
+
+    #
+    # Update - POST /Files/actions/bulk_update
+    #
+    request = {'files': results, 'update': {'key': 'value'}}
+    ret = await r.request('POST', '/Files/actions/bulk_update', request)
+    assert ret["count"] == 2
+    assert ret["files"] == results
+
+    #
+    # Read - GET /Files/UUID
+    #
+    for result in results:
+        ret = await r.request('GET', f'/Files/{result}')
+        assert ret["uuid"] == result
+        assert ret["name"] in ["one", "two"]
+        assert ret["key"] == "value"
+
+    #
+    # Delete - POST /Files/actions/bulk_delete
+    #
+    request = {'files': results}
+    ret = await r.request('POST', '/Files/actions/bulk_delete', request)
+    assert ret["count"] == 2
+    assert ret["files"] == results
+
+    #
+    # Read - GET /Files
+    #
+    ret = await r.request('GET', '/Files')
+    results = ret["results"]
+    assert len(results) == 0
 
 @pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_empty_body(mocker, fabch):
-    """Send an error if provided with an empty POST body in the request."""
-    mocker.patch("rest_tools.server.RestHandler.get_current_user")
-    fabch.request = ObjectLiteral(
-        body="",
-        connection=MagicMock(),
-        method="POST"
-    )
-    await fabch.post()
-    fabch.send_error.assert_called_with(500, reason='Error in FilesActionsBulkCreateHandler')
+async def test_bulk_create_errors(rest):
+    """Check error conditions for bulk_create."""
+    r = rest('system')
+
+    request = {}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_create', request)
+
+    request = {'files': ''}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_create', request)
+
+    request = {'files': []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_create', request)
 
 @pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_body_empty_obj(mocker, fabch):
-    """Throw an HTTPError if the POST body does not contain a 'files' field."""
-    mocker.patch("rest_tools.server.RestHandler.get_current_user")
-    fabch.request = ObjectLiteral(
-        body="{}",
-        connection=MagicMock(),
-        method="POST"
-    )
-    with pytest.raises(HTTPError):
-        await fabch.post()
+async def test_bulk_delete_errors(rest):
+    """Check error conditions for bulk_delete."""
+    r = rest('system')
+
+    request = {}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_delete', request)
+
+    request = {'files': ''}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_delete', request)
+
+    request = {'files': []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_delete', request)
 
 @pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_body_files_not_list(mocker, fabch):
-    """Throw an HTTPError if the POST body contains a non-array 'files' field."""
-    mocker.patch("rest_tools.server.RestHandler.get_current_user")
-    fabch.request = ObjectLiteral(
-        body='''{
-            "files": "are like, your opinion, man"
-        }''',
-        connection=MagicMock(),
-        method="POST"
-    )
-    with pytest.raises(HTTPError):
-        await fabch.post()
+async def test_bulk_update_errors(rest):
+    """Check error conditions for bulk_update."""
+    r = rest('system')
+
+    request = {}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_update', request)
+
+    request = {'update': ''}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_update', request)
+
+    request = {'update': {}}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_update', request)
+
+    request = {'update': {}, 'files': ''}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_update', request)
+
+    request = {'update': {}, 'files': []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/bulk_update', request)
 
 @pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_body_files_empty_list(mocker, fabch):
-    """Throw an HTTPError if the POST body contains an empty array 'files' field."""
-    mocker.patch("rest_tools.server.RestHandler.get_current_user")
-    fabch.request = ObjectLiteral(
-        body='''{
-            "files": []
-        }''',
-        connection=MagicMock(),
-        method="POST"
-    )
-    with pytest.raises(HTTPError):
-        await fabch.post()
+async def test_get_files_filter(rest):
+    """Check that GET /Files filters properly by query parameters.."""
+    r = rest('system')
 
-@pytest.mark.asyncio
-async def test_FilesActionsBulkCreateHandler_body_files(mocker, fabch):
-    """Process bulk_create 'files' provided in the POST body."""
-    mocker.patch("rest_tools.server.RestHandler.get_current_user")
-    fabch.db = {
-        "Files": {}
+    test_data = {
+        'files': [
+            {
+                "degenerate": "file",
+                "has no": "decent keys",
+                "or values": "should be deleted",
+            },
+            {
+                "source": "WIPAC:/data/exp/IceCube/2014/fileZ.txt",
+                "request": "9852fc1a28d111e9ad4600e18cdcf45b",
+                "bundle": None,
+                "status": "waiting"
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub1/file1.txt",
+                "request": "7a56893d28c011e98a2754e1ade80899",
+                "bundle": None,
+                "status": "waiting"
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub1/file2.txt",
+                "request": "7a56893d28c011e98a2754e1ade80899",
+                "bundle": "be8316c128c011e98a2754e1ade80899",
+                "status": "processing"
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub1/file3.txt",
+                "request": "7a56893d28c011e98a2754e1ade80899",
+                "bundle": "be8316c128c011e98a2754e1ade80899",
+                "status": "bundled"
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub2/file1.txt",
+                "request": "7a56893d28c011e98a2754e1ade80899",
+                "bundle": None,
+                "status": "waiting"
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub2/file2.txt",
+                "request": "7a56893d28c011e98a2754e1ade80899",
+                "bundle": "be8316c128c011e98a2754e1ade80899",
+                "status": "processing"
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub2/file3.txt",
+                "request": "7a56893d28c011e98a2754e1ade80899",
+                "bundle": "be8316c128c011e98a2754e1ade80899",
+                "status": "bundled"
+            },
+            {
+                "source": "DESY:/tmp/path1/sub2/file1.txt",
+                "request": "0cc4b62428d211e9ad4600e18cdcf45b",
+                "bundle": None,
+                "status": "waiting"
+            },
+            {
+                "source": "DESY:/tmp/path1/sub2/file2.txt",
+                "request": "0cc4b62428d211e9ad4600e18cdcf45b",
+                "bundle": "2f09e51a28d211e9ad4600e18cdcf45b",
+                "status": "processing"
+            },
+            {
+                "source": "DESY:/tmp/path1/sub2/file3.txt",
+                "request": "0cc4b62428d211e9ad4600e18cdcf45b",
+                "bundle": "2f09e51a28d211e9ad4600e18cdcf45b",
+                "status": "bundled"
+            },
+        ]
     }
-    fabch.request = ObjectLiteral(
-        body='''{
-            "files": [
-                {
-                    "what we've got here is": "failure to communicate",
-                    "some men": "you just can't reach"
-                },
-                {
-                    "which is the way": "he wants it",
-                    "well, he gets it": "I don’t like it any more than you men."
-                }
-            ]
-        }''',
-        connection=MagicMock(),
-        method="POST"
-    )
-    fabch.set_status = MagicMock()
-    fabch.write = MagicMock()
-    await fabch.post()
-    fabch.set_status.assert_called_with(201)
-    fabch.write.assert_called_with({
-        "files": [mocker.ANY, mocker.ANY]
-    })
+
+    #
+    # Create - POST /Files/actions/bulk_create
+    #
+    ret = await r.request('POST', '/Files/actions/bulk_create', test_data)
+    assert len(ret["files"]) == 11
+    assert ret["count"] == 11
+
+    #
+    # Read - GET /Files
+    #
+    ret = await r.request('GET', '/Files')
+    results = ret["results"]
+    assert len(results) == 11
+
+    ret = await r.request('GET', '/Files?location=WIPAC')
+    results = ret["results"]
+    assert len(results) == 7
+
+    ret = await r.request('GET', '/Files?location=DESY')
+    results = ret["results"]
+    assert len(results) == 3
+
+    ret = await r.request('GET', '/Files?location=WIPAC:/tmp/path1')
+    results = ret["results"]
+    assert len(results) == 6
+
+    ret = await r.request('GET', '/Files?transfer_request_uuid=0cc4b62428d211e9ad4600e18cdcf45b')
+    results = ret["results"]
+    assert len(results) == 3
+
+    ret = await r.request('GET', '/Files?transfer_request_uuid=d974285228d311e9ad4600e18cdcf45b')
+    results = ret["results"]
+    assert len(results) == 0
+
+    ret = await r.request('GET', '/Files?bundle_uuid=2f09e51a28d211e9ad4600e18cdcf45b')
+    results = ret["results"]
+    assert len(results) == 2
+
+    ret = await r.request('GET', '/Files?bundle_uuid=df7624ca28d411e9ad4600e18cdcf45b')
+    results = ret["results"]
+    assert len(results) == 0
+
+    # bulk_create squashes the provided status
+    ret = await r.request('GET', '/Files?status=waiting')
+    results = ret["results"]
+    assert len(results) == 11
+
+    ret = await r.request('GET', '/Files?location=WIPAC:/tmp/path1/sub1&bundle_uuid=be8316c128c011e98a2754e1ade80899')
+    results = ret["results"]
+    assert len(results) == 2
+
+    ret = await r.request('GET', '/Files?location=WIPAC:/tmp/path1/sub1&bundle_uuid=be8316c128c011e98a2754e1ade80899&status=processing')
+    results = ret["results"]
+    assert len(results) == 0
+
+@pytest.mark.asyncio
+async def test_get_files_uuid_error(rest):
+    """Check that GET /Files/UUID returns 404 on not found."""
+    r = rest('system')
+
+    with pytest.raises(Exception):
+        await r.request('GET', '/Files/d4390bcadac74f9dbb49874b444b448d')
+
+@pytest.mark.asyncio
+async def test_delete_files_uuid(rest):
+    """Check that DELETE /Files/UUID returns 204, exist or not exist."""
+    r = rest('system')
+
+    test_data = {
+        'files': [
+            {
+                "source": "WIPAC:/data/exp/IceCube/2014/fileZ.txt",
+                "request": "9852fc1a28d111e9ad4600e18cdcf45b",
+                "bundle": None,
+            },
+        ]
+    }
+
+    ret = await r.request('POST', '/Files/actions/bulk_create', test_data)
+    assert len(ret["files"]) == 1
+    assert ret["count"] == 1
+
+    ret = await r.request('GET', '/Files')
+    results = ret["results"]
+    assert len(results) == 1
+
+    test_uuid = results[0]
+
+    # we delete it when it exists
+    ret = await r.request('DELETE', f'/Files/{test_uuid}')
+    assert ret is None
+
+    # we verify that it has been deleted
+    ret = await r.request('GET', '/Files')
+    results = ret["results"]
+    assert len(results) == 0
+
+    # we try to delete it again!
+    ret = await r.request('DELETE', f'/Files/{test_uuid}')
+    assert ret is None
+
+@pytest.mark.asyncio
+async def test_patch_files_uuid(rest):
+    """Check that PATCH /Files/UUID does the right thing, every time."""
+    r = rest('system')
+
+    test_data = {
+        'files': [
+            {
+                "source": "WIPAC:/data/exp/IceCube/2014/fileZ.txt",
+                "request": "9852fc1a28d111e9ad4600e18cdcf45b",
+                "bundle": None,
+            },
+        ]
+    }
+
+    ret = await r.request('POST', '/Files/actions/bulk_create', test_data)
+    assert len(ret["files"]) == 1
+    assert ret["count"] == 1
+
+    ret = await r.request('GET', '/Files')
+    results = ret["results"]
+    assert len(results) == 1
+
+    test_uuid = results[0]
+
+    # we patch it when it exists
+    request = {"key": "value"}
+    ret = await r.request('PATCH', f'/Files/{test_uuid}', request)
+    assert ret["key"] == "value"
+
+    # we try to patch the uuid; error
+    with pytest.raises(Exception):
+        request = {"key": "value", "uuid": "d4390bca-dac7-4f9d-bb49-874b444b448d"}
+        await r.request('PATCH', f'/Files/{test_uuid}', request)
+
+    # we try to patch something that doesn't exist; error
+    with pytest.raises(Exception):
+        request = {"key": "value"}
+        await r.request('PATCH', f'/Files/048c812c780648de8f39a2422e2dcdb0', request)
