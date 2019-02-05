@@ -167,9 +167,6 @@ class FilesActionsBulkUpdateHandler(BaseLTAHandler):
         if not req['files']:
             raise tornado.web.HTTPError(400, reason="files field is empty")
 
-        print(req["update"])
-        print(req["files"])
-
         results = []
         for uuid in req["files"]:
             if uuid in self.db['Files']:
@@ -194,23 +191,26 @@ class FilesHandler(BaseLTAHandler):
         for file_uuid in self.db['Files']:
             lta_file = self.db['Files'][file_uuid]
             if location:
-                if lta_file["source"].startswith(location):
-                    results.append(file_uuid)
+                if not ("source" in lta_file):
+                    continue
+                if not (lta_file["source"].startswith(location)):
                     continue
             if transfer_request_uuid:
-                if lta_file["request"] is transfer_request_uuid:
-                    results.append(file_uuid)
+                if not ("request" in lta_file):
+                    continue
+                if not (lta_file["request"] == transfer_request_uuid):
                     continue
             if bundle_uuid:
-                if lta_file["bundle"] is bundle_uuid:
-                    results.append(file_uuid)
+                if not ("bundle" in lta_file):
+                    continue
+                if not (lta_file["bundle"] == bundle_uuid):
                     continue
             if status:
-                if lta_file["status"] is status:
-                    results.append(file_uuid)
+                if not ("status" in lta_file):
                     continue
-            if (location is None) and (transfer_request_uuid is None) and (bundle_uuid is None) and (status is None):
-                results.append(file_uuid)
+                if not (lta_file["status"] == status):
+                    continue
+            results.append(file_uuid)
 
         ret = {
             'results': results,
@@ -246,9 +246,7 @@ class FilesSingleHandler(BaseLTAHandler):
         """Handle DELETE /Files/{uuid}."""
         if file_id in self.db['Files']:
             del self.db['Files'][file_id]
-            self.set_status(204)
-            return
-        self.set_status(404)
+        self.set_status(204)
 
 # -----------------------------------------------------------------------------
 
@@ -318,9 +316,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         """Handle DELETE /TransferRequests/{uuid}."""
         if request_id in self.db['TransferRequests']:
             del self.db['TransferRequests'][request_id]
-            self.set_status(204)
-            return
-        self.set_status(404)
+        self.set_status(204)
 
 class TransferRequestActionsPopHandler(BaseLTAHandler):
     """TransferRequestActionsPopHandler handles /TransferRequests/actions/pop."""
