@@ -280,7 +280,7 @@ class FilesActionsPopHandler(BaseLTAHandler):
                 continue
             if not (site(db_file["dest"]) == dest):
                 continue
-            if not (site(db_file["status"]) == "waiting"):
+            if not (db_file["status"] == "waiting"):
                 continue
             src_tuples.append((uuid, db_file["catalog"]["file_size"]))
         # we can't bundle nothing
