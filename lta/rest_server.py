@@ -5,25 +5,30 @@ Run with `python -m lta.rest_server`.
 """
 
 import asyncio
+import binpacking  # type: ignore
 from datetime import datetime, timedelta
-import logging
 from functools import wraps
-from uuid import uuid1
+import json
+import logging
+from math import floor
+from random import random
 from typing import Any, Callable
-
-import tornado.web  # type: ignore
-from rest_tools.client import json_decode  # type: ignore
-from rest_tools.server import RestServer, RestHandler, RestHandlerSetup, authenticated, catch_error  # type: ignore
+from uuid import uuid1
 
 from .config import from_environment
+from rest_tools.client import json_decode  # type: ignore
+from rest_tools.server import authenticated, catch_error, RestHandler, RestHandlerSetup, RestServer  # type: ignore
+import tornado.web  # type: ignore
+
 
 EXPECTED_CONFIG = {
+    'LTA_AUTH_ALGORITHM': 'RS256',
+    'LTA_AUTH_ISSUER': 'lta',
+    'LTA_AUTH_SECRET': 'secret',
+    'LTA_MAX_CLAIM_AGE_HOURS': '12',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
-    'LTA_AUTH_SECRET': 'secret',
-    'LTA_AUTH_ISSUER': 'lta',
-    'LTA_AUTH_ALGORITHM': 'RS256',
-    'LTA_MAX_CLAIM_AGE_HOURS': '12',
+    'LTA_SITE_CONFIG': 'etc/site.json',
 }
 
 # -----------------------------------------------------------------------------
@@ -31,6 +36,10 @@ EXPECTED_CONFIG = {
 def now() -> str:
     """Return string timestamp for current time, to the second."""
     return datetime.utcnow().isoformat(timespec='seconds')
+
+def site(sitepath: str) -> str:
+    """Return SITE from SITE:PATH."""
+    return sitepath.split(':', 1)[0]
 
 def lta_auth(**_auth: Any) -> Callable[..., Any]:
     """
@@ -92,11 +101,12 @@ class CheckClaims:
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
 
-    def initialize(self, db: Any, check_claims: CheckClaims, *args: Any, **kwargs: Any) -> None:
+    def initialize(self, check_claims: CheckClaims, db: Any, sites: Any, *args: Any, **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
-        self.db = db
         self.check_claims = check_claims
+        self.db = db
+        self.sites = sites["sites"]
 
 # -----------------------------------------------------------------------------
 
@@ -217,6 +227,99 @@ class FilesHandler(BaseLTAHandler):
         }
         self.set_status(200)
         self.write(ret)
+
+class FilesActionsPopHandler(BaseLTAHandler):
+    """
+    FilesActionsPopHandler handles /Files/actions/pop.
+
+    Picker provides:
+        file_obj = {
+            "source": "SITE:PATH",
+            "dest": "SITE:PATH",
+            "request": "UUID",
+            "catalog": file_catalog_record
+        }
+
+    Catalog Schema:
+        catalog_file = {
+            "uuid": uuid,
+            "logical_name": "/data/exp/IceCube...",
+            "locations": [
+                {"site": "WIPAC", "path": "/data/exp/IceCube..."},
+                {"site": "NERSC", "path": "/data/archive/ad43d3...23.zip", archive: True},
+            ]
+            "file_size": 123456789,
+            "data_type": "real",
+        }
+
+    LTA DB annotates:
+        xfer_file["uuid"] = uuid1().hex
+        xfer_file["create_timestamp"] = now()
+        xfer_file["status"] = "waiting"
+    """
+
+    @lta_auth(roles=['system'])
+    async def post(self) -> None:
+        """Handle POST /Files/actions/pop."""
+        # if there aren't enough files to fill the bundle, should we force it?
+        force = self.get_argument('force', False)
+        # figure out which site is bundling files
+        src = self.get_argument('source')
+        if src not in self.sites:
+            raise tornado.web.HTTPError(400, reason="invalid source site")
+        # figure out where the bundle is headed
+        dest = self.get_argument('dest')
+        if dest not in self.sites:
+            raise tornado.web.HTTPError(400, reason="invalid dest site")
+        # figure out how big the bundle should be
+        bundle_size = self.sites[dest]["bundle_size"]
+        # get the self-identification of the claiming bundler
+        pop_body = json_decode(self.request.body)
+        # let's build up a list of things to bundle
+        src_tuples = []
+        for uuid in self.db["Files"]:
+            db_file = self.db["Files"][uuid]
+            if not (site(db_file["source"]) == src):
+                continue
+            if not (site(db_file["dest"]) == dest):
+                continue
+            if not (site(db_file["status"]) == "waiting"):
+                continue
+            src_tuples.append((uuid, db_file["catalog"]["file_size"]))
+        # we can't bundle nothing
+        if len(src_tuples) < 1:
+            self.set_status(200)
+            self.write({'results': []})
+            return
+        # pack those files into bundle sized bins
+        bins = binpacking.to_constant_volume(src_tuples, bundle_size, weight_pos=1)
+        bin_count = len(bins)-1
+        # if we got exactly one bin
+        if bin_count == 0:
+            # bail, if we're not forcing it
+            if not force:
+                self.set_status(200)
+                self.write({'results': []})
+                return
+            # otherwise, pikachu, I choose you
+            bin_choice = 0
+        # otherwise, we have multiple bins to choose from
+        else:
+            # randomly select one of the available bins
+            bin_choice = floor(bin_count * random())
+        # get a list of the files in the bin
+        pop_bin = bins[bin_choice]
+        bin_files = [self.db["Files"][x[0]] for x in pop_bin]
+        # update the status of the files we're handing out
+        claim_time = now()
+        for bin_file in bin_files:
+            bin_file["claimant"] = pop_body
+            bin_file["claimed"] = True
+            bin_file["claim_time"] = claim_time
+            bin_file["status"] = "processing"
+        # hand the files out to the caller
+        self.set_status(200)
+        self.write({'results': bin_files})
 
 class FilesSingleHandler(BaseLTAHandler):
     """FilesSingleHandler handles object level routes for Files."""
@@ -404,13 +507,16 @@ def start(debug: bool = False) -> RestServer:
         },
         'debug': debug
     })
+    args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
     # this could be a DB, but a dict works for now
     args['db'] = {
         'Files': {},
         'status': {},
         'TransferRequests': {}
     }
-    args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
+    # site configuration
+    with open(config["LTA_SITE_CONFIG"]) as site_data:
+        args['sites'] = json.load(site_data)
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)
@@ -418,7 +524,7 @@ def start(debug: bool = False) -> RestServer:
     server.add_route(r'/Files/actions/bulk_create', FilesActionsBulkCreateHandler, args)
     server.add_route(r'/Files/actions/bulk_delete', FilesActionsBulkDeleteHandler, args)
     server.add_route(r'/Files/actions/bulk_update', FilesActionsBulkUpdateHandler, args)
-    # server.add_route(r'/Files/actions/pop', FilesActionsPopHandler, args)
+    server.add_route(r'/Files/actions/pop', FilesActionsPopHandler, args)
     server.add_route(r'/Files/(?P<file_id>\w+)', FilesSingleHandler, args)
     server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
