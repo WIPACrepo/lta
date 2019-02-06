@@ -156,7 +156,6 @@ class FilesActionsBulkDeleteHandler(BaseLTAHandler):
                 del self.db['Files'][uuid]
                 results.append(uuid)
 
-        self.set_status(200)
         self.write({'files': results, 'count': len(results)})
 
 class FilesActionsBulkUpdateHandler(BaseLTAHandler):
@@ -183,7 +182,6 @@ class FilesActionsBulkUpdateHandler(BaseLTAHandler):
                 self.db['Files'][uuid].update(req["update"])
                 results.append(uuid)
 
-        self.set_status(200)
         self.write({'files': results, 'count': len(results)})
 
 class FilesHandler(BaseLTAHandler):
@@ -225,7 +223,6 @@ class FilesHandler(BaseLTAHandler):
         ret = {
             'results': results,
         }
-        self.set_status(200)
         self.write(ret)
 
 class FilesActionsPopHandler(BaseLTAHandler):
@@ -288,7 +285,6 @@ class FilesActionsPopHandler(BaseLTAHandler):
             src_tuples.append((uuid, db_file["catalog"]["file_size"]))
         # we can't bundle nothing
         if len(src_tuples) < 1:
-            self.set_status(200)
             self.write({'results': []})
             return
         # pack those files into bundle sized bins
@@ -298,7 +294,6 @@ class FilesActionsPopHandler(BaseLTAHandler):
         if bin_count == 0:
             # bail, if we're not forcing it
             if not force:
-                self.set_status(200)
                 self.write({'results': []})
                 return
             # otherwise, pikachu, I choose you
@@ -318,7 +313,6 @@ class FilesActionsPopHandler(BaseLTAHandler):
             bin_file["claim_time"] = claim_time
             bin_file["status"] = "processing"
         # hand the files out to the caller
-        self.set_status(200)
         self.write({'results': bin_files})
 
 class FilesSingleHandler(BaseLTAHandler):
@@ -329,7 +323,6 @@ class FilesSingleHandler(BaseLTAHandler):
         """Handle GET /Files/{uuid}."""
         if file_id not in self.db['Files']:
             raise tornado.web.HTTPError(404, reason="not found")
-        self.set_status(200)
         self.write(self.db['Files'][file_id])
 
     @lta_auth(roles=['admin', 'user', 'system'])
@@ -341,7 +334,6 @@ class FilesSingleHandler(BaseLTAHandler):
         if 'uuid' in req and req['uuid'] != file_id:
             raise tornado.web.HTTPError(400, reason="bad request")
         self.db['Files'][file_id].update(req)
-        self.set_status(200)
         self.write(self.db['Files'][file_id])
 
     @lta_auth(roles=['admin', 'user', 'system'])
