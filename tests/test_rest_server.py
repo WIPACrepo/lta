@@ -3,7 +3,9 @@
 
 import asyncio
 from datetime import datetime, timedelta
+from math import floor
 import pytest  # type: ignore
+from random import random
 import socket
 
 from lta.rest_server import main, start
@@ -45,9 +47,9 @@ async def rest(monkeypatch, port):
     s = start(debug=True)
     a = Auth('secret', issuer='lta', algorithm='HS512')
 
-    def client(role='admin'):
+    def client(role='admin', timeout=0.1):
         t = a.create_token('foo', payload={'long-term-archive': {'role': role}})
-        return RestClient(f'http://localhost:{port}', token=t, timeout=0.1, retries=0)
+        return RestClient(f'http://localhost:{port}', token=t, timeout=timeout, retries=0)
 
     yield client
     s.stop()
@@ -529,3 +531,91 @@ async def test_patch_files_uuid(rest):
     with pytest.raises(Exception):
         request = {"key": "value"}
         await r.request('PATCH', f'/Files/048c812c780648de8f39a2422e2dcdb0', request)
+
+@pytest.mark.asyncio
+async def test_files_actions_pop(rest):
+    """Check pop action for files."""
+    r = rest('system', timeout=1.0)
+    request = {"bundler": "node12345-bundler"}
+
+    # test missing source
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/pop', request)
+
+    # test obnoxious source
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/pop?source=lol1hackurstuff!!eleven!11!!!', request)
+
+    # test missing destination
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/pop?source=WIPAC', request)
+
+    # test obnoxious destination
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/pop?source=WIPAC&dest=lol1hackurstuff!!eleven!11!!!', request)
+
+    # test nothing to bundle
+    response = await r.request('POST', '/Files/actions/pop?source=WIPAC&dest=NERSC', request)
+    results = response["results"]
+    assert len(results) == 0
+
+    # test not enough to bundle
+    test_data = {
+        'files': [
+            {
+                "source": "WIPAC:/data/exp/IceCube/2013/filtered/PFFilt/1109",
+                "dest": "NERSC:/data/exp/IceCube/2013/filtered/PFFilt/1109",
+                "request": "9852fc1a28d111e9ad4600e18cdcf45b",
+                "catalog": {
+                    "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000015.tar.bz2",
+                    "uuid": "6fa8312a-e3b3-4220-a254-c66dc5a68361",
+                    "checksum": {
+                        "sha512": "4e209fdb9e6545c5ad26e7a119c0da44893424c65abe63e7225f33687c91df7edf95cbc7f935cab58d9ae213765764df340701b961f69ef252c69757db75c0e4"
+                    },
+                    "locations": [
+                        {"path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000015.tar.bz2", "site": "WIPAC"}
+                    ],
+                    "file_size": 104319759,
+                    "meta_modify_date": "2018-10-30 17:28:22.914497",
+                    "final_analysis_sample": {
+                        "collection_tag": "bae45fdd-8e26-47a2-92cc-75b96c105c64"
+                    }
+                }
+            },
+        ]
+    }
+    ret = await r.request('POST', '/Files/actions/bulk_create', test_data)
+    assert len(ret["files"]) == 1
+    assert ret["count"] == 1
+    # request it
+    response = await r.request('POST', '/Files/actions/pop?source=WIPAC&dest=NERSC', request)
+    results = response["results"]
+    assert len(results) == 0
+
+    # test not enough to bundle, but we're going to do it anyway
+    response = await r.request('POST', '/Files/actions/pop?source=WIPAC&dest=NERSC&force=true', request)
+    results = response["results"]
+    assert len(results) == 1
+
+    # test more than enough to bundle
+    test_data = {"files": []}
+    for i in range(0, 100):
+        test_data["files"].append({
+            "source": "NERSC:/data/exp/IceCube/2013/filtered/PFFilt/1109",
+            "dest": "WIPAC:/data/exp/IceCube/2013/filtered/PFFilt/1109",
+            "catalog": {
+                "file_size": floor(100000000 + random()*6000000),
+            }
+        })
+    ret = await r.request('POST', '/Files/actions/bulk_create', test_data)
+    assert len(ret["files"]) == 100
+    assert ret["count"] == 100
+    # request it
+    response = await r.request('POST', '/Files/actions/pop?source=NERSC&dest=WIPAC', request)
+    results = response["results"]
+    assert len(results) > 7
+    assert len(results) < 10
+    total_size = 0
+    for res_file in results:
+        total_size += res_file["catalog"]["file_size"]
+    assert total_size < 1000000000

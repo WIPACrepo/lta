@@ -3,9 +3,9 @@
 
 import asyncio
 import pytest  # type: ignore
-from unittest.mock import MagicMock
-
 import requests
+import socket
+from unittest.mock import MagicMock
 
 import lta.monitoring
 
@@ -34,6 +34,17 @@ def monitor(monkeypatch, mocker):
     rc.return_value.request = AsyncMock()
     return rc.return_value.request
 
+@pytest.fixture
+def port():
+    """Get an ephemeral port number."""
+    # https://unix.stackexchange.com/a/132524
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('', 0))
+    addr = s.getsockname()
+    ephemeral_port = addr[1]
+    s.close()
+    return ephemeral_port
+
 @pytest.mark.asyncio
 async def test_base_init(monitor):
     """Check basic properties of monitoring, without specifics."""
@@ -58,13 +69,13 @@ async def test_base_run(monitor):
     assert m.running is False
 
 @pytest.mark.asyncio
-async def test_prometheus(monitor):
+async def test_prometheus(monitor, port):
     """Check the prometheus class."""
-    m = lta.monitoring.PrometheusMonitor(port=8888, lta_rest_url='foo', lta_rest_token='bar')
+    m = lta.monitoring.PrometheusMonitor(port=port, lta_rest_url='foo', lta_rest_token='bar')
     monitor.return_value = {'health': 'OK'}
     await m.do()
 
-    r = requests.request('GET', 'http://localhost:8888')
+    r = requests.request('GET', f'http://localhost:{port}')
     for line in r.text.split('\n'):
         if line.startswith('health') and line.split('{', 1)[0] == 'health':
             if 'health="OK"' in line:
@@ -74,11 +85,11 @@ async def test_prometheus(monitor):
             elif 'health="ERROR"' in line:
                 assert line.split()[-1] == '0.0'
 
-def test_main(monitor, monkeypatch, mocker):
+def test_main(monitor, monkeypatch, mocker, port):
     """Check the `main` function."""
     monkeypatch.setenv("ENABLE_PROMETHEUS", "true")
     monkeypatch.setenv("PROMETHEUS_MONITORING_INTERVAL", "1")
-    monkeypatch.setenv("PROMETHEUS_PORT", "23456")
+    monkeypatch.setenv("PROMETHEUS_PORT", str(port))
 
     monitor.side_effect = [{'health': 'OK'}, Exception()]
 
@@ -87,7 +98,7 @@ def test_main(monitor, monkeypatch, mocker):
 
     lta.monitoring.main()
 
-    r = requests.request('GET', 'http://localhost:23456')
+    r = requests.request('GET', f'http://localhost:{port}')
     for line in r.text.split('\n'):
         if line.startswith('health') and line.split('{', 1)[0] == 'health':
             if 'health="OK"' in line:
