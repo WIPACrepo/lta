@@ -5,7 +5,6 @@ Run with `python -m lta.rest_server`.
 """
 
 import asyncio
-import binpacking  # type: ignore
 from datetime import datetime, timedelta
 from functools import wraps
 import json
@@ -15,10 +14,12 @@ from random import random
 from typing import Any, Callable
 from uuid import uuid1
 
-from .config import from_environment
+import binpacking  # type: ignore
 from rest_tools.client import json_decode  # type: ignore
 from rest_tools.server import authenticated, catch_error, RestHandler, RestHandlerSetup, RestServer  # type: ignore
 import tornado.web  # type: ignore
+
+from .config import from_environment
 
 
 EXPECTED_CONFIG = {
