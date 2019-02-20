@@ -459,7 +459,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         update = {"$set": req}
         ret = await sbtr.find_one_and_update(query,
                                              update,
-                                             REMOVE_ID,
+                                             projection=REMOVE_ID,
                                              return_document=AFTER)
         if not ret:
             raise tornado.web.HTTPError(404, reason="not found")
