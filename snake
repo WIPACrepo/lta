@@ -9,18 +9,23 @@ from typing import Callable, Dict, Tuple
 import webbrowser
 
 
+def run(cmd) -> None:
+    """Run the command and raise a CalledProcessError if the return code is nonzero."""
+    subprocess.run(cmd).check_returncode()
+
+
 def doCleanTask() -> None:
-    subprocess.run(["rm", "-fr", ".mypy_cache"])
-    subprocess.run(["rm", "-fr", ".pytest_cache"])
-    subprocess.run(["rm", "-fr", "build"])
-    subprocess.run(["rm", "-fr", "dist"])
-    subprocess.run(["rm", "-fr", "htmlcov"])
-    subprocess.run(["find", "lta", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
-    subprocess.run(["find", "lta", "-name", "__init__.pyc", "-exec", "rm", "-fr", "{}", "+"])
-    subprocess.run(["rm", "-fr", "lta.egg-info"])
-    subprocess.run(["find", "resources", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
-    subprocess.run(["find", "tests", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
-    subprocess.run(["rm", "-fr", ".coverage"])
+    run(["rm", "-fr", ".mypy_cache"])
+    run(["rm", "-fr", ".pytest_cache"])
+    run(["rm", "-fr", "build"])
+    run(["rm", "-fr", "dist"])
+    run(["rm", "-fr", "htmlcov"])
+    run(["find", "lta", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
+    run(["find", "lta", "-name", "__init__.pyc", "-exec", "rm", "-fr", "{}", "+"])
+    run(["rm", "-fr", "lta.egg-info"])
+    run(["find", "resources", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
+    run(["find", "tests", "-name", "__pycache__", "-exec", "rm", "-fr", "{}", "+"])
+    run(["rm", "-fr", ".coverage"])
 
 
 def doCheckTask() -> None:
@@ -44,35 +49,35 @@ def doCheckTask() -> None:
 
 def doCoverageTask() -> None:
     doCleanTask()
-    subprocess.run(["pytest", "--cov=lta", "--cov-report=html", "--no-cov-on-fail", "tests"])
+    run(["pytest", "--cov=lta", "--cov-report=html", "--no-cov-on-fail", "tests"])
     webbrowser.open_new_tab("htmlcov/index.html")
 
 
 def doDistTask() -> None:
     doCleanTask()
     doRebuildTask()
-    subprocess.run(["python", "setup.py", "sdist", "bdist_wheel"])
+    run(["python", "setup.py", "sdist", "bdist_wheel"])
 
 
 def doLintTask() -> None:
     flake8_cmd = ["flake8"]
     mypy_cmd = ["mypy", "--strict", "--allow-subclassing-any"]
-    subprocess.run(flake8_cmd + ["tests"])
+    run(flake8_cmd + ["tests"])
     # TODO: Maybe when pytest has a mypy library stub
-    # subprocess.run(mypy_cmd + ["tests"])
-    subprocess.run(flake8_cmd + ["lta"])
-    subprocess.run(mypy_cmd + ["lta"])
+    # run(mypy_cmd + ["tests"])
+    run(flake8_cmd + ["lta"])
+    run(mypy_cmd + ["lta"])
 
 
 def doRebuildTask() -> None:
     doCleanTask()
-    subprocess.run(["pytest", "tests"])
+    run(["pytest", "tests"])
     doLintTask()
 
 
 def doTestTask() -> None:
     doCleanTask()
-    subprocess.run(["pytest", "tests"])
+    run(["pytest", "tests"])
 
 # ---------------------------------------------------------------------
 

@@ -10,7 +10,7 @@ from random import random
 import socket
 from typing import Dict
 
-from lta.rest_server import main, start
+from lta.rest_server import main, start, unique_id
 from pymongo import MongoClient  # type: ignore
 from pymongo.database import Database  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
@@ -248,8 +248,10 @@ async def test_files_bulk_crud(mongo, rest):
     #
     # Update - POST /Files/actions/bulk_update
     #
-    request = {'files': results, 'update': {'key': 'value'}}
-    ret = await r.request('POST', '/Files/actions/bulk_update', request)
+    # request = {'files': results, 'update': {'key': 'value'}}
+    results2 = results + [unique_id()]
+    request2 = {'files': results2, 'update': {'key': 'value'}}
+    ret = await r.request('POST', '/Files/actions/bulk_update', request2)
     assert ret["count"] == 2
     assert ret["files"] == results
 
@@ -265,8 +267,9 @@ async def test_files_bulk_crud(mongo, rest):
     #
     # Delete - POST /Files/actions/bulk_delete
     #
-    request = {'files': results}
-    ret = await r.request('POST', '/Files/actions/bulk_delete', request)
+    results2 = results + [unique_id()]
+    request2 = {'files': results2}
+    ret = await r.request('POST', '/Files/actions/bulk_delete', request2)
     assert ret["count"] == 2
     assert ret["files"] == results
 
@@ -577,6 +580,14 @@ async def test_files_actions_pop(mongo, rest):
     # test obnoxious destination
     with pytest.raises(Exception):
         await r.request('POST', '/Files/actions/pop?source=WIPAC&dest=lol1hackurstuff!!eleven!11!!!', request)
+
+    # test obnoxious limit
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/pop?source=WIPAC&dest=NERSC&limit=NO_LIMITS', request)
+
+    # test obnoxious skip
+    with pytest.raises(Exception):
+        await r.request('POST', '/Files/actions/pop?source=WIPAC&dest=NERSC&skip=SKIP_SKIP', request)
 
     # test nothing to bundle
     response = await r.request('POST', '/Files/actions/pop?source=WIPAC&dest=NERSC', request)
