@@ -277,7 +277,7 @@ class FilesActionsPopHandler(BaseLTAHandler):
         if dest not in self.sites:
             raise tornado.web.HTTPError(400, reason="invalid dest site")
         # change the limit on the number of files that can be bundled
-        limit = self.get_argument('limit', 20000)
+        limit = self.get_argument('limit', 100000)
         try:
             limit = int(limit)
         except Exception:
@@ -306,7 +306,6 @@ class FilesActionsPopHandler(BaseLTAHandler):
         async for row in sdf.find(filter=query,
                                   projection=REMOVE_ID,
                                   skip=skip,
-                                  limit=limit,
                                   sort=sort):
             uuid = row["uuid"]
             file_size = row["catalog"]["file_size"]
@@ -321,7 +320,7 @@ class FilesActionsPopHandler(BaseLTAHandler):
                     logging.error(f"unable to quarantine File {uuid} for being too large!")
                 continue
             # use The Price is Right rules to pick files for bundling
-            if (bundle_size + file_size) < bundle_max_size:
+            if (limit > 0) and ((bundle_size + file_size) < bundle_max_size):
                 # we try to claim the file in the database
                 bundle_file = row
                 bundle_file["claimant"] = pop_body
@@ -338,6 +337,7 @@ class FilesActionsPopHandler(BaseLTAHandler):
                     # this has passed...
                     bundle_files.append(bundle_file)
                     bundle_size = bundle_size + file_size
+                    limit = limit - 1
                     logging.info(f"claimed File {uuid} for bundling")
             # otherwise, we've hit the limit; this bundle is full
             else:
@@ -513,23 +513,24 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
         }
         ret = []
         async for row in sdtr.find(filter=query,
-                                   projection=REMOVE_ID,
-                                   limit=limit):
-            uuid = row["uuid"]
-            row["claimant"] = pop_body
-            row["claimed"] = True
-            row["claim_time"] = now()
-            update_query = {"uuid": uuid, "claimed": False}
-            update_doc = {"$set": row}
-            ret2 = await sdtr.find_one_and_update(filter=update_query,
-                                                  update=update_doc,
-                                                  projection=REMOVE_ID,
-                                                  return_document=AFTER)
-            if not ret2:
-                logging.error(f"Unable to claim TransferRequest {uuid}")
-            else:
-                logging.info(f"claimed TransferRequest {uuid} for {pop_body}")
-                ret.append(row)
+                                   projection=REMOVE_ID):
+            if (limit > 0):
+                uuid = row["uuid"]
+                row["claimant"] = pop_body
+                row["claimed"] = True
+                row["claim_time"] = now()
+                update_query = {"uuid": uuid, "claimed": False}
+                update_doc = {"$set": row}
+                ret2 = await sdtr.find_one_and_update(filter=update_query,
+                                                      update=update_doc,
+                                                      projection=REMOVE_ID,
+                                                      return_document=AFTER)
+                if not ret2:
+                    logging.error(f"Unable to claim TransferRequest {uuid}")
+                else:
+                    logging.info(f"claimed TransferRequest {uuid} for {pop_body}")
+                    limit = limit - 1
+                    ret.append(row)
         self.write({'results': ret})
 
 
