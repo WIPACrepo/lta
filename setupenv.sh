@@ -4,5 +4,5 @@ virtualenv -p python3 env
 echo "unset PYTHONPATH" >> env/bin/activate
 . env/bin/activate
 pip install --upgrade pip
-pip install binpacking flake8 flake8-docstrings mypy prometheus_client pytest pytest-asyncio pytest-cov pytest-mock requests tornado wheel
 pip install git+https://github.com/WIPACrepo/rest-tools
+pip install -r requirements.txt
