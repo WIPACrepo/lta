@@ -42,7 +42,7 @@ requests==2.21.0
 requests-futures==0.9.9
 requests-mock==1.5.2
 requests-toolbelt==0.9.1
-rest-tools==1.0.0
+-e git+https://github.com/WIPACrepo/rest-tools@66016820552c6e3452a2d45413772ca53fc4c1e2#egg=rest_tools
 setuptools==40.8.0
 six==1.12.0
 snowballstemmer==1.2.1
