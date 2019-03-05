@@ -899,10 +899,16 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     db = client[mongo_db]
     logging.info(f"Creating indexes in MongoDB database: {mongo_db}")
     # Bundle.uuid
+    if 'bundles_create_timestamp_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.Bundles.create_timestamp")
+        db.Bundles.create_index('create_timestamp', name='bundles_create_timestamp_index', unique=False)
     if 'bundles_uuid_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.Bundles.uuid")
         db.Bundles.create_index('uuid', name='bundles_uuid_index', unique=True)
     # Files.uuid
+    if 'files_catalog_logical_name_index' not in db.Files.index_information():
+        logging.info(f"Creating index for {mongo_db}.Files.catalog.logical_name")
+        db.Files.create_index('catalog.logical_name', name='files_catalog_logical_name_index', unique=False)
     if 'files_uuid_index' not in db.Files.index_information():
         logging.info(f"Creating index for {mongo_db}.Files.uuid")
         db.Files.create_index('uuid', name='files_uuid_index', unique=True)
