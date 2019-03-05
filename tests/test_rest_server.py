@@ -771,7 +771,7 @@ async def test_bundles_actions_bulk_update_errors(rest):
         await r.request('POST', '/Bundles/actions/bulk_update', request)
 
 @pytest.mark.asyncio
-async def test_get_files_filter(mongo, rest):
+async def test_get_bundles_filter(mongo, rest):
     """Check that GET /Bundles filters properly by query parameters.."""
     mongo.Bundles.delete_many(ALL_DOCUMENTS)
     r = rest('system')

@@ -17,8 +17,8 @@ import pymongo  # type: ignore
 from pymongo import MongoClient
 from rest_tools.client import json_decode  # type: ignore
 from rest_tools.server import authenticated, catch_error, RestHandler, RestHandlerSetup, RestServer  # type: ignore
-from str2bool import str2bool
-import tornado.web  # type: ignore
+from str2bool import str2bool  # type: ignore
+import tornado.web
 
 from .config import from_environment
 
