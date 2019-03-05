@@ -654,3 +654,431 @@ async def test_files_actions_pop(mongo, rest):
     for res_file in results:
         total_size += res_file["catalog"]["file_size"]
     assert total_size < 1000000000
+
+@pytest.mark.asyncio
+async def test_bundles_bulk_crud(mongo, rest):
+    """Check CRUD semantics for bundles."""
+    mongo.Bundles.delete_many(ALL_DOCUMENTS)
+    r = rest('system')
+
+    #
+    # Create - POST /Bundles/actions/bulk_create
+    #
+    request = {'bundles': [{"name": "one"}, {"name": "two"}]}
+    ret = await r.request('POST', '/Bundles/actions/bulk_create', request)
+    assert len(ret["bundles"]) == 2
+    assert ret["count"] == 2
+
+    #
+    # Read - GET /Bundles
+    #
+    ret = await r.request('GET', '/Bundles')
+    results = ret["results"]
+    assert len(results) == 2
+
+    #
+    # Update - POST /Bundles/actions/bulk_update
+    #
+    # request = {'files': results, 'update': {'key': 'value'}}
+    results2 = results + [unique_id()]
+    request2 = {'bundles': results2, 'update': {'key': 'value'}}
+    ret = await r.request('POST', '/Bundles/actions/bulk_update', request2)
+    assert ret["count"] == 2
+    assert ret["bundles"] == results
+
+    #
+    # Read - GET /Bundles/UUID
+    #
+    for result in results:
+        ret = await r.request('GET', f'/Bundles/{result}')
+        assert ret["uuid"] == result
+        assert ret["name"] in ["one", "two"]
+        assert ret["key"] == "value"
+
+    #
+    # Delete - POST /Bundles/actions/bulk_delete
+    #
+    results2 = results + [unique_id()]
+    request2 = {'bundles': results2}
+    ret = await r.request('POST', '/Bundles/actions/bulk_delete', request2)
+    assert ret["count"] == 2
+    assert ret["bundles"] == results
+
+    #
+    # Read - GET /Bundles
+    #
+    ret = await r.request('GET', '/Bundles')
+    results = ret["results"]
+    assert len(results) == 0
+
+@pytest.mark.asyncio
+async def test_bundles_actions_bulk_create_errors(rest):
+    """Check error conditions for bulk_create."""
+    r = rest('system')
+
+    request = {}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_create', request)
+
+    request = {'bundles': ''}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_create', request)
+
+    request = {'bundles': []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_create', request)
+
+@pytest.mark.asyncio
+async def test_bundles_actions_bulk_delete_errors(rest):
+    """Check error conditions for bulk_delete."""
+    r = rest('system')
+
+    request = {}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_delete', request)
+
+    request = {'bundles': ''}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_delete', request)
+
+    request = {'bundles': []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_delete', request)
+
+@pytest.mark.asyncio
+async def test_bundles_actions_bulk_update_errors(rest):
+    """Check error conditions for bulk_update."""
+    r = rest('system')
+
+    request = {}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_update', request)
+
+    request = {'update': ''}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_update', request)
+
+    request = {'update': {}}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_update', request)
+
+    request = {'update': {}, 'bundles': ''}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_update', request)
+
+    request = {'update': {}, 'bundles': []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/bulk_update', request)
+
+@pytest.mark.asyncio
+async def test_get_files_filter(mongo, rest):
+    """Check that GET /Bundles filters properly by query parameters.."""
+    mongo.Bundles.delete_many(ALL_DOCUMENTS)
+    r = rest('system')
+
+    test_data = {
+        'bundles': [
+            {
+                "degenerate": "bundle",
+                "has no": "decent keys",
+                "or values": "should be deleted",
+            },
+            {
+                "source": "WIPAC:/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip",
+                "status": "waiting",
+                "verified": False,
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub1/48091a00-0c97-482f-a716-2e721b8e9662.zip",
+                "status": "waiting",
+                "verified": False,
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub1/24814fa8-875b-4bae-b034-ea8885d2aafe.zip",
+                "status": "processing",
+                "verified": False,
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub1/cef98a3b-9a24-4fbc-b4e7-ef251367c020.zip",
+                "status": "bundled",
+                "verified": False,
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub2/8f141afa-db2f-4337-9a24-560c383887b5.zip",
+                "status": "waiting",
+                "verified": False,
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub2/f9153da6-3588-416d-ba59-91526376dc43.zip",
+                "status": "processing",
+                "verified": True,
+            },
+            {
+                "source": "WIPAC:/tmp/path1/sub2/34b064a7-5ffa-4cb2-9661-6e8b80765e9f.zip",
+                "status": "bundled",
+                "verified": True,
+            },
+            {
+                "source": "DESY:/tmp/path1/sub2/76e3c5e2-e1a2-42f0-9d59-6546d1cb85e6.zip",
+                "status": "waiting",
+                "verified": True,
+            },
+            {
+                "source": "DESY:/tmp/path1/sub2/3bcd05f5-ceb8-4eb5-a5db-5f7d55a98ff4.zip",
+                "status": "processing",
+                "verified": True,
+            },
+            {
+                "source": "DESY:/tmp/path1/sub2/e596e1f7-ddaa-4255-abe3-81a4769bf192.zip",
+                "status": "bundled",
+                "verified": True,
+            },
+        ]
+    }
+
+    #
+    # Create - POST /Bundles/actions/bulk_create
+    #
+    ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
+    assert len(ret["bundles"]) == 11
+    assert ret["count"] == 11
+
+    #
+    # Read - GET /Bundles
+    #
+    ret = await r.request('GET', '/Bundles')
+    results = ret["results"]
+    assert len(results) == 11
+
+    ret = await r.request('GET', '/Bundles?location=WIPAC')
+    results = ret["results"]
+    assert len(results) == 7
+
+    ret = await r.request('GET', '/Bundles?location=DESY')
+    results = ret["results"]
+    assert len(results) == 3
+
+    ret = await r.request('GET', '/Bundles?location=WIPAC:/tmp/path1')
+    results = ret["results"]
+    assert len(results) == 6
+
+    ret = await r.request('GET', '/Bundles?status=waiting')
+    results = ret["results"]
+    assert len(results) == 4
+
+    ret = await r.request('GET', '/Bundles?status=processing')
+    results = ret["results"]
+    assert len(results) == 3
+
+    ret = await r.request('GET', '/Bundles?status=bundled')
+    results = ret["results"]
+    assert len(results) == 3
+
+    ret = await r.request('GET', '/Bundles?verified=true')
+    results = ret["results"]
+    assert len(results) == 5
+
+    ret = await r.request('GET', '/Bundles?verified=false')
+    results = ret["results"]
+    assert len(results) == 5
+
+    ret = await r.request('GET', '/Bundles?status=waiting&verified=false')
+    results = ret["results"]
+    assert len(results) == 3
+
+    ret = await r.request('GET', '/Bundles?status=waiting&verified=true')
+    results = ret["results"]
+    assert len(results) == 1
+
+@pytest.mark.asyncio
+async def test_get_bundles_uuid_error(rest):
+    """Check that GET /Bundles/UUID returns 404 on not found."""
+    r = rest('system')
+
+    with pytest.raises(Exception):
+        await r.request('GET', '/Bundles/d4390bcadac74f9dbb49874b444b448d')
+
+@pytest.mark.asyncio
+async def test_delete_bundles_uuid(mongo, rest):
+    """Check that DELETE /Bundles/UUID returns 204, exist or not exist."""
+    mongo.Bundles.delete_many(ALL_DOCUMENTS)
+    r = rest('system')
+
+    test_data = {
+        'bundles': [
+            {
+                "source": "WIPAC:/data/exp/IceCube/2014/59aa1e05-84ba-4214-bdfa-a9f42117b3dd.zip",
+                "status": "bundled",
+                "verified": True,
+            },
+        ]
+    }
+
+    ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
+    assert len(ret["bundles"]) == 1
+    assert ret["count"] == 1
+
+    ret = await r.request('GET', '/Bundles')
+    results = ret["results"]
+    assert len(results) == 1
+
+    test_uuid = results[0]
+
+    # we delete it when it exists
+    ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
+    assert ret is None
+
+    # we verify that it has been deleted
+    ret = await r.request('GET', '/Bundles')
+    results = ret["results"]
+    assert len(results) == 0
+
+    # we try to delete it again!
+    ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
+    assert ret is None
+
+@pytest.mark.asyncio
+async def test_patch_bundles_uuid(mongo, rest):
+    """Check that PATCH /Bundles/UUID does the right thing, every time."""
+    mongo.Bundles.delete_many(ALL_DOCUMENTS)
+    r = rest('system')
+
+    test_data = {
+        'bundles': [
+            {
+                "source": "WIPAC:/data/exp/IceCube/2014/59aa1e05-84ba-4214-bdfa-a9f42117b3dd.zip",
+                "status": "bundled",
+                "verified": True,
+            },
+        ]
+    }
+
+    ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
+    assert len(ret["bundles"]) == 1
+    assert ret["count"] == 1
+
+    ret = await r.request('GET', '/Bundles')
+    results = ret["results"]
+    assert len(results) == 1
+
+    test_uuid = results[0]
+
+    # we patch it when it exists
+    request = {"key": "value"}
+    ret = await r.request('PATCH', f'/Bundles/{test_uuid}', request)
+    assert ret["key"] == "value"
+
+    # we try to patch the uuid; error
+    with pytest.raises(Exception):
+        request = {"key": "value", "uuid": "d4390bca-dac7-4f9d-bb49-874b444b448d"}
+        await r.request('PATCH', f'/Bundles/{test_uuid}', request)
+
+    # we try to patch something that doesn't exist; error
+    with pytest.raises(Exception):
+        request = {"key": "value"}
+        await r.request('PATCH', f'/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
+
+@pytest.mark.asyncio
+async def test_bundles_actions_pop(mongo, rest):
+    """Check pop action for bundles."""
+    mongo.Bundles.delete_many(ALL_DOCUMENTS)
+    r = rest('system')
+
+    test_data = {
+        'bundles': [
+            {
+                "location": "WIPAC:/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip",
+                "status": "accessible",
+                "verified": False,
+            },
+            {
+                "location": "WIPAC:/tmp/path1/sub1/48091a00-0c97-482f-a716-2e721b8e9662.zip",
+                "status": "deletable",
+                "verified": False,
+            },
+            {
+                "location": "WIPAC:/tmp/path1/sub1/24814fa8-875b-4bae-b034-ea8885d2aafe.zip",
+                "status": "inaccessible",
+                "verified": False,
+            },
+            {
+                "location": "WIPAC:/tmp/path1/sub1/cef98a3b-9a24-4fbc-b4e7-ef251367c020.zip",
+                "status": "none",
+                "verified": False,
+            },
+            {
+                "location": "WIPAC:/tmp/path1/sub2/8f141afa-db2f-4337-9a24-560c383887b5.zip",
+                "status": "transferring",
+                "verified": False,
+            },
+            {
+                "location": "WIPAC:/tmp/path1/sub2/f9153da6-3588-416d-ba59-91526376dc43.zip",
+                "status": "accessible",
+                "verified": True,
+            },
+            {
+                "location": "WIPAC:/tmp/path1/sub2/34b064a7-5ffa-4cb2-9661-6e8b80765e9f.zip",
+                "status": "deletable",
+                "verified": True,
+            },
+            {
+                "location": "DESY:/tmp/path1/sub2/76e3c5e2-e1a2-42f0-9d59-6546d1cb85e6.zip",
+                "status": "inaccessible",
+                "verified": True,
+            },
+            {
+                "location": "DESY:/tmp/path1/sub2/3bcd05f5-ceb8-4eb5-a5db-5f7d55a98ff4.zip",
+                "status": "none",
+                "verified": True,
+            },
+            {
+                "location": "DESY:/tmp/path1/sub2/e596e1f7-ddaa-4255-abe3-81a4769bf192.zip",
+                "status": "transferring",
+                "verified": True,
+            },
+        ]
+    }
+
+    #
+    # Create - POST /Bundles/actions/bulk_create
+    #
+    ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
+    assert len(ret["bundles"]) == 10
+    assert ret["count"] == 10
+
+    # I'm at NERSC, and should have no work
+    ret = await r.request('POST', '/Bundles/actions/pop?site=NERSC&status=inaccessible')
+    assert ret['results'] == []
+
+    # I'm the bundler at WIPAC, and should pop one work item
+    ret = await r.request('POST', '/Bundles/actions/pop?site=WIPAC&status=inaccessible')
+    assert len(ret['results']) == 1
+    assert ret['results'][0]["location"] == "WIPAC:/tmp/path1/sub1/24814fa8-875b-4bae-b034-ea8885d2aafe.zip"
+
+    # repeating gets no work
+    ret = await r.request('POST', '/Bundles/actions/pop?site=WIPAC&status=inaccessible')
+    assert ret['results'] == []
+
+    # I'm the bundler at WIPAC, and should pop one work item
+    ret = await r.request('POST', '/Bundles/actions/pop?site=WIPAC&status=accessible')
+    assert len(ret['results']) == 1
+    assert ret['results'][0]["location"] == "WIPAC:/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
+
+@pytest.mark.asyncio
+async def test_bundles_actions_pop_errors(mongo, rest):
+    """Check error handlers for pop action for bundles."""
+    mongo.Bundles.delete_many(ALL_DOCUMENTS)
+    r = rest('system')
+    request = {}
+
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/pop?site=AREA-51', request)
+
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/pop?site=WIPAC', request)
+
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/pop?site=WIPAC&status=supercalifragilisticexpialidocious', request)
+
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/pop?site=WIPAC&status=none&limit=unlimited!!!', request)

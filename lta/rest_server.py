@@ -17,6 +17,7 @@ import pymongo  # type: ignore
 from pymongo import MongoClient
 from rest_tools.client import json_decode  # type: ignore
 from rest_tools.server import authenticated, catch_error, RestHandler, RestHandlerSetup, RestServer  # type: ignore
+from str2bool import str2bool
 import tornado.web  # type: ignore
 
 from .config import from_environment
@@ -138,6 +139,7 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             # xfer_bundle["status"] = "waiting"
             xfer_bundle["uuid"] = unique_id()
             xfer_bundle["create_timestamp"] = now()
+            xfer_bundle["claimed"] = False
 
         ret = await self.db.Bundles.insert_many(documents=req["bundles"])
         create_count = len(ret.inserted_ids)
@@ -220,7 +222,7 @@ class BundlesHandler(BaseLTAHandler):
         if status:
             query["status"] = status
         if verified:
-            query["verified"] = verified
+            query["verified"] = str2bool(verified)
 
         results = []
         async for row in self.db.Bundles.find(filter=query,
@@ -286,15 +288,18 @@ class BundlesActionsPopHandler(BaseLTAHandler):
         query = {
             "$and": [
                 {"location": {"$regex": f"^{site}"}},
+                {"status": f"{status}"},
                 {"$or": [
                     {"claimed": False},
                     {"claim_time": {"$lt": f"{old_age}"}}
                 ]}
             ]
         }
+        sort = [('create_timestamp', ASCENDING)]
         ret = []
         async for row in sdb.find(filter=query,
-                                  projection=REMOVE_ID):
+                                  projection=REMOVE_ID,
+                                  sort=sort):
             if (limit > 0):
                 uuid = row["uuid"]
                 row["claimant"] = pop_body
