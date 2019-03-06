@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import json
 import logging
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
@@ -17,7 +17,7 @@ import pymongo  # type: ignore
 from pymongo import MongoClient
 from rest_tools.client import json_decode  # type: ignore
 from rest_tools.server import authenticated, catch_error, RestHandler, RestHandlerSetup, RestServer  # type: ignore
-import tornado.web  # type: ignore
+import tornado.web
 
 from .config import from_environment
 
@@ -27,6 +27,7 @@ EXPECTED_CONFIG = {
     'LTA_AUTH_ISSUER': 'lta',
     'LTA_AUTH_SECRET': 'secret',
     'LTA_MAX_CLAIM_AGE_HOURS': '12',
+    'LTA_MONGODB_NAME': 'lta',
     'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
@@ -38,11 +39,28 @@ EXPECTED_CONFIG = {
 AFTER = pymongo.ReturnDocument.AFTER
 ALL_DOCUMENTS: Dict[str, str] = {}
 ASCENDING = pymongo.ASCENDING
+BUNDLE_STATES = ['accessible', 'deletable', 'inaccessible', 'none', 'transferring']
 REMOVE_ID = {"_id": False}
+STR2BOOL_FALSE_SET = {'0', 'f', 'false', 'n', 'no'}
+STR2BOOL_TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
 def now() -> str:
     """Return string timestamp for current time, to the second."""
     return datetime.utcnow().isoformat(timespec='seconds')
+
+# https://github.com/symonsoft/str2bool/blob/master/str2bool/__init__.py
+def str2bool(value: str, raise_exc: bool = False) -> Optional[bool]:
+    """Convert a string into a False, None, or True value."""
+    if isinstance(value, str):
+        value = value.lower()
+        if value in STR2BOOL_TRUE_SET:
+            return True
+        if value in STR2BOOL_FALSE_SET:
+            return False
+
+    if raise_exc:
+        raise ValueError(f'Expected "{", ".join(STR2BOOL_TRUE_SET | STR2BOOL_FALSE_SET)}"')
+    return None
 
 def unique_id() -> str:
     """Return a unique ID for an LTA database entity."""
@@ -115,6 +133,252 @@ class BaseLTAHandler(RestHandler):
         self.check_claims = check_claims
         self.db = db
         self.sites = sites["sites"]
+
+# -----------------------------------------------------------------------------
+
+class BundlesActionsBulkCreateHandler(BaseLTAHandler):
+    """Handler for /Bundles/actions/bulk_create."""
+
+    @lta_auth(roles=['system'])
+    async def post(self) -> None:
+        """Handle POST /Bundles/actions/bulk_create."""
+        req = json_decode(self.request.body)
+        if 'bundles' not in req:
+            raise tornado.web.HTTPError(400, reason="missing bundles field")
+        if not isinstance(req['bundles'], list):
+            raise tornado.web.HTTPError(400, reason="bundles field is not a list")
+        if not req['bundles']:
+            raise tornado.web.HTTPError(400, reason="bundles field is empty")
+
+        for xfer_bundle in req["bundles"]:
+            # TODO: The caller should provide the status; we shouldn't overwrite
+            # xfer_bundle["status"] = "waiting"
+            xfer_bundle["uuid"] = unique_id()
+            xfer_bundle["create_timestamp"] = now()
+            xfer_bundle["claimed"] = False
+
+        ret = await self.db.Bundles.insert_many(documents=req["bundles"])
+        create_count = len(ret.inserted_ids)
+
+        uuids = []
+        for x in req["bundles"]:
+            uuid = x["uuid"]
+            uuids.append(uuid)
+            logging.info(f"created Bundle {uuid}")
+
+        self.set_status(201)
+        self.write({'bundles': uuids, 'count': create_count})
+
+class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
+    """Handler for /Bundles/actions/bulk_delete."""
+
+    @lta_auth(roles=['system'])
+    async def post(self) -> None:
+        """Handle POST /Bundles/actions/bulk_delete."""
+        req = json_decode(self.request.body)
+        if 'bundles' not in req:
+            raise tornado.web.HTTPError(400, reason="missing bundles field")
+        if not isinstance(req['bundles'], list):
+            raise tornado.web.HTTPError(400, reason="bundles field is not a list")
+        if not req['bundles']:
+            raise tornado.web.HTTPError(400, reason="bundles field is empty")
+
+        results = []
+        for uuid in req["bundles"]:
+            query = {"uuid": uuid}
+            ret = await self.db.Bundles.delete_one(filter=query)
+            if ret.deleted_count > 0:
+                logging.info(f"deleted Bundle {uuid}")
+                results.append(uuid)
+
+        self.write({'bundles': results, 'count': len(results)})
+
+class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
+    """Handler for /Bundles/actions/bulk_update."""
+
+    @lta_auth(roles=['system'])
+    async def post(self) -> None:
+        """Handle POST /Bundles/actions/bulk_update."""
+        req = json_decode(self.request.body)
+        if 'update' not in req:
+            raise tornado.web.HTTPError(400, reason="missing update field")
+        if not isinstance(req['update'], dict):
+            raise tornado.web.HTTPError(400, reason="update field is not an object")
+        if 'bundles' not in req:
+            raise tornado.web.HTTPError(400, reason="missing bundles field")
+        if not isinstance(req['bundles'], list):
+            raise tornado.web.HTTPError(400, reason="bundles field is not a list")
+        if not req['bundles']:
+            raise tornado.web.HTTPError(400, reason="bundles field is empty")
+
+        results = []
+        for uuid in req["bundles"]:
+            query = {"uuid": uuid}
+            update_doc = {"$set": req["update"]}
+            ret = await self.db.Bundles.update_one(filter=query, update=update_doc)
+            if ret.modified_count > 0:
+                logging.info(f"updated Bundle {uuid}")
+                results.append(uuid)
+
+        self.write({'bundles': results, 'count': len(results)})
+
+class BundlesHandler(BaseLTAHandler):
+    """BundlesHandler handles collection level routes for Bundles."""
+
+    @lta_auth(roles=['admin', 'user', 'system'])
+    async def get(self) -> None:
+        """Handle GET /Bundles."""
+        location = self.get_query_argument("location", default=None)
+        status = self.get_query_argument("status", default=None)
+        verified = self.get_query_argument("verified", default=None)
+
+        query: Dict[str, Any] = {}
+        if location:
+            query["source"] = {"$regex": f"^{location}"}
+        if status:
+            query["status"] = status
+        if verified:
+            query["verified"] = str2bool(verified)
+
+        results = []
+        async for row in self.db.Bundles.find(filter=query,
+                                              projection=REMOVE_ID):
+            results.append(row["uuid"])
+
+        ret = {
+            'results': results,
+        }
+        self.write(ret)
+
+class BundlesActionsPopHandler(BaseLTAHandler):
+    """
+    BundlesActionsPopHandler handles /Bundles/actions/pop.
+
+    Bundler provides (provisional; Bundler doesn't exist yet):
+        bundle_obj = {
+            "location": "SITE:PATH",
+            "status": "none"
+            "verified": False,
+            "manifest": [
+                { manifest_record },
+            ]
+        }
+
+    Manifest Schema (provisional; Bundler doesn't exist yet):
+        manifest_record = {
+            "uuid": uuid,
+            "logical_name": "/data/exp/IceCube...",
+            "bundle_size": 123456789,
+            "checksum": {
+                "sha512": "...",
+            }
+        }
+
+    LTA DB annotates:
+        xfer_bundle["uuid"] = unique_id()
+        xfer_bundle["create_timestamp"] = now()
+    """
+
+    @lta_auth(roles=['system'])
+    async def post(self) -> None:
+        """Handle POST /Bundles/actions/pop."""
+        # we're looking for bundles at the specified site...
+        site = self.get_argument('site')
+        if site not in self.sites:
+            raise tornado.web.HTTPError(400, reason="invalid site")
+        # ...and in the specified state
+        status = self.get_argument('status')
+        if status not in BUNDLE_STATES:
+            raise tornado.web.HTTPError(400, reason="invalid bundle state")
+        # by default you get 1, but you can ask for more
+        limit = self.get_argument('limit', 1)
+        try:
+            limit = int(limit)
+        except Exception:
+            raise tornado.web.HTTPError(400, reason="limit is not an int")
+        # get the self-identification of the claiming component
+        pop_body = json_decode(self.request.body)
+        # find some unclaimed bundles to process
+        sdb = self.db.Bundles
+        old_age = self.check_claims.old_age()
+        query = {
+            "$and": [
+                {"location": {"$regex": f"^{site}"}},
+                {"status": f"{status}"},
+                {"$or": [
+                    {"claimed": False},
+                    {"claim_time": {"$lt": f"{old_age}"}}
+                ]}
+            ]
+        }
+        sort = [('create_timestamp', ASCENDING)]
+        ret = []
+        async for row in sdb.find(filter=query,
+                                  projection=REMOVE_ID,
+                                  sort=sort):
+            if (limit > 0):
+                uuid = row["uuid"]
+                row["claimant"] = pop_body
+                row["claimed"] = True
+                row["claim_time"] = now()
+                update_query = {
+                    "$and": [
+                        {"uuid": uuid},
+                        {"$or": [
+                            {"claimed": False},
+                            {"claim_time": {"$lt": f"{old_age}"}}
+                        ]}
+                    ]
+                }
+                update_doc = {"$set": row}
+                ret2 = await sdb.find_one_and_update(filter=update_query,
+                                                     update=update_doc,
+                                                     projection=REMOVE_ID,
+                                                     return_document=AFTER)
+                if not ret2:
+                    logging.error(f"Unable to claim Bundle {uuid}")
+                else:
+                    logging.info(f"claimed Bundle {uuid} for {pop_body}")
+                    limit = limit - 1
+                    ret.append(row)
+        self.write({'results': ret})
+
+class BundlesSingleHandler(BaseLTAHandler):
+    """BundlesSingleHandler handles object level routes for Bundles."""
+
+    @lta_auth(roles=['admin', 'user', 'system'])
+    async def get(self, bundle_id: str) -> None:
+        """Handle GET /Bundles/{uuid}."""
+        query = {"uuid": bundle_id}
+        ret = await self.db.Bundles.find_one(filter=query, projection=REMOVE_ID)
+        if not ret:
+            raise tornado.web.HTTPError(404, reason="not found")
+        self.write(ret)
+
+    @lta_auth(roles=['admin', 'user', 'system'])
+    async def patch(self, bundle_id: str) -> None:
+        """Handle PATCH /Bundles/{uuid}."""
+        req = json_decode(self.request.body)
+        if 'uuid' in req and req['uuid'] != bundle_id:
+            raise tornado.web.HTTPError(400, reason="bad request")
+        query = {"uuid": bundle_id}
+        update_doc = {"$set": req}
+        ret = await self.db.Bundles.find_one_and_update(filter=query,
+                                                        update=update_doc,
+                                                        projection=REMOVE_ID,
+                                                        return_document=AFTER)
+        if not ret:
+            raise tornado.web.HTTPError(404, reason="not found")
+        logging.info(f"patched Bundle {bundle_id} with {req}")
+        self.write(ret)
+
+    @lta_auth(roles=['admin', 'user', 'system'])
+    async def delete(self, bundle_id: str) -> None:
+        """Handle DELETE /Bundles/{uuid}."""
+        query = {"uuid": bundle_id}
+        await self.db.Bundles.delete_one(filter=query)
+        logging.info(f"deleted Bundle {bundle_id}")
+        self.set_status(204)
 
 # -----------------------------------------------------------------------------
 
@@ -519,7 +783,15 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
                 row["claimant"] = pop_body
                 row["claimed"] = True
                 row["claim_time"] = now()
-                update_query = {"uuid": uuid, "claimed": False}
+                update_query = {
+                    "$and": [
+                        {"uuid": uuid},
+                        {"$or": [
+                            {"claimed": False},
+                            {"claim_time": {"$lt": f"{old_age}"}}
+                        ]}
+                    ]
+                }
                 update_doc = {"$set": row}
                 ret2 = await sdtr.find_one_and_update(filter=update_query,
                                                       update=update_doc,
@@ -642,10 +914,20 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     client = MongoClient(mongo_url)
     db = client[mongo_db]
     logging.info(f"Creating indexes in MongoDB database: {mongo_db}")
-    # TransferRequests.uuid
-    if 'transfer_requests_uuid_index' not in db.TransferRequests.index_information():
-        logging.info(f"Creating index for {mongo_db}.TransferRequests.uuid")
-        db.TransferRequests.create_index('uuid', name='transfer_requests_uuid_index', unique=True)
+    # Bundle.uuid
+    if 'bundles_create_timestamp_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.Bundles.create_timestamp")
+        db.Bundles.create_index('create_timestamp', name='bundles_create_timestamp_index', unique=False)
+    if 'bundles_uuid_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.Bundles.uuid")
+        db.Bundles.create_index('uuid', name='bundles_uuid_index', unique=True)
+    # Files.uuid
+    if 'files_catalog_logical_name_index' not in db.Files.index_information():
+        logging.info(f"Creating index for {mongo_db}.Files.catalog.logical_name")
+        db.Files.create_index('catalog.logical_name', name='files_catalog_logical_name_index', unique=False)
+    if 'files_uuid_index' not in db.Files.index_information():
+        logging.info(f"Creating index for {mongo_db}.Files.uuid")
+        db.Files.create_index('uuid', name='files_uuid_index', unique=True)
     # Status.{component, name}
     if 'status_component_index' not in db.Status.index_information():
         logging.info(f"Creating index for {mongo_db}.Status.component")
@@ -653,10 +935,10 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     if 'status_name_index' not in db.Status.index_information():
         logging.info(f"Creating index for {mongo_db}.Status.name")
         db.Status.create_index('name', name='status_name_index', unique=False)
-    # Files.uuid
-    if 'files_uuid_index' not in db.Files.index_information():
-        logging.info(f"Creating index for {mongo_db}.Files.uuid")
-        db.Files.create_index('uuid', name='files_uuid_index', unique=True)
+    # TransferRequests.uuid
+    if 'transfer_requests_uuid_index' not in db.TransferRequests.index_information():
+        logging.info(f"Creating index for {mongo_db}.TransferRequests.uuid")
+        db.TransferRequests.create_index('uuid', name='transfer_requests_uuid_index', unique=True)
     logging.info("Done creating indexes in MongoDB.")
 
 
@@ -675,15 +957,21 @@ def start(debug: bool = False) -> RestServer:
     })
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
     # configure access to MongoDB as a backing store
-    ensure_mongo_indexes(config["LTA_MONGODB_URL"], 'lta')
+    ensure_mongo_indexes(config["LTA_MONGODB_URL"], config["LTA_MONGODB_NAME"])
     motor_client = MotorClient(config["LTA_MONGODB_URL"])
-    args['db'] = motor_client['lta']
+    args['db'] = motor_client[config["LTA_MONGODB_NAME"]]
     # site configuration
     with open(config["LTA_SITE_CONFIG"]) as site_data:
         args['sites'] = json.load(site_data)
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)
+    server.add_route(r'/Bundles', BundlesHandler, args)
+    server.add_route(r'/Bundles/actions/bulk_create', BundlesActionsBulkCreateHandler, args)
+    server.add_route(r'/Bundles/actions/bulk_delete', BundlesActionsBulkDeleteHandler, args)
+    server.add_route(r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler, args)
+    server.add_route(r'/Bundles/actions/pop', BundlesActionsPopHandler, args)
+    server.add_route(r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler, args)
     server.add_route(r'/Files', FilesHandler, args)
     server.add_route(r'/Files/actions/bulk_create', FilesActionsBulkCreateHandler, args)
     server.add_route(r'/Files/actions/bulk_delete', FilesActionsBulkDeleteHandler, args)
