@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import json
 import logging
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
@@ -17,7 +17,6 @@ import pymongo  # type: ignore
 from pymongo import MongoClient
 from rest_tools.client import json_decode  # type: ignore
 from rest_tools.server import authenticated, catch_error, RestHandler, RestHandlerSetup, RestServer  # type: ignore
-from str2bool import str2bool  # type: ignore
 import tornado.web
 
 from .config import from_environment
@@ -28,6 +27,7 @@ EXPECTED_CONFIG = {
     'LTA_AUTH_ISSUER': 'lta',
     'LTA_AUTH_SECRET': 'secret',
     'LTA_MAX_CLAIM_AGE_HOURS': '12',
+    'LTA_MONGODB_NAME': 'lta',
     'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
@@ -41,10 +41,26 @@ ALL_DOCUMENTS: Dict[str, str] = {}
 ASCENDING = pymongo.ASCENDING
 BUNDLE_STATES = ['accessible', 'deletable', 'inaccessible', 'none', 'transferring']
 REMOVE_ID = {"_id": False}
+STR2BOOL_FALSE_SET = {'0', 'f', 'false', 'n', 'no'}
+STR2BOOL_TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
 def now() -> str:
     """Return string timestamp for current time, to the second."""
     return datetime.utcnow().isoformat(timespec='seconds')
+
+# https://github.com/symonsoft/str2bool/blob/master/str2bool/__init__.py
+def str2bool(value: str, raise_exc: bool = False) -> Optional[bool]:
+    """Convert a string into a False, None, or True value."""
+    if isinstance(value, str):
+        value = value.lower()
+        if value in STR2BOOL_TRUE_SET:
+            return True
+        if value in STR2BOOL_FALSE_SET:
+            return False
+
+    if raise_exc:
+        raise ValueError(f'Expected "{", ".join(STR2BOOL_TRUE_SET | STR2BOOL_FALSE_SET)}"')
+    return None
 
 def unique_id() -> str:
     """Return a unique ID for an LTA database entity."""
@@ -216,7 +232,7 @@ class BundlesHandler(BaseLTAHandler):
         status = self.get_query_argument("status", default=None)
         verified = self.get_query_argument("verified", default=None)
 
-        query = {}
+        query: Dict[str, Any] = {}
         if location:
             query["source"] = {"$regex": f"^{location}"}
         if status:
@@ -941,9 +957,9 @@ def start(debug: bool = False) -> RestServer:
     })
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
     # configure access to MongoDB as a backing store
-    ensure_mongo_indexes(config["LTA_MONGODB_URL"], 'lta')
+    ensure_mongo_indexes(config["LTA_MONGODB_URL"], config["LTA_MONGODB_NAME"])
     motor_client = MotorClient(config["LTA_MONGODB_URL"])
-    args['db'] = motor_client['lta']
+    args['db'] = motor_client[config["LTA_MONGODB_NAME"]]
     # site configuration
     with open(config["LTA_SITE_CONFIG"]) as site_data:
         args['sites'] = json.load(site_data)

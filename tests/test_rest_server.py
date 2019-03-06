@@ -4,19 +4,19 @@
 import asyncio
 from datetime import datetime, timedelta
 from math import floor
-import os
 import pytest  # type: ignore
 from random import random
 import socket
 from typing import Dict
 
-from lta.rest_server import main, start, unique_id
+from lta.rest_server import main, start, str2bool, unique_id
 from pymongo import MongoClient  # type: ignore
 from pymongo.database import Database  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import Auth  # type: ignore
 
 ALL_DOCUMENTS: Dict[str, str] = {}
+MONGODB_NAME = "lta-unit-tests"
 REMOVE_ID = {"_id": False}
 
 class ObjectLiteral:
@@ -35,10 +35,11 @@ class ObjectLiteral:
 
 @pytest.fixture
 def mongo(monkeypatch) -> Database:
-    """Get the Database that corresponds to the LTA database."""
-    monkeypatch.setenv("LTA_MONGODB_URL", "mongodb://localhost:27017/")
-    client = MongoClient(os.environ["LTA_MONGODB_URL"])
-    db = client['lta']
+    """Get a reference to a test instance of a MongoDB Database."""
+    client = MongoClient("mongodb://localhost:27017/")
+    db = client[MONGODB_NAME]
+    for collection in db.list_collection_names():
+        db[collection].delete_many(ALL_DOCUMENTS)
     return db
 
 @pytest.fixture
@@ -55,10 +56,11 @@ def port():
 @pytest.fixture
 async def rest(monkeypatch, port):
     """Provide RestClient as a test fixture."""
-    monkeypatch.setenv("LTA_REST_PORT", str(port))
-    monkeypatch.setenv("LTA_AUTH_SECRET", "secret")
-    monkeypatch.setenv("LTA_AUTH_ISSUER", "lta")
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
+    monkeypatch.setenv("LTA_AUTH_ISSUER", "lta")
+    monkeypatch.setenv("LTA_AUTH_SECRET", "secret")
+    monkeypatch.setenv("LTA_MONGODB_NAME", MONGODB_NAME)
+    monkeypatch.setenv("LTA_REST_PORT", str(port))
     s = start(debug=True)
     a = Auth('secret', issuer='lta', algorithm='HS512')
 
@@ -69,6 +71,61 @@ async def rest(monkeypatch, port):
     yield client
     s.stop()
     await asyncio.sleep(0.01)
+
+# -----------------------------------------------------------------------------
+
+def test_str2bool():
+    """Test the str2bool function."""
+    assert not str2bool("0")
+    assert not str2bool("F")
+    assert not str2bool("f")
+    assert not str2bool("FALSE")
+    assert not str2bool("false")
+    assert not str2bool("N")
+    assert not str2bool("n")
+    assert not str2bool("NO")
+    assert not str2bool("no")
+
+    assert str2bool("1")
+    assert str2bool("T")
+    assert str2bool("t")
+    assert str2bool("TRUE")
+    assert str2bool("true")
+    assert str2bool("Y")
+    assert str2bool("y")
+    assert str2bool("YES")
+    assert str2bool("yes")
+
+    assert str2bool(None) is None
+    assert str2bool(12345) is None
+    assert str2bool(6.2831853071) is None
+    assert str2bool("alice") is None
+    assert str2bool("bob") is None
+    assert str2bool({}) is None
+    assert str2bool([]) is None
+
+    with pytest.raises(Exception):
+        assert str2bool(None, raise_exc=True)
+
+    with pytest.raises(Exception):
+        assert str2bool(12345, raise_exc=True)
+
+    with pytest.raises(Exception):
+        assert str2bool(6.2831853071, raise_exc=True)
+
+    with pytest.raises(Exception):
+        assert str2bool("alice", raise_exc=True)
+
+    with pytest.raises(Exception):
+        assert str2bool("bob", raise_exc=True)
+
+    with pytest.raises(Exception):
+        assert str2bool({}, raise_exc=True)
+
+    with pytest.raises(Exception):
+        assert str2bool([], raise_exc=True)
+
+# -----------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_server_reachability(rest):
@@ -107,8 +164,6 @@ async def test_transfer_request_fail(rest):
 @pytest.mark.asyncio
 async def test_transfer_request_crud(mongo, rest):
     """Check CRUD semantics for transfer requests."""
-    mongo.TransferRequests.delete_many(ALL_DOCUMENTS)
-
     r = rest()
     request = {'source': 'foo', 'dest': ['bar']}
     ret = await r.request('POST', '/TransferRequests', request)
@@ -180,8 +235,6 @@ async def test_transfer_request_pop(rest):
 @pytest.mark.asyncio
 async def test_status(mongo, rest):
     """Check for status handling."""
-    mongo.Status.delete_many(ALL_DOCUMENTS)
-
     r = rest('system')
     ret = await r.request('GET', '/status')
     assert ret['health'] == 'OK'
@@ -227,7 +280,6 @@ async def test_script_main(mocker):
 @pytest.mark.asyncio
 async def test_files_bulk_crud(mongo, rest):
     """Check CRUD semantics for files."""
-    mongo.Files.delete_many(ALL_DOCUMENTS)
     r = rest('system')
 
     #
@@ -342,7 +394,6 @@ async def test_bulk_update_errors(rest):
 @pytest.mark.asyncio
 async def test_get_files_filter(mongo, rest):
     """Check that GET /Files filters properly by query parameters.."""
-    mongo.Files.delete_many(ALL_DOCUMENTS)
     r = rest('system')
 
     test_data = {
@@ -481,7 +532,6 @@ async def test_get_files_uuid_error(rest):
 @pytest.mark.asyncio
 async def test_delete_files_uuid(mongo, rest):
     """Check that DELETE /Files/UUID returns 204, exist or not exist."""
-    mongo.Files.delete_many(ALL_DOCUMENTS)
     r = rest('system')
 
     test_data = {
@@ -520,7 +570,6 @@ async def test_delete_files_uuid(mongo, rest):
 @pytest.mark.asyncio
 async def test_patch_files_uuid(mongo, rest):
     """Check that PATCH /Files/UUID does the right thing, every time."""
-    mongo.Files.delete_many(ALL_DOCUMENTS)
     r = rest('system')
 
     test_data = {
@@ -561,7 +610,6 @@ async def test_patch_files_uuid(mongo, rest):
 @pytest.mark.asyncio
 async def test_files_actions_pop(mongo, rest):
     """Check pop action for files."""
-    mongo.Files.delete_many(ALL_DOCUMENTS)
     r = rest('system', timeout=1.0)
     request = {"bundler": "node12345-bundler"}
 
@@ -658,7 +706,6 @@ async def test_files_actions_pop(mongo, rest):
 @pytest.mark.asyncio
 async def test_bundles_bulk_crud(mongo, rest):
     """Check CRUD semantics for bundles."""
-    mongo.Bundles.delete_many(ALL_DOCUMENTS)
     r = rest('system')
 
     #
@@ -773,7 +820,6 @@ async def test_bundles_actions_bulk_update_errors(rest):
 @pytest.mark.asyncio
 async def test_get_bundles_filter(mongo, rest):
     """Check that GET /Bundles filters properly by query parameters.."""
-    mongo.Bundles.delete_many(ALL_DOCUMENTS)
     r = rest('system')
 
     test_data = {
@@ -901,7 +947,6 @@ async def test_get_bundles_uuid_error(rest):
 @pytest.mark.asyncio
 async def test_delete_bundles_uuid(mongo, rest):
     """Check that DELETE /Bundles/UUID returns 204, exist or not exist."""
-    mongo.Bundles.delete_many(ALL_DOCUMENTS)
     r = rest('system')
 
     test_data = {
@@ -940,7 +985,6 @@ async def test_delete_bundles_uuid(mongo, rest):
 @pytest.mark.asyncio
 async def test_patch_bundles_uuid(mongo, rest):
     """Check that PATCH /Bundles/UUID does the right thing, every time."""
-    mongo.Bundles.delete_many(ALL_DOCUMENTS)
     r = rest('system')
 
     test_data = {
@@ -981,7 +1025,6 @@ async def test_patch_bundles_uuid(mongo, rest):
 @pytest.mark.asyncio
 async def test_bundles_actions_pop(mongo, rest):
     """Check pop action for bundles."""
-    mongo.Bundles.delete_many(ALL_DOCUMENTS)
     r = rest('system')
 
     test_data = {
@@ -1067,7 +1110,6 @@ async def test_bundles_actions_pop(mongo, rest):
 @pytest.mark.asyncio
 async def test_bundles_actions_pop_errors(mongo, rest):
     """Check error handlers for pop action for bundles."""
-    mongo.Bundles.delete_many(ALL_DOCUMENTS)
     r = rest('system')
     request = {}
 
