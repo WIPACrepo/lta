@@ -440,5 +440,6 @@ async def test_bundler_do_work_dest_results(config, mocker):
     ]
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
         await p._do_work_dest_results("NERSC", lta_rc_mock, results)
+        metadata_mock.assert_called_with(mocker.ANY, mode="w")
         # lta_rc_mock.assert_called_with('POST', '/Bundles/actions/bulk_create', mocker.ANY)
         lta_rc_mock.assert_not_called()
