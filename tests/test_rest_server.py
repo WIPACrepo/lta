@@ -9,7 +9,7 @@ from random import random
 import socket
 from typing import Dict
 
-from lta.rest_server import main, start, str2bool, unique_id
+from lta.rest_server import boolify, main, start, unique_id
 from pymongo import MongoClient  # type: ignore
 from pymongo.database import Database  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
@@ -74,56 +74,35 @@ async def rest(monkeypatch, port):
 
 # -----------------------------------------------------------------------------
 
-def test_str2bool():
-    """Test the str2bool function."""
-    assert not str2bool("0")
-    assert not str2bool("F")
-    assert not str2bool("f")
-    assert not str2bool("FALSE")
-    assert not str2bool("false")
-    assert not str2bool("N")
-    assert not str2bool("n")
-    assert not str2bool("NO")
-    assert not str2bool("no")
+def test_boolify():
+    """Test the boolify function."""
+    assert not boolify("0")
+    assert not boolify("F")
+    assert not boolify("f")
+    assert not boolify("FALSE")
+    assert not boolify("false")
+    assert not boolify("N")
+    assert not boolify("n")
+    assert not boolify("NO")
+    assert not boolify("no")
 
-    assert str2bool("1")
-    assert str2bool("T")
-    assert str2bool("t")
-    assert str2bool("TRUE")
-    assert str2bool("true")
-    assert str2bool("Y")
-    assert str2bool("y")
-    assert str2bool("YES")
-    assert str2bool("yes")
+    assert boolify("1")
+    assert boolify("T")
+    assert boolify("t")
+    assert boolify("TRUE")
+    assert boolify("true")
+    assert boolify("Y")
+    assert boolify("y")
+    assert boolify("YES")
+    assert boolify("yes")
 
-    assert str2bool(None) is None
-    assert str2bool(12345) is None
-    assert str2bool(6.2831853071) is None
-    assert str2bool("alice") is None
-    assert str2bool("bob") is None
-    assert str2bool({}) is None
-    assert str2bool([]) is None
-
-    with pytest.raises(Exception):
-        assert str2bool(None, raise_exc=True)
-
-    with pytest.raises(Exception):
-        assert str2bool(12345, raise_exc=True)
-
-    with pytest.raises(Exception):
-        assert str2bool(6.2831853071, raise_exc=True)
-
-    with pytest.raises(Exception):
-        assert str2bool("alice", raise_exc=True)
-
-    with pytest.raises(Exception):
-        assert str2bool("bob", raise_exc=True)
-
-    with pytest.raises(Exception):
-        assert str2bool({}, raise_exc=True)
-
-    with pytest.raises(Exception):
-        assert str2bool([], raise_exc=True)
+    assert not boolify(None)
+    assert not boolify(12345)
+    assert not boolify(6.2831853071)
+    assert not boolify("alice")
+    assert not boolify("bob")
+    assert not boolify({})
+    assert not boolify([])
 
 # -----------------------------------------------------------------------------
 

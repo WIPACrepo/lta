@@ -4,7 +4,8 @@
             "bundle_size": 100000000000
         },
         "NERSC": {
-            "bundle_size": 500000000000
+            "xbundle_size": 500000000000,
+            "bundle_size": 10000000000
         },
         "WIPAC": {
             "bundle_size": 1000000000

@@ -7,13 +7,15 @@ import json
 from logging import Logger
 import logging
 import platform
-from rest_tools.client import RestClient  # type: ignore
 import sys
-from typing import Any, Dict, List, Tuple, Union
+from typing import Dict
+
+from rest_tools.client import RestClient  # type: ignore
 from urllib.parse import urljoin
 
 from .config import from_environment
 from .log_format import StructuredFormatter
+from .lta_types import CatalogFileType, DestList, FileList, TransferRequestType
 
 EXPECTED_CONFIG = {
     "FILE_CATALOG_REST_TOKEN": None,
@@ -35,14 +37,6 @@ HEARTBEAT_STATE = [
     "last_work_end_timestamp",
     "lta_ok"
 ]
-
-# TODO: This list should almost certainly be refactored out into a common types module; FC and LTA DB
-CatalogFileType = Dict[str, Any]
-DestType = Tuple[str, str]
-DestList = List[DestType]
-FileType = Dict[str, Union[str, Dict[Any, Any]]]
-FileList = List[FileType]
-TransferRequestType = Dict[str, Any]
 
 
 class Picker:
@@ -111,7 +105,7 @@ class Picker:
         self.logger.info("Ending picker work cycle")
 
     async def _do_work(self) -> None:
-        # 1. Ask the REST DB for the next TransferRequest to be picked
+        # 1. Ask the LTA DB for the next TransferRequest to be picked
         # configure a RestClient to talk to the LTA DB
         lta_rc = RestClient(self.lta_rest_url,
                             token=self.lta_rest_token,
@@ -180,14 +174,14 @@ class Picker:
         bulk_create: FileList = []
         for catalog_file in fc_response["files"]:
             bulk_create.extend(await self._do_work_catalog_file(lta_rc, tr, fc_rc, dests, catalog_file))
-        # 3. Update the REST DB with Files needed for bundling
-        self.logger.info(f'Identified {len(bulk_create)} transfer(s) to add to the REST DB.')
+        # 3. Update the LTA DB with Files needed for bundling
+        self.logger.info(f'Identified {len(bulk_create)} transfer(s) to add to the LTA DB.')
         create_body = {
             "files": bulk_create
         }
         await lta_rc.request('POST', '/Files/actions/bulk_create', create_body)
-        # 4. Return the TransferRequest to the REST DB as picked
-        self.logger.info(f'Marking TransferRequest {tr["uuid"]} as complete in the REST DB.')
+        # 4. Return the TransferRequest to the LTA DB as picked
+        self.logger.info(f'Marking TransferRequest {tr["uuid"]} as complete in the LTA DB.')
         complete = {
             "complete": {
                 "timestamp": datetime.utcnow().isoformat(),
@@ -195,7 +189,7 @@ class Picker:
             }
         }
         await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', complete)
-        self.logger.info(f'Deleting TransferRequest {tr["uuid"]} from the REST DB.')
+        self.logger.info(f'Deleting TransferRequest {tr["uuid"]} from the LTA DB.')
         await lta_rc.request('DELETE', f'/TransferRequests/{tr["uuid"]}')
         self.logger.info(f'Done working on TransferRequest {tr["uuid"]}.')
 
@@ -223,7 +217,7 @@ class Picker:
                 self.logger.info(f'Catalog file {catalog_file["logical_name"]} is already at {dest[0]}:{dest[1]}')
                 # move on to the next destination
                 continue
-            # otherwise, we need to create this File object in the REST DB
+            # otherwise, we need to create this File object in the LTA DB
             self.logger.info(f'Adding catalog file {catalog_file["logical_name"]} transfer {tr["source"]} -> {dest[0]}:{dest[1]} to bulk create list.')
             file_obj = {
                 "source": tr["source"],
@@ -256,7 +250,7 @@ async def patch_status_heartbeat(picker: Picker) -> bool:
                         token=picker.lta_rest_token,
                         timeout=picker.heartbeat_patch_timeout_seconds,
                         retries=picker.heartbeat_patch_retries)
-        # Use the RestClient to PATCH our heartbeat to the LTA REST DB
+        # Use the RestClient to PATCH our heartbeat to the LTA DB
         await rc.request('PATCH', "/status/picker", status_body)
         picker.lta_ok = True
     except Exception as e:
