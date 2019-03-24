@@ -239,7 +239,7 @@ async def test_status(mongo, rest):
     ret = await r.request('GET', '/status')
     assert ret['health'] == 'OK'
 
-    request = {'1.1': {'t': datetime.utcnow().isoformat(), 'foo': 'bar'}}
+    request = {'1.1': {'timestamp': datetime.utcnow().isoformat(), 'foo': 'bar'}}
     await r.request('PATCH', '/status/1', request)
 
     ret = await r.request('GET', '/status')
@@ -252,14 +252,14 @@ async def test_status(mongo, rest):
     with pytest.raises(Exception):
         await r.request('GET', '/status/2')
 
-    request2 = {'1.2': {'t': datetime.utcnow().isoformat(), 'baz': 2}}
+    request2 = {'1.2': {'timestamp': datetime.utcnow().isoformat(), 'baz': 2}}
     await r.request('PATCH', '/status/1', request2)
     request_all = dict(request)
     request_all.update(request2)
     ret = await r.request('GET', '/status/1')
     assert ret == request_all
 
-    request = {'2.1': {'t': (datetime.utcnow() - timedelta(hours=1)).isoformat(), 'foo': 'bar'}}
+    request = {'2.1': {'timestamp': (datetime.utcnow() - timedelta(hours=1)).isoformat(), 'foo': 'bar'}}
     await r.request('PATCH', '/status/2', request)
     ret = await r.request('GET', '/status')
     assert ret['health'] == 'WARN'
