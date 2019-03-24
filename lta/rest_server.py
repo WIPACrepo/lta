@@ -829,7 +829,7 @@ class StatusHandler(BaseLTAHandler):
             if component not in ret:
                 ret[component] = 'OK'
             # if any of that component type have an old heartbeat
-            if not date_ok(row["t"]):
+            if not date_ok(row["timestamp"]):
                 ret[component] = 'WARN'
                 health = 'WARN'
         ret["health"] = health

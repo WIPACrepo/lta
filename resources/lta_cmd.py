@@ -98,6 +98,33 @@ async def request_status(args) -> int:
     return 0
 
 
+async def status(args) -> int:
+    rc = RestClient(args.config["LTA_REST_URL"], token=args.config["LTA_REST_TOKEN"])
+    try:
+        # if we want the status of a particular component type
+        if args.component:
+            response = await rc.request("GET", f"/status/{args.component}")
+            if args.json:
+                print_dict_as_pretty_json(response)
+            else:
+                for key in response:
+                    print(f"{(key+':'):<25}{response[key]['timestamp']}")
+        # otherwise we want the status of the whole system
+        else:
+            response = await rc.request("GET", "/status")
+            if args.json:
+                print_dict_as_pretty_json(response)
+            else:
+                print(f"LTA:          {response['health']}")
+                for key in response:
+                    if key != "health":
+                        print(f"{(key+':'):<14}{response[key]}")
+    except Exception as e:
+        print(e)
+        return -1
+    return 0
+
+
 async def main():
     # configure the application from the environment
     config = from_environment(EXPECTED_CONFIG)
@@ -155,6 +182,17 @@ async def main():
                                        help="display output in JSON",
                                        action="store_true")
     parser_request_status.set_defaults(func=request_status)
+
+    # define a subparser for the 'status' subcommand
+    parser_status = subparser.add_parser('status', help='perform a status query')
+    parser_status.add_argument("component",
+                               choices=["picker", "bundler"],
+                               help="optional LTA component",
+                               nargs='?')
+    parser_status.add_argument("--json",
+                               help="display output in JSON",
+                               action="store_true")
+    parser_status.set_defaults(func=status)
 
     # parse the provided command line arguments and call the function
     args = parser.parse_args()
