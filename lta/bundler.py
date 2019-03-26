@@ -3,7 +3,6 @@
 
 import asyncio
 from datetime import datetime
-import hashlib
 import json
 from logging import Logger
 import logging
@@ -19,6 +18,7 @@ from rest_tools.client import RestClient  # type: ignore
 from urllib.parse import urljoin
 
 from .config import from_environment
+from .crypto import sha512sum
 from .log_format import StructuredFormatter
 
 EXPECTED_CONFIG = {
@@ -46,18 +46,6 @@ HEARTBEAT_STATE = [
 def now() -> str:
     """Return string timestamp for current time, to the second."""
     return datetime.utcnow().isoformat(timespec='seconds')
-
-# Adapted from: https://stackoverflow.com/a/44873382
-def sha512sum(filename: str) -> str:
-    """Compute the SHA512 hash of the supplied filename."""
-    h = hashlib.sha512()
-    b = bytearray(128*1024)
-    mv = memoryview(b)
-    with open(filename, 'rb', buffering=0) as f:
-        # Known issue with MyPy: https://github.com/python/typeshed/issues/2166
-        for n in iter(lambda: f.readinto(mv), 0):  # type: ignore
-            h.update(mv[:n])
-    return h.hexdigest()
 
 def unique_id() -> str:
     """Return a unique ID for a Bundle."""
@@ -133,16 +121,22 @@ class Bundler:
         self.logger.info("Ending bundler work cycle")
 
     async def _do_work(self) -> None:
+        """Perform a work cycle for this component."""
+        await self._consume_files_to_bundle_to_destination_sites()
+
+    async def _consume_files_to_bundle_to_destination_sites(self) -> None:
+        """Check each of the sites to see if we can bundle for them."""
         # for each destination to which we could bundle
         for site in self.sites:
             # see if we have any work to do bundling files there
             if site != self.bundler_site_source:
                 self.logger.info(f"Processing bundles from {self.bundler_site_source} to {site}")
-                await self._do_work_dest(site)
+                await self._consume_files_for_destination_site(site)
         # inform the log that we've worked on each site and now we're taking a break
         self.logger.info(f"Bundling work cycle complete. Going on vacation.")
 
-    async def _do_work_dest(self, dest: str) -> None:
+    async def _consume_files_for_destination_site(self, dest: str) -> None:
+        """Check a specific site to see if we can bundle for it."""
         # 1. Get Files to bundle from LTA DB
         lta_rc = RestClient(self.lta_rest_url,
                             token=self.lta_rest_token,
@@ -159,9 +153,10 @@ class Bundler:
         if not results:
             self.logger.info(f"No Files are available to work on. Going on vacation.")
             return
-        await self._do_work_dest_results(dest, lta_rc, results)
+        await self._build_bundle_for_destination_site(dest, lta_rc, results)
 
-    async def _do_work_dest_results(self, dest: str, lta_rc: RestClient, results: List[Dict[str, Any]]) -> None:
+    async def _build_bundle_for_destination_site(self, dest: str, lta_rc: RestClient, results: List[Dict[str, Any]]) -> None:
+        """Build a bundle for a specific site with the supplied files."""
         source = self.bundler_site_source
         num_files = len(results)
         self.logger.info(f"There are {num_files} Files to bundle from '{source}' to '{dest}'.")
@@ -237,11 +232,6 @@ class Bundler:
             "files": [x["catalog"]["uuid"] for x in results]
         }
         await lta_rc.request('POST', '/Files/actions/bulk_update', update_body)
-        # 4.2. Remove the files from the DB
-        delete_body = {
-            "files": [x["catalog"]["uuid"] for x in results]
-        }
-        await lta_rc.request('POST', f'/Files/actions/bulk_delete', delete_body)
 
 async def patch_status_heartbeat(bundler: Bundler) -> bool:
     """PATCH /status/bundler to update LTA with a status heartbeat."""

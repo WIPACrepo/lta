@@ -2,43 +2,14 @@
 """Unit tests for lta/bundler.py."""
 
 from asyncio import Future
-from unittest.mock import call, MagicMock
+from unittest.mock import call, mock_open, patch
+
 import pytest  # type: ignore
 import requests
 from tornado.web import HTTPError  # type: ignore
-from unittest.mock import patch, mock_open
 
-from lta.bundler import main, patch_status_heartbeat, Bundler, status_loop, work_loop
-
-
-class AsyncMock(MagicMock):
-    """
-    AsyncMock is the async version of a MagicMock.
-
-    We use this class in place of MagicMock when we want to mock
-    asynchronous callables.
-
-    Source: https://stackoverflow.com/a/32498408
-    """
-
-    async def __call__(self, *args, **kwargs):
-        """Allow MagicMock to work its magic too."""
-        return super(AsyncMock, self).__call__(*args, **kwargs)
-
-
-class ObjectLiteral:
-    """
-    ObjectLiteral transforms named arguments into object attributes.
-
-    This is useful for creating object literals to be used as return
-    values from mocked API calls.
-
-    Source: https://stackoverflow.com/a/3335732
-    """
-
-    def __init__(self, **kwds):
-        """Add attributes to ourself with the provided named arguments."""
-        self.__dict__.update(kwds)
+from lta.bundler import Bundler, main, patch_status_heartbeat, status_loop, work_loop
+from .test_util import AsyncMock, ObjectLiteral
 
 
 @pytest.fixture
@@ -395,7 +366,7 @@ async def test_bundler_do_work_yes_results(config, mocker):
             }
         ]
     }
-    dwtr_mock = mocker.patch("lta.bundler.Bundler._do_work_dest_results", new_callable=AsyncMock)
+    dwtr_mock = mocker.patch("lta.bundler.Bundler._build_bundle_for_destination_site", new_callable=AsyncMock)
     p = Bundler(config, logger_mock)
     await p._do_work()
     lta_rc_mock.assert_called_with("POST", '/Files/actions/pop?source=WIPAC&dest=NERSC', {'bundler': 'testing-bundler'})
@@ -439,7 +410,7 @@ async def test_bundler_do_work_dest_results(config, mocker):
         },
     ]
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
-        await p._do_work_dest_results("NERSC", lta_rc_mock, results)
+        await p._build_bundle_for_destination_site("NERSC", lta_rc_mock, results)
         metadata_mock.assert_called_with(mocker.ANY, mode="w")
         # lta_rc_mock.assert_called_with('POST', '/Bundles/actions/bulk_create', mocker.ANY)
         lta_rc_mock.assert_not_called()

@@ -45,11 +45,7 @@ TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
 def boolify(value: str) -> bool:
     """Convert a string into a True or False value."""
-    if isinstance(value, str):
-        value = value.lower()
-        if value in TRUE_SET:
-            return True
-    return False
+    return isinstance(value, str) and value.lower() in TRUE_SET
 
 def now() -> str:
     """Return string timestamp for current time, to the second."""
