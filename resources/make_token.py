@@ -32,4 +32,4 @@ if __name__ == '__main__':
                        expiration=int(config["LTA_AUTH_EXPIRE_SECONDS"]),
                        type=config["LTA_AUTH_TYPE"],
                        payload=payload)
-    print(t.decode('ascii'))
+    print(t)

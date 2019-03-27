@@ -70,26 +70,77 @@ log lens:
     picker.sh | loglens
 
 ### Local test environment
-A file `local-secret` contains the secret credentials used by the REST DB
+It is possible to test LTA locally, but the setup for the local test
+environment has a few steps. This section walks you through that process.
+
+#### MongoDB
+Get a MongoDB running on port 27017.
+
+    TODO: Provide a Vagrantfile to easily create this service
+
+#### File Catalog
+Get a File Catalog running on port 8888.
+
+    TODO: Provide a Vagrantfile to easily create this service
+
+#### LTA DB
+Get an LTA DB running on port 8080.
+
+A file `local-secret` contains the secret credentials used by the LTA DB
 to secure itself. Note, this is Bring Your Own Secret (BYOS) software, so
 may want to run this command to create a secret:
 
     dd if=/dev/urandom bs=1 count=64 2>/dev/null | base64 >local-secret
 
-A script `lta-db.sh` is used to start the REST DB service, secured with
+A script `lta-db.sh` is used to start the LTA DB service, secured with
 the local secret.
 
 A script `make-token.sh` uses the local secret to create tokens for
-components to authenticate themselves with the REST DB.
+components to authenticate themselves with the LTA DB.
 
+#### Testing Data
+Get yourself some testing data from the Data Warehouse.
+
+    mkdir /data/exp/IceCube/2013/filtered/PFFilt/1109
+    cd /data/exp/IceCube/2013/filtered/PFFilt/1109
+    scp jadenorth-2:/data/exp/IceCube/2013/filtered/PFFilt/1109/* .
+
+A script `test-data-helper.sh` can be used to register these files with the
+File Catalog. Here we invoke the 'add-catalog' subcommand to add files to the
+catalog at the WIPAC site.
+
+    ./test-data-helper.sh add-catalog WIPAC /data/exp/IceCube/2013/filtered/PFFilt/1109
+
+#### LTA Components
 A script `picker.sh` is used to generate a token and start a Picker component
-that interacts with the REST DB.
+that interacts with the LTA DB. The output will be JSON, so to get a more
+traditional log output, use the `loglens` script to translate:
 
+    ./picker.sh | loglens
+
+A script `bundler.sh` is used to generate a token and start a Bundler component
+that interacts with the LTA DB.  The output will be JSON, so to get a more
+traditional log output, use the `loglens` script to translate:
+
+    ./bundler.sh | loglens
+
+#### LTA Archival Kickoff
 A script `make-transfer-request.sh` can be used to POST a TransferRequest object
-to the REST DB and get the data archival process started. An example of usage
+to the LTA DB and get the data archival process started. An example of usage
 would be:
 
     ./make-transfer-request.sh WIPAC:/data/exp/IceCube/2013/filtered/PFFilt/1109 DESY:/data/exp/IceCube/2013/filtered/PFFilt/1109 NERSC:/data/exp/IceCube/2013/filtered/PFFilt/1109
 
 This creates a transfer of `/data/exp/IceCube/2013/filtered/PFFilt/1109` from
 WIPAC to the destinations DESY and NESRC.
+
+#### Test Data Reset
+A script `test-data-reset.sh` automates this process:
+- Clear files from the File Catalog
+- Clear transfer requests from the LTA DB
+- Register files with the File catalog
+- Create a transfer request in the LTA DB
+
+This script can be used to restart testing conditions within the system. The
+component scripts have 30 second delays between work cycles, so the next test
+should happen automatically after 30 seconds.

@@ -9,36 +9,7 @@ from tornado.web import HTTPError  # type: ignore
 from uuid import uuid1
 
 from lta.picker import main, patch_status_heartbeat, Picker, status_loop, work_loop
-
-
-class AsyncMock(MagicMock):
-    """
-    AsyncMock is the async version of a MagicMock.
-
-    We use this class in place of MagicMock when we want to mock
-    asynchronous callables.
-
-    Source: https://stackoverflow.com/a/32498408
-    """
-
-    async def __call__(self, *args, **kwargs):
-        """Allow MagicMock to work its magic too."""
-        return super(AsyncMock, self).__call__(*args, **kwargs)
-
-
-class ObjectLiteral:
-    """
-    ObjectLiteral transforms named arguments into object attributes.
-
-    This is useful for creating object literals to be used as return
-    values from mocked API calls.
-
-    Source: https://stackoverflow.com/a/3335732
-    """
-
-    def __init__(self, **kwds):
-        """Add attributes to ourself with the provided named arguments."""
-        self.__dict__.update(kwds)
+from .test_util import AsyncMock, ObjectLiteral
 
 
 @pytest.fixture
@@ -355,7 +326,7 @@ async def test_picker_do_work_pop_exception(config, mocker):
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = HTTPError(500, "REST DB on fire. Again.")
+    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = Picker(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
@@ -364,7 +335,7 @@ async def test_picker_do_work_pop_exception(config, mocker):
 
 @pytest.mark.asyncio
 async def test_picker_do_work_no_results(config, mocker):
-    """Test that _do_work goes on vacation when the REST DB has no work."""
+    """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
@@ -377,7 +348,7 @@ async def test_picker_do_work_no_results(config, mocker):
 
 @pytest.mark.asyncio
 async def test_picker_do_work_yes_results(config, mocker):
-    """Test that _do_work processes each TransferRequest it gets from the REST DB."""
+    """Test that _do_work processes each TransferRequest it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
@@ -414,7 +385,7 @@ async def test_picker_do_work_transfer_request_fc_exception(config, mocker):
         ]
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    fc_rc_mock.side_effect = HTTPError(500, "REST DB on fire. Again.")
+    fc_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     with pytest.raises(HTTPError):
         await p._do_work_transfer_request(lta_rc_mock, tr)
     fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.site": {"$eq": "WIPAC"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}')
@@ -422,7 +393,7 @@ async def test_picker_do_work_transfer_request_fc_exception(config, mocker):
 
 @pytest.mark.asyncio
 async def test_picker_do_work_transfer_request_fc_no_results(config, mocker):
-    """Test that _do_work_transfer_request raises an exception when the REST DB refuses to create an empty list."""
+    """Test that _do_work_transfer_request raises an exception when the LTA DB refuses to create an empty list."""
     logger_mock = mocker.MagicMock()
     p = Picker(config, logger_mock)
     lta_rc_mock = mocker.MagicMock()

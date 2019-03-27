@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import json
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
@@ -41,26 +41,15 @@ ALL_DOCUMENTS: Dict[str, str] = {}
 ASCENDING = pymongo.ASCENDING
 BUNDLE_STATES = ['accessible', 'deletable', 'inaccessible', 'none', 'transferring']
 REMOVE_ID = {"_id": False}
-STR2BOOL_FALSE_SET = {'0', 'f', 'false', 'n', 'no'}
-STR2BOOL_TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
+TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
+
+def boolify(value: str) -> bool:
+    """Convert a string into a True or False value."""
+    return isinstance(value, str) and value.lower() in TRUE_SET
 
 def now() -> str:
     """Return string timestamp for current time, to the second."""
     return datetime.utcnow().isoformat(timespec='seconds')
-
-# https://github.com/symonsoft/str2bool/blob/master/str2bool/__init__.py
-def str2bool(value: str, raise_exc: bool = False) -> Optional[bool]:
-    """Convert a string into a False, None, or True value."""
-    if isinstance(value, str):
-        value = value.lower()
-        if value in STR2BOOL_TRUE_SET:
-            return True
-        if value in STR2BOOL_FALSE_SET:
-            return False
-
-    if raise_exc:
-        raise ValueError(f'Expected "{", ".join(STR2BOOL_TRUE_SET | STR2BOOL_FALSE_SET)}"')
-    return None
 
 def unique_id() -> str:
     """Return a unique ID for an LTA database entity."""
@@ -238,7 +227,7 @@ class BundlesHandler(BaseLTAHandler):
         if status:
             query["status"] = status
         if verified:
-            query["verified"] = str2bool(verified)
+            query["verified"] = boolify(verified)
 
         results = []
         async for row in self.db.Bundles.find(filter=query,
@@ -256,8 +245,12 @@ class BundlesActionsPopHandler(BaseLTAHandler):
 
     Bundler provides (provisional; Bundler doesn't exist yet):
         bundle_obj = {
+            "bundle_uuid": UUID,
             "location": "SITE:PATH",
-            "status": "none"
+            "checksum": {
+                "sha512": "216f...4618",
+            },
+            "status": "none",
             "verified": False,
             "manifest": [
                 { manifest_record },
@@ -943,7 +936,7 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
 
 
 def start(debug: bool = False) -> RestServer:
-    """Start a LTA REST DB service."""
+    """Start a LTA DB service."""
     config = from_environment(EXPECTED_CONFIG)
     # logger = logging.getLogger('lta.rest')
 
@@ -989,7 +982,7 @@ def start(debug: bool = False) -> RestServer:
     return server
 
 def main() -> None:
-    """Configure logging and start a LTA REST DB service."""
+    """Configure logging and start a LTA DB service."""
     logging.basicConfig(level=logging.DEBUG)
     start(debug=True)
     loop = asyncio.get_event_loop()

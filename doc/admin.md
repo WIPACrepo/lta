@@ -16,10 +16,10 @@ The `picker` component selects files that are required for bundling.
 
 The work cycle of the `picker` is as follows:
 
-1. Ask the REST DB for the next TransferRequest to be picked
+1. Ask the LTA DB for the next TransferRequest to be picked
 2. Ask the File Catalog about the files indicated by the TransferRequest
-3. Update the REST DB with Files needed for bundling
-4. Return the TransferRequest to the REST DB as picked
+3. Update the LTA DB with Files needed for bundling
+4. Return the TransferRequest to the LTA DB as picked
 5. Repeat again starting at Step 1
 
 #### Configuration
