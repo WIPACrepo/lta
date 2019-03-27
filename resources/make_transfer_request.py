@@ -29,7 +29,7 @@ async def main():
     # configure a RestClient from the environment
     config = from_environment(EXPECTED_CONFIG)
     rc = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
-    # attempt to post the TransferRequest to the REST DB
+    # attempt to post the TransferRequest to the LTA DB
     try:
         response = await rc.request("POST", "/TransferRequests", request_body)
         print(response)
