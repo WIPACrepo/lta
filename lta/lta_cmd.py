@@ -5,6 +5,7 @@ Run with `python -m resources.lta_cmd $@`.
 """
 
 import argparse
+from argparse import Namespace
 import asyncio
 from datetime import datetime, timedelta
 import json
@@ -12,7 +13,7 @@ import logging
 import os
 from pathlib import Path
 from subprocess import call, DEVNULL, Popen
-from typing import Dict
+from typing import Any, Dict
 
 from rest_tools.client import RestClient  # type: ignore
 
@@ -30,7 +31,7 @@ EXPECTED_CONFIG = {
 }
 
 
-async def display_config(args) -> None:
+async def display_config(args: Namespace) -> None:
     """Display the configuration provided to the application."""
     if args.json:
         print_dict_as_pretty_json(args.config)
@@ -39,7 +40,7 @@ async def display_config(args) -> None:
             print(f"{key}:\t\t{args.config[key]}")
 
 
-async def drain(args) -> None:
+async def drain(args: Namespace) -> None:
     """Create a semaphore file to signal the component to drain and shut down."""
     # if the user provided a component name
     if args.component:
@@ -50,7 +51,7 @@ async def drain(args) -> None:
     Path(drain_filename).touch()
 
 
-async def kill(args) -> None:
+async def kill(args: Namespace) -> None:
     """Use the start semaphore to kill a running LTA component."""
     # if the user provided a component name
     if args.component:
@@ -73,12 +74,12 @@ async def kill(args) -> None:
         call(["kill", "-9", str(pid)])
 
 
-def print_dict_as_pretty_json(d: Dict) -> None:
+def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
     """Print the provided Dict as pretty-print JSON."""
     print(json.dumps(d, indent=4, sort_keys=True))
 
 
-async def request_ls(args) -> None:
+async def request_ls(args: Namespace) -> None:
     """List all of the TransferRequest objects in the LTA DB."""
     response = await args.rc.request("GET", "/TransferRequests")
     if args.json:
@@ -97,7 +98,7 @@ async def request_ls(args) -> None:
             print(f"{display_id}  {create_time} {path} {source} -> {dests}")
 
 
-async def request_new(args) -> None:
+async def request_new(args: Namespace) -> None:
     """Create a new TransferRequest and add it to the LTA DB."""
     # get some stuff
     source = args.source
@@ -123,7 +124,7 @@ async def request_new(args) -> None:
         print(f"{display_id}  {create_time} {path} {source} -> {dests}")
 
 
-async def request_status(args) -> None:
+async def request_status(args: Namespace) -> None:
     """Query the status of a TransferRequest in the LTA DB."""
     response = await args.rc.request("GET", "/TransferRequests")
     results = response["results"]
@@ -144,7 +145,7 @@ async def request_status(args) -> None:
                 print(f"{display_id}  {status_time} {status_name}")
 
 
-async def status(args) -> None:
+async def status(args: Namespace) -> None:
     """Query the status of the LTA DB or a component of LTA."""
     old_data = (datetime.utcnow() - timedelta(seconds=60*5)).isoformat()
 
@@ -175,7 +176,7 @@ async def status(args) -> None:
                     print(f"{(key+':'):<14}{response[key]}")
 
 
-async def start(args) -> None:
+async def start(args: Namespace) -> None:
     """Create a semaphore file and start an LTA component."""
     # if a start semaphore already exists
     cwd = os.getcwd()
@@ -200,7 +201,7 @@ async def start(args) -> None:
         f.write(str(pid))
 
 
-async def stop(args) -> None:
+async def stop(args: Namespace) -> None:
     """Create a semaphore file to signal the component to shut down."""
     # if the user provided a component name
     if args.component:
@@ -211,7 +212,7 @@ async def stop(args) -> None:
     Path(stop_filename).touch()
 
 
-async def main():
+async def main() -> None:
     """Process a request from the Command Line."""
     # configure the application from the environment
     config = from_environment(EXPECTED_CONFIG)
