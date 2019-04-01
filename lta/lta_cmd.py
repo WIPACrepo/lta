@@ -9,11 +9,20 @@ import asyncio
 from datetime import datetime, timedelta
 import json
 import logging
+import os
+from pathlib import Path
+from subprocess import call, DEVNULL, Popen
 from typing import Dict
 
 from rest_tools.client import RestClient  # type: ignore
 
 from lta.config import from_environment
+from lta.lta_const import DRAIN_SEMAPHORE_FILENAME, START_SEMAPHORE_FILENAME, STOP_SEMAPHORE_FILENAME
+
+COMPONENT_NAMES = [
+    "bundler",
+    "picker",
+]
 
 EXPECTED_CONFIG = {
     'LTA_REST_TOKEN': None,
@@ -28,6 +37,40 @@ async def display_config(args) -> None:
     else:
         for key in args.config:
             print(f"{key}:\t\t{args.config[key]}")
+
+
+async def drain(args) -> None:
+    """Create a semaphore file to signal the component to drain and shut down."""
+    # if the user provided a component name
+    if args.component:
+        print(f"ltacmd: Warning: drain is scoped by working directory; argument '{args.component}' ignored.")
+    # do the work of creating the drain semaphore
+    cwd = os.getcwd()
+    drain_filename = os.path.join(cwd, DRAIN_SEMAPHORE_FILENAME)
+    Path(drain_filename).touch()
+
+
+async def kill(args) -> None:
+    """Use the start semaphore to kill a running LTA component."""
+    # if the user provided a component name
+    if args.component:
+        print(f"ltacmd: Warning: kill is scoped by working directory; argument '{args.component}' ignored.")
+    # if a start semaphore doesn't exist
+    cwd = os.getcwd()
+    start_filename = os.path.join(cwd, START_SEMAPHORE_FILENAME)
+    if not Path(start_filename).exists():
+        # inform the caller that we can't kill it
+        print(f"ltacmd: Error: start semaphore {START_SEMAPHORE_FILENAME} doesn't exist; component pid unknown.")
+        return
+    # read the start semaphore
+    pid = None
+    with open(start_filename, "r") as f:
+        for line in f:
+            pid = int(line)
+    # kill the process
+    if pid:
+        # BUG: This will kill the bash script, but not the Python process
+        call(["kill", "-9", str(pid)])
 
 
 def print_dict_as_pretty_json(d: Dict) -> None:
@@ -132,6 +175,42 @@ async def status(args) -> None:
                     print(f"{(key+':'):<14}{response[key]}")
 
 
+async def start(args) -> None:
+    """Create a semaphore file and start an LTA component."""
+    # if a start semaphore already exists
+    cwd = os.getcwd()
+    start_filename = os.path.join(cwd, START_SEMAPHORE_FILENAME)
+    if Path(start_filename).exists():
+        # don't start another component
+        print(f"ltacmd: Error: start semaphore {START_SEMAPHORE_FILENAME} exists; component not started.")
+        return
+    # remove drain semaphore
+    drain_filename = os.path.join(cwd, DRAIN_SEMAPHORE_FILENAME)
+    drain_path = Path(drain_filename)
+    if drain_path.exists():
+        drain_path.unlink()
+    # remove stop semaphore
+    stop_filename = os.path.join(cwd, STOP_SEMAPHORE_FILENAME)
+    stop_path = Path(stop_filename)
+    if stop_path.exists():
+        stop_path.unlink()
+    # create a start semaphore and fire up the component
+    pid = Popen([f"{args.component}.sh"], stdout=DEVNULL, stderr=DEVNULL).pid
+    with open(start_filename, "w") as f:
+        f.write(str(pid))
+
+
+async def stop(args) -> None:
+    """Create a semaphore file to signal the component to shut down."""
+    # if the user provided a component name
+    if args.component:
+        print(f"ltacmd: Warning: stop is scoped by working directory; argument '{args.component}' ignored.")
+    # do the work of creating the stop semaphore
+    cwd = os.getcwd()
+    stop_filename = os.path.join(cwd, STOP_SEMAPHORE_FILENAME)
+    Path(stop_filename).touch()
+
+
 async def main():
     """Process a request from the Command Line."""
     # configure the application from the environment
@@ -149,6 +228,23 @@ async def main():
                                        help="display output in JSON",
                                        action="store_true")
     parser_display_config.set_defaults(func=display_config)
+
+    # define a subparser for the 'drain' subcommand
+    parser_drain = subparser.add_parser('drain', help='finish existing work and shut down')
+    parser_drain.add_argument("component",
+                              choices=COMPONENT_NAMES,
+                              help="optional LTA component",
+                              nargs='?')
+    parser_drain.set_defaults(func=drain)
+
+    # define a subparser for the 'kill' subcommand
+    parser_kill = subparser.add_parser('kill', help='immediately kill component process')
+    parser_kill.add_argument("component",
+                             choices=COMPONENT_NAMES,
+                             help="optional LTA component",
+                             nargs='?')
+    # BUG: Because kill() is bugged, for now it's an alias to stop
+    parser_kill.set_defaults(func=stop)
 
     # define a subparser for the 'request' subcommand
     parser_request = subparser.add_parser('request', help='interact with transfer requests')
@@ -191,16 +287,31 @@ async def main():
                                        action="store_true")
     parser_request_status.set_defaults(func=request_status)
 
+    # define a subparser for the 'start' subcommand
+    parser_start = subparser.add_parser('start', help='start the component')
+    parser_start.add_argument("component",
+                              choices=COMPONENT_NAMES,
+                              help="LTA component")
+    parser_start.set_defaults(func=start)
+
     # define a subparser for the 'status' subcommand
     parser_status = subparser.add_parser('status', help='perform a status query')
     parser_status.add_argument("component",
-                               choices=["picker", "bundler"],
+                               choices=COMPONENT_NAMES,
                                help="optional LTA component",
                                nargs='?')
     parser_status.add_argument("--json",
                                help="display output in JSON",
                                action="store_true")
     parser_status.set_defaults(func=status)
+
+    # define a subparser for the 'stop' subcommand
+    parser_stop = subparser.add_parser('stop', help='stop the component')
+    parser_stop.add_argument("component",
+                             choices=COMPONENT_NAMES,
+                             help="optional LTA component",
+                             nargs='?')
+    parser_stop.set_defaults(func=stop)
 
     # parse the provided command line arguments and call the function
     args = parser.parse_args()

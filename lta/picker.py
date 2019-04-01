@@ -6,6 +6,8 @@ from datetime import datetime
 import json
 from logging import Logger
 import logging
+import os
+from pathlib import Path
 import platform
 import sys
 from typing import Dict
@@ -15,6 +17,7 @@ from urllib.parse import urljoin
 
 from .config import from_environment
 from .log_format import StructuredFormatter
+from .lta_const import DRAIN_SEMAPHORE_FILENAME, STOP_SEMAPHORE_FILENAME
 from .lta_types import CatalogFileType, DestList, FileList, TransferRequestType
 
 EXPECTED_CONFIG = {
@@ -230,6 +233,20 @@ class Picker:
         return bulk_create
 
 
+def check_drain_semaphore() -> bool:
+    """Check if a drain semaphore exists in the current working directory."""
+    cwd = os.getcwd()
+    drain_filename = os.path.join(cwd, DRAIN_SEMAPHORE_FILENAME)
+    return Path(drain_filename).exists()
+
+
+def check_stop_semaphore() -> bool:
+    """Check if a stop semaphore exists in the current working directory."""
+    cwd = os.getcwd()
+    drain_filename = os.path.join(cwd, STOP_SEMAPHORE_FILENAME)
+    return Path(drain_filename).exists()
+
+
 async def patch_status_heartbeat(picker: Picker) -> bool:
     """PATCH /status/picker to update LTA with a status heartbeat."""
     picker.logger.info("Sending status heartbeat")
@@ -262,10 +279,25 @@ async def patch_status_heartbeat(picker: Picker) -> bool:
     return picker.lta_ok
 
 
+async def lifecycle_loop(picker: Picker) -> None:
+    """Run a check for a stop semaphore as an infinite loop."""
+    picker.logger.info("Starting lifecycle loop")
+    while True:
+        # if there is a stop semaphore, terminate the program
+        if check_stop_semaphore():
+            picker.logger.info("Component stopped; shutting down.")
+            sys.exit(0)
+        # sleep until we check again
+        await asyncio.sleep(1.0)
+
+
 async def status_loop(picker: Picker) -> None:
     """Run status heartbeat updates as an infinite loop."""
     picker.logger.info("Starting status loop")
     while True:
+        # if there is a drain semaphore, stop sending status updates
+        if check_drain_semaphore():
+            break
         # PATCH /status/picker
         await patch_status_heartbeat(picker)
         # sleep until we PATCH the next heartbeat
@@ -276,6 +308,10 @@ async def work_loop(picker: Picker) -> None:
     """Run picker work cycles as an infinite loop."""
     picker.logger.info("Starting work loop")
     while True:
+        # if there is a drain semaphore, don't do any additional work
+        if check_drain_semaphore():
+            picker.logger.info("Component drained; shutting down.")
+            sys.exit(0)
         # Do the work of the picker
         await picker.run()
         # sleep until we need to work again
@@ -302,6 +338,7 @@ def main() -> None:
     # let's get to work
     picker.logger.info("Starting asyncio loop")
     loop = asyncio.get_event_loop()
+    loop.create_task(lifecycle_loop(picker))
     loop.create_task(status_loop(picker))
     loop.create_task(work_loop(picker))
     loop.run_forever()

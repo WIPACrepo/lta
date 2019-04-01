@@ -7,6 +7,7 @@ import json
 from logging import Logger
 import logging
 import os
+from pathlib import Path
 import platform
 import shutil
 import sys
@@ -20,6 +21,7 @@ from urllib.parse import urljoin
 from .config import from_environment
 from .crypto import sha512sum
 from .log_format import StructuredFormatter
+from .lta_const import DRAIN_SEMAPHORE_FILENAME, STOP_SEMAPHORE_FILENAME
 
 EXPECTED_CONFIG = {
     "BUNDLER_NAME": f"{platform.node()}-bundler",
@@ -233,6 +235,21 @@ class Bundler:
         }
         await lta_rc.request('POST', '/Files/actions/bulk_update', update_body)
 
+
+def check_drain_semaphore() -> bool:
+    """Check if a drain semaphore exists in the current working directory."""
+    cwd = os.getcwd()
+    drain_filename = os.path.join(cwd, DRAIN_SEMAPHORE_FILENAME)
+    return Path(drain_filename).exists()
+
+
+def check_stop_semaphore() -> bool:
+    """Check if a stop semaphore exists in the current working directory."""
+    cwd = os.getcwd()
+    drain_filename = os.path.join(cwd, STOP_SEMAPHORE_FILENAME)
+    return Path(drain_filename).exists()
+
+
 async def patch_status_heartbeat(bundler: Bundler) -> bool:
     """PATCH /status/bundler to update LTA with a status heartbeat."""
     bundler.logger.info("Sending status heartbeat")
@@ -265,10 +282,25 @@ async def patch_status_heartbeat(bundler: Bundler) -> bool:
     return bundler.lta_ok
 
 
+async def lifecycle_loop(bundler: Bundler) -> None:
+    """Run a check for a stop semaphore as an infinite loop."""
+    bundler.logger.info("Starting lifecycle loop")
+    while True:
+        # if there is a stop semaphore, terminate the program
+        if check_stop_semaphore():
+            bundler.logger.info("Component stopped; shutting down.")
+            sys.exit(0)
+        # sleep until we check again
+        await asyncio.sleep(1.0)
+
+
 async def status_loop(bundler: Bundler) -> None:
     """Run status heartbeat updates as an infinite loop."""
     bundler.logger.info("Starting status loop")
     while True:
+        # if there is a drain semaphore, stop sending status updates
+        if check_drain_semaphore():
+            break
         # PATCH /status/bundler
         await patch_status_heartbeat(bundler)
         # sleep until we PATCH the next heartbeat
@@ -279,6 +311,10 @@ async def work_loop(bundler: Bundler) -> None:
     """Run bundler work cycles as an infinite loop."""
     bundler.logger.info("Starting work loop")
     while True:
+        # if there is a drain semaphore, don't do any additional work
+        if check_drain_semaphore():
+            bundler.logger.info("Component drained; shutting down.")
+            sys.exit(0)
         # Do the work of the bundler
         await bundler.run()
         # sleep until we need to work again
@@ -305,6 +341,7 @@ def main() -> None:
     # let's get to work
     bundler.logger.info("Starting asyncio loop")
     loop = asyncio.get_event_loop()
+    loop.create_task(lifecycle_loop(bundler))
     loop.create_task(status_loop(bundler))
     loop.create_task(work_loop(bundler))
     loop.run_forever()
