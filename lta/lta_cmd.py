@@ -8,17 +8,19 @@ import argparse
 from argparse import Namespace
 import asyncio
 from datetime import datetime, timedelta
+import functools
 import json
 import logging
 import os
 from pathlib import Path
-from subprocess import call, DEVNULL, Popen
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
 from rest_tools.client import RestClient  # type: ignore
 
 from lta.config import from_environment
-from lta.lta_const import DRAIN_SEMAPHORE_FILENAME, START_SEMAPHORE_FILENAME, STOP_SEMAPHORE_FILENAME
+from lta.daemon import Daemon
+from lta.lta_const import drain_semaphore_filename, pid_filename
+
 
 COMPONENT_NAMES = [
     "bundler",
@@ -31,6 +33,33 @@ EXPECTED_CONFIG = {
 }
 
 
+def deamon_for(component: str) -> Daemon:
+    """Create a Daemon object for the specified component name."""
+    pidfile = pid_filename(component)
+    runner = __import__(f"lta.{component}", fromlist=['']).runner
+    chdir = os.getcwd()
+    stdout = os.path.join(chdir, f"{component}.log")
+    return Daemon(pidfile, runner, stdout=stdout, chdir=chdir)
+
+
+def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
+    """Print the provided Dict as pretty-print JSON."""
+    print(json.dumps(d, indent=4, sort_keys=True))
+
+
+def stop_event_loop() -> Callable[[Any], Any]:
+    """Wrap the decorated coroutine to stop the asyncio event loop."""
+    def wrapper(func: Callable[[Any], Any]) -> Callable[[Any], Any]:
+        @functools.wraps(func)
+        async def wrapped(*args: Any) -> None:
+            await func(*args)
+            asyncio.get_event_loop().stop()
+        return wrapped
+    return wrapper
+
+# -----------------------------------------------------------------------------
+
+@stop_event_loop()
 async def display_config(args: Namespace) -> None:
     """Display the configuration provided to the application."""
     if args.json:
@@ -40,45 +69,22 @@ async def display_config(args: Namespace) -> None:
             print(f"{key}:\t\t{args.config[key]}")
 
 
+@stop_event_loop()
 async def drain(args: Namespace) -> None:
     """Create a semaphore file to signal the component to drain and shut down."""
-    # if the user provided a component name
-    if args.component:
-        print(f"ltacmd: Warning: drain is scoped by working directory; argument '{args.component}' ignored.")
-    # do the work of creating the drain semaphore
     cwd = os.getcwd()
-    drain_filename = os.path.join(cwd, DRAIN_SEMAPHORE_FILENAME)
-    Path(drain_filename).touch()
+    semaphore_name = drain_semaphore_filename(args.component)
+    semaphore_path = os.path.join(cwd, semaphore_name)
+    Path(semaphore_path).touch()
 
 
+@stop_event_loop()
 async def kill(args: Namespace) -> None:
-    """Use the start semaphore to kill a running LTA component."""
-    # if the user provided a component name
-    if args.component:
-        print(f"ltacmd: Warning: kill is scoped by working directory; argument '{args.component}' ignored.")
-    # if a start semaphore doesn't exist
-    cwd = os.getcwd()
-    start_filename = os.path.join(cwd, START_SEMAPHORE_FILENAME)
-    if not Path(start_filename).exists():
-        # inform the caller that we can't kill it
-        print(f"ltacmd: Error: start semaphore {START_SEMAPHORE_FILENAME} doesn't exist; component pid unknown.")
-        return
-    # read the start semaphore
-    pid = None
-    with open(start_filename, "r") as f:
-        for line in f:
-            pid = int(line)
-    # kill the process
-    if pid:
-        # BUG: This will kill the bash script, but not the Python process
-        call(["kill", "-9", str(pid)])
+    """Kill the running component."""
+    deamon_for(args.component).kill()
 
 
-def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
-    """Print the provided Dict as pretty-print JSON."""
-    print(json.dumps(d, indent=4, sort_keys=True))
-
-
+@stop_event_loop()
 async def request_ls(args: Namespace) -> None:
     """List all of the TransferRequest objects in the LTA DB."""
     response = await args.rc.request("GET", "/TransferRequests")
@@ -98,6 +104,7 @@ async def request_ls(args: Namespace) -> None:
             print(f"{display_id}  {create_time} {path} {source} -> {dests}")
 
 
+@stop_event_loop()
 async def request_new(args: Namespace) -> None:
     """Create a new TransferRequest and add it to the LTA DB."""
     # get some stuff
@@ -124,6 +131,7 @@ async def request_new(args: Namespace) -> None:
         print(f"{display_id}  {create_time} {path} {source} -> {dests}")
 
 
+@stop_event_loop()
 async def request_status(args: Namespace) -> None:
     """Query the status of a TransferRequest in the LTA DB."""
     response = await args.rc.request("GET", "/TransferRequests")
@@ -145,6 +153,17 @@ async def request_status(args: Namespace) -> None:
                 print(f"{display_id}  {status_time} {status_name}")
 
 
+async def restart(args: Namespace) -> None:
+    """Restart the running component."""
+    deamon_for(args.component).restart()
+
+
+async def start(args: Namespace) -> None:
+    """Start the component running."""
+    deamon_for(args.component).start()
+
+
+@stop_event_loop()
 async def status(args: Namespace) -> None:
     """Query the status of the LTA DB or a component of LTA."""
     old_data = (datetime.utcnow() - timedelta(seconds=60*5)).isoformat()
@@ -176,41 +195,12 @@ async def status(args: Namespace) -> None:
                     print(f"{(key+':'):<14}{response[key]}")
 
 
-async def start(args: Namespace) -> None:
-    """Create a semaphore file and start an LTA component."""
-    # if a start semaphore already exists
-    cwd = os.getcwd()
-    start_filename = os.path.join(cwd, START_SEMAPHORE_FILENAME)
-    if Path(start_filename).exists():
-        # don't start another component
-        print(f"ltacmd: Error: start semaphore {START_SEMAPHORE_FILENAME} exists; component not started.")
-        return
-    # remove drain semaphore
-    drain_filename = os.path.join(cwd, DRAIN_SEMAPHORE_FILENAME)
-    drain_path = Path(drain_filename)
-    if drain_path.exists():
-        drain_path.unlink()
-    # remove stop semaphore
-    stop_filename = os.path.join(cwd, STOP_SEMAPHORE_FILENAME)
-    stop_path = Path(stop_filename)
-    if stop_path.exists():
-        stop_path.unlink()
-    # create a start semaphore and fire up the component
-    pid = Popen([f"{args.component}.sh"], stdout=DEVNULL, stderr=DEVNULL).pid
-    with open(start_filename, "w") as f:
-        f.write(str(pid))
-
-
+@stop_event_loop()
 async def stop(args: Namespace) -> None:
-    """Create a semaphore file to signal the component to shut down."""
-    # if the user provided a component name
-    if args.component:
-        print(f"ltacmd: Warning: stop is scoped by working directory; argument '{args.component}' ignored.")
-    # do the work of creating the stop semaphore
-    cwd = os.getcwd()
-    stop_filename = os.path.join(cwd, STOP_SEMAPHORE_FILENAME)
-    Path(stop_filename).touch()
+    """Stop the component running."""
+    deamon_for(args.component).stop()
 
+# -----------------------------------------------------------------------------
 
 async def main() -> None:
     """Process a request from the Command Line."""
@@ -234,18 +224,15 @@ async def main() -> None:
     parser_drain = subparser.add_parser('drain', help='finish existing work and shut down')
     parser_drain.add_argument("component",
                               choices=COMPONENT_NAMES,
-                              help="optional LTA component",
-                              nargs='?')
+                              help="LTA component")
     parser_drain.set_defaults(func=drain)
 
     # define a subparser for the 'kill' subcommand
     parser_kill = subparser.add_parser('kill', help='immediately kill component process')
     parser_kill.add_argument("component",
                              choices=COMPONENT_NAMES,
-                             help="optional LTA component",
-                             nargs='?')
-    # BUG: Because kill() is bugged, for now it's an alias to stop
-    parser_kill.set_defaults(func=stop)
+                             help="LTA component")
+    parser_kill.set_defaults(func=kill)
 
     # define a subparser for the 'request' subcommand
     parser_request = subparser.add_parser('request', help='interact with transfer requests')
@@ -288,6 +275,13 @@ async def main() -> None:
                                        action="store_true")
     parser_request_status.set_defaults(func=request_status)
 
+    # define a subparser for the 'restart' subcommand
+    parser_restart = subparser.add_parser('restart', help='restart the component')
+    parser_restart.add_argument("component",
+                                choices=COMPONENT_NAMES,
+                                help="LTA component")
+    parser_restart.set_defaults(func=restart)
+
     # define a subparser for the 'start' subcommand
     parser_start = subparser.add_parser('start', help='start the component')
     parser_start.add_argument("component",
@@ -310,8 +304,7 @@ async def main() -> None:
     parser_stop = subparser.add_parser('stop', help='stop the component')
     parser_stop.add_argument("component",
                              choices=COMPONENT_NAMES,
-                             help="optional LTA component",
-                             nargs='?')
+                             help="LTA component")
     parser_stop.set_defaults(func=stop)
 
     # parse the provided command line arguments and call the function
@@ -320,9 +313,11 @@ async def main() -> None:
         await args.func(args)
     else:
         parser.print_usage()
+        asyncio.get_event_loop().stop()
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.CRITICAL)
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    loop.create_task(main())
+    loop.run_forever()

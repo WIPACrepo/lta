@@ -17,18 +17,18 @@ def config():
     """Supply a stock Bundler component configuration."""
     return {
         "BUNDLER_NAME": "testing-bundler",
+        "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
         "BUNDLER_SITE_SOURCE": "WIPAC",
+        "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "etc/site.json",
-        "OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
-        "WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
     }
 
 
@@ -252,13 +252,11 @@ async def test_script_main(config, mocker, monkeypatch):
         monkeypatch.setenv(key, config[key])
     mock_event_loop = mocker.patch("asyncio.get_event_loop")
     mock_root_logger = mocker.patch("logging.getLogger")
-    mock_lifecycle_loop = mocker.patch("lta.bundler.lifecycle_loop")
     mock_status_loop = mocker.patch("lta.bundler.status_loop")
     mock_work_loop = mocker.patch("lta.bundler.work_loop")
     main()
     mock_event_loop.assert_called()
     mock_root_logger.assert_called()
-    mock_lifecycle_loop.assert_called()
     mock_status_loop.assert_called()
     mock_work_loop.assert_called()
 
@@ -269,35 +267,35 @@ async def test_bundler_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     bundler_config = {
         "BUNDLER_NAME": "logme-testing-bundler",
+        "BUNDLER_OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
         "BUNDLER_SITE_SOURCE": "WIPAC",
+        "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "etc/site.json",
-        "OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
-        "WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
     }
     Bundler(bundler_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("Bundler 'logme-testing-bundler' is configured:"),
         call('BUNDLER_NAME = logme-testing-bundler'),
+        call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
         call('BUNDLER_SITE_SOURCE = WIPAC'),
+        call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('LTA_SITE_CONFIG = etc/site.json'),
-        call('OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
         call('WORK_TIMEOUT_SECONDS = 90'),
-        call('WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
     ]
     logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
 

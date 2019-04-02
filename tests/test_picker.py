@@ -254,13 +254,11 @@ async def test_script_main(config, mocker, monkeypatch):
         monkeypatch.setenv(key, config[key])
     mock_event_loop = mocker.patch("asyncio.get_event_loop")
     mock_root_logger = mocker.patch("logging.getLogger")
-    mock_lifecycle_loop = mocker.patch("lta.picker.lifecycle_loop")
     mock_status_loop = mocker.patch("lta.picker.status_loop")
     mock_work_loop = mocker.patch("lta.picker.work_loop")
     main()
     mock_event_loop.assert_called()
     mock_root_logger.assert_called()
-    mock_lifecycle_loop.assert_called()
     mock_status_loop.assert_called()
     mock_work_loop.assert_called()
 

@@ -1,4 +1,25 @@
 #!/usr/bin/env bash
+
+# common items
+export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
+export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="5"}
+export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"}
 export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(make-token.sh)"}
 export LTA_REST_URL=${LTA_REST_URL:="http://127.0.0.1:8080"}
+export WORK_RETRIES=${WORK_RETRIES:="3"}
+export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="30"}
+export WORK_TIMEOUT_SECONDS=${WORK_TIMEOUT_SECONDS:="5"}
+
+# picker specific items
+export FILE_CATALOG_REST_TOKEN=${FILE_CATALOG_REST_TOKEN:="$(make-token.sh)"}
+export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="http://127.0.0.1:8888"}
+export PICKER_NAME=${PICKER_NAME:="$(hostname)-picker"}
+
+# bundler specific items
+export BUNDLER_NAME=${BUNDLER_NAME:="$(hostname)-bundler"}
+export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/data/user/lta/bundler_out"}
+export BUNDLER_SITE_SOURCE=${BUNDLER_SITE_SOURCE:="WIPAC"}
+export BUNDLER_WORKBOX_PATH=${BUNDLER_WORKBOX_PATH:="/data/user/lta/bundler_work"}
+export LTA_SITE_CONFIG=${LTA_SITE_CONFIG:="etc/site.json"}
+
 python -m lta.lta_cmd $@

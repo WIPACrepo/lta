@@ -1,6 +1,11 @@
 # lta_const.py
-"""Central catalog of LTA constants."""
+"""Central catalog of LTA constants and constant functions."""
 
-DRAIN_SEMAPHORE_FILENAME = ".lta-drain"
-START_SEMAPHORE_FILENAME = ".lta-start"
-STOP_SEMAPHORE_FILENAME = ".lta-stop"
+def drain_semaphore_filename(component: str) -> str:
+    """Obtain the canonical drain semaphore filename for the specified component name."""
+    return f".lta-{component}-drain"
+
+
+def pid_filename(component: str) -> str:
+    """Obtain the canonical pid filename for the specified component name."""
+    return f".lta-{component}-pid"
