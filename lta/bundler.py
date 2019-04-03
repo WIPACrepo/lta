@@ -7,6 +7,7 @@ import json
 from logging import Logger
 import logging
 import os
+from pathlib import Path
 import platform
 import shutil
 import sys
@@ -20,21 +21,22 @@ from urllib.parse import urljoin
 from .config import from_environment
 from .crypto import sha512sum
 from .log_format import StructuredFormatter
+from .lta_const import drain_semaphore_filename
 
 EXPECTED_CONFIG = {
     "BUNDLER_NAME": f"{platform.node()}-bundler",
+    "BUNDLER_OUTBOX_PATH": None,
     "BUNDLER_SITE_SOURCE": None,
+    "BUNDLER_WORKBOX_PATH": None,
     "HEARTBEAT_PATCH_RETRIES": "3",
     "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
     "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
     "LTA_REST_TOKEN": None,
     "LTA_REST_URL": None,
     "LTA_SITE_CONFIG": "etc/site.json",
-    "OUTBOX_PATH": None,
     "WORK_RETRIES": "3",
     "WORK_SLEEP_DURATION_SECONDS": "300",
     "WORK_TIMEOUT_SECONDS": "30",
-    "WORKBOX_PATH": None,
 }
 
 HEARTBEAT_STATE = [
@@ -87,11 +89,11 @@ class Bundler:
         with open(config["LTA_SITE_CONFIG"]) as site_data:
             self.lta_site_config = json.load(site_data)
         self.sites = self.lta_site_config["sites"]
-        self.outbox_path = config["OUTBOX_PATH"]
+        self.outbox_path = config["BUNDLER_OUTBOX_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        self.workbox_path = config["WORKBOX_PATH"]
+        self.workbox_path = config["BUNDLER_WORKBOX_PATH"]
         # assimilate provided logger
         self.logger = logger
         # record some default state
@@ -233,6 +235,15 @@ class Bundler:
         }
         await lta_rc.request('POST', '/Files/actions/bulk_update', update_body)
 
+
+def check_drain_semaphore() -> bool:
+    """Check if a drain semaphore exists in the current working directory."""
+    cwd = os.getcwd()
+    semaphore_name = drain_semaphore_filename("bundler")
+    semaphore_path = os.path.join(cwd, semaphore_name)
+    return Path(semaphore_path).exists()
+
+
 async def patch_status_heartbeat(bundler: Bundler) -> bool:
     """PATCH /status/bundler to update LTA with a status heartbeat."""
     bundler.logger.info("Sending status heartbeat")
@@ -268,24 +279,26 @@ async def patch_status_heartbeat(bundler: Bundler) -> bool:
 async def status_loop(bundler: Bundler) -> None:
     """Run status heartbeat updates as an infinite loop."""
     bundler.logger.info("Starting status loop")
-    while True:
+    while not check_drain_semaphore():
         # PATCH /status/bundler
         await patch_status_heartbeat(bundler)
         # sleep until we PATCH the next heartbeat
         await asyncio.sleep(bundler.heartbeat_sleep_duration_seconds)
+    bundler.logger.info("Ending status heartbeats; drain semaphore detected.")
 
 
 async def work_loop(bundler: Bundler) -> None:
     """Run bundler work cycles as an infinite loop."""
     bundler.logger.info("Starting work loop")
-    while True:
+    while not check_drain_semaphore():
         # Do the work of the bundler
         await bundler.run()
         # sleep until we need to work again
         await asyncio.sleep(bundler.work_sleep_duration_seconds)
+    bundler.logger.info("Component drained; shutting down.")
 
 
-def main() -> None:
+def runner() -> None:
     """Configure a Bundler component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
@@ -303,11 +316,16 @@ def main() -> None:
     # create our Bundler service
     bundler = Bundler(config, logger)
     # let's get to work
-    bundler.logger.info("Starting asyncio loop")
+    bundler.logger.info("Adding tasks to asyncio loop")
     loop = asyncio.get_event_loop()
     loop.create_task(status_loop(bundler))
     loop.create_task(work_loop(bundler))
-    loop.run_forever()
+
+
+def main() -> None:
+    """Configure a Bundler component from the environment and set it running."""
+    runner()
+    asyncio.get_event_loop().run_forever()
 
 
 if __name__ == "__main__":

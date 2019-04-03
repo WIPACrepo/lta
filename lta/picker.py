@@ -6,6 +6,8 @@ from datetime import datetime
 import json
 from logging import Logger
 import logging
+import os
+from pathlib import Path
 import platform
 import sys
 from typing import Dict
@@ -15,6 +17,7 @@ from urllib.parse import urljoin
 
 from .config import from_environment
 from .log_format import StructuredFormatter
+from .lta_const import drain_semaphore_filename
 from .lta_types import CatalogFileType, DestList, FileList, TransferRequestType
 
 EXPECTED_CONFIG = {
@@ -230,6 +233,14 @@ class Picker:
         return bulk_create
 
 
+def check_drain_semaphore() -> bool:
+    """Check if a drain semaphore exists in the current working directory."""
+    cwd = os.getcwd()
+    semaphore_name = drain_semaphore_filename("picker")
+    semaphore_path = os.path.join(cwd, semaphore_name)
+    return Path(semaphore_path).exists()
+
+
 async def patch_status_heartbeat(picker: Picker) -> bool:
     """PATCH /status/picker to update LTA with a status heartbeat."""
     picker.logger.info("Sending status heartbeat")
@@ -265,24 +276,26 @@ async def patch_status_heartbeat(picker: Picker) -> bool:
 async def status_loop(picker: Picker) -> None:
     """Run status heartbeat updates as an infinite loop."""
     picker.logger.info("Starting status loop")
-    while True:
+    while not check_drain_semaphore():
         # PATCH /status/picker
         await patch_status_heartbeat(picker)
         # sleep until we PATCH the next heartbeat
         await asyncio.sleep(picker.heartbeat_sleep_duration_seconds)
+    picker.logger.info("Ending status heartbeats; drain semaphore detected.")
 
 
 async def work_loop(picker: Picker) -> None:
     """Run picker work cycles as an infinite loop."""
     picker.logger.info("Starting work loop")
-    while True:
+    while not check_drain_semaphore():
         # Do the work of the picker
         await picker.run()
         # sleep until we need to work again
         await asyncio.sleep(picker.work_sleep_duration_seconds)
+    picker.logger.info("Component drained; shutting down.")
 
 
-def main() -> None:
+def runner() -> None:
     """Configure a Picker component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
@@ -300,11 +313,16 @@ def main() -> None:
     # create our Picker service
     picker = Picker(config, logger)
     # let's get to work
-    picker.logger.info("Starting asyncio loop")
+    picker.logger.info("Adding tasks to asyncio loop")
     loop = asyncio.get_event_loop()
     loop.create_task(status_loop(picker))
     loop.create_task(work_loop(picker))
-    loop.run_forever()
+
+
+def main() -> None:
+    """Configure a Picker component from the environment and set it running."""
+    runner()
+    asyncio.get_event_loop().run_forever()
 
 
 if __name__ == "__main__":

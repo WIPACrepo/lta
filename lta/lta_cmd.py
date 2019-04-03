@@ -5,15 +5,28 @@ Run with `python -m resources.lta_cmd $@`.
 """
 
 import argparse
+from argparse import Namespace
 import asyncio
 from datetime import datetime, timedelta
+import functools
+from importlib import import_module
 import json
 import logging
-from typing import Dict
+import os
+from pathlib import Path
+from typing import Any, Callable, Dict
 
 from rest_tools.client import RestClient  # type: ignore
 
 from lta.config import from_environment
+from lta.daemon import Daemon
+from lta.lta_const import drain_semaphore_filename, pid_filename
+
+
+COMPONENT_NAMES = [
+    "bundler",
+    "picker",
+]
 
 EXPECTED_CONFIG = {
     'LTA_REST_TOKEN': None,
@@ -21,7 +34,35 @@ EXPECTED_CONFIG = {
 }
 
 
-async def display_config(args) -> None:
+def deamon_for(component: str) -> Daemon:
+    """Create a Daemon object for the specified component name."""
+    pidfile = pid_filename(component)
+    # Known issue with MyPy: https://github.com/python/mypy/issues/5059
+    runner = import_module(f".{component}", "lta").runner  # type: ignore
+    chdir = os.getcwd()
+    stdout = os.path.join(chdir, f"{component}.log")
+    return Daemon(pidfile, runner, stdout=stdout, chdir=chdir)
+
+
+def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
+    """Print the provided Dict as pretty-print JSON."""
+    print(json.dumps(d, indent=4, sort_keys=True))
+
+
+def stop_event_loop() -> Callable[[Any], Any]:
+    """Wrap the decorated coroutine to stop the asyncio event loop."""
+    def wrapper(func: Callable[[Any], Any]) -> Callable[[Any], Any]:
+        @functools.wraps(func)
+        async def wrapped(*args: Any) -> None:
+            await func(*args)
+            asyncio.get_event_loop().stop()
+        return wrapped
+    return wrapper
+
+# -----------------------------------------------------------------------------
+
+@stop_event_loop()
+async def display_config(args: Namespace) -> None:
     """Display the configuration provided to the application."""
     if args.json:
         print_dict_as_pretty_json(args.config)
@@ -30,12 +71,23 @@ async def display_config(args) -> None:
             print(f"{key}:\t\t{args.config[key]}")
 
 
-def print_dict_as_pretty_json(d: Dict) -> None:
-    """Print the provided Dict as pretty-print JSON."""
-    print(json.dumps(d, indent=4, sort_keys=True))
+@stop_event_loop()
+async def drain(args: Namespace) -> None:
+    """Create a semaphore file to signal the component to drain and shut down."""
+    cwd = os.getcwd()
+    semaphore_name = drain_semaphore_filename(args.component)
+    semaphore_path = os.path.join(cwd, semaphore_name)
+    Path(semaphore_path).touch()
 
 
-async def request_ls(args) -> None:
+@stop_event_loop()
+async def kill(args: Namespace) -> None:
+    """Kill the running component."""
+    deamon_for(args.component).kill()
+
+
+@stop_event_loop()
+async def request_ls(args: Namespace) -> None:
     """List all of the TransferRequest objects in the LTA DB."""
     response = await args.rc.request("GET", "/TransferRequests")
     if args.json:
@@ -54,7 +106,8 @@ async def request_ls(args) -> None:
             print(f"{display_id}  {create_time} {path} {source} -> {dests}")
 
 
-async def request_new(args) -> None:
+@stop_event_loop()
+async def request_new(args: Namespace) -> None:
     """Create a new TransferRequest and add it to the LTA DB."""
     # get some stuff
     source = args.source
@@ -80,7 +133,8 @@ async def request_new(args) -> None:
         print(f"{display_id}  {create_time} {path} {source} -> {dests}")
 
 
-async def request_status(args) -> None:
+@stop_event_loop()
+async def request_status(args: Namespace) -> None:
     """Query the status of a TransferRequest in the LTA DB."""
     response = await args.rc.request("GET", "/TransferRequests")
     results = response["results"]
@@ -101,7 +155,18 @@ async def request_status(args) -> None:
                 print(f"{display_id}  {status_time} {status_name}")
 
 
-async def status(args) -> None:
+async def restart(args: Namespace) -> None:
+    """Restart the running component."""
+    deamon_for(args.component).restart()
+
+
+async def start(args: Namespace) -> None:
+    """Start the component running."""
+    deamon_for(args.component).start()
+
+
+@stop_event_loop()
+async def status(args: Namespace) -> None:
     """Query the status of the LTA DB or a component of LTA."""
     old_data = (datetime.utcnow() - timedelta(seconds=60*5)).isoformat()
 
@@ -132,7 +197,14 @@ async def status(args) -> None:
                     print(f"{(key+':'):<14}{response[key]}")
 
 
-async def main():
+@stop_event_loop()
+async def stop(args: Namespace) -> None:
+    """Stop the component running."""
+    deamon_for(args.component).stop()
+
+# -----------------------------------------------------------------------------
+
+async def main() -> None:
     """Process a request from the Command Line."""
     # configure the application from the environment
     config = from_environment(EXPECTED_CONFIG)
@@ -149,6 +221,20 @@ async def main():
                                        help="display output in JSON",
                                        action="store_true")
     parser_display_config.set_defaults(func=display_config)
+
+    # define a subparser for the 'drain' subcommand
+    parser_drain = subparser.add_parser('drain', help='finish existing work and shut down')
+    parser_drain.add_argument("component",
+                              choices=COMPONENT_NAMES,
+                              help="LTA component")
+    parser_drain.set_defaults(func=drain)
+
+    # define a subparser for the 'kill' subcommand
+    parser_kill = subparser.add_parser('kill', help='immediately kill component process')
+    parser_kill.add_argument("component",
+                             choices=COMPONENT_NAMES,
+                             help="LTA component")
+    parser_kill.set_defaults(func=kill)
 
     # define a subparser for the 'request' subcommand
     parser_request = subparser.add_parser('request', help='interact with transfer requests')
@@ -191,10 +277,24 @@ async def main():
                                        action="store_true")
     parser_request_status.set_defaults(func=request_status)
 
+    # define a subparser for the 'restart' subcommand
+    parser_restart = subparser.add_parser('restart', help='restart the component')
+    parser_restart.add_argument("component",
+                                choices=COMPONENT_NAMES,
+                                help="LTA component")
+    parser_restart.set_defaults(func=restart)
+
+    # define a subparser for the 'start' subcommand
+    parser_start = subparser.add_parser('start', help='start the component')
+    parser_start.add_argument("component",
+                              choices=COMPONENT_NAMES,
+                              help="LTA component")
+    parser_start.set_defaults(func=start)
+
     # define a subparser for the 'status' subcommand
     parser_status = subparser.add_parser('status', help='perform a status query')
     parser_status.add_argument("component",
-                               choices=["picker", "bundler"],
+                               choices=COMPONENT_NAMES,
                                help="optional LTA component",
                                nargs='?')
     parser_status.add_argument("--json",
@@ -202,15 +302,24 @@ async def main():
                                action="store_true")
     parser_status.set_defaults(func=status)
 
+    # define a subparser for the 'stop' subcommand
+    parser_stop = subparser.add_parser('stop', help='stop the component')
+    parser_stop.add_argument("component",
+                             choices=COMPONENT_NAMES,
+                             help="LTA component")
+    parser_stop.set_defaults(func=stop)
+
     # parse the provided command line arguments and call the function
     args = parser.parse_args()
     if hasattr(args, "func"):
         await args.func(args)
     else:
         parser.print_usage()
+        asyncio.get_event_loop().stop()
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.CRITICAL)
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    loop.create_task(main())
+    loop.run_forever()

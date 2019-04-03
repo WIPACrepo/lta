@@ -1,0 +1,10 @@
+#!/usr/bin/env python
+import json
+import sys
+
+for line in sys.stdin:
+    try:
+        record = json.loads(line)
+        print(line)
+    except Exception:
+        pass
