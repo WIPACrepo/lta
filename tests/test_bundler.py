@@ -1,25 +1,23 @@
 # test_bundler.py
 """Unit tests for lta/bundler.py."""
 
-from asyncio import Future
 from unittest.mock import call, mock_open, patch
 
 import pytest  # type: ignore
-import requests
 from tornado.web import HTTPError  # type: ignore
 
-from lta.bundler import Bundler, main, patch_status_heartbeat, status_loop, work_loop
-from .test_util import AsyncMock, ObjectLiteral
+from lta.bundler import Bundler, main
+from .test_util import AsyncMock
 
 
 @pytest.fixture
 def config():
     """Supply a stock Bundler component configuration."""
     return {
-        "BUNDLER_NAME": "testing-bundler",
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
         "BUNDLER_SITE_SOURCE": "WIPAC",
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
+        "COMPONENT_NAME": "testing-bundler",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
@@ -72,7 +70,7 @@ def test_constructor_config(config, mocker):
     p = Bundler(config, logger_mock)
     assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
-    assert p.bundler_name == "testing-bundler"
+    assert p.name == "testing-bundler"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == logger_mock
 
@@ -83,7 +81,7 @@ def test_constructor_config_sleep_type_int(config, mocker):
     p = Bundler(config, logger_mock)
     assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
-    assert p.bundler_name == "testing-bundler"
+    assert p.name == "testing-bundler"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == logger_mock
 
@@ -93,151 +91,13 @@ def test_constructor_state(config, mocker):
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
     assert p.last_work_begin_timestamp is p.last_work_end_timestamp
-    assert p.lta_ok is False
 
 
-@pytest.mark.asyncio
-async def test_patch_status_heartbeat_connection_error(config, mocker):
-    """
-    Verify Bundler behavior when status heartbeat patches fail.
-
-    The Bundler will change state to indicate that its connection to LTA is
-    not OK, and it will log an error, if the PATCH call results in a
-    ConnectionError being raised.
-    """
-    patch_mock = mocker.patch("rest_tools.client.RestClient.request")
-    patch_mock.side_effect = requests.exceptions.HTTPError
+def test_do_status(config, mocker):
+    """Verify that the Bundler has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
-    assert p.lta_ok is False
-    p.lta_ok = True
-    assert p.lta_ok is True
-    await patch_status_heartbeat(p)
-    assert p.lta_ok is False
-    logger_mock.error.assert_called()
-
-
-@pytest.mark.asyncio
-async def test_patch_status_heartbeat_patch_call(config, mocker):
-    """
-    Verify Bundler behavior when status heartbeat patches succeed.
-
-    Test that the Bundler calls the proper URL for the PATCH /status/{component}
-    route, and on success (200), updates its internal status to say that the
-    connection to LTA is OK.
-    """
-    patch_mock = mocker.patch("rest_tools.client.RestClient.request")
-    patch_mock.return_value = Future()
-    patch_mock.return_value.set_result(ObjectLiteral(
-        status_code=200
-    ))
-    logger_mock = mocker.MagicMock()
-    p = Bundler(config, logger_mock)
-    assert p.lta_ok is False
-    retVal = await patch_status_heartbeat(p)
-    assert p.lta_ok is True
-    assert retVal is True
-    patch_mock.assert_called_with("PATCH", "/status/bundler", mocker.ANY)
-    logger_mock.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_patch_status_heartbeat_patch_call_data(config, mocker):
-    """
-    Verify Bundler behavior when status heartbeat patches succeed.
-
-    Test that the Bundler provides proper status data to the
-    PATCH /status/{component} route.
-    """
-    patch_mock = mocker.patch("rest_tools.client.RestClient.request")
-    patch_mock.return_value = Future()
-    patch_mock.return_value.set_result(ObjectLiteral(
-        status_code=200
-    ))
-    logger_mock = mocker.MagicMock()
-    bundler_config = config.copy()
-    bundler_config["BUNDLER_NAME"] = "special-bundler-name"
-    p = Bundler(bundler_config, logger_mock)
-    assert p.lta_ok is False
-    retVal = await patch_status_heartbeat(p)
-    assert p.lta_ok is True
-    assert retVal is True
-    patch_mock.assert_called_with(mocker.ANY, mocker.ANY, {
-        "special-bundler-name": {
-            "timestamp": mocker.ANY,
-            "last_work_begin_timestamp": mocker.ANY,
-            "last_work_end_timestamp": mocker.ANY,
-            "lta_ok": False
-        }
-    })
-    logger_mock.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_patch_status_heartbeat_patch_call_4xx(config, mocker):
-    """
-    Verify Bundler behavior when status heartbeat patches fail.
-
-    The Bundler will change state to indicate that its connection to LTA is
-    not OK, and that it will log an error, if the PATCH call results in a
-    4xx series response.
-    """
-    patch_mock = mocker.patch("rest_tools.client.RestClient.request")
-    patch_mock.side_effect = requests.exceptions.HTTPError("400 Bad Request")
-    logger_mock = mocker.MagicMock()
-    p = Bundler(config, logger_mock)
-    assert p.lta_ok is False
-    p.lta_ok = True
-    assert p.lta_ok is True
-    await patch_status_heartbeat(p)
-    assert p.lta_ok is False
-    logger_mock.error.assert_called()
-
-
-@pytest.mark.asyncio
-async def test_status_loop(config, mocker):
-    """Ensure the status loop will loop."""
-    # NOTE: The Exception() is a hack to get around the infinite loop in status_loop()
-    patch_mock = mocker.patch("lta.bundler.patch_status_heartbeat", new_callable=AsyncMock)
-    patch_mock.side_effect = [True, Exception()]
-
-    sleep_mock = mocker.patch("asyncio.sleep", new_callable=AsyncMock)
-    sleep_mock.side_effect = [None, None]
-
-    logger_mock = mocker.MagicMock()
-    p = Bundler(config, logger_mock)
-    # NOTE: This is a hack to get around the infinite loop in status_loop()
-    try:
-        await status_loop(p)
-        assert False, "This should have exited with an Exception"
-    except Exception:
-        pass
-    patch_mock.assert_called_with(p)
-    sleep_mock.assert_called_with(60)
-
-
-@pytest.mark.asyncio
-async def test_work_loop(config, mocker):
-    """Ensure the work loop will loop."""
-    # NOTE: The Exception() is a hack to get around the infinite loop in work_loop()
-    run_mock = mocker.patch("lta.bundler.Bundler.run", new_callable=AsyncMock)
-    run_mock.side_effect = [None, Exception()]
-
-    sleep_mock = mocker.patch("asyncio.sleep", new_callable=AsyncMock)
-    sleep_mock.side_effect = [None, None]
-
-    logger_mock = mocker.MagicMock()
-    bundler_config = config.copy()
-    bundler_config["WORK_SLEEP_DURATION_SECONDS"] = "300"
-    p = Bundler(bundler_config, logger_mock)
-    # NOTE: This is a hack to get around the infinite loop in work_loop()
-    try:
-        await work_loop(p)
-        assert False, "This should have exited with an Exception"
-    except Exception:
-        pass
-    run_mock.assert_called()
-    sleep_mock.assert_called_with(300)
+    assert p._do_status() == {}
 
 
 @pytest.mark.asyncio
@@ -266,10 +126,10 @@ async def test_bundler_logs_configuration(mocker):
     """Test to make sure the Bundler logs its configuration."""
     logger_mock = mocker.MagicMock()
     bundler_config = {
-        "BUNDLER_NAME": "logme-testing-bundler",
         "BUNDLER_OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
         "BUNDLER_SITE_SOURCE": "WIPAC",
         "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
+        "COMPONENT_NAME": "logme-testing-bundler",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
@@ -282,11 +142,11 @@ async def test_bundler_logs_configuration(mocker):
     }
     Bundler(bundler_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
-        call("Bundler 'logme-testing-bundler' is configured:"),
-        call('BUNDLER_NAME = logme-testing-bundler'),
+        call("bundler 'logme-testing-bundler' is configured:"),
         call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
         call('BUNDLER_SITE_SOURCE = WIPAC'),
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
+        call('COMPONENT_NAME = logme-testing-bundler'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),

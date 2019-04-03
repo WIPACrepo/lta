@@ -58,6 +58,7 @@ class Picker(Component):
         return EXPECTED_CONFIG
 
     async def _do_work(self) -> None:
+        """Perform a work cycle for this component."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
         # configure a RestClient to talk to the LTA DB
         lta_rc = RestClient(self.lta_rest_url,
