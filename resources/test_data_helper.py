@@ -96,6 +96,30 @@ async def clear_catalog():
             print(e)
 
 
+async def clear_lta_files():
+    # configure a RestClient from the environment
+    config = from_environment(EXPECTED_CONFIG)
+    rc = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
+    # while there are still transfer requests
+    clearing = True
+    while clearing:
+        try:
+            # get a list of all the files in the LTA DB
+            response = await rc.request("GET", "/Files")
+            results = response["results"]
+            # for each file that we found
+            for uuid in results:
+                # remove it from the file catalog
+                print(f"DELETE /Files/{uuid}")
+                response2 = await rc.request("DELETE", f"/Files/{uuid}")
+            # if we didn't get any files back, we're done
+            if len(results) < 1:
+                clearing = False
+        except Exception as e:
+            # whoopsy daisy...
+            print(e)
+
+
 async def clear_lta_transfer_requests():
     # configure a RestClient from the environment
     config = from_environment(EXPECTED_CONFIG)
@@ -139,6 +163,9 @@ async def main():
     # if we're clearing files from the catalog
     elif subcommand == "clear-catalog":
         await clear_catalog()
+    # if we're clearing files from the LTA DB
+    elif subcommand == "clear-lta-files":
+        await clear_lta_files()
     # if we're clearing transfer requests from the LTA DB
     elif subcommand == "clear-lta-transfer-requests":
         await clear_lta_transfer_requests()
