@@ -69,6 +69,13 @@ log lens:
 
     picker.sh | loglens
 
+### Log Filter
+There is a small helper script `logfilter` that can be used to cull
+non-JSON output from structured log output. If debugging messages
+are crashing the log lens, this construction may help:
+
+    picker.sh | logfilter | loglens
+
 ### Local test environment
 It is possible to test LTA locally, but the setup for the local test
 environment has a few steps. This section walks you through that process.

@@ -9,6 +9,7 @@ from argparse import Namespace
 import asyncio
 from datetime import datetime, timedelta
 import functools
+from importlib import import_module
 import json
 import logging
 import os
@@ -36,7 +37,8 @@ EXPECTED_CONFIG = {
 def deamon_for(component: str) -> Daemon:
     """Create a Daemon object for the specified component name."""
     pidfile = pid_filename(component)
-    runner = __import__(f"lta.{component}", fromlist=['']).runner
+    # Known issue with MyPy: https://github.com/python/mypy/issues/5059
+    runner = import_module(f".{component}", "lta").runner  # type: ignore
     chdir = os.getcwd()
     stdout = os.path.join(chdir, f"{component}.log")
     return Daemon(pidfile, runner, stdout=stdout, chdir=chdir)
