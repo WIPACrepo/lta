@@ -5,6 +5,6 @@ import sys
 for line in sys.stdin:
     try:
         record = json.loads(line)
-        print(line)
+        print(line, end='', flush=True)
     except Exception:
         pass
