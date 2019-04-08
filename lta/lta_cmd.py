@@ -26,6 +26,7 @@ from lta.lta_const import drain_semaphore_filename, pid_filename
 COMPONENT_NAMES = [
     "bundler",
     "picker",
+    "replicator",
 ]
 
 EXPECTED_CONFIG = {
