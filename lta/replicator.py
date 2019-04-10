@@ -41,7 +41,7 @@ class Replicator(Component):
         Create a Replicator component.
 
         config - A dictionary of required configuration values.
-        logger - The object the bundler should use for logging.
+        logger - The object the replicator should use for logging.
         """
         super(Replicator, self).__init__("replicator", config, logger)
         self.work_retries = int(config["WORK_RETRIES"])
