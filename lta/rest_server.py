@@ -82,7 +82,11 @@ def lta_auth(**_auth: Any) -> Callable[..., Any]:
 
             authorized = False
 
-            auth_role = self.auth_data.get('long-term-archive', {}).get('role', None)
+            auth_role = None
+            for scope in self.auth_data.get('scope', '').split():
+                if scope.startswith('lta:'):
+                    auth_role = scope.split(':', 1)[-1]
+                    break
             if roles and auth_role in roles:
                 authorized = True
             else:
