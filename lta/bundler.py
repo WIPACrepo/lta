@@ -23,7 +23,6 @@ from .log_format import StructuredFormatter
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "BUNDLER_OUTBOX_PATH": None,
-    "BUNDLER_SITE_SOURCE": None,
     "BUNDLER_WORKBOX_PATH": None,
     "LTA_SITE_CONFIG": "etc/site.json",
     "WORK_RETRIES": "3",
@@ -58,7 +57,6 @@ class Bundler(Component):
         logger - The object the bundler should use for logging.
         """
         super(Bundler, self).__init__("bundler", config, logger)
-        self.bundler_site_source = config["BUNDLER_SITE_SOURCE"]
         self.outbox_path = config["BUNDLER_OUTBOX_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
@@ -84,8 +82,8 @@ class Bundler(Component):
         # for each destination to which we could bundle
         for site in self.sites:
             # see if we have any work to do bundling files there
-            if site != self.bundler_site_source:
-                self.logger.info(f"Processing bundles from {self.bundler_site_source} to {site}")
+            if site != self.source_site:
+                self.logger.info(f"Processing bundles from {self.source_site} to {site}")
                 await self._consume_files_for_destination_site(site)
         # inform the log that we've worked on each site and now we're taking a break
         self.logger.info(f"Bundling work cycle complete. Going on vacation.")
@@ -101,7 +99,7 @@ class Bundler(Component):
         pop_body = {
             "bundler": self.name
         }
-        source = self.bundler_site_source
+        source = self.source_site
         response = await lta_rc.request('POST', f'/Files/actions/pop?source={source}&dest={dest}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         results = response["results"]
@@ -112,7 +110,7 @@ class Bundler(Component):
 
     async def _build_bundle_for_destination_site(self, dest: str, lta_rc: RestClient, results: List[Dict[str, Any]]) -> None:
         """Build a bundle for a specific site with the supplied files."""
-        source = self.bundler_site_source
+        source = self.source_site
         num_files = len(results)
         self.logger.info(f"There are {num_files} Files to bundle from '{source}' to '{dest}'.")
         # 1. Create a manifest of the bundle, including all metadata
@@ -166,7 +164,8 @@ class Bundler(Component):
                     "checksum": {
                         "sha512": checksum,
                     },
-                    "status": "none",
+                    "status": "accessible",
+                    "dest": dest,
                     "verified": False,
                     "manifest": [x["catalog"] for x in results],
                 },

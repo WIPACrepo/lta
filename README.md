@@ -80,15 +80,33 @@ are crashing the log lens, this construction may help:
 It is possible to test LTA locally, but the setup for the local test
 environment has a few steps. This section walks you through that process.
 
+#### Install docker
+For Linux Mint 18, there is a script in the root directory:
+
+    install-docker.sh
+
+#### Install circleci-cli
+As root, the following command installs circleci-cli locally:
+
+    curl -fLSs https://circle.ci/cli | bash
+
+There are [other installation options](https://github.com/CircleCI-Public/circleci-cli) as well.
+
 #### MongoDB
 Get a MongoDB running on port 27017.
 
-    TODO: Provide a Vagrantfile to easily create this service
+    docker run --rm -it --network=host circleci/mongo:3.7.9-ram
+
+#### Token Service
+Get a token service running on port 8888:
+
+    docker run --rm -it --network=host wipac/token-service python test_server.py
 
 #### File Catalog
-Get a File Catalog running on port 8888.
+Get a File Catalog running on port 8889.
 
     TODO: Provide a Vagrantfile to easily create this service
+    TODO: Provide a docker command to easily create a container running this service
 
 #### LTA DB
 Get an LTA DB running on port 8080.

@@ -60,25 +60,33 @@ class Replicator(Component):
 
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
-        await self._consume_bundles_to_replicate()
+        await self._consume_bundles_to_replicate_to_destination_sites()
 
-    async def _consume_bundles_to_replicate(self) -> None:
-        """Consume bundles from the LTA DB and register them with Rucio."""
-        # TODO: Perform the work against rucio
-        # 1. Pop bundles from the LTA DB
-        # 2. for each bundle
-        # 2.1. upload and regsiter the bundle to rucio
-        #     rucio upload --rse $RSE --scope SCOPE --register-after-upload --pfn PFN --name NAME /PATH/TO/BUNDLE
-        # 2.2. for each destination site
-        # 2.2.1. add the BUNDLE_DID from 2.1 to the replica
-        #     rucio attach DEST_CONTAINER_DID BUNDLE_DID
-        # 2.3. update the Bundle in the LTA DB; registration information
-        # 2.4. update the TransferRequest in the LTA DB; state: [None] -> [Transferring]
+    async def _consume_bundles_to_replicate_to_destination_sites(self) -> None:
+        """Consume bundles from the LTA DB and replicate them with Rucio."""
         lta_rc = RestClient(self.lta_rest_url,
                             token=self.lta_rest_token,
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
-        await lta_rc.request("GET", "/Bundles")
+        # 1. Pop bundles from the LTA DB
+        source = self.source_site
+        response = await lta_rc.request("POST", f"/Bundles/actions/pop?site={source}&status=accessible")
+        results = response["results"]
+        # 2. for each bundle
+        for bundle in results:
+            uuid = bundle["uuid"]
+            # 2.1. upload and register the bundle with rucio
+            #     rucio upload --rse $RSE --scope SCOPE --register-after-upload --pfn PFN --name NAME /PATH/TO/BUNDLE
+            # 2.2 add the BUNDLE_DID from 2.1 to the replica
+            #     rucio attach DEST_CONTAINER_DID BUNDLE_DID
+            # 2.3. update the Bundle in the LTA DB; registration information
+            update_body = {
+                "claimant": None,
+                "claimed": False,
+                "claim_time": None,
+                "status": "transferring",
+            }
+            await lta_rc.request("PATCH", f"/Bundles/{uuid}", update_body)
         # inform the log that we've finished out work cycle
         self.logger.info(f"Replicator work cycle complete. Going on vacation.")
 
