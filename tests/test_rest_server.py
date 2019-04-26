@@ -7,17 +7,28 @@ from math import floor
 import pytest  # type: ignore
 from random import random
 import socket
+import os
 from typing import Dict
 
 from lta.rest_server import boolify, main, start, unique_id
 from pymongo import MongoClient  # type: ignore
 from pymongo.database import Database  # type: ignore
+import requests  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import Auth  # type: ignore
 
 ALL_DOCUMENTS: Dict[str, str] = {}
 MONGODB_NAME = "lta-unit-tests"
 REMOVE_ID = {"_id": False}
+
+CONFIG = {
+    'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
+    'TOKEN_SERVICE': '',
+    'AUTH_SECRET': 'secret',
+}
+for k in CONFIG:
+    if k in os.environ:
+        CONFIG[k] = os.environ[k]
+
 
 class ObjectLiteral:
     """
@@ -36,10 +47,10 @@ class ObjectLiteral:
 @pytest.fixture
 def mongo(monkeypatch) -> Database:
     """Get a reference to a test instance of a MongoDB Database."""
-    client = MongoClient("mongodb://localhost:27017/")
+    client = MongoClient(CONFIG['LTA_MONGODB_URL'])
     db = client[MONGODB_NAME]
     for collection in db.list_collection_names():
-        db[collection].delete_many(ALL_DOCUMENTS)
+        db.drop_collection(collection)
     return db
 
 @pytest.fixture
@@ -57,15 +68,20 @@ def port():
 async def rest(monkeypatch, port):
     """Provide RestClient as a test fixture."""
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
-    monkeypatch.setenv("LTA_AUTH_ISSUER", "lta")
-    monkeypatch.setenv("LTA_AUTH_SECRET", "secret")
+    monkeypatch.setenv("LTA_AUTH_ISSUER", CONFIG['TOKEN_SERVICE'])
+    monkeypatch.setenv("LTA_AUTH_SECRET", CONFIG['AUTH_SECRET'])
     monkeypatch.setenv("LTA_MONGODB_NAME", MONGODB_NAME)
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     s = start(debug=True)
-    a = Auth('secret', issuer='lta', algorithm='HS512')
 
     def client(role='admin', timeout=0.1):
-        t = a.create_token('foo', payload={'long-term-archive': {'role': role}})
+        if CONFIG['TOKEN_SERVICE']:
+            r = requests.get(CONFIG['TOKEN_SERVICE']+'/token',
+                             params={'scope': f'lta:{role}'})
+            r.raise_for_status()
+            t = r.json()['access']
+        else:
+            raise Exception('testing token service not defined')
         return RestClient(f'http://localhost:{port}', token=t, timeout=timeout, retries=0)
 
     yield client
