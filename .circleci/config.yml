@@ -5,7 +5,14 @@ jobs:
             - image: circleci/python:3.7.2
               environment:
                 LTA_MONGODB_URL: mongodb://localhost:27017
+                TOKEN_SERVICE: http://localhost:12345
+                AUTH_SECRET: lkjlksdldkfjlsdjflsdnfkl
             - image: circleci/mongo:3.7.9-ram
+            - image: wipac/token-service:latest
+              environment:
+                port: 12345
+                auth_secret: lkjlksdldkfjlsdjflsdnfkl
+              command: [python, test_server.py]
         steps:
             - checkout
             - run: ./setupenv.sh
