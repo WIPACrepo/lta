@@ -38,6 +38,8 @@ class RucioClient:
             "X-Rucio-Username": username,  # – Username as a string.
             "X-Rucio-Password": password,  # SHA1 hash of the password as a string.
             "X-Rucio-AppID": app_id,  # Application identifier as a string.
+            # because the data of the response comes back in the 'X-Rucio-Auth-Token' header
+            "Accept": None,
         }
         req_url = urljoin(self.url, "/auth/userpass")
         r = await asyncio.wrap_future(self.session.get(req_url, headers=headers))

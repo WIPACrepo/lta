@@ -17,7 +17,7 @@ from rest_tools.client import RestClient  # type: ignore
 
 from .component import COMMON_CONFIG, Component, status_loop, work_loop
 from .config import from_environment
-from .crypto import sha512sum
+from .crypto import adler32sum, md5sum, sha512sum
 from .log_format import StructuredFormatter
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
@@ -147,11 +147,22 @@ class Bundler(Component):
             self.logger.info(f"Moving bundle from '{bundle_file_path}' to '{final_bundle_path}'")
             shutil.move(bundle_file_path, final_bundle_path)
         self.logger.info(f"Finished archive bundle now located at: '{final_bundle_path}'")
-        # 3.1. Compute the SHA512 checksum of the bundle
-        self.logger.info(f"Computing checksum for bundle: '{final_bundle_path}'")
-        checksum = sha512sum(final_bundle_path)
-        self.logger.info(f"Bundle '{final_bundle_path}' has checksum '{checksum}'")
-        # 3.2. Clean up generated JSON metadata file
+        # 3.1. Compute the size of the bundle
+        bundle_size = os.path.getsize(final_bundle_path)
+        self.logger.info(f"Archive bundle has size {bundle_size} bytes")
+        # 3.2.1. Compute the adler32 checksum of the bundle
+        self.logger.info(f"Computing adler32 checksum for bundle: '{final_bundle_path}'")
+        checksum_adler32 = adler32sum(final_bundle_path)
+        self.logger.info(f"Bundle '{final_bundle_path}' has adler32 checksum '{checksum_adler32}'")
+        # 3.2.2. Compute the MD5 checksum of the bundle
+        self.logger.info(f"Computing MD5 checksum for bundle: '{final_bundle_path}'")
+        checksum_md5 = md5sum(final_bundle_path)
+        self.logger.info(f"Bundle '{final_bundle_path}' has MD5 checksum '{checksum_md5}'")
+        # 3.2.3. Compute the SHA512 checksum of the bundle
+        self.logger.info(f"Computing SHA512 checksum for bundle: '{final_bundle_path}'")
+        checksum_sha512 = sha512sum(final_bundle_path)
+        self.logger.info(f"Bundle '{final_bundle_path}' has SHA512 checksum '{checksum_sha512}'")
+        # 3.3. Clean up generated JSON metadata file
         self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
         os.remove(metadata_file_path)
         self.logger.info(f"Bundle metadata '{metadata_file_path}' was deleted.")
@@ -162,8 +173,11 @@ class Bundler(Component):
                     "bundle_uuid": bundle_id,
                     "location": f"{source}:{final_bundle_path}",
                     "checksum": {
-                        "sha512": checksum,
+                        "adler32": checksum_adler32,
+                        "md5": checksum_md5,
+                        "sha512": checksum_sha512,
                     },
+                    "size": bundle_size,
                     "status": "accessible",
                     "dest": dest,
                     "verified": False,

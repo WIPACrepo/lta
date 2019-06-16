@@ -244,8 +244,14 @@ async def test_bundler_do_work_dest_results(config, mocker):
     mock_zipfile_write.return_value = None
     mock_shutil_move = mocker.patch("shutil.move")
     mock_shutil_move.return_value = None
+    mock_adler32sum = mocker.patch("lta.bundler.adler32sum")
+    mock_adler32sum.return_value = "89d5efeb"
+    mock_md5sum = mocker.patch("lta.bundler.md5sum")
+    mock_md5sum.return_value = "778b0c448c3d750f189f543da9caac83"
     mock_sha512sum = mocker.patch("lta.bundler.sha512sum")
     mock_sha512sum.return_value = "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570"
+    mock_os_path_getsize = mocker.patch("os.path.getsize")
+    mock_os_path_getsize.return_value = 1048900
     mock_os_remove = mocker.patch("os.remove")
     mock_os_remove.return_value = None
     p = Bundler(config, logger_mock)

@@ -92,6 +92,13 @@ As root, the following command installs circleci-cli locally:
 
 There are [other installation options](https://github.com/CircleCI-Public/circleci-cli) as well.
 
+##### Running a local CircleCI job
+This command runs a local CircleCI job:
+
+    circleci local execute --job JOB_NAME
+
+For LTA, `JOB_NAME` is `test`
+
 #### MongoDB
 Get a MongoDB running on port 27017.
 
@@ -100,7 +107,7 @@ Get a MongoDB running on port 27017.
 #### Token Service
 Get a token service running on port 8888:
 
-    docker run --rm -it --network=host wipac/token-service python test_server.py
+    docker run --env auth_secret=secret --rm -it --network=host wipac/token-service:latest python test_server.py
 
 #### File Catalog
 Get a File Catalog running on port 8889.
