@@ -15,7 +15,6 @@ def config():
     """Supply a stock Bundler component configuration."""
     return {
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
-        "BUNDLER_SITE_SOURCE": "WIPAC",
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "testing-bundler",
         "HEARTBEAT_PATCH_RETRIES": "3",
@@ -24,6 +23,7 @@ def config():
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "etc/site.json",
+        "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -127,7 +127,6 @@ async def test_bundler_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     bundler_config = {
         "BUNDLER_OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
-        "BUNDLER_SITE_SOURCE": "WIPAC",
         "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "logme-testing-bundler",
         "HEARTBEAT_PATCH_RETRIES": "1",
@@ -136,6 +135,7 @@ async def test_bundler_logs_configuration(mocker):
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "etc/site.json",
+        "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
@@ -144,7 +144,6 @@ async def test_bundler_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("bundler 'logme-testing-bundler' is configured:"),
         call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
-        call('BUNDLER_SITE_SOURCE = WIPAC'),
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
         call('COMPONENT_NAME = logme-testing-bundler'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
@@ -153,6 +152,7 @@ async def test_bundler_logs_configuration(mocker):
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('LTA_SITE_CONFIG = etc/site.json'),
+        call('SOURCE_SITE = WIPAC'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
         call('WORK_TIMEOUT_SECONDS = 90'),
@@ -244,8 +244,14 @@ async def test_bundler_do_work_dest_results(config, mocker):
     mock_zipfile_write.return_value = None
     mock_shutil_move = mocker.patch("shutil.move")
     mock_shutil_move.return_value = None
+    mock_adler32sum = mocker.patch("lta.bundler.adler32sum")
+    mock_adler32sum.return_value = "89d5efeb"
+    mock_md5sum = mocker.patch("lta.bundler.md5sum")
+    mock_md5sum.return_value = "778b0c448c3d750f189f543da9caac83"
     mock_sha512sum = mocker.patch("lta.bundler.sha512sum")
     mock_sha512sum.return_value = "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570"
+    mock_os_path_getsize = mocker.patch("os.path.getsize")
+    mock_os_path_getsize.return_value = 1048900
     mock_os_remove = mocker.patch("os.remove")
     mock_os_remove.return_value = None
     p = Bundler(config, logger_mock)

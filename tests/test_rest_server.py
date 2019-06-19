@@ -22,7 +22,7 @@ REMOVE_ID = {"_id": False}
 
 CONFIG = {
     'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
-    'TOKEN_SERVICE': '',
+    'TOKEN_SERVICE': 'http://localhost:8888',
     'AUTH_SECRET': 'secret',
 }
 for k in CONFIG:
@@ -82,6 +82,7 @@ async def rest(monkeypatch, port):
             t = r.json()['access']
         else:
             raise Exception('testing token service not defined')
+        print(t)
         return RestClient(f'http://localhost:{port}', token=t, timeout=timeout, retries=0)
 
     yield client
@@ -159,7 +160,7 @@ async def test_transfer_request_fail(rest):
 @pytest.mark.asyncio
 async def test_transfer_request_crud(mongo, rest):
     """Check CRUD semantics for transfer requests."""
-    r = rest()
+    r = rest(role="system")
     request = {'source': 'foo', 'dest': ['bar']}
     ret = await r.request('POST', '/TransferRequests', request)
     uuid = ret['TransferRequest']

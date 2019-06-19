@@ -20,6 +20,7 @@ COMMON_CONFIG: Dict[str, Optional[str]] = {
     "HEARTBEAT_SLEEP_DURATION_SECONDS": None,
     "LTA_REST_TOKEN": None,
     "LTA_REST_URL": None,
+    "SOURCE_SITE": None,
     "WORK_SLEEP_DURATION_SECONDS": None,
 }
 
@@ -57,6 +58,7 @@ class Component:
         self.heartbeat_sleep_duration_seconds = float(config["HEARTBEAT_SLEEP_DURATION_SECONDS"])
         self.lta_rest_token = config["LTA_REST_TOKEN"]
         self.lta_rest_url = config["LTA_REST_URL"]
+        self.source_site = config["SOURCE_SITE"]
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
         # record some default state
         timestamp = datetime.utcnow().isoformat()
