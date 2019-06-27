@@ -98,10 +98,10 @@ class Replicator(Component):
             uuid = bundle["uuid"]
             # 2.1. register the bundle as a replica within rucio
             #     rucio upload --rse $RSE --scope SCOPE --register-after-upload --pfn PFN --name NAME /PATH/TO/BUNDLE
-            self._register_bundle_as_replica(rucio_rc, bundle)
+            await self._register_bundle_as_replica(rucio_rc, bundle)
             # 2.2 add the BUNDLE_DID from 2.1 to the replica
             #     rucio attach DEST_CONTAINER_DID BUNDLE_DID
-            self._attach_replica_to_dataset(rucio_rc, bundle)
+            await self._attach_replica_to_dataset(rucio_rc, bundle)
             # 2.3. update the Bundle in the LTA DB; registration information
             update_body = {
                 "claimant": None,

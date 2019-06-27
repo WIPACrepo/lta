@@ -5,6 +5,7 @@ import asyncio
 import json
 from logging import Logger
 import logging
+import os
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -13,6 +14,7 @@ from rest_tools.client import RestClient  # type: ignore
 from .component import COMMON_CONFIG, Component, status_loop, work_loop
 from .config import from_environment
 from .log_format import StructuredFormatter
+from .lta_types import BundleType
 from .rucio import RucioClient
 
 
@@ -76,9 +78,9 @@ class Deleter(Component):
 
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
-        await self._consume_bundles_to_delete_from_destination_sites()
+        await self._consume_bundles_to_delete()
 
-    async def _consume_bundles_to_delete_from_destination_sites(self) -> None:
+    async def _consume_bundles_to_delete(self) -> None:
         """Consume bundles from the LTA DB and delete them with Rucio."""
         # ensure that we can connect to and authenticate with Rucio
         rucio_rc = await self._get_valid_rucio_client()
@@ -87,11 +89,82 @@ class Deleter(Component):
                             token=self.lta_rest_token,
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
-        # TODO: the work of the Deleter
-        # 1. blah
-        # 2. blah
-        # inform the log that we've finished out work cycle
+        # ask the LTA DB for a Bundle that needs to be deleted
+        self.logger.info("Asking the LTA DB for Bundles to delete.")
+        pop_body = {
+            "deleter": self.name
+        }
+        site = self.source_site
+        status = "deletable"
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?site={site}&status={status}', pop_body)
+        self.logger.info(f"LTA DB responded with: {response}")
+        results = response["results"]
+        if not results:
+            self.logger.info(f"No Bundles are available to delete. Going on vacation.")
+            return
+        # delete the Bundles provided to us by the LTA DB
+        await self._delete_bundles(lta_rc, rucio_rc, results)
+        # inform the log that we've worked and now we're taking a break
         self.logger.info(f"Deleter work cycle complete. Going on vacation.")
+
+    async def _delete_bundles(self,
+                              lta_rc: RestClient,
+                              rucio_rc: RucioClient,
+                              results: List[Dict[str, Any]]) -> None:
+        """Delete the Bundles provided to us by the LTA DB."""
+        num_bundles = len(results)
+        self.logger.info(f"LTA DB provided {num_bundles} to delete.")
+        for result in results:
+            await self._delete_bundle(lta_rc, rucio_rc, result)
+
+    async def _delete_bundle(self,
+                             lta_rc: RestClient,
+                             rucio_rc: RucioClient,
+                             bundle: Dict[str, Any]) -> None:
+        """Delete the provided Bundle with Rucio and update the LTA DB."""
+        # 1. remove the BUNDLE_DID from the site DEST_CONTAINER_DID
+        #       rucio detach DEST_CONTAINER_DID BUNDLE_DID
+        await self._detach_replica_from_dataset(rucio_rc, bundle)
+        # 2. delete the bundle from the LTA DB
+        uuid = bundle["uuid"]
+        await lta_rc.request("DELETE", f"/Bundles/{uuid}")
+
+    async def _detach_replica_from_dataset(self,
+                                           rucio_rc: RucioClient,
+                                           bundle: BundleType) -> None:
+        """Detach the Bundle replica from the site specific Dataset within Rucio."""
+        # detach the FILE DID from the DATASET DID within Rucio
+        scope = self.rucio_scope
+        dest_site = bundle["dest"]
+        dataset_name = self.sites[dest_site]["rucio_dataset"]
+        loc_split = bundle['location'].split(':', 1)
+        loc_path = loc_split[1]
+        replica_name = os.path.basename(loc_path)
+        did_dict = {
+            "dids": [
+                {
+                    "scope": scope,
+                    "name": replica_name,
+                },
+            ],
+        }
+        detach_url = f"/dids/{scope}/{dataset_name}/dids"
+        r = await rucio_rc.delete(detach_url, did_dict)
+        if r:
+            raise Exception(f"DELETE {detach_url} returned something; expected None")
+        # check the DATASET DID to verify the replica as detached
+        r = await rucio_rc.get(detach_url)
+        if r is None:
+            raise Exception(f"{detach_url} returned None; expected a list")
+        if not isinstance(r, list):
+            raise Exception(f"{detach_url} returned a dictionary; expected a list")
+        found_replica = False
+        for replica in r:
+            if replica["name"] == replica_name:
+                found_replica = True
+                break
+        if found_replica:
+            raise Exception(f"{detach_url} replica name found; expected name == '{replica_name}' NOT to be in the list")
 
     async def _get_valid_rucio_client(self) -> RucioClient:
         """Ensure that we can connect to and authenticate with Rucio."""
