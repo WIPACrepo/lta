@@ -50,6 +50,17 @@ class RucioClient:
         """Close the AsyncSession."""
         self.session.close()
 
+    async def delete(self,
+                     route: str,
+                     json: Dict[str, Any],
+                     headers: Dict[str, str] = {}) -> RucioResponse:
+        """Execute a DELETE verb on the provided route."""
+        req_headers = self._apply_auth(headers)
+        req_url = urljoin(self.url, route)
+        r = await asyncio.wrap_future(self.session.delete(req_url, json=json, headers=req_headers))
+        r.raise_for_status()
+        return self._decode(r)
+
     async def get(self,
                   route: str,
                   headers: Dict[str, str] = {}) -> RucioResponse:

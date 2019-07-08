@@ -1,5 +1,5 @@
-# replicator.py
-"""Module to implement the Replicator component of the Long Term Archive."""
+# deleter.py
+"""Module to implement the Deleter component of the Long Term Archive."""
 
 import asyncio
 import json
@@ -23,7 +23,6 @@ EXPECTED_CONFIG.update({
     "LTA_SITE_CONFIG": "etc/site.json",
     "RUCIO_ACCOUNT": None,
     "RUCIO_PASSWORD": None,
-    "RUCIO_PFN": None,
     "RUCIO_REST_URL": None,
     "RUCIO_RSE": None,
     "RUCIO_SCOPE": None,
@@ -33,31 +32,31 @@ EXPECTED_CONFIG.update({
 })
 
 
-class Replicator(Component):
+class Deleter(Component):
     """
-    Replicator is a Long Term Archive component.
+    Deleter is a Long Term Archive component.
 
-    A Replicator is responsible for registering completed archive bundles
-    with the Rucio transfer service. Rucio will then replicate the bundle
-    from the source (i.e.: WIPAC Data Warehouse) to the destination(s),
-    (i.e.: DESY, NERSC DTN).
+    A Deleter is responsible for deleteing intermediate copies of archive
+    bundles that have finished processing at their destination site(s). The
+    archive bundles are marked for deletion using the Rucio transfer service.
+    Rucio will then remove the intermediate bundle files from the
+    destination site(s).
 
-    It uses the LTA DB to find completed bundles that need to be registered.
-    It registers the bundles with Rucio. It updates the Bundle and the
-    corresponding TransferRequest in the LTA DB with a 'transferring' status.
+    It uses the LTA DB to find verified bundles that need to be deleted.
+    It de-registers the bundles with Rucio. It updates the Bundle and the
+    corresponding TransferRequest in the LTA DB with a 'deleted' status.
     """
 
     def __init__(self, config: Dict[str, str], logger: Logger) -> None:
         """
-        Create a Replicator component.
+        Create a Deleter component.
 
         config - A dictionary of required configuration values.
-        logger - The object the replicator should use for logging.
+        logger - The object the deleter should use for logging.
         """
-        super(Replicator, self).__init__("replicator", config, logger)
+        super(Deleter, self).__init__("deleter", config, logger)
         self.rucio_account = config["RUCIO_ACCOUNT"]
         self.rucio_password = config["RUCIO_PASSWORD"]
-        self.rucio_pfn = config["RUCIO_PFN"]
         self.rucio_rest_url = config["RUCIO_REST_URL"]
         self.rucio_rse = config["RUCIO_RSE"]
         self.rucio_scope = config["RUCIO_SCOPE"]
@@ -67,21 +66,22 @@ class Replicator(Component):
         with open(config["LTA_SITE_CONFIG"]) as site_data:
             self.lta_site_config = json.load(site_data)
         self.sites = self.lta_site_config["sites"]
+        pass
 
     def _do_status(self) -> Dict[str, Any]:
-        """Replicator has no additional status to contribute."""
+        """Provide additional status for the Deleter."""
         return {}
 
     def _expected_config(self) -> Dict[str, Optional[str]]:
-        """Replicator provides our expected configuration dictionary."""
+        """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
-        await self._consume_bundles_to_replicate_to_destination_sites()
+        await self._consume_bundles_to_delete()
 
-    async def _consume_bundles_to_replicate_to_destination_sites(self) -> None:
-        """Consume bundles from the LTA DB and replicate them with Rucio."""
+    async def _consume_bundles_to_delete(self) -> None:
+        """Consume bundles from the LTA DB and delete them with Rucio."""
         # ensure that we can connect to and authenticate with Rucio
         rucio_rc = await self._get_valid_rucio_client()
         # create a client to talk to the LTA DB
@@ -89,35 +89,51 @@ class Replicator(Component):
                             token=self.lta_rest_token,
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
-        # 1. Pop bundles from the LTA DB
-        source = self.source_site
-        response = await lta_rc.request("POST", f"/Bundles/actions/pop?site={source}&status=accessible")
+        # ask the LTA DB for a Bundle that needs to be deleted
+        self.logger.info("Asking the LTA DB for Bundles to delete.")
+        pop_body = {
+            "deleter": self.name
+        }
+        site = self.source_site
+        status = "deletable"
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?site={site}&status={status}', pop_body)
+        self.logger.info(f"LTA DB responded with: {response}")
         results = response["results"]
-        # 2. for each bundle
-        for bundle in results:
-            uuid = bundle["uuid"]
-            # 2.1. register the bundle as a replica within rucio
-            #     rucio upload --rse $RSE --scope SCOPE --register-after-upload --pfn PFN --name NAME /PATH/TO/BUNDLE
-            await self._register_bundle_as_replica(rucio_rc, bundle)
-            # 2.2 add the BUNDLE_DID from 2.1 to the replica
-            #     rucio attach DEST_CONTAINER_DID BUNDLE_DID
-            await self._attach_replica_to_dataset(rucio_rc, bundle)
-            # 2.3. update the Bundle in the LTA DB; registration information
-            update_body = {
-                "claimant": None,
-                "claimed": False,
-                "claim_time": None,
-                "status": "transferring",
-            }
-            await lta_rc.request("PATCH", f"/Bundles/{uuid}", update_body)
-        # inform the log that we've finished out work cycle
-        self.logger.info(f"Replicator work cycle complete. Going on vacation.")
+        if not results:
+            self.logger.info(f"No Bundles are available to delete. Going on vacation.")
+            return
+        # delete the Bundles provided to us by the LTA DB
+        await self._delete_bundles(lta_rc, rucio_rc, results)
+        # inform the log that we've worked and now we're taking a break
+        self.logger.info(f"Deleter work cycle complete. Going on vacation.")
 
-    async def _attach_replica_to_dataset(self,
-                                         rucio_rc: RucioClient,
-                                         bundle: BundleType) -> None:
-        """Attach the Bundle replica to the site specific Dataset within Rucio."""
-        # attach the FILE DID to the DATASET DID within Rucio
+    async def _delete_bundles(self,
+                              lta_rc: RestClient,
+                              rucio_rc: RucioClient,
+                              results: List[Dict[str, Any]]) -> None:
+        """Delete the Bundles provided to us by the LTA DB."""
+        num_bundles = len(results)
+        self.logger.info(f"LTA DB provided {num_bundles} to delete.")
+        for result in results:
+            await self._delete_bundle(lta_rc, rucio_rc, result)
+
+    async def _delete_bundle(self,
+                             lta_rc: RestClient,
+                             rucio_rc: RucioClient,
+                             bundle: Dict[str, Any]) -> None:
+        """Delete the provided Bundle with Rucio and update the LTA DB."""
+        # 1. remove the BUNDLE_DID from the site DEST_CONTAINER_DID
+        #       rucio detach DEST_CONTAINER_DID BUNDLE_DID
+        await self._detach_replica_from_dataset(rucio_rc, bundle)
+        # 2. delete the bundle from the LTA DB
+        uuid = bundle["uuid"]
+        await lta_rc.request("DELETE", f"/Bundles/{uuid}")
+
+    async def _detach_replica_from_dataset(self,
+                                           rucio_rc: RucioClient,
+                                           bundle: BundleType) -> None:
+        """Detach the Bundle replica from the site specific Dataset within Rucio."""
+        # detach the FILE DID from the DATASET DID within Rucio
         scope = self.rucio_scope
         dest_site = bundle["dest"]
         dataset_name = self.sites[dest_site]["rucio_dataset"]
@@ -132,23 +148,23 @@ class Replicator(Component):
                 },
             ],
         }
-        attach_url = f"/dids/{scope}/{dataset_name}/dids"
-        r = await rucio_rc.post(attach_url, did_dict)
+        detach_url = f"/dids/{scope}/{dataset_name}/dids"
+        r = await rucio_rc.delete(detach_url, did_dict)
         if r:
-            raise Exception(f"POST {attach_url} returned something; expected None")
-        # check the DATASET DID to verify the replica as attached
-        r = await rucio_rc.get(attach_url)
+            raise Exception(f"DELETE {detach_url} returned something; expected None")
+        # check the DATASET DID to verify the replica as detached
+        r = await rucio_rc.get(detach_url)
         if r is None:
-            raise Exception(f"{attach_url} returned None; expected a list")
+            raise Exception(f"{detach_url} returned None; expected a list")
         if not isinstance(r, list):
-            raise Exception(f"{attach_url} returned a dictionary; expected a list")
+            raise Exception(f"{detach_url} returned a dictionary; expected a list")
         found_replica = False
         for replica in r:
             if replica["name"] == replica_name:
                 found_replica = True
                 break
-        if not found_replica:
-            raise Exception(f"{attach_url} replica name not found; expected name == '{replica_name}' in the list")
+        if found_replica:
+            raise Exception(f"{detach_url} replica name found; expected name == '{replica_name}' NOT to be in the list")
 
     async def _get_valid_rucio_client(self) -> RucioClient:
         """Ensure that we can connect to and authenticate with Rucio."""
@@ -201,54 +217,14 @@ class Replicator(Component):
         self.logger.info(f"Returning validated Rucio client to caller; all pre-flight checks passed.")
         return rucio_rc
 
-    async def _register_bundle_as_replica(self,
-                                          rucio_rc: RucioClient,
-                                          bundle: BundleType) -> None:
-        """Register the provided Bundle as a replica within Rucio."""
-        loc_split = bundle['location'].split(':', 1)
-        loc_path = loc_split[1]
-        name = os.path.basename(loc_path)
-        pfn = os.path.join(self.rucio_pfn, name)
-        files = [
-            {
-                "scope": self.rucio_scope,
-                "name": name,
-                "bytes": bundle["size"],
-                "adler32": bundle["checksum"]["adler32"],
-                "pfn": pfn,
-                "md5": bundle["checksum"]["md5"],
-                "meta": {},
-            },
-        ]
-        replicas_dict = {
-            "rse": self.rucio_rse,
-            "files": files,
-            "ignore_availability": True,
-        }
-        r = await rucio_rc.post(f"/replicas/", replicas_dict)
-        if r:
-            raise Exception(f"POST /replicas/ returned something; expected None")
-        # Query Rucio to verify that the replica has been created
-        replica_url = f"/replicas/{self.rucio_scope}/{name}"
-        r = await rucio_rc.get(replica_url)
-        if r is None:
-            raise Exception(f"{replica_url} returned None; expected a list")
-        if not isinstance(r, list):
-            raise Exception(f"{replica_url} returned a dictionary; expected a list")
-        if len(r) != 1:
-            raise Exception(f"{replica_url} returned a list of length {len(r)}; expected length 1")
-        for replica in r:
-            if not (replica["name"] == name):
-                raise Exception(f"{replica_url} name == '{replica['name']}'; expected '{name}'")
-
 
 def runner() -> None:
-    """Configure a Replicator component from the environment and set it running."""
+    """Configure a Deleter component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
     # configure structured logging for the application
     structured_formatter = StructuredFormatter(
-        component_type='Replicator',
+        component_type='Deleter',
         component_name=config["COMPONENT_NAME"],
         ndjson=True)
     stream_handler = logging.StreamHandler(sys.stdout)
@@ -256,18 +232,18 @@ def runner() -> None:
     root_logger = logging.getLogger(None)
     root_logger.setLevel(logging.NOTSET)
     root_logger.addHandler(stream_handler)
-    logger = logging.getLogger("lta.replicator")
-    # create our Replicator service
-    replicator = Replicator(config, logger)
+    logger = logging.getLogger("lta.deleter")
+    # create our Deleter service
+    deleter = Deleter(config, logger)
     # let's get to work
-    replicator.logger.info("Adding tasks to asyncio loop")
+    deleter.logger.info("Adding tasks to asyncio loop")
     loop = asyncio.get_event_loop()
-    loop.create_task(status_loop(replicator))
-    loop.create_task(work_loop(replicator))
+    loop.create_task(status_loop(deleter))
+    loop.create_task(work_loop(deleter))
 
 
 def main() -> None:
-    """Configure a Replicator component from the environment and set it running."""
+    """Configure a Deleter component from the environment and set it running."""
     runner()
     asyncio.get_event_loop().run_forever()
 
