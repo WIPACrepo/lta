@@ -21,9 +21,7 @@ EXPECTED_CONFIG = {
 if __name__ == '__main__':
     config = from_environment(EXPECTED_CONFIG)
     payload = {
-        'long-term-archive': {
-            'role': config["LTA_AUTH_ROLE"]
-        }
+        'scope': f'lta:{config["LTA_AUTH_ROLE"]}'
     }
     a = Auth(config["LTA_AUTH_SECRET"],
              issuer=config["LTA_AUTH_ISSUER"],

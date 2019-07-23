@@ -100,11 +100,11 @@ async def request_ls(args: Namespace) -> None:
             if not args.long:
                 display_id = display_id[:8]
             create_time = x["create_timestamp"].replace("T", " ")
-            source_cook = x["source"].split(":")
-            path = source_cook[1]
-            source = source_cook[0]
-            dests = [y.split(":")[0] for y in x["dest"]]
-            print(f"{display_id}  {create_time} {path} {source} -> {dests}")
+            path = x["path"]
+            source = x["source"]
+            dest = x["dest"]
+            status = x["status"]
+            print(f"{display_id} {status}  {create_time} {source} -> {dest} {path}")
 
 
 @stop_event_loop()
@@ -116,8 +116,9 @@ async def request_new(args: Namespace) -> None:
     path = args.path
     # construct the TransferRequest body
     request_body = {
-        "source": f"{source}:{path}",
-        "dest": [f"{x}:{path}" for x in dest],
+        "source": source,
+        "dest": dest,
+        "path": path,
     }
     response = await args.rc.request("POST", "/TransferRequests", request_body)
     uuid = response["TransferRequest"]
@@ -145,15 +146,17 @@ async def request_status(args: Namespace) -> None:
                 print_dict_as_pretty_json(x)
             else:
                 display_id = x["uuid"]
-                status_name = "Submitted - Waiting to be claimed"
+                status = x["status"]
                 status_time = x["create_timestamp"].replace("T", " ")
-                if x["claimed"]:
-                    status_name = "Claimed - Currently processing"
-                    status_time = x["claim_time"].replace("T", " ")
-                    if "complete" in x:
-                        status_name = "Completed - Files submitted to LTA DB"
-                        status_time = x["complete"]["timestamp"].replace("T", " ")
-                print(f"{display_id}  {status_time} {status_name}")
+                if status == "unclaimed":
+                    status_desc = "Waiting to be claimed"
+                elif status == "processing":
+                    status_desc = "Request is processing"
+                elif status == "completed":
+                    status_desc = "Request is complete"
+                else:
+                    status_desc = "Ut oh; Unknown status type"
+                print(f"{display_id} {status}  {status_time} - {status_desc}")
 
 
 async def restart(args: Namespace) -> None:
@@ -254,11 +257,10 @@ async def main() -> None:
     # define a subparser for the 'request new' subcommand
     parser_request_new = request_subparser.add_parser('new', help='create new transfer request')
     parser_request_new.add_argument("--source",
-                                    help="source of files",
+                                    help="site as source of files",
                                     required=True)
     parser_request_new.add_argument("--dest",
-                                    action="append",
-                                    help="destination of bundles",
+                                    help="site as destination of bundles",
                                     required=True)
     parser_request_new.add_argument("--path",
                                     help="Data Warehouse path to be transferred",
@@ -313,7 +315,11 @@ async def main() -> None:
     # parse the provided command line arguments and call the function
     args = parser.parse_args()
     if hasattr(args, "func"):
-        await args.func(args)
+        try:
+            await args.func(args)
+        except Exception as e:
+            print(e)
+            asyncio.get_event_loop().stop()
     else:
         parser.print_usage()
         asyncio.get_event_loop().stop()

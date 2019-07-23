@@ -157,11 +157,35 @@ async def test_transfer_request_fail(rest):
     with pytest.raises(Exception):
         await r.request('POST', '/TransferRequests', request)
 
+    request = {'source': [], 'dest': 'bar', 'path': 'snafu'}
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests', request)
+
+    request = {'source': 'foo', 'dest': [], 'path': 'snafu'}
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests', request)
+
+    request = {'source': 'foo', 'dest': 'bar', 'path': []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests', request)
+
+    request = {'source': "", 'dest': 'bar', 'path': 'snafu'}
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests', request)
+
+    request = {'source': 'foo', 'dest': "", 'path': 'snafu'}
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests', request)
+
+    request = {'source': 'foo', 'dest': 'bar', 'path': ""}
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests', request)
+
 @pytest.mark.asyncio
 async def test_transfer_request_crud(mongo, rest):
     """Check CRUD semantics for transfer requests."""
     r = rest(role="system")
-    request = {'source': 'foo', 'dest': ['bar']}
+    request = {'source': 'foo', 'dest': 'bar', 'path': 'snafu'}
     ret = await r.request('POST', '/TransferRequests', request)
     uuid = ret['TransferRequest']
     assert uuid
@@ -197,8 +221,9 @@ async def test_transfer_request_pop(rest):
     """Check pop action for transfer requests."""
     r = rest('system')
     request = {
-        'source': 'WIPAC:/data/exp/foo/bar',
-        'dest': ['NERSC:/tape/icecube/foo/bar'],
+        'source': 'WIPAC',
+        'dest': 'NERSC',
+        'path': '/data/exp/foo/bar',
     }
     ret = await r.request('POST', '/TransferRequests', request)
     uuid = ret['TransferRequest']
