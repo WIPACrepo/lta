@@ -694,15 +694,29 @@ class TransferRequestsHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(400, reason="missing source field")
         if 'dest' not in req:
             raise tornado.web.HTTPError(400, reason="missing dest field")
-        if not isinstance(req['dest'], list):
-            raise tornado.web.HTTPError(400, reason="dest field is not a list")
+        if 'path' not in req:
+            raise tornado.web.HTTPError(400, reason="missing path field")
+        if not isinstance(req['source'], str):
+            raise tornado.web.HTTPError(400, reason="source field is not a string")
+        if not isinstance(req['dest'], str):
+            raise tornado.web.HTTPError(400, reason="dest field is not a string")
+        if not isinstance(req['path'], str):
+            raise tornado.web.HTTPError(400, reason="path field is not a string")
+        if not req['source']:
+            raise tornado.web.HTTPError(400, reason="source field is empty")
         if not req['dest']:
             raise tornado.web.HTTPError(400, reason="dest field is empty")
+        if not req['path']:
+            raise tornado.web.HTTPError(400, reason="path field is empty")
 
+        right_now = now()  # https://www.youtube.com/watch?v=He0p5I0b8j8
+
+        req['type'] = "TransferRequest"
         req['uuid'] = unique_id()
+        req['status'] = "unclaimed"
+        req['create_timestamp'] = right_now
+        req['update_timestamp'] = right_now
         req['claimed'] = False
-        req['claim_time'] = ''
-        req['create_timestamp'] = now()
         await self.db.TransferRequests.insert_one(document=req)
         logging.info(f"created TransferRequest {req['uuid']}")
         self.set_status(201)
