@@ -67,7 +67,7 @@ class Picker(Component):
                             retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a TransferRequest to work on.")
         pop_body = {
-            "picker": self.name
+            "claimant": f"{self.name}-{self.instance_uuid}"
         }
         response = await lta_rc.request('POST', '/TransferRequests/actions/pop?source=WIPAC', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
@@ -78,12 +78,6 @@ class Picker(Component):
         self.logger.info(f"There are {len(results)} TransferRequest(s) to work on.")
         # for each TransferRequest that we were given
         for tr in results:
-            # TODO: what do we do with broken transfer requests?
-            # try:
-            #     await self._do_work_transfer_request(lta_rc, tr)
-            # except Exception as e:
-            #     self.logger.error("Unable to process TR {UUID}")
-            #     lta_rc.request('PATCH', '/TransferRequest/{uuid}', {"quarantine": f"exception: {e}"})
             await self._do_work_transfer_request(lta_rc, tr)
         # log a friendly message
         self.logger.info(f'Done working on all TransferRequests.')

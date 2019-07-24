@@ -7,6 +7,7 @@ from logging import Logger
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
+from uuid import uuid4
 
 from rest_tools.client import RestClient  # type: ignore
 from urllib.parse import urljoin
@@ -23,6 +24,10 @@ COMMON_CONFIG: Dict[str, Optional[str]] = {
     "SOURCE_SITE": None,
     "WORK_SLEEP_DURATION_SECONDS": None,
 }
+
+def unique_id() -> str:
+    """Return a unique ID for a module instance."""
+    return str(uuid4())
 
 class Component:
     """
@@ -50,6 +55,7 @@ class Component:
         # assimilate provided arguments
         self.type = component_type
         self.name = config["COMPONENT_NAME"]
+        self.instance_uuid = unique_id()
         self.config = config
         self.logger = logger
         # validate and assimilate the configuration

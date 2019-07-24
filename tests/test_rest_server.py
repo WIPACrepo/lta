@@ -229,29 +229,35 @@ async def test_transfer_request_pop(rest):
     uuid = ret['TransferRequest']
     assert uuid
 
+    # I'm being a jerk and claiming without naming myself as claimant
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests/actions/pop?source=JERK_STORE')
+
     # I'm at NERSC, and should have no work
-    ret = await r.request('POST', '/TransferRequests/actions/pop?source=NERSC')
+    nersc_pop_claimant = {
+        'claimant': 'testing-picker-aaaed864-0112-4bcf-a069-bb55c12e291d',
+    }
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=NERSC', nersc_pop_claimant)
     assert ret['results'] == []
 
     # I'm the picker at WIPAC, and should have one work item
-    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC')
+    wipac_pop_claimant = {
+        'claimant': 'testing-picker-3e4da7c3-bb73-4ab3-b6a6-02ceff6501fc',
+    }
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
     assert len(ret['results']) == 1
     for k in request:
         assert request[k] == ret['results'][0][k]
 
     # repeating gets no work
-    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC')
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
     assert ret['results'] == []
 
-    # test limit
+    # test implicit limit
     await r.request('POST', '/TransferRequests', request)
     await r.request('POST', '/TransferRequests', request)
-    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC&limit=1')
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
     assert len(ret['results']) == 1
-
-    # test non-int limit
-    with pytest.raises(Exception):
-        await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC&limit=foo')
 
 @pytest.mark.asyncio
 async def test_status(mongo, rest):

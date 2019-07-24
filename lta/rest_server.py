@@ -40,6 +40,7 @@ AFTER = pymongo.ReturnDocument.AFTER
 ALL_DOCUMENTS: Dict[str, str] = {}
 ASCENDING = pymongo.ASCENDING
 BUNDLE_STATES = ['accessible', 'deletable', 'inaccessible', 'none', 'transferring']
+FIRST_IN_FIRST_OUT = [("create_timestamp", pymongo.ASCENDING)]
 REMOVE_ID = {"_id": False}
 TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
@@ -767,53 +768,45 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
     @lta_auth(roles=['system'])
     async def post(self) -> None:
         """Handle POST /TransferRequests/actions/pop."""
-        src = self.get_argument('source')
-        limit = self.get_argument('limit', 1)
-        try:
-            limit = int(limit)
-        except Exception:
-            raise tornado.web.HTTPError(400, reason="limit is not an int")
+        source = self.get_argument('source')
         pop_body = json_decode(self.request.body)
-        # find unclaimed or old transfer requests for the specified source
-        sdtr = self.db.TransferRequests
-        old_age = self.check_claims.old_age()
-        query = {
-            "$and": [
-                {"source": {"$regex": f"^{src}"}},
-                {"$or": [
-                    {"claimed": False},
-                    {"claim_time": {"$lt": f"{old_age}"}}
-                ]}
-            ]
-        }
+        if 'claimant' not in pop_body:
+            raise tornado.web.HTTPError(400, reason="missing claimant field")
+        claimant = pop_body["claimant"]
+        # find unclaimed transfer requests for the specified source
         ret = []
+        sdtr = self.db.TransferRequests
+        query = {
+            "source": source,
+            "status": "unclaimed",
+        }
         async for row in sdtr.find(filter=query,
-                                   projection=REMOVE_ID):
-            if (limit > 0):
-                uuid = row["uuid"]
-                row["claimant"] = pop_body
-                row["claimed"] = True
-                row["claim_time"] = now()
-                update_query = {
-                    "$and": [
-                        {"uuid": uuid},
-                        {"$or": [
-                            {"claimed": False},
-                            {"claim_time": {"$lt": f"{old_age}"}}
-                        ]}
-                    ]
-                }
-                update_doc = {"$set": row}
-                ret2 = await sdtr.find_one_and_update(filter=update_query,
-                                                      update=update_doc,
-                                                      projection=REMOVE_ID,
-                                                      return_document=AFTER)
-                if not ret2:
-                    logging.error(f"Unable to claim TransferRequest {uuid}")
-                else:
-                    logging.info(f"claimed TransferRequest {uuid} for {pop_body}")
-                    limit = limit - 1
-                    ret.append(row)
+                                   projection=REMOVE_ID,
+                                   limit=1,
+                                   sort=FIRST_IN_FIRST_OUT):
+            right_now = now()  # https://www.youtube.com/watch?v=nRGCZh5A8T4
+            uuid = row["uuid"]
+            row["status"] = "processing"
+            row["update_timestamp"] = right_now
+            row["claimed"] = True
+            row["claimant"] = claimant
+            row["claim_timestamp"] = right_now
+            update_query = {
+                "$and": [
+                    {"uuid": uuid},
+                    {"status": "unclaimed"},
+                ]
+            }
+            update_doc = {"$set": row}
+            ret2 = await sdtr.find_one_and_update(filter=update_query,
+                                                  update=update_doc,
+                                                  projection=REMOVE_ID,
+                                                  return_document=AFTER)
+            if not ret2:
+                logging.error(f"Unable to claim TransferRequest {uuid}")
+            else:
+                logging.info(f"claimed TransferRequest {uuid} for {claimant}")
+                ret.append(row)
         self.write({'results': ret})
 
 
