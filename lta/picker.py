@@ -59,6 +59,14 @@ class Picker(Component):
 
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
+        self.logger.info("Starting work on TransferRequests.")
+        work_claimed = True
+        while work_claimed:
+            work_claimed = await self._do_work_claim()
+        self.logger.info("Ending work on TransferRequests.")
+
+    async def _do_work_claim(self) -> bool:
+        """Claim a transfer request and perform work on it."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
         # configure a RestClient to talk to the LTA DB
         lta_rc = RestClient(self.lta_rest_url,
@@ -71,16 +79,13 @@ class Picker(Component):
         }
         response = await lta_rc.request('POST', '/TransferRequests/actions/pop?source=WIPAC', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
-        results = response["results"]
-        if not results:
-            self.logger.info(f"No TransferRequests are available to work on. Going on vacation.")
-            return
-        self.logger.info(f"There are {len(results)} TransferRequest(s) to work on.")
+        tr = response["transfer_request"]
+        if not tr:
+            self.logger.info("LTA DB did not provide a TransferRequest to work on. Going on vacation.")
+            return False
         # for each TransferRequest that we were given
-        for tr in results:
-            await self._do_work_transfer_request(lta_rc, tr)
-        # log a friendly message
-        self.logger.info(f'Done working on all TransferRequests.')
+        await self._do_work_transfer_request(lta_rc, tr)
+        return True
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,

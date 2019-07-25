@@ -198,38 +198,54 @@ async def test_picker_do_work_pop_exception(config, mocker):
 async def test_picker_do_work_no_results(config, mocker):
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
-        "results": []
-    }
+    dwc_mock = mocker.patch("lta.picker.Picker._do_work_claim", new_callable=AsyncMock)
+    dwc_mock.return_value = False
     p = Picker(config, logger_mock)
     await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    dwc_mock.assert_called()
 
 
 @pytest.mark.asyncio
 async def test_picker_do_work_yes_results(config, mocker):
-    """Test that _do_work processes each TransferRequest it gets from the LTA DB."""
+    """Test that _do_work keeps working until the LTA DB has no work."""
+    logger_mock = mocker.MagicMock()
+    dwc_mock = mocker.patch("lta.picker.Picker._do_work_claim", new_callable=AsyncMock)
+    dwc_mock.side_effect = [True, True, False]
+    p = Picker(config, logger_mock)
+    await p._do_work()
+    dwc_mock.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_picker_do_work_claim_no_result(config, mocker):
+    """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
-        "results": [
-            {
-                "one": 1
-            },
-            {
-                "two": 2
-            },
-            {
-                "three": 3
-            }
-        ]
+        "transfer_request": None
     }
     dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
     p = Picker(config, logger_mock)
-    await p._do_work()
+    await p._do_work_claim()
     lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    dwtr_mock.assert_called_with(mocker.ANY, {"three": 3})
+    dwtr_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_picker_do_work_claim_yes_result(config, mocker):
+    """Test that _do_work_claim processes the TransferRequest it gets from the LTA DB."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "transfer_request": {
+            "one": 1,
+        },
+    }
+    dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
+    p = Picker(config, logger_mock)
+    await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
 @pytest.mark.asyncio
