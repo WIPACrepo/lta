@@ -238,26 +238,20 @@ async def test_transfer_request_pop(rest):
         'claimant': 'testing-picker-aaaed864-0112-4bcf-a069-bb55c12e291d',
     }
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=NERSC', nersc_pop_claimant)
-    assert ret['results'] == []
+    assert ret['transfer_request'] is None
 
     # I'm the picker at WIPAC, and should have one work item
     wipac_pop_claimant = {
         'claimant': 'testing-picker-3e4da7c3-bb73-4ab3-b6a6-02ceff6501fc',
     }
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
-    assert len(ret['results']) == 1
+    assert ret['transfer_request']
     for k in request:
-        assert request[k] == ret['results'][0][k]
+        assert request[k] == ret['transfer_request'][k]
 
     # repeating gets no work
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
-    assert ret['results'] == []
-
-    # test implicit limit
-    await r.request('POST', '/TransferRequests', request)
-    await r.request('POST', '/TransferRequests', request)
-    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
-    assert len(ret['results']) == 1
+    assert ret['transfer_request'] is None
 
 @pytest.mark.asyncio
 async def test_status(mongo, rest):

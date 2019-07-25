@@ -773,42 +773,33 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
         if 'claimant' not in pop_body:
             raise tornado.web.HTTPError(400, reason="missing claimant field")
         claimant = pop_body["claimant"]
-        # find unclaimed transfer requests for the specified source
-        ret = []
+        # find and claim a transfer request for the specified source
         sdtr = self.db.TransferRequests
-        query = {
+        find_query = {
             "source": source,
             "status": "unclaimed",
         }
-        async for row in sdtr.find(filter=query,
-                                   projection=REMOVE_ID,
-                                   limit=1,
-                                   sort=FIRST_IN_FIRST_OUT):
-            right_now = now()  # https://www.youtube.com/watch?v=nRGCZh5A8T4
-            uuid = row["uuid"]
-            row["status"] = "processing"
-            row["update_timestamp"] = right_now
-            row["claimed"] = True
-            row["claimant"] = claimant
-            row["claim_timestamp"] = right_now
-            update_query = {
-                "$and": [
-                    {"uuid": uuid},
-                    {"status": "unclaimed"},
-                ]
+        right_now = now()  # https://www.youtube.com/watch?v=nRGCZh5A8T4
+        update_doc = {
+            "$set": {
+                "status": "processing",
+                "update_timestamp": right_now,
+                "claimed": True,
+                "claimant": claimant,
+                "claim_timestamp": right_now,
             }
-            update_doc = {"$set": row}
-            ret2 = await sdtr.find_one_and_update(filter=update_query,
-                                                  update=update_doc,
-                                                  projection=REMOVE_ID,
-                                                  return_document=AFTER)
-            if not ret2:
-                logging.error(f"Unable to claim TransferRequest {uuid}")
-            else:
-                logging.info(f"claimed TransferRequest {uuid} for {claimant}")
-                ret.append(row)
-        self.write({'results': ret})
-
+        }
+        tr = await sdtr.find_one_and_update(filter=find_query,
+                                            update=update_doc,
+                                            projection=REMOVE_ID,
+                                            sort=FIRST_IN_FIRST_OUT,
+                                            return_document=AFTER)
+        # return what we found to the caller
+        if not tr:
+            logging.info(f"Unclaimed TransferRequest with source {source} does not exist.")
+        else:
+            logging.info(f"TransferRequest {tr['uuid']} claimed by {claimant}")
+        self.write({'transfer_request': tr})
 
 # -----------------------------------------------------------------------------
 
