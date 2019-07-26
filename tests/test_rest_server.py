@@ -205,13 +205,13 @@ async def test_transfer_request_crud(mongo, rest):
         await r.request('PATCH', f'/TransferRequests/foo', request2)
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
-    assert ret is None
+    assert not ret
 
     with pytest.raises(Exception):
         await r.request('GET', f'/TransferRequests/{uuid}')
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
-    assert ret is None
+    assert not ret
 
     ret = await r.request('GET', '/TransferRequests')
     assert len(ret['results']) == 0
@@ -238,7 +238,7 @@ async def test_transfer_request_pop(rest):
         'claimant': 'testing-picker-aaaed864-0112-4bcf-a069-bb55c12e291d',
     }
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=NERSC', nersc_pop_claimant)
-    assert ret['transfer_request'] is None
+    assert not ret['transfer_request']
 
     # I'm the picker at WIPAC, and should have one work item
     wipac_pop_claimant = {
@@ -251,7 +251,7 @@ async def test_transfer_request_pop(rest):
 
     # repeating gets no work
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
-    assert ret['transfer_request'] is None
+    assert not ret['transfer_request']
 
 @pytest.mark.asyncio
 async def test_status(mongo, rest):
@@ -577,7 +577,7 @@ async def test_delete_files_uuid(mongo, rest):
 
     # we delete it when it exists
     ret = await r.request('DELETE', f'/Files/{test_uuid}')
-    assert ret is None
+    assert not ret
 
     # we verify that it has been deleted
     ret = await r.request('GET', '/Files')
@@ -586,7 +586,7 @@ async def test_delete_files_uuid(mongo, rest):
 
     # we try to delete it again!
     ret = await r.request('DELETE', f'/Files/{test_uuid}')
-    assert ret is None
+    assert not ret
 
 @pytest.mark.asyncio
 async def test_patch_files_uuid(mongo, rest):
@@ -992,7 +992,7 @@ async def test_delete_bundles_uuid(mongo, rest):
 
     # we delete it when it exists
     ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
-    assert ret is None
+    assert not ret
 
     # we verify that it has been deleted
     ret = await r.request('GET', '/Bundles')
@@ -1001,7 +1001,7 @@ async def test_delete_bundles_uuid(mongo, rest):
 
     # we try to delete it again!
     ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
-    assert ret is None
+    assert not ret
 
 @pytest.mark.asyncio
 async def test_patch_bundles_uuid(mongo, rest):

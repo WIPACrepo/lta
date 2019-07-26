@@ -5,7 +5,6 @@ import asyncio
 import json
 import logging
 from logging import Logger
-import math
 import sys
 from typing import Any, Dict, Optional
 
@@ -143,8 +142,7 @@ class Picker(Component):
             total_size += file_size
         # divide that by the size requested at the destination
         bundle_size = self.sites[dest]["bundle_size"]
-        num_bundles = math.floor((float(total_size) / float(bundle_size)) + 0.5)
-        num_bundles = max(num_bundles, 1)
+        num_bundles = max(round(total_size / bundle_size), 1)
         packing_spec = to_constant_bin_number(packing_list, num_bundles, 0)  # 0: size
         # for each packing list, we create a bundle in the LTA DB
         bulk_create: BundleList = []
