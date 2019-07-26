@@ -205,13 +205,13 @@ async def test_transfer_request_crud(mongo, rest):
         await r.request('PATCH', f'/TransferRequests/foo', request2)
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
-    assert ret is None
+    assert not ret
 
     with pytest.raises(Exception):
         await r.request('GET', f'/TransferRequests/{uuid}')
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
-    assert ret is None
+    assert not ret
 
     ret = await r.request('GET', '/TransferRequests')
     assert len(ret['results']) == 0
@@ -229,29 +229,29 @@ async def test_transfer_request_pop(rest):
     uuid = ret['TransferRequest']
     assert uuid
 
+    # I'm being a jerk and claiming without naming myself as claimant
+    with pytest.raises(Exception):
+        await r.request('POST', '/TransferRequests/actions/pop?source=JERK_STORE')
+
     # I'm at NERSC, and should have no work
-    ret = await r.request('POST', '/TransferRequests/actions/pop?source=NERSC')
-    assert ret['results'] == []
+    nersc_pop_claimant = {
+        'claimant': 'testing-picker-aaaed864-0112-4bcf-a069-bb55c12e291d',
+    }
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=NERSC', nersc_pop_claimant)
+    assert not ret['transfer_request']
 
     # I'm the picker at WIPAC, and should have one work item
-    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC')
-    assert len(ret['results']) == 1
+    wipac_pop_claimant = {
+        'claimant': 'testing-picker-3e4da7c3-bb73-4ab3-b6a6-02ceff6501fc',
+    }
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
+    assert ret['transfer_request']
     for k in request:
-        assert request[k] == ret['results'][0][k]
+        assert request[k] == ret['transfer_request'][k]
 
     # repeating gets no work
-    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC')
-    assert ret['results'] == []
-
-    # test limit
-    await r.request('POST', '/TransferRequests', request)
-    await r.request('POST', '/TransferRequests', request)
-    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC&limit=1')
-    assert len(ret['results']) == 1
-
-    # test non-int limit
-    with pytest.raises(Exception):
-        await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC&limit=foo')
+    ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
+    assert not ret['transfer_request']
 
 @pytest.mark.asyncio
 async def test_status(mongo, rest):
@@ -577,7 +577,7 @@ async def test_delete_files_uuid(mongo, rest):
 
     # we delete it when it exists
     ret = await r.request('DELETE', f'/Files/{test_uuid}')
-    assert ret is None
+    assert not ret
 
     # we verify that it has been deleted
     ret = await r.request('GET', '/Files')
@@ -586,7 +586,7 @@ async def test_delete_files_uuid(mongo, rest):
 
     # we try to delete it again!
     ret = await r.request('DELETE', f'/Files/{test_uuid}')
-    assert ret is None
+    assert not ret
 
 @pytest.mark.asyncio
 async def test_patch_files_uuid(mongo, rest):
@@ -992,7 +992,7 @@ async def test_delete_bundles_uuid(mongo, rest):
 
     # we delete it when it exists
     ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
-    assert ret is None
+    assert not ret
 
     # we verify that it has been deleted
     ret = await r.request('GET', '/Bundles')
@@ -1001,7 +1001,7 @@ async def test_delete_bundles_uuid(mongo, rest):
 
     # we try to delete it again!
     ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
-    assert ret is None
+    assert not ret
 
 @pytest.mark.asyncio
 async def test_patch_bundles_uuid(mongo, rest):

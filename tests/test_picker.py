@@ -22,6 +22,7 @@ def config():
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "LTA_SITE_CONFIG": "etc/site.json",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
@@ -135,6 +136,7 @@ async def test_picker_logs_configuration(mocker):
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "LTA_SITE_CONFIG": "etc/site.json",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
@@ -151,6 +153,7 @@ async def test_picker_logs_configuration(mocker):
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
+        call('LTA_SITE_CONFIG = etc/site.json'),
         call('SOURCE_SITE = WIPAC'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
@@ -191,45 +194,61 @@ async def test_picker_do_work_pop_exception(config, mocker):
     p = Picker(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'picker': 'testing-picker'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
 async def test_picker_do_work_no_results(config, mocker):
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
-        "results": []
-    }
+    dwc_mock = mocker.patch("lta.picker.Picker._do_work_claim", new_callable=AsyncMock)
+    dwc_mock.return_value = False
     p = Picker(config, logger_mock)
     await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'picker': 'testing-picker'})
+    dwc_mock.assert_called()
 
 
 @pytest.mark.asyncio
 async def test_picker_do_work_yes_results(config, mocker):
-    """Test that _do_work processes each TransferRequest it gets from the LTA DB."""
+    """Test that _do_work keeps working until the LTA DB has no work."""
+    logger_mock = mocker.MagicMock()
+    dwc_mock = mocker.patch("lta.picker.Picker._do_work_claim", new_callable=AsyncMock)
+    dwc_mock.side_effect = [True, True, False]
+    p = Picker(config, logger_mock)
+    await p._do_work()
+    dwc_mock.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_picker_do_work_claim_no_result(config, mocker):
+    """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
-        "results": [
-            {
-                "one": 1
-            },
-            {
-                "two": 2
-            },
-            {
-                "three": 3
-            }
-        ]
+        "transfer_request": None
     }
     dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
     p = Picker(config, logger_mock)
-    await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'picker': 'testing-picker'})
-    dwtr_mock.assert_called_with(mocker.ANY, {"three": 3})
+    await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    dwtr_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_picker_do_work_claim_yes_result(config, mocker):
+    """Test that _do_work_claim processes the TransferRequest it gets from the LTA DB."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "transfer_request": {
+            "one": 1,
+        },
+    }
+    dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
+    p = Picker(config, logger_mock)
+    await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
 @pytest.mark.asyncio
@@ -239,11 +258,10 @@ async def test_picker_do_work_transfer_request_fc_exception(config, mocker):
     p = Picker(config, logger_mock)
     lta_rc_mock = MagicMock()
     tr = {
-        "source": "WIPAC:/tmp/this/is/just/a/test",
-        "dest": [
-            "DESY:/tmp/this/is/just/a/test",
-            "NERSC:/tmp/this/is/just/a/test"
-        ]
+        "uuid": uuid1().hex,
+        "source": "WIPAC",
+        "dest": "NERSC",
+        "path": "/tmp/this/is/just/a/test",
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     fc_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
@@ -255,26 +273,26 @@ async def test_picker_do_work_transfer_request_fc_exception(config, mocker):
 @pytest.mark.asyncio
 async def test_picker_do_work_transfer_request_fc_no_results(config, mocker):
     """Test that _do_work_transfer_request raises an exception when the LTA DB refuses to create an empty list."""
+    QUARANTINE = {'status': 'quarantined', 'reason': 'File Catalog returned zero files for the TransferRequest'}
     logger_mock = mocker.MagicMock()
     p = Picker(config, logger_mock)
     lta_rc_mock = mocker.MagicMock()
     lta_rc_mock.request = AsyncMock()
-    lta_rc_mock.request.side_effect = HTTPError(400, reason="files field is empty")
+    lta_rc_mock.request.return_value = {}
+    tr_uuid = uuid1().hex
     tr = {
-        "source": "WIPAC:/tmp/this/is/just/a/test",
-        "dest": [
-            "DESY:/tmp/this/is/just/a/test",
-            "NERSC:/tmp/this/is/just/a/test"
-        ]
+        "uuid": tr_uuid,
+        "source": "WIPAC",
+        "dest": "NERSC",
+        "path": "/tmp/this/is/just/a/test",
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     fc_rc_mock.return_value = {
         "files": []
     }
-    with pytest.raises(HTTPError):
-        await p._do_work_transfer_request(lta_rc_mock, tr)
+    await p._do_work_transfer_request(lta_rc_mock, tr)
     fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.site": {"$eq": "WIPAC"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}')
-    lta_rc_mock.request.assert_called_with("POST", '/Files/actions/bulk_create', {'files': []})
+    lta_rc_mock.request.assert_called_with("PATCH", f'/TransferRequests/{tr_uuid}', QUARANTINE)
 
 
 @pytest.mark.asyncio
@@ -286,184 +304,78 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
     lta_rc_mock.request.return_value = {
         "files": [uuid1().hex, uuid1().hex, uuid1().hex]
     }
+    tr_uuid = uuid1().hex
     tr = {
-        "uuid": "a2647c96-b12a-4fb4-a9c3-3c527b771f6f",
-        "source": "WIPAC:/tmp/this/is/just/a/test",
-        "dest": [
-            "DESY:/tmp/this/is/just/a/test",
-            "NERSC:/tmp/this/is/just/a/test"
-        ]
+        "uuid": tr_uuid,
+        "source": "WIPAC",
+        "dest": "NERSC",
+        "path": "/tmp/this/is/just/a/test",
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    fc_rc_mock.return_value = {
-        "_links": {
-            "parent": {
-                "href": "/api"
+    fc_rc_mock.side_effect = [
+        {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
             },
-            "self": {
-                "href": "/api/files"
-            }
+            "files": [
+                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
+                 "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4"},
+                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
+                 "uuid": "89528506-9950-43dc-a910-f5108a1d25c0"},
+                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
+                 "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e"}]
         },
-        "files": [
-            {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-             "uuid": "65983278-3322-4754-9e5a-1f1c1e118fbc"},
-            {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-             "uuid": "aaee52f2-f903-43d3-b5da-2e19880e1312"},
-            {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-             "uuid": "a336aa2b-83d8-4056-8fc1-1a0b72bce7c4"}]
-    }
-    dwcf_mock = mocker.patch("lta.picker.Picker._do_work_catalog_file", new_callable=AsyncMock)
-    dwcf_mock.return_value = [{}, {}, {}]
+        {
+            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
+            "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4",
+            "checksum": {
+                "sha512": "63c25d9bcf7bacc8cdb7ccf0a480403eea111a6b8db2d0c54fef0e39c32fe76f75b3632b3582ef888caeaf8a8aac44fb51d0eb051f67e874f9fe694981649b74"
+            },
+            "locations": [
+                {
+                    "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
+                    "site": "WIPAC"
+                }],
+            "file_size": 103166718,
+            "meta_modify_date": "2019-07-26 01:53:20.857303"
+        },
+        {
+            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
+            "uuid": "89528506-9950-43dc-a910-f5108a1d25c0",
+            "checksum": {
+                "sha512": "5acee016b1f7a367f549d3a861af32a66e5b577753d6d7b8078a30129f6535108042a74b70b1374a9f7506022e6cc64372a8d01500db5d56afb17071cba6da9e"
+            },
+            "locations": [
+                {
+                    "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
+                    "site": "WIPAC"
+                }
+            ],
+            "file_size": 103064762,
+            "meta_modify_date": "2019-07-26 01:53:20.646010"
+        },
+        {
+            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
+            "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e",
+            "checksum": {
+                "sha512": "ae7c1639aeaacbd69b8540a117e71a6a92b5e4eff0d7802150609daa98d99fd650f8285e26af23f97f441f3047afbce88ad54bb3feb4fe243a429934d0ee4211"
+            },
+            "locations": [
+                {
+                    "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
+                    "site": "WIPAC"
+                }
+            ],
+            "file_size": 104136149,
+            "meta_modify_date": "2019-07-26 01:53:22.591198"
+        }
+    ]
     p = Picker(config, logger_mock)
     await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.site": {"$eq": "WIPAC"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}')
-    lta_rc_mock.request.assert_called_with("DELETE", '/TransferRequests/a2647c96-b12a-4fb4-a9c3-3c527b771f6f')
-    dests = [('DESY', '/tmp/this/is/just/a/test'), ('NERSC', '/tmp/this/is/just/a/test')]
-    third_file = {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-                  "uuid": "a336aa2b-83d8-4056-8fc1-1a0b72bce7c4"}
-    dwcf_mock.assert_called_with(lta_rc_mock, tr, mocker.ANY, dests, third_file)
-
-
-@pytest.mark.asyncio
-async def test_picker_do_work_catalog_file_fc_exception(config, mocker):
-    """Test that _do_work_catalog_file raises an exception if the File Catalog has an error."""
-    logger_mock = mocker.MagicMock()
-    p = Picker(config, logger_mock)
-    lta_rc_mock = MagicMock()
-    lta_rc_mock.request = AsyncMock()
-    lta_rc_mock.request.side_effect = HTTPError(500, "hey! this shouldn't get called in this test!")
-    tr = {
-        "source": "WIPAC:/tmp/this/is/just/a/test",
-        "dest": [
-            "DESY:/tmp/this/is/just/a/test",
-            "NERSC:/tmp/this/is/just/a/test"
-        ]
-    }
-    fc_rc_mock = MagicMock()
-    fc_rc_mock.request = AsyncMock()
-    fc_rc_mock.request.side_effect = HTTPError(500, "File Catalog on fire. Again.")
-    dests = [('DESY', '/tmp/this/is/just/a/test'), ('NERSC', '/tmp/this/is/just/a/test')]
-    catalog_file = {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-                    "uuid": "a336aa2b-83d8-4056-8fc1-1a0b72bce7c4"}
-    with pytest.raises(HTTPError):
-        await p._do_work_catalog_file(lta_rc_mock, tr, fc_rc_mock, dests, catalog_file)
-    fc_rc_mock.request.assert_called_with("GET", '/api/files/a336aa2b-83d8-4056-8fc1-1a0b72bce7c4')
-    lta_rc_mock.request.assert_not_called()
-
-
-# @pytest.mark.asyncio
-# async def test_picker_do_work_catalog_file_fc_no_result(config, mocker):
-#     normally we'd write a test here, but it would be the same as the last one
-#     except it'd be a 404 instead of a 500 that prompted the HTTPError
-#     so, imagine the last test, but with a 404; ahhh, coverage bliss.
-
-
-@pytest.mark.asyncio
-async def test_picker_do_work_catalog_file_fc_yes_result(config, mocker):
-    """Test that _do_work_catalog_file returns File objects for both destinations."""
-    logger_mock = mocker.MagicMock()
-    p = Picker(config, logger_mock)
-    lta_rc_mock = MagicMock()
-    lta_rc_mock.request = AsyncMock()
-    lta_rc_mock.request.side_effect = HTTPError(500, "hey! this shouldn't get called in this test!")
-    tr = {
-        "uuid": "c9a23a20-92d6-49eb-a63e-0f73ac632146",
-        "source": "WIPAC:/tmp/this/is/just/a/test",
-        "dest": [
-            "DESY:/tmp/this/is/just/a/test",
-            "NERSC:/tmp/this/is/just/a/test"
-        ]
-    }
-    fc_rc_mock = MagicMock()
-    fc_rc_mock.request = AsyncMock()
-    catalog_record = {
-        "_id": "5b6df684e1382307f078be02",
-        "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-        "uuid": "a336aa2b-83d8-4056-8fc1-1a0b72bce7c4",
-        "checksum": {"sha512": "ae7c1639aeaacbd69b8540a117e71a6a92b5e4eff0d7802150609daa98d99fd650f8285e26af23f97f441f3047afbce88ad54bb3feb4fe243a429934d0ee4211"},
-        "locations": [{"path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-                       "site": "WIPAC"}],
-        "file_size": 104136149,
-        "meta_modify_date": "2018-10-30 17:28:22.757029",
-        "final_analysis_sample": {"collection_tag": "bae45fdd-8e26-47a2-92cc-75b96c105c64"}
-    }
-    fc_rc_mock.request.return_value = catalog_record
-    dests = [('DESY', '/tmp/this/is/just/a/test'), ('NERSC', '/tmp/this/is/just/a/test')]
-    catalog_file = {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-                    "uuid": "a336aa2b-83d8-4056-8fc1-1a0b72bce7c4"}
-    bulk_create = await p._do_work_catalog_file(lta_rc_mock, tr, fc_rc_mock, dests, catalog_file)
-    fc_rc_mock.request.assert_called_with("GET", '/api/files/a336aa2b-83d8-4056-8fc1-1a0b72bce7c4')
-    lta_rc_mock.request.assert_not_called()
-    assert bulk_create == [
-        {
-            "source": "WIPAC:/tmp/this/is/just/a/test",
-            "dest": "DESY:/tmp/this/is/just/a/test",
-            "request": "c9a23a20-92d6-49eb-a63e-0f73ac632146",
-            "catalog": catalog_record
-        },
-        {
-            "source": "WIPAC:/tmp/this/is/just/a/test",
-            "dest": "NERSC:/tmp/this/is/just/a/test",
-            "request": "c9a23a20-92d6-49eb-a63e-0f73ac632146",
-            "catalog": catalog_record
-        }
-    ]
-
-
-@pytest.mark.asyncio
-async def test_picker_do_work_catalog_file_fc_yes_result_only_one(config, mocker):
-    """Test that _do_work_catalog_file returns File objects for one destination."""
-    logger_mock = mocker.MagicMock()
-    p = Picker(config, logger_mock)
-    lta_rc_mock = MagicMock()
-    lta_rc_mock.request = AsyncMock()
-    lta_rc_mock.request.side_effect = HTTPError(500, "hey! this shouldn't get called in this test!")
-    tr = {
-        "uuid": "c9a23a20-92d6-49eb-a63e-0f73ac632146",
-        "source": "WIPAC:/data/exp/IceCube/2013/filtered/PFFilt/1109",
-        "dest": [
-            "DESY:/tmp/this/is/just/a/test",
-            "NERSC:/tmp/this/is/just/a/test"
-        ]
-    }
-    fc_rc_mock = MagicMock()
-    fc_rc_mock.request = AsyncMock()
-    catalog_record = {
-        "_id": "5b6df684e1382307f078be02",
-        "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-        "uuid": "a336aa2b-83d8-4056-8fc1-1a0b72bce7c4",
-        "checksum": {
-            "sha512": "ae7c1639aeaacbd69b8540a117e71a6a92b5e4eff0d7802150609daa98d99fd650f8285e26af23f97f441f3047afbce88ad54bb3feb4fe243a429934d0ee4211"
-        },
-        "locations": [
-            {
-                "site": "WIPAC",
-                "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2"
-            },
-            {
-                "site": "NERSC",
-                "path": "/tmp/this/is/just/a/test/1b71f86f-18a1-4d90-b88e-7505feda3ce6.zip",
-                "archive": True
-            }
-        ],
-        "file_size": 104136149,
-        "meta_modify_date": "2018-10-30 17:28:22.757029",
-        "final_analysis_sample": {
-            "collection_tag": "bae45fdd-8e26-47a2-92cc-75b96c105c64"
-        }
-    }
-    fc_rc_mock.request.return_value = catalog_record
-    dests = [('DESY', '/tmp/this/is/just/a/test'), ('NERSC', '/tmp/this/is/just/a/test')]
-    catalog_file = {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2", "uuid": "a336aa2b-83d8-4056-8fc1-1a0b72bce7c4"}
-    bulk_create = await p._do_work_catalog_file(lta_rc_mock, tr, fc_rc_mock, dests, catalog_file)
-    fc_rc_mock.request.assert_called_with("GET", '/api/files/a336aa2b-83d8-4056-8fc1-1a0b72bce7c4')
-    lta_rc_mock.request.assert_not_called()
-    # this one is failing because the picker code isn't doing startswith() on the dest path
-    assert bulk_create == [
-        {
-            "source": "WIPAC:/data/exp/IceCube/2013/filtered/PFFilt/1109",
-            "dest": "DESY:/tmp/this/is/just/a/test",
-            "request": "c9a23a20-92d6-49eb-a63e-0f73ac632146",
-            "catalog": catalog_record
-        }
-    ]
+    fc_rc_mock.assert_called_with("GET", '/api/files/1e4a88c6-247e-4e59-9c89-1a4edafafb1e')
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/bulk_create', mocker.ANY)

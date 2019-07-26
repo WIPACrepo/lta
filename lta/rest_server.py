@@ -40,6 +40,7 @@ AFTER = pymongo.ReturnDocument.AFTER
 ALL_DOCUMENTS: Dict[str, str] = {}
 ASCENDING = pymongo.ASCENDING
 BUNDLE_STATES = ['accessible', 'deletable', 'inaccessible', 'none', 'transferring']
+FIRST_IN_FIRST_OUT = [("create_timestamp", pymongo.ASCENDING)]
 REMOVE_ID = {"_id": False}
 TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
@@ -144,10 +145,10 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(400, reason="bundles field is empty")
 
         for xfer_bundle in req["bundles"]:
-            # TODO: The caller should provide the status; we shouldn't overwrite
-            # xfer_bundle["status"] = "waiting"
+            right_now = now()  # https://www.youtube.com/watch?v=BQkFEG_iZUA
             xfer_bundle["uuid"] = unique_id()
-            xfer_bundle["create_timestamp"] = now()
+            xfer_bundle["create_timestamp"] = right_now
+            xfer_bundle["update_timestamp"] = right_now
             xfer_bundle["claimed"] = False
 
         ret = await self.db.Bundles.insert_many(documents=req["bundles"])
@@ -767,55 +768,38 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
     @lta_auth(roles=['system'])
     async def post(self) -> None:
         """Handle POST /TransferRequests/actions/pop."""
-        src = self.get_argument('source')
-        limit = self.get_argument('limit', 1)
-        try:
-            limit = int(limit)
-        except Exception:
-            raise tornado.web.HTTPError(400, reason="limit is not an int")
+        source = self.get_argument('source')
         pop_body = json_decode(self.request.body)
-        # find unclaimed or old transfer requests for the specified source
+        if 'claimant' not in pop_body:
+            raise tornado.web.HTTPError(400, reason="missing claimant field")
+        claimant = pop_body["claimant"]
+        # find and claim a transfer request for the specified source
         sdtr = self.db.TransferRequests
-        old_age = self.check_claims.old_age()
-        query = {
-            "$and": [
-                {"source": {"$regex": f"^{src}"}},
-                {"$or": [
-                    {"claimed": False},
-                    {"claim_time": {"$lt": f"{old_age}"}}
-                ]}
-            ]
+        find_query = {
+            "source": source,
+            "status": "unclaimed",
         }
-        ret = []
-        async for row in sdtr.find(filter=query,
-                                   projection=REMOVE_ID):
-            if (limit > 0):
-                uuid = row["uuid"]
-                row["claimant"] = pop_body
-                row["claimed"] = True
-                row["claim_time"] = now()
-                update_query = {
-                    "$and": [
-                        {"uuid": uuid},
-                        {"$or": [
-                            {"claimed": False},
-                            {"claim_time": {"$lt": f"{old_age}"}}
-                        ]}
-                    ]
-                }
-                update_doc = {"$set": row}
-                ret2 = await sdtr.find_one_and_update(filter=update_query,
-                                                      update=update_doc,
-                                                      projection=REMOVE_ID,
-                                                      return_document=AFTER)
-                if not ret2:
-                    logging.error(f"Unable to claim TransferRequest {uuid}")
-                else:
-                    logging.info(f"claimed TransferRequest {uuid} for {pop_body}")
-                    limit = limit - 1
-                    ret.append(row)
-        self.write({'results': ret})
-
+        right_now = now()  # https://www.youtube.com/watch?v=nRGCZh5A8T4
+        update_doc = {
+            "$set": {
+                "status": "processing",
+                "update_timestamp": right_now,
+                "claimed": True,
+                "claimant": claimant,
+                "claim_timestamp": right_now,
+            }
+        }
+        tr = await sdtr.find_one_and_update(filter=find_query,
+                                            update=update_doc,
+                                            projection=REMOVE_ID,
+                                            sort=FIRST_IN_FIRST_OUT,
+                                            return_document=AFTER)
+        # return what we found to the caller
+        if not tr:
+            logging.info(f"Unclaimed TransferRequest with source {source} does not exist.")
+        else:
+            logging.info(f"TransferRequest {tr['uuid']} claimed by {claimant}")
+        self.write({'transfer_request': tr})
 
 # -----------------------------------------------------------------------------
 
@@ -947,6 +931,9 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
         logging.info(f"Creating index for {mongo_db}.Status.name")
         db.Status.create_index('name', name='status_name_index', unique=False)
     # TransferRequests.uuid
+    if 'transfer_requests_create_timestamp_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.TransferRequests.create_timestamp")
+        db.TransferRequests.create_index('create_timestamp', name='transfer_requests_create_timestamp_index', unique=False)
     if 'transfer_requests_uuid_index' not in db.TransferRequests.index_information():
         logging.info(f"Creating index for {mongo_db}.TransferRequests.uuid")
         db.TransferRequests.create_index('uuid', name='transfer_requests_uuid_index', unique=True)
