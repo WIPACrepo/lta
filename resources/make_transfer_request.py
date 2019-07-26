@@ -19,12 +19,13 @@ EXPECTED_CONFIG = {
 async def main():
     # make sure we were given source and destination
     if len(sys.argv) < 3:
-        print("Usage: make_transfer_request.py SRC_SITE:/SRC_PATH DST_SITE:/DST_PATH DST_SITE:/DST_PATH")
+        print("Usage: make_transfer_request.py <source_site> <dest_site> <path>")
         return
     # construct the TransferRequest body
     request_body = {
         "source": sys.argv[1],
-        "dest": sys.argv[2:]
+        "dest": sys.argv[2],
+        "path": sys.argv[3],
     }
     # configure a RestClient from the environment
     config = from_environment(EXPECTED_CONFIG)

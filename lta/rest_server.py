@@ -145,10 +145,10 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(400, reason="bundles field is empty")
 
         for xfer_bundle in req["bundles"]:
-            # TODO: The caller should provide the status; we shouldn't overwrite
-            # xfer_bundle["status"] = "waiting"
+            right_now = now()  # https://www.youtube.com/watch?v=BQkFEG_iZUA
             xfer_bundle["uuid"] = unique_id()
-            xfer_bundle["create_timestamp"] = now()
+            xfer_bundle["create_timestamp"] = right_now
+            xfer_bundle["update_timestamp"] = right_now
             xfer_bundle["claimed"] = False
 
         ret = await self.db.Bundles.insert_many(documents=req["bundles"])
@@ -931,6 +931,9 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
         logging.info(f"Creating index for {mongo_db}.Status.name")
         db.Status.create_index('name', name='status_name_index', unique=False)
     # TransferRequests.uuid
+    if 'transfer_requests_create_timestamp_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.TransferRequests.create_timestamp")
+        db.TransferRequests.create_index('create_timestamp', name='transfer_requests_create_timestamp_index', unique=False)
     if 'transfer_requests_uuid_index' not in db.TransferRequests.index_information():
         logging.info(f"Creating index for {mongo_db}.TransferRequests.uuid")
         db.TransferRequests.create_index('uuid', name='transfer_requests_uuid_index', unique=True)

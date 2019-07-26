@@ -120,6 +120,30 @@ async def clear_lta_files():
             print(e)
 
 
+async def clear_lta_bundles():
+    # configure a RestClient from the environment
+    config = from_environment(EXPECTED_CONFIG)
+    rc = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
+    # while there are still bundles
+    clearing = True
+    while clearing:
+        try:
+            # get a list of all the bundles in the LTA DB
+            response = await rc.request("GET", "/Bundles")
+            results = response["results"]
+            # for each bundle that we found
+            for uuid in results:
+                # remove it from the LTA DB
+                print(f"DELETE /Bundles/{uuid}")
+                response2 = await rc.request("DELETE", f"/Bundles/{uuid}")
+            # if we didn't get any files back, we're done
+            if len(results) < 1:
+                clearing = False
+        except Exception as e:
+            # whoopsy daisy...
+            print(e)
+
+
 async def clear_lta_transfer_requests():
     # configure a RestClient from the environment
     config = from_environment(EXPECTED_CONFIG)
@@ -163,6 +187,9 @@ async def main():
     # if we're clearing files from the catalog
     elif subcommand == "clear-catalog":
         await clear_catalog()
+    # if we're clearing bundles from the LTA DB
+    elif subcommand == "clear-lta-bundles":
+        await clear_lta_bundles()
     # if we're clearing files from the LTA DB
     elif subcommand == "clear-lta-files":
         await clear_lta_files()

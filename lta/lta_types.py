@@ -4,6 +4,7 @@
 from typing import Any, Dict, List, Tuple, Union
 
 BundleType = Dict[str, Any]
+BundleList = List[BundleType]
 CatalogFileType = Dict[str, Any]
 DestType = Tuple[str, str]
 DestList = List[DestType]
