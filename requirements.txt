@@ -17,7 +17,7 @@ future==0.17.1
 idna==2.8
 imagesize==1.1.0
 importlib-metadata==0.18
-ipython==7.6.1
+ipython==7.7.0
 ipython-genutils==0.2.0
 jedi==0.14.1
 Jinja2==2.10.1
@@ -27,7 +27,7 @@ more-itertools==7.2.0
 motor==2.0.0
 mypy==0.720
 mypy-extensions==0.4.1
-numpy==1.16.4
+numpy==1.17.0
 packaging==19.0
 parso==0.5.1
 pexpect==4.7.0
@@ -44,7 +44,7 @@ pyflakes==2.1.1
 Pygments==2.4.2
 PyJWT==1.7.1
 pymongo==3.8.0
-pyparsing==2.4.0
+pyparsing==2.4.1.1
 pytest==5.0.1
 pytest-asyncio==0.10.0
 pytest-cov==2.7.1
