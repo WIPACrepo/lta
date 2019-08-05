@@ -87,7 +87,7 @@ class Picker(Component):
         if not tr:
             self.logger.info("LTA DB did not provide a TransferRequest to work on. Going on vacation.")
             return False
-        # for each TransferRequest that we were given
+        # process the TransferRequest that we were given
         await self._do_work_transfer_request(lta_rc, tr)
         return True
 

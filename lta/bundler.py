@@ -9,16 +9,16 @@ import logging
 import os
 import shutil
 import sys
-from typing import Any, Dict, List, Optional
-from uuid import uuid4
+from typing import Any, Dict, Optional
 from zipfile import ZIP_STORED, ZipFile
 
 from rest_tools.client import RestClient  # type: ignore
 
 from .component import COMMON_CONFIG, Component, status_loop, work_loop
 from .config import from_environment
-from .crypto import adler32sum, md5sum, sha512sum
+from .crypto import adler32sum, sha512sum
 from .log_format import StructuredFormatter
+from .lta_types import BundleType
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
@@ -32,11 +32,6 @@ EXPECTED_CONFIG.update({
 def now() -> str:
     """Return string timestamp for current time, to the second."""
     return datetime.utcnow().isoformat(timespec='seconds')
-
-def unique_id() -> str:
-    """Return a unique ID for a Bundle."""
-    return str(uuid4())
-
 
 class Bundler(Component):
     """
@@ -75,53 +70,49 @@ class Bundler(Component):
 
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
-        await self._consume_files_to_bundle_to_destination_sites()
+        self.logger.info("Starting work on Bundles.")
+        work_claimed = True
+        while work_claimed:
+            work_claimed = await self._do_work_claim()
+        self.logger.info("Ending work on Bundles.")
 
-    async def _consume_files_to_bundle_to_destination_sites(self) -> None:
-        """Check each of the sites to see if we can bundle for them."""
-        # for each destination to which we could bundle
-        for site in self.sites:
-            # see if we have any work to do bundling files there
-            if site != self.source_site:
-                self.logger.info(f"Processing bundles from {self.source_site} to {site}")
-                await self._consume_files_for_destination_site(site)
-        # inform the log that we've worked on each site and now we're taking a break
-        self.logger.info(f"Bundling work cycle complete. Going on vacation.")
-
-    async def _consume_files_for_destination_site(self, dest: str) -> None:
-        """Check a specific site to see if we can bundle for it."""
-        # 1. Get Files to bundle from LTA DB
+    async def _do_work_claim(self) -> bool:
+        """Claim a bundle and perform work on it."""
+        # 1. Ask the LTA DB for the next Bundle to be built
+        # configure a RestClient to talk to the LTA DB
         lta_rc = RestClient(self.lta_rest_url,
                             token=self.lta_rest_token,
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
-        self.logger.info("Asking the LTA DB for Files to bundle.")
+        self.logger.info("Asking the LTA DB for a Bundle to build.")
         pop_body = {
-            "bundler": self.name
+            "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        source = self.source_site
-        response = await lta_rc.request('POST', f'/Files/actions/pop?source={source}&dest={dest}', pop_body)
+        response = await lta_rc.request('POST', '/Bundles/actions/pop?source=WIPAC&status=specified', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
-        results = response["results"]
-        if not results:
-            self.logger.info(f"No Files are available to work on. Going on vacation.")
-            return
-        await self._build_bundle_for_destination_site(dest, lta_rc, results)
+        bundle = response["bundle"]
+        if not bundle:
+            self.logger.info("LTA DB did not provide a Bundle to build. Going on vacation.")
+            return False
+        # process the Bundle that we were given
+        await self._do_work_bundle(lta_rc, bundle)
+        return True
 
-    async def _build_bundle_for_destination_site(self, dest: str, lta_rc: RestClient, results: List[Dict[str, Any]]) -> None:
-        """Build a bundle for a specific site with the supplied files."""
-        source = self.source_site
-        num_files = len(results)
+    async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
+        """Build the archive file for a bundle and update the LTA DB."""
+        num_files = len(bundle["files"])
+        source = bundle["source"]
+        dest = bundle["dest"]
         self.logger.info(f"There are {num_files} Files to bundle from '{source}' to '{dest}'.")
         # 1. Create a manifest of the bundle, including all metadata
-        bundle_id = unique_id()
-        self.logger.info(f"Bundle from {source} to {dest} will be '{bundle_id}.zip'")
+        bundle_id = bundle["uuid"]
+        self.logger.info(f"Bundle archive file will be '{bundle_id}.zip'")
         metadata_dict = {
             "uuid": bundle_id,
             "component": "bundler",
             "version": 2,
-            "date_created": now(),
-            "files": [x["catalog"] for x in results],
+            "create_timestamp": now(),
+            "files": bundle["files"],
         }
         metadata_file_path = os.path.join(self.workbox_path, f"{bundle_id}.metadata.json")
         with open(metadata_file_path, mode="w") as metadata_file:
@@ -135,8 +126,8 @@ class Bundler(Component):
             bundle_zip.write(metadata_file_path, os.path.basename(metadata_file_path))
             self.logger.info(f"Writing {num_files} files to bundle '{bundle_file_path}'")
             file_count = 1
-            for bundle_me in results:
-                bundle_me_path = bundle_me["catalog"]["logical_name"]
+            for bundle_me in bundle["files"]:
+                bundle_me_path = bundle_me["logical_name"]
                 self.logger.info(f"Writing file {file_count}/{num_files}: '{bundle_me_path}' to bundle '{bundle_file_path}'")
                 bundle_zip.write(bundle_me_path, os.path.basename(bundle_me_path))
                 file_count = file_count + 1
@@ -154,11 +145,7 @@ class Bundler(Component):
         self.logger.info(f"Computing adler32 checksum for bundle: '{final_bundle_path}'")
         checksum_adler32 = adler32sum(final_bundle_path)
         self.logger.info(f"Bundle '{final_bundle_path}' has adler32 checksum '{checksum_adler32}'")
-        # 3.2.2. Compute the MD5 checksum of the bundle
-        self.logger.info(f"Computing MD5 checksum for bundle: '{final_bundle_path}'")
-        checksum_md5 = md5sum(final_bundle_path)
-        self.logger.info(f"Bundle '{final_bundle_path}' has MD5 checksum '{checksum_md5}'")
-        # 3.2.3. Compute the SHA512 checksum of the bundle
+        # 3.2.2. Compute the SHA512 checksum of the bundle
         self.logger.info(f"Computing SHA512 checksum for bundle: '{final_bundle_path}'")
         checksum_sha512 = sha512sum(final_bundle_path)
         self.logger.info(f"Bundle '{final_bundle_path}' has SHA512 checksum '{checksum_sha512}'")
@@ -166,41 +153,19 @@ class Bundler(Component):
         self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
         os.remove(metadata_file_path)
         self.logger.info(f"Bundle metadata '{metadata_file_path}' was deleted.")
-        # 4. Add bundle to REST
-        bundle_obj = {
-            "bundles": [
-                {
-                    "bundle_uuid": bundle_id,
-                    "location": f"{source}:{final_bundle_path}",
-                    "checksum": {
-                        "adler32": checksum_adler32,
-                        "md5": checksum_md5,
-                        "sha512": checksum_sha512,
-                    },
-                    "size": bundle_size,
-                    "status": "accessible",
-                    "dest": dest,
-                    "verified": False,
-                    "manifest": [x["catalog"] for x in results],
-                },
-            ],
+        # 4. Update the Bundle in the LTA DB
+        bundle["status"] = "created"
+        bundle["update_timestamp"] = now()
+        bundle["bundle_path"] = final_bundle_path
+        bundle["size"] = bundle_size
+        bundle["checksum"] = {
+            "adler32": checksum_adler32,
+            "sha512": checksum_sha512,
         }
-        self.logger.info(f"POST /Bundles/actions/bulk_create - '{bundle_obj}'")
-        await lta_rc.request('POST', '/Bundles/actions/bulk_create', bundle_obj)
-        # 4.1. Update the files as bundled
-        self.logger.info(f"Marking Files as complete in the LTA DB")
-        update_body = {
-            "update": {
-                "complete": {
-                    "timestamp": now(),
-                    "bundler": self.name,
-                    "bundle_uuid": bundle_id,
-                }
-            },
-            "files": [x["catalog"]["uuid"] for x in results]
-        }
-        await lta_rc.request('POST', '/Files/actions/bulk_update', update_body)
-
+        bundle["verified"] = False
+        bundle["claimed"] = False
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
 
 def runner() -> None:
     """Configure a Bundler component from the environment and set it running."""
