@@ -192,50 +192,53 @@ async def test_bundler_do_work_pop_exception(config, mocker):
     p = Bundler(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Files/actions/pop?source=WIPAC&dest=DESY', {'bundler': 'testing-bundler'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=specified', mocker.ANY)
 
 
 @pytest.mark.asyncio
 async def test_bundler_do_work_no_results(config, mocker):
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
-        "results": []
-    }
+    claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
+    claim_mock.return_value = False
     p = Bundler(config, logger_mock)
     await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Files/actions/pop?source=WIPAC&dest=NERSC', {'bundler': 'testing-bundler'})
+
+
+@pytest.mark.asyncio
+async def test_bundler_do_work_claim_no_results(config, mocker):
+    """Test that _do_work_claim returns False when the LTA DB has no work."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "bundle": None
+    }
+    p = Bundler(config, logger_mock)
+    assert not await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=specified', mocker.ANY)
 
 
 @pytest.mark.asyncio
 async def test_bundler_do_work_yes_results(config, mocker):
-    """Test that _do_work processes each TransferRequest it gets from the LTA DB."""
+    """Test that _do_work_claim processes each Bundle that it gets from the LTA DB."""
+    BUNDLE_OBJ = {
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
+    }
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
-        "results": [
-            {
-                "one": 1
-            },
-            {
-                "two": 2
-            },
-            {
-                "three": 3
-            }
-        ]
+        "bundle": BUNDLE_OBJ,
     }
-    dwtr_mock = mocker.patch("lta.bundler.Bundler._build_bundle_for_destination_site", new_callable=AsyncMock)
+    dwb_mock = mocker.patch("lta.bundler.Bundler._do_work_bundle", new_callable=AsyncMock)
     p = Bundler(config, logger_mock)
-    await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Files/actions/pop?source=WIPAC&dest=NERSC', {'bundler': 'testing-bundler'})
-    dwtr_mock.assert_called_with("NERSC", mocker.ANY, [{"one": 1}, {"two": 2}, {"three": 3}])
+    assert await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=specified', mocker.ANY)
+    dwb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ)
 
 
 @pytest.mark.asyncio
 async def test_bundler_do_work_dest_results(config, mocker):
-    """Test that _do_work processes each TransferRequest it gets from the LTA DB."""
+    """Test that _do_work_bundle does the work of preparing an archive."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
@@ -246,8 +249,6 @@ async def test_bundler_do_work_dest_results(config, mocker):
     mock_shutil_move.return_value = None
     mock_adler32sum = mocker.patch("lta.bundler.adler32sum")
     mock_adler32sum.return_value = "89d5efeb"
-    mock_md5sum = mocker.patch("lta.bundler.md5sum")
-    mock_md5sum.return_value = "778b0c448c3d750f189f543da9caac83"
     mock_sha512sum = mocker.patch("lta.bundler.sha512sum")
     mock_sha512sum.return_value = "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570"
     mock_os_path_getsize = mocker.patch("os.path.getsize")
@@ -255,28 +256,12 @@ async def test_bundler_do_work_dest_results(config, mocker):
     mock_os_remove = mocker.patch("os.remove")
     mock_os_remove.return_value = None
     p = Bundler(config, logger_mock)
-    results = [
-        {
-            "catalog": {
-                "uuid": "44e2c70c-c111-4d33-9acd-7a617ed28ee4",
-                "logical_name": "/tmp/my/data/file1.tar.gz",
-            },
-        },
-        {
-            "catalog": {
-                "uuid": "7f5b45aa-074d-4e72-9168-890e7473f71d",
-                "logical_name": "/tmp/my/data/file2.tar.gz",
-            },
-        },
-        {
-            "catalog": {
-                "uuid": "115023df-b341-44e8-8083-1d9ddf54f5c1",
-                "logical_name": "/tmp/my/data/file3.tar.gz",
-            },
-        },
-    ]
+    BUNDLE_OBJ = {
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+        "source": "WIPAC",
+        "dest": "NERSC",
+        "files": [{"logical_name": "/path/to/a/data/file", }],
+    }
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
-        await p._build_bundle_for_destination_site("NERSC", lta_rc_mock, results)
+        await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
         metadata_mock.assert_called_with(mocker.ANY, mode="w")
-        # lta_rc_mock.assert_called_with('POST', '/Bundles/actions/bulk_create', mocker.ANY)
-        lta_rc_mock.assert_not_called()
