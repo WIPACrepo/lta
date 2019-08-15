@@ -21,7 +21,7 @@ class TransferService:
 
     async def start(self, spec: TransferSpec) -> TransferReference:
         """Ask the TransferService to start the specified transfer."""
-        raise NotImplementedError("TransferService.execute() is abstract and must be implemented in a subclass")
+        raise NotImplementedError("TransferService.start() is abstract and must be implemented in a subclass")
 
     async def status(self, ref: TransferReference) -> TransferStatus:
         """Query the TransferService about the status of a transfer."""
