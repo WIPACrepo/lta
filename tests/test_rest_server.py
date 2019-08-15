@@ -29,20 +29,6 @@ for k in CONFIG:
         CONFIG[k] = os.environ[k]
 
 
-class ObjectLiteral:
-    """
-    ObjectLiteral transforms named arguments into object attributes.
-
-    This is useful for creating object literals to be used as return
-    values from mocked API calls.
-
-    Source: https://stackoverflow.com/a/3335732
-    """
-
-    def __init__(self, **kwds):
-        """Add attributes to ourself with the provided named arguments."""
-        self.__dict__.update(kwds)
-
 @pytest.fixture
 def mongo(monkeypatch) -> Database:
     """Get a reference to a test instance of a MongoDB Database."""
