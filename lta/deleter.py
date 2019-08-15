@@ -15,7 +15,7 @@ from .component import COMMON_CONFIG, Component, status_loop, work_loop
 from .config import from_environment
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
-from .rucio import RucioClient
+from .transfer.rucio import RucioClient
 
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
