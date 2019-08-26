@@ -9,7 +9,7 @@
     "sites": {
         "desy": "dataset-desy",
         "nersc": "dataset-nersc",
-        "wipac": "dataset-wipac",
+        "wipac": "dataset-wipac"
     },
-    "username": "icecube",
+    "username": "icecube"
 }
