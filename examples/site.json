@@ -5,8 +5,7 @@
             "rucio_dataset": "dataset-desy"
         },
         "NERSC": {
-            "xbundle_size": 500000000000,
-            "bundle_size": 10000000000,
+            "bundle_size": 500000000000,
             "rucio_dataset": "dataset-nersc"
         },
         "WIPAC": {

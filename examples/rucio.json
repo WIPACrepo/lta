@@ -1,11 +1,11 @@
 {
     "name": "lta.transfer.rucio.RucioTransferService",
     "account": "root",
-    "password": "hunter2",
-    "pfn": "gsiftp://gridftp.icecube.wisc.edu:2811/mnt/lfss/rucio-test/LTA-ND-A",
-    "rest_url": "http://rancher-worker-1:30475",
-    "rse": "LTA-ND-A",
-    "scope": "lta",
+    "password": null,
+    "pfn": "gsiftp://gridftp.icecube.wisc.edu:2811/path/to/rse",
+    "rest_url": "http://rucio.icecube.wisc.edu:12345",
+    "rse": "icecube-rse",
+    "scope": "icecube-scope",
     "sites": {
         "desy": "dataset-desy",
         "nersc": "dataset-nersc",
