@@ -31,7 +31,7 @@ EXPECTED_CONFIG = {
     'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
-    'LTA_SITE_CONFIG': 'etc/site.json',
+    'LTA_SITE_CONFIG': None,
 }
 
 # -----------------------------------------------------------------------------

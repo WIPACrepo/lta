@@ -20,14 +20,13 @@ MONGODB_NAME = "lta-unit-tests"
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
+    'AUTH_SECRET': 'secret',
     'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
     'TOKEN_SERVICE': 'http://localhost:8888',
-    'AUTH_SECRET': 'secret',
 }
 for k in CONFIG:
     if k in os.environ:
         CONFIG[k] = os.environ[k]
-
 
 @pytest.fixture
 def mongo(monkeypatch) -> Database:
@@ -57,6 +56,7 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("LTA_AUTH_SECRET", CONFIG['AUTH_SECRET'])
     monkeypatch.setenv("LTA_MONGODB_NAME", MONGODB_NAME)
     monkeypatch.setenv("LTA_REST_PORT", str(port))
+    monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
     s = start(debug=True)
 
     def client(role='admin', timeout=0.1):

@@ -1,0 +1,15 @@
+{
+    "name": "lta.transfer.rucio.RucioTransferService",
+    "account": "root",
+    "password": null,
+    "pfn": "gsiftp://gridftp.icecube.wisc.edu:2811/path/to/rse",
+    "rest_url": "http://rucio.icecube.wisc.edu:12345",
+    "rse": "icecube-rse",
+    "scope": "icecube-scope",
+    "sites": {
+        "desy": "dataset-desy",
+        "nersc": "dataset-nersc",
+        "wipac": "dataset-wipac"
+    },
+    "username": "icecube"
+}
