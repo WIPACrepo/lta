@@ -26,6 +26,16 @@ class MoveTransferService(TransferService):
         self.dest_base = self.config.get("dest_base", "")
         self.status_table: Dict[TransferReference, Dict[str, Any]] = {}
 
+    async def cancel(self, ref: TransferReference) -> TransferStatus:
+        """Ask the MoveTransferService to cancel the move."""
+        # TODO: Write some better code than returning a *shrug*
+        return {
+            "ref": ref,
+            "create_timestamp": now(),
+            "completed": False,
+            "status": "UNKNOWN",
+        }
+
     async def start(self, spec: TransferSpec) -> TransferReference:
         """Ask the MoveTransferService to start a local file move."""
         source_path = os.path.join(self.source_base, spec["path"])

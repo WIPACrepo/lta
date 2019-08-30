@@ -2,7 +2,6 @@
 """Module to implement the Bundler component of the Long Term Archive."""
 
 import asyncio
-from datetime import datetime
 import json
 from logging import Logger
 import logging
@@ -14,7 +13,7 @@ from zipfile import ZIP_STORED, ZipFile
 
 from rest_tools.client import RestClient  # type: ignore
 
-from .component import COMMON_CONFIG, Component, status_loop, work_loop
+from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .config import from_environment
 from .crypto import adler32sum, sha512sum
 from .log_format import StructuredFormatter
@@ -28,10 +27,6 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
-
-def now() -> str:
-    """Return string timestamp for current time, to the second."""
-    return datetime.utcnow().isoformat(timespec='seconds')
 
 class Bundler(Component):
     """
