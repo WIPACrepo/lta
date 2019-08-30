@@ -156,8 +156,19 @@ class RucioTransferService(TransferService):
 
     async def cancel(self, ref: TransferReference) -> TransferStatus:
         """Ask the RucioTransferService to cancel a file transfer."""
-        # TODO: Implement for removing the file from the dataset
-        raise NotImplementedError("TransferService.cancel() is abstract and must be implemented in a subclass")
+        # ensure that we can connect to and authenticate with Rucio
+        rc = await self._get_valid_rucio_client()
+        # remove the file did (replica) from the dataset_did
+        await self._detach_replica_from_dataset(rc, ref)
+        # ping rucio to 'force cleanup' (i.e.: delete the detached file)
+        await self._force_cleanup(rc)
+        # tell the caller that we don't know anything about that file
+        return {
+            "ref": ref,
+            "create_timestamp": now(),
+            "completed": False,
+            "status": "UNKNOWN",
+        }
 
     async def start(self, spec: TransferSpec) -> TransferReference:
         """Ask the RucioTransferService to start a file transfer."""
@@ -222,43 +233,37 @@ class RucioTransferService(TransferService):
         # return the dataset_did of the destination site
         return dataset_name
 
-    # TODO: This needs refactoring into RucioTransferService
-    # async def _detach_replica_from_dataset(self,
-    #                                        rucio_rc: RucioClient,
-    #                                        bundle: TransferSpec) -> None:
-    #     """Detach the Bundle replica from the site specific Dataset within Rucio."""
-    #     # detach the FILE DID from the DATASET DID within Rucio
-    #     scope = self.rucio_scope
-    #     dest_site = bundle["dest"]
-    #     dataset_name = self.sites[dest_site]["rucio_dataset"]
-    #     loc_split = bundle['location'].split(':', 1)
-    #     loc_path = loc_split[1]
-    #     replica_name = os.path.basename(loc_path)
-    #     did_dict = {
-    #         "dids": [
-    #             {
-    #                 "scope": scope,
-    #                 "name": replica_name,
-    #             },
-    #         ],
-    #     }
-    #     detach_url = f"/dids/{scope}/{dataset_name}/dids"
-    #     r = await rucio_rc.delete(detach_url, did_dict)
-    #     if r:
-    #         raise Exception(f"DELETE {detach_url} returned something; expected None")
-    #     # check the DATASET DID to verify the replica as detached
-    #     r = await rucio_rc.get(detach_url)
-    #     if r is None:
-    #         raise Exception(f"{detach_url} returned None; expected a list")
-    #     if not isinstance(r, list):
-    #         raise Exception(f"{detach_url} returned a dictionary; expected a list")
-    #     found_replica = False
-    #     for replica in r:
-    #         if replica["name"] == replica_name:
-    #             found_replica = True
-    #             break
-    #     if found_replica:
-    #         raise Exception(f"{detach_url} replica name found; expected name == '{replica_name}' NOT to be in the list")
+    async def _detach_replica_from_dataset(self, rc: RucioClient, ref: TransferReference) -> None:
+        """Detach the Bundle replica from the site specific Dataset within Rucio."""
+        # detach the FILE DID from the DATASET DID within Rucio
+        ref_split = ref.split("|")
+        dataset_name = ref_split[0]
+        name = ref_split[1]
+        scope = self.scope
+        did_dict = {
+            "dids": [
+                {
+                    "scope": scope,
+                    "name": name,
+                },
+            ],
+        }
+        detach_url = f"/dids/{scope}/{dataset_name}/dids"
+        r = await rc.delete(detach_url, did_dict)
+        if r:
+            raise Exception(f"DELETE {detach_url} returned something; expected None")
+        # check the DATASET DID to verify the replica as detached
+        r = await rc.get(detach_url)
+        if r is None:
+            raise Exception(f"{detach_url} returned None; expected a list")
+        if not isinstance(r, list):
+            raise Exception(f"{detach_url} returned a dictionary; expected a list")
+        for replica in r:
+            if replica["name"] == name:
+                raise Exception(f"{detach_url} replica name found; expected name == '{name}' NOT to be in the list")
+
+    async def _force_cleanup(self, rc: RucioClient) -> None:
+        raise NotImplementedError(f"RucioTransferService._force_cleanup() is not implemented; get to coding!")
 
     async def _get_valid_rucio_client(self) -> RucioClient:
         """Ensure that we can connect to and authenticate with Rucio."""
