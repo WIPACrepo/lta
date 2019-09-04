@@ -2,7 +2,6 @@
 """Module to implement the Replicator component of the Long Term Archive."""
 
 import asyncio
-from datetime import datetime
 import json
 from logging import Logger
 import logging
@@ -11,7 +10,7 @@ from typing import Any, Dict, Optional
 
 from rest_tools.client import RestClient  # type: ignore
 
-from .component import COMMON_CONFIG, Component, status_loop, work_loop
+from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .config import from_environment
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
@@ -25,9 +24,6 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
-def now() -> str:
-    """Return string timestamp for current time, to the second."""
-    return datetime.utcnow().isoformat(timespec='seconds')
 
 class Replicator(Component):
     """
@@ -100,7 +96,7 @@ class Replicator(Component):
         # instantiate a TransferService to replicate the bundle
         xfer_service = instantiate(self.transfer_config)
         # ask the transfer service to start the transfer
-        xfer_ref = xfer_service.start(bundle)
+        xfer_ref = await xfer_service.start(bundle)
         # update the Bundle in the LTA DB
         bundle["status"] = "transferring"
         bundle["update_timestamp"] = now()

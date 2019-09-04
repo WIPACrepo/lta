@@ -19,6 +19,10 @@ class TransferService:
         """Initialize a TransferService object."""
         self.config = copy.deepcopy(config)
 
+    async def cancel(self, ref: TransferReference) -> TransferStatus:
+        """Ask the TransferService to cancel a transfer."""
+        raise NotImplementedError("TransferService.cancel() is abstract and must be implemented in a subclass")
+
     async def start(self, spec: TransferSpec) -> TransferReference:
         """Ask the TransferService to start the specified transfer."""
         raise NotImplementedError("TransferService.start() is abstract and must be implemented in a subclass")

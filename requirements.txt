@@ -17,7 +17,7 @@ future==0.17.1
 idna==2.8
 imagesize==1.1.0
 importlib-metadata==0.19
-ipython==7.7.0
+ipython==7.8.0
 ipython-genutils==0.2.0
 jedi==0.15.1
 Jinja2==2.10.1
@@ -45,7 +45,7 @@ Pygments==2.4.2
 PyJWT==1.7.1
 pymongo==3.9.0
 pyparsing==2.4.2
-pytest==5.1.1
+pytest==5.1.2
 pytest-asyncio==0.10.0
 pytest-cov==2.7.1
 pytest-mock==1.10.4

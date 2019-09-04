@@ -154,6 +154,20 @@ class RucioTransferService(TransferService):
         self.sites = self.config.get("sites", DEFAULT_SITES)
         self.username = self.config.get("username", "icecube")
 
+    async def cancel(self, ref: TransferReference) -> TransferStatus:
+        """Ask the RucioTransferService to cancel a file transfer."""
+        # ensure that we can connect to and authenticate with Rucio
+        rc = await self._get_valid_rucio_client()
+        # remove the file did (replica) from the dataset_did
+        await self._detach_replica_from_dataset(rc, ref)
+        # tell the caller that the file transfer was canceled
+        return {
+            "ref": ref,
+            "create_timestamp": now(),
+            "completed": False,
+            "status": "CANCELED",
+        }
+
     async def start(self, spec: TransferSpec) -> TransferReference:
         """Ask the RucioTransferService to start a file transfer."""
         # ensure that we can connect to and authenticate with Rucio
@@ -216,6 +230,35 @@ class RucioTransferService(TransferService):
             raise Exception(f"{attach_url} replica name not found; expected name == '{name}' in the list")
         # return the dataset_did of the destination site
         return dataset_name
+
+    async def _detach_replica_from_dataset(self, rc: RucioClient, ref: TransferReference) -> None:
+        """Detach the Bundle replica from the site specific Dataset within Rucio."""
+        # detach the FILE DID from the DATASET DID within Rucio
+        ref_split = ref.split("|")
+        dataset_name = ref_split[0]
+        name = ref_split[1]
+        scope = self.scope
+        did_dict = {
+            "dids": [
+                {
+                    "scope": scope,
+                    "name": name,
+                },
+            ],
+        }
+        detach_url = f"/dids/{scope}/{dataset_name}/dids"
+        r = await rc.delete(detach_url, did_dict)
+        if r:
+            raise Exception(f"DELETE {detach_url} returned something; expected None")
+        # check the DATASET DID to verify the replica as detached
+        r = await rc.get(detach_url)
+        if r is None:
+            raise Exception(f"{detach_url} returned None; expected a list")
+        if not isinstance(r, list):
+            raise Exception(f"{detach_url} returned a dictionary; expected a list")
+        for replica in r:
+            if replica["name"] == name:
+                raise Exception(f"{detach_url} replica name found; expected name == '{name}' NOT to be in the list")
 
     async def _get_valid_rucio_client(self) -> RucioClient:
         """Ensure that we can connect to and authenticate with Rucio."""

@@ -191,7 +191,7 @@ async def test_replicator_replicate_bundle_to_destination_site(config, mocker):
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     inst_mock = mocker.patch("lta.replicator.instantiate")
-    xfer_service_mock = mocker.MagicMock()
+    xfer_service_mock = AsyncMock()
     inst_mock.return_value = xfer_service_mock
     bundle_obj = {
         "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e"

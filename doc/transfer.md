@@ -81,6 +81,7 @@ transfer. The dictionary has the following values:
 
 The `status` field may contain one of the following status codes:
 
+    CANCELED    - Transfer has been canceled (or [cancelled] if it originated in the UK)
     COMPLETED   - Transfer has finished
     CREATED     - Transfer has been created, but not started
     ERROR       - Transfer has stopped due to an error
@@ -154,3 +155,5 @@ The fields have the following meaning:
 * `scope` - The scope to use when creating replicas in Rucio
 * `sites` - Dictionary of the Rucio dataset associated with each site
 * `username` - The username part of the credentials
+
+[cancelled]: https://www.grammarly.com/blog/canceled-vs-cancelled/
