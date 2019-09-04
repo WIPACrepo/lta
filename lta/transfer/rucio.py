@@ -160,14 +160,12 @@ class RucioTransferService(TransferService):
         rc = await self._get_valid_rucio_client()
         # remove the file did (replica) from the dataset_did
         await self._detach_replica_from_dataset(rc, ref)
-        # ping rucio to 'force cleanup' (i.e.: delete the detached file)
-        await self._force_cleanup(rc)
-        # tell the caller that we don't know anything about that file
+        # tell the caller that the file transfer was canceled
         return {
             "ref": ref,
             "create_timestamp": now(),
             "completed": False,
-            "status": "UNKNOWN",
+            "status": "CANCELED",
         }
 
     async def start(self, spec: TransferSpec) -> TransferReference:
@@ -261,9 +259,6 @@ class RucioTransferService(TransferService):
         for replica in r:
             if replica["name"] == name:
                 raise Exception(f"{detach_url} replica name found; expected name == '{name}' NOT to be in the list")
-
-    async def _force_cleanup(self, rc: RucioClient) -> None:
-        raise NotImplementedError(f"RucioTransferService._force_cleanup() is not implemented; get to coding!")
 
     async def _get_valid_rucio_client(self) -> RucioClient:
         """Ensure that we can connect to and authenticate with Rucio."""
