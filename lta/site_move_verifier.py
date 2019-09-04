@@ -20,6 +20,7 @@ from .transfer.service import instantiate
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "DEST_SITE": None,
     "NEXT_STATUS": None,
     "TRANSFER_CONFIG_PATH": "etc/rucio.json",
     "WORK_RETRIES": "3",
@@ -46,6 +47,7 @@ class SiteMoveVerifier(Component):
         logger - The object the site_move_verifier should use for logging.
         """
         super(SiteMoveVerifier, self).__init__("site_move_verifier", config, logger)
+        self.dest_site = config["DEST_SITE"]
         self.next_status = config["NEXT_STATUS"]
         with open(config["TRANSFER_CONFIG_PATH"]) as config_data:
             self.transfer_config = json.load(config_data)
@@ -81,7 +83,7 @@ class SiteMoveVerifier(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&status=transferring', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?dest={self.dest_site}&status=transferring', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
