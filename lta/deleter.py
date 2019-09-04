@@ -97,7 +97,7 @@ class Deleter(Component):
     async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Delete the provided Bundle with the transfer service and update the LTA DB."""
         bundle_id = bundle["uuid"]
-        # instantiate a TransferService to replicate the bundle
+        # instantiate a TransferService to delete the bundle
         xfer_service = instantiate(self.transfer_config)
         # ask the transfer service to cancel (i.e.: delete) the transfer
         await xfer_service.cancel(bundle["transfer_reference"])
