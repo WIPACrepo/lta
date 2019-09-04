@@ -1,5 +1,5 @@
-# site_verifier.py
-"""Module to implement the SiteVerifier component of the Long Term Archive."""
+# site_move_verifier.py
+"""Module to implement the SiteMoveVerifier component of the Long Term Archive."""
 
 import asyncio
 import json
@@ -27,24 +27,25 @@ EXPECTED_CONFIG.update({
 })
 
 
-class SiteVerifier(Component):
+class SiteMoveVerifier(Component):
     """
-    SiteVerifier is a Long Term Archive component.
+    SiteMoveVerifier is a Long Term Archive component.
 
-    A SiteVerifier is responsible for verifying that a transfer to a destination
-    site has completed successfully. The transfer service is queried as to the
-    status of its work. The SiteVerifier then calculates the checksum of the
-    file to verify that the contents have been copied faithfully.
+    A SiteMoveVerifier is responsible for verifying that a transfer to a
+    destination site has completed successfully. The transfer service is
+    queried as to the status of its work. The SiteMoveVerifier then
+    calculates the checksum of the file to verify that the contents have
+    been copied faithfully.
     """
 
     def __init__(self, config: Dict[str, str], logger: Logger) -> None:
         """
-        Create a SiteVerifier component.
+        Create a SiteMoveVerifier component.
 
         config - A dictionary of required configuration values.
-        logger - The object the site_verifier should use for logging.
+        logger - The object the site_move_verifier should use for logging.
         """
-        super(SiteVerifier, self).__init__("site_verifier", config, logger)
+        super(SiteMoveVerifier, self).__init__("site_move_verifier", config, logger)
         self.next_status = config["NEXT_STATUS"]
         with open(config["TRANSFER_CONFIG_PATH"]) as config_data:
             self.transfer_config = json.load(config_data)
@@ -53,7 +54,7 @@ class SiteVerifier(Component):
         pass
 
     def _do_status(self) -> Dict[str, Any]:
-        """Provide additional status for the SiteVerifier."""
+        """Provide additional status for the SiteMoveVerifier."""
         return {}
 
     def _expected_config(self) -> Dict[str, Optional[str]]:
@@ -128,12 +129,12 @@ class SiteVerifier(Component):
 
 
 def runner() -> None:
-    """Configure a SiteVerifier component from the environment and set it running."""
+    """Configure a SiteMoveVerifier component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
     # configure structured logging for the application
     structured_formatter = StructuredFormatter(
-        component_type='SiteVerifier',
+        component_type='SiteMoveVerifier',
         component_name=config["COMPONENT_NAME"],
         ndjson=True)
     stream_handler = logging.StreamHandler(sys.stdout)
@@ -141,18 +142,18 @@ def runner() -> None:
     root_logger = logging.getLogger(None)
     root_logger.setLevel(logging.NOTSET)
     root_logger.addHandler(stream_handler)
-    logger = logging.getLogger("lta.site_verifier")
-    # create our SiteVerifier service
-    site_verifier = SiteVerifier(config, logger)
+    logger = logging.getLogger("lta.site_move_verifier")
+    # create our SiteMoveVerifier service
+    site_move_verifier = SiteMoveVerifier(config, logger)
     # let's get to work
-    site_verifier.logger.info("Adding tasks to asyncio loop")
+    site_move_verifier.logger.info("Adding tasks to asyncio loop")
     loop = asyncio.get_event_loop()
-    loop.create_task(status_loop(site_verifier))
-    loop.create_task(work_loop(site_verifier))
+    loop.create_task(status_loop(site_move_verifier))
+    loop.create_task(work_loop(site_move_verifier))
 
 
 def main() -> None:
-    """Configure a SiteVerifier component from the environment and set it running."""
+    """Configure a SiteMoveVerifier component from the environment and set it running."""
     runner()
     asyncio.get_event_loop().run_forever()
 
