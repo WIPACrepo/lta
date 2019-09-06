@@ -19,12 +19,6 @@ from .service import TransferStatus
 
 RucioResponse = Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]
 
-DEFAULT_SITES = {
-    "desy": "dataset-desy",
-    "nersc": "dataset-nersc",
-    "wipac": "dataset-wipac",
-}
-
 def now() -> str:
     """Return string timestamp for current time, to the second."""
     return datetime.utcnow().isoformat(timespec='seconds')
@@ -147,11 +141,9 @@ class RucioTransferService(TransferService):
         super(RucioTransferService, self).__init__(config)
         self.account = self.config.get("account", "root")
         self.password = self.config.get("password", "hunter2")  # http://bash.org/?244321
-        self.pfn = self.config.get("pfn", "gsiftp://gridftp.icecube.wisc.edu:2811/")
         self.rest_url = self.config.get("rest_url", "http://rucio.icecube.wisc.edu:30475/")
-        self.rse = self.config.get("rse", "LTA")
         self.scope = self.config.get("scope", "lta")
-        self.sites = self.config.get("sites", DEFAULT_SITES)
+        self.sites = self.config.get("sites", None)
         self.username = self.config.get("username", "icecube")
 
     async def cancel(self, ref: TransferReference) -> TransferStatus:
@@ -275,19 +267,21 @@ class RucioTransferService(TransferService):
             raise Exception(f"/accounts/whoami status == '{r['status']}'; expected 'ACTIVE'")
         if r["account"] != self.account:
             raise Exception(f"/accounts/whoami account == '{r['account']}'; expected '{self.account}'")
-        # check to see that our expected RSE is present
-        found_rse = False
+        # check to see that our expected RSEs are present
         r = await rc.get("/rses/")
         if r is None:
             raise Exception(f"/rses/ returned None; expected a list")
         if not isinstance(r, list):
             raise Exception(f"/rses/ returned a dictionary; expected a list")
-        for rse in r:
-            if rse["rse"] == self.rse:
-                found_rse = True
-                break
-        if not found_rse:
-            raise Exception(f"/rses/ expected RSE '{self.rse}' not found")
+        for site in self.sites:
+            expected_rse = self.sites[site]["rse"]
+            found_rse = False
+            for rse in r:
+                if rse["rse"] == expected_rse:
+                    found_rse = True
+                    break
+            if not found_rse:
+                raise Exception(f"/rses/ expected RSE '{expected_rse}' not found")
         # check to see that our expected datasets are present
         datasets_found: List[str] = []
         dids_scope = f"/dids/{self.scope}/"
@@ -310,7 +304,11 @@ class RucioTransferService(TransferService):
         """Register the provided Bundle as a replica within Rucio."""
         bundle_path = spec['bundle_path']
         name = os.path.basename(bundle_path)
-        pfn = os.path.join(self.pfn, name)
+        # when registering the bundle, we do so at the source site
+        source = spec["source"]
+        pfn_prefix = self.sites[source]["pfn"]
+        pfn = os.path.join(pfn_prefix, name)
+        rse = self.sites[source]["rse"]
         files = [
             {
                 "scope": self.scope,
@@ -322,7 +320,7 @@ class RucioTransferService(TransferService):
             },
         ]
         replicas_dict = {
-            "rse": self.rse,
+            "rse": rse,
             "files": files,
             "ignore_availability": True,
         }

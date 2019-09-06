@@ -234,7 +234,10 @@ async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
     hash_mock.return_value = "54321"
     bundle_obj = {
         "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
+        "dest": "nersc",
+        "path": "/data/exp/IceCube/2014/unbiased/PFRaw/1109",
         "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "bundle_path": "/mnt/lfss/lta/scratch/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
         "checksum": {
             "sha512": "12345",
         },
@@ -243,6 +246,7 @@ async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
     await p._verify_bundle(lta_rc_mock, bundle_obj)
     inst_mock.assert_called_with(p.transfer_config)
     xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
+    hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     assert bundle_obj["status"] == "quarantined"
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
 
@@ -263,7 +267,10 @@ async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
     hash_mock.return_value = "12345"
     bundle_obj = {
         "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
+        "dest": "nersc",
+        "path": "/data/exp/IceCube/2014/unbiased/PFRaw/1109",
         "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "bundle_path": "/mnt/lfss/lta/scratch/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
         "checksum": {
             "sha512": "12345",
         },
@@ -272,5 +279,6 @@ async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
     await p._verify_bundle(lta_rc_mock, bundle_obj)
     inst_mock.assert_called_with(p.transfer_config)
     xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
+    hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     assert bundle_obj["status"] == "taping"
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)

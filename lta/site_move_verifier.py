@@ -5,8 +5,10 @@ import asyncio
 import json
 from logging import Logger
 import logging
+import os
 import sys
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 from rest_tools.client import RestClient  # type: ignore
 
@@ -105,8 +107,14 @@ class SiteMoveVerifier(Component):
         if not xfer_status["completed"]:
             self.logger.info(f"Transfer of Bundle {bundle_id} is incomplete and will not be verified at this time.")
             return False
+        # when we verify bundles, we do so at the destination site
+        dest = bundle["dest"]
+        pfn_prefix = self.transfer_config["sites"][dest]["pfn"]  # UGLY: hard-coded RucioTransferService dependency
+        parsed_url = urlparse(pfn_prefix)
+        rucio_path = parsed_url.path
+        bundle_name = os.path.basename(bundle["bundle_path"])
+        bundle_path = os.path.join(rucio_path, bundle_name)
         # we'll compute the bundle's checksum
-        bundle_path = f""  # TODO: Figure out the physical path of the bundle
         self.logger.info(f"Computing SHA512 checksum for bundle: '{bundle_path}'")
         checksum_sha512 = sha512sum(bundle_path)
         self.logger.info(f"Bundle '{bundle_path}' has SHA512 checksum '{checksum_sha512}'")
