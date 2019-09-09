@@ -170,21 +170,42 @@ class RucioTransferService(TransferService):
         # 2.2 add the BUNDLE_DID from 2.1 to the replica
         #     rucio attach DEST_CONTAINER_DID BUNDLE_DID
         dataset_did = await self._attach_replica_to_dataset(rc, spec)
+        # determine the destination RucioStorageElement
+        dest = spec["dest"]
+        rse = self.sites[dest]["rse"]
         # return a transfer reference to identify this transfer
-        return f"{dataset_did}|{file_did}"
+        return f"{rse}|{dataset_did}|{file_did}"
 
     async def status(self, ref: TransferReference) -> TransferStatus:
         """Query the RucioTransferService about the status of a prior transfer."""
-        # note: transfer references are of the form
-        # f"{dataset_did}|{file_did}"
-        # where `dataset_did` refers to the destination dataset
-        # where `file_did` refers to the bundle file
-        # TODO: Implement querying Rucio as to the status of the transfer
+        # ensure that we can connect to and authenticate with Rucio
+        rc = await self._get_valid_rucio_client()
+        # query the state of the replica on the destination rse
+        rucio_state = await self._query_replica_from_dataset(rc, ref)
+        # Rucio states:
+        # class ReplicaState(DeclEnum):
+        #     AVAILABLE = 'A', 'AVAILABLE'
+        #     UNAVAILABLE = 'U', 'UNAVAILABLE'
+        #     COPYING = 'C', 'COPYING'
+        #     BEING_DELETED = 'B', 'BEING_DELETED'
+        #     BAD = 'D', 'BAD'
+        #     TEMPORARY_UNAVAILABLE = 'T', 'TEMPORARY_UNAVAILABLE'
+        # so we map them to our states
+        STATE_MAP = {
+            "AVAILABLE": "COMPLETED",
+            "UNAVAILABLE": "PROCESSING",
+            "COPYING": "PROCESSING",
+            "BEING_DELETED": "CANCELED",
+            "BAD": "ERROR",
+            "TEMPORARY_UNAVAILABLE": "PROCESSING",
+        }
+        our_state = STATE_MAP.get(rucio_state, "UNKNOWN")
+        # tell the caller what we found
         return {
             "ref": ref,
             "create_timestamp": now(),
-            "completed": False,
-            "status": "UNKNOWN",
+            "completed": True,
+            "status": our_state,
         }
 
     async def _attach_replica_to_dataset(self, rc: RucioClient, spec: TransferSpec) -> str:
@@ -192,7 +213,7 @@ class RucioTransferService(TransferService):
         # attach the FILE DID to the DATASET DID within Rucio
         scope = self.scope
         dest = spec['dest']
-        dataset_name = self.sites[dest]  # type: str
+        dataset_name = self.sites[dest]["dataset"]  # type: str
         bundle_path = spec['bundle_path']
         name = os.path.basename(bundle_path)
         did_dict = {
@@ -227,8 +248,9 @@ class RucioTransferService(TransferService):
         """Detach the Bundle replica from the site specific Dataset within Rucio."""
         # detach the FILE DID from the DATASET DID within Rucio
         ref_split = ref.split("|")
-        dataset_name = ref_split[0]
-        name = ref_split[1]
+        # rse = ref_split[0]
+        dataset_name = ref_split[1]
+        name = ref_split[2]
         scope = self.scope
         did_dict = {
             "dids": [
@@ -294,16 +316,45 @@ class RucioTransferService(TransferService):
             if did["scope"] == self.scope:
                 if did["type"] == "DATASET":
                     datasets_found.append(did["name"])
-        for dataset in self.sites.values():
+        datasets = [self.sites[site]["dataset"] for site in self.sites]
+        for dataset in datasets:
             if not (dataset in datasets_found):
                 raise Exception(f"expected Rucio to contain DATASET '{dataset}'; not found")
         # return the RucioClient to the caller, ready to use
         return rc
 
+    async def _query_replica_from_dataset(self, rc: RucioClient, ref: TransferReference) -> str:
+        """Query the file transfer to see if the replica is available at the destination site."""
+        ref_split = ref.split("|")
+        rse = ref_split[0]
+        # dataset_name = ref_split[1]
+        name = ref_split[2]
+        scope = self.scope
+        query_dict = {
+            "dids": [
+                {
+                    "scope": scope,
+                    "name": name,
+                },
+            ],
+            "all_states": True,
+        }
+        query_url = f"/replicas/list"
+        r = await rc.post(query_url, query_dict)
+        if r is None:
+            raise Exception(f"POST {query_url} returned None; expected a list")
+        if not isinstance(r, list):
+            raise Exception(f"POST {query_url} returned a dictionary; expected a list")
+        if len(r) != 1:
+            raise Exception(f"POST {query_url} returned a list of length {len(r)}; expected length 1")
+        replica = r[0]
+        state = replica["states"][rse]  # type: str
+        return state
+
     async def _register_bundle_as_replica(self, rc: RucioClient, spec: TransferSpec) -> str:
         """Register the provided Bundle as a replica within Rucio."""
         bundle_path = spec['bundle_path']
-        name = os.path.basename(bundle_path)
+        name = os.path.basename(bundle_path)  # type: str
         # when registering the bundle, we do so at the source site
         source = spec["source"]
         pfn_prefix = self.sites[source]["pfn"]
@@ -340,4 +391,4 @@ class RucioTransferService(TransferService):
             if not (replica["name"] == name):
                 raise Exception(f"{replica_url} name == '{replica['name']}'; expected '{name}'")
         # return the file_did of the replica we created
-        return f"{self.scope}:{name}"
+        return name
