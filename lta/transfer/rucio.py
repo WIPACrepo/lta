@@ -200,11 +200,13 @@ class RucioTransferService(TransferService):
             "TEMPORARY_UNAVAILABLE": "PROCESSING",
         }
         our_state = STATE_MAP.get(rucio_state, "UNKNOWN")
+        # determine if the transfer is completed or not
+        completed = (our_state == "COMPLETED")
         # tell the caller what we found
         return {
             "ref": ref,
             "create_timestamp": now(),
-            "completed": True,
+            "completed": completed,
             "status": our_state,
         }
 
