@@ -3,7 +3,7 @@ import asyncio
 from uuid import uuid4
 
 from lta.config import from_environment
-from lta.rucio import RucioClient, RucioResponse
+from lta.transfer.rucio import RucioClient, RucioResponse
 
 EXPECTED_CONFIG = {
     "RUCIO_ACCOUNT": None,
@@ -92,32 +92,46 @@ async def main():
     # r = await rc.post(f"/dids/{scope}/{name}", did_dict)
     # print_response(r)
 
-    # show the information about the Dataset DID that we created
-    scope = "user.root"
-    name = "dataset-nersc"
-    r = await rc.get(f"/dids/{scope}/{name}")
-    print_response(r)
-
-    # attach the FILE DID to the DATASET DID within Rucio
-    scope = "user.root"
-    name = "dataset-nersc"
-    # rse = "LTA-ND-A"
-    did_dict = {
-        "dids": [
-            {
-                "scope": scope,
-                "name": "date2",
-            },
-        ],
-        # "rse": rse,
-    }
-    r = await rc.post(f"/dids/{scope}/{name}/dids", did_dict)
-    print_response(r)
+    # # show the information about the Dataset DID that we created
+    # scope = "user.root"
+    # name = "dataset-nersc"
+    # r = await rc.get(f"/dids/{scope}/{name}")
+    # print_response(r)
+    #
+    # # attach the FILE DID to the DATASET DID within Rucio
+    # scope = "user.root"
+    # name = "dataset-nersc"
+    # # rse = "LTA-ND-A"
+    # did_dict = {
+    #     "dids": [
+    #         {
+    #             "scope": scope,
+    #             "name": "date2",
+    #         },
+    #     ],
+    #     # "rse": rse,
+    # }
+    # r = await rc.post(f"/dids/{scope}/{name}/dids", did_dict)
+    # print_response(r)
 
     # check the DATASET DID to see what is attached
     scope = "user.root"
     name = "dataset-nersc"
     r = await rc.get(f"/dids/{scope}/{name}/dids")
+    print_response(r)
+
+    # List all replicas for data identifiers
+    scope = "user.root"
+    list_dict = {
+        "dids": [
+            {
+                "scope": scope,
+                "name": "0c977538-a491-4eb4-94d4-b0fc5b0f0a85.zip",
+            },
+        ],
+        "all_states": True,
+    }
+    r = await rc.post(f"/replicas/list", list_dict)
     print_response(r)
 
 

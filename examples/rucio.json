@@ -4,12 +4,20 @@
     "password": null,
     "pfn": "gsiftp://gridftp.icecube.wisc.edu:2811/path/to/rse",
     "rest_url": "http://rucio.icecube.wisc.edu:12345",
-    "rse": "icecube-rse",
     "scope": "icecube-scope",
     "sites": {
-        "desy": "dataset-desy",
-        "nersc": "dataset-nersc",
-        "wipac": "dataset-wipac"
+        "desy": {
+            "dataset": "dataset-desy",
+            "pfn": "gsiftp://gridftp.desy.de:2811/path/to/rse"
+        },
+        "nersc": {
+            "dataset": "dataset-nersc",
+            "pfn": "gsiftp://gridftp.nersc.nim.gov:2811/path/to/rse"
+        },
+        "wipac": {
+            "dataset": "dataset-wipac",
+            "pfn": "gsiftp://gridftp.icecube.wisc.edu:2811/path/to/rse"
+        }
     },
     "username": "icecube"
 }
