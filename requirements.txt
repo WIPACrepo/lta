@@ -16,7 +16,7 @@ flake8-polyfill==1.0.2
 future==0.17.1
 idna==2.8
 imagesize==1.1.0
-importlib-metadata==0.22
+importlib-metadata==0.23
 ipython==7.8.0
 ipython-genutils==0.2.0
 jedi==0.15.1
@@ -54,7 +54,7 @@ requests==2.22.0
 requests-futures==1.0.0
 requests-mock==1.7.0
 requests-toolbelt==0.9.1
--e git+https://github.com/WIPACrepo/rest-tools@3603a87fcdc98feffc22603c53e9dad113afc30a#egg=rest_tools
+-e git+https://github.com/WIPACrepo/rest-tools@74b241a7cd83f30b2bf5effac3e2b705dc867a4c#egg=rest_tools
 setuptools==41.2.0
 six==1.12.0
 snowballstemmer==1.9.1

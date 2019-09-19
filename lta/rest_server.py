@@ -7,7 +7,6 @@ Run with `python -m lta.rest_server`.
 import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
-import json
 import logging
 from typing import Any, Callable, Dict
 from uuid import uuid1
@@ -31,7 +30,6 @@ EXPECTED_CONFIG = {
     'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
-    'LTA_SITE_CONFIG': None,
 }
 
 # -----------------------------------------------------------------------------
@@ -121,12 +119,11 @@ class CheckClaims:
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
 
-    def initialize(self, check_claims: CheckClaims, db: MotorDatabase, sites: Any, *args: Any, **kwargs: Any) -> None:
+    def initialize(self, check_claims: CheckClaims, db: MotorDatabase, *args: Any, **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.check_claims = check_claims
         self.db = db
-        self.sites = sites["sites"]
 
 # -----------------------------------------------------------------------------
 
@@ -608,9 +605,6 @@ def start(debug: bool = False) -> RestServer:
     ensure_mongo_indexes(config["LTA_MONGODB_URL"], config["LTA_MONGODB_NAME"])
     motor_client = MotorClient(config["LTA_MONGODB_URL"])
     args['db'] = motor_client[config["LTA_MONGODB_NAME"]]
-    # site configuration
-    with open(config["LTA_SITE_CONFIG"]) as site_data:
-        args['sites'] = json.load(site_data)
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)

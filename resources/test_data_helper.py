@@ -60,7 +60,7 @@ async def add_catalog(site, path):
                 ],
                 "file_size": os.path.getsize(logical_name),
             }
-            # if we've being pedantic about checksums in test data
+            # if we're being pedantic about real checksums in test data
             if config["FAKE_CHECKSUM"] != "False":
                 file_record["checksum"]["sha512"] = sha512sum(logical_name)
             # add the file to the File Catalog
@@ -95,6 +95,7 @@ async def clear_catalog():
                 clearing = False
         except Exception as e:
             # whoopsy daisy...
+            clearing = False
             print(e)
 
 
@@ -119,6 +120,7 @@ async def clear_lta_bundles():
                 clearing = False
         except Exception as e:
             # whoopsy daisy...
+            clearing = False
             print(e)
 
 
@@ -131,7 +133,7 @@ async def clear_lta_transfer_requests():
     while clearing:
         try:
             # get a list of up to 50 transfer requests
-            # technically a lie; the LTA DB doesn't honor either start or limit
+            # technically a lie; the LTA DB honors neither start nor limit
             response = await rc.request("GET", "/TransferRequests?start=0&limit=50")
             results = response["results"]
             # for each file that we found
@@ -145,6 +147,7 @@ async def clear_lta_transfer_requests():
                 clearing = False
         except Exception as e:
             # whoopsy daisy...
+            clearing = False
             print(e)
 
 
