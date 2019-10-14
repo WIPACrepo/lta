@@ -57,7 +57,7 @@ class NerscVerifier(Component):
         super(NerscVerifier, self).__init__("nersc_verifier", config, logger)
         self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
-        self.tape_bath_path = config["TAPE_BASE_PATH"]
+        self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
@@ -111,7 +111,7 @@ class NerscVerifier(Component):
         # determine the path where the bundle is stored on hpss
         data_warehouse_path = bundle["path"]
         basename = os.path.basename(bundle["bundle_path"])
-        stupid_python_path = os.path.sep.join([self.tape_bath_path, data_warehouse_path, basename])
+        stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
         # create a File Catalog entry for the bundle itself
         file_record = {
@@ -144,8 +144,11 @@ class NerscVerifier(Component):
                 "path": f"{hpss_path}:{fc_filename}",
                 "archive": True,
             })
+            record_patch = {
+                "locations": locations
+            }
             # save the updated entry back to the File Catalog
-            await fc_rc.request("PATCH", f"/api/files/{fc_file_uuid}", locations)
+            await fc_rc.request("PATCH", f"/api/files/{fc_file_uuid}", record_patch)
         # indicate that our file catalog updates were successful
         return True
 
@@ -166,18 +169,13 @@ class NerscVerifier(Component):
         # determine the path where it is stored on hpss
         data_warehouse_path = bundle["path"]
         basename = os.path.basename(bundle["bundle_path"])
-        stupid_python_path = os.path.sep.join([self.tape_bath_path, data_warehouse_path, basename])
+        stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
         # run an hsi command to calculate the checksum of the archive as stored
         #     hashverify    -> Verify checksum hash for existing HPSS file(s)
         #     -A            -> enable auto-scheduling of retrievals
-        #     -C            -> cache purge option. If specified, purge files
-        #                      from HPSS disk cache after a successful hash
-        #                      create. Normally used only when it's expected
-        #                      that files will only be fetched once (or infrequently),
-        #                      to help optimize disk cache use
         #     -H sha512     -> specify that the SHA512 algorithm be used to calculate the checksum
-        args = ["hsi", "hashverify", "-A", "-C", "-H", "sha512", hpss_path]
+        args = ["hsi", "hashverify", "-A", "-H", "sha512", hpss_path]
         completed_process = run(args)
         # if our command failed
         if completed_process.returncode != 0:
