@@ -122,6 +122,8 @@ class NerscVerifier(Component):
                 {
                     "site": "NERSC",
                     "path": hpss_path,
+                    "hpss": True,
+                    "online": False,
                 }
             ],
             "file_size": bundle["size"],
@@ -136,19 +138,19 @@ class NerscVerifier(Component):
             fc_file_uuid = fc_file["uuid"]
             # read the current file entry in the File Catalog
             fc_record = await fc_rc.request("GET", f"/api/files/{fc_file_uuid}")
-            # add a location indicating the bundle archive
-            locations = fc_record["locations"]
             fc_filename = os.path.basename(fc_record["logical_name"])
-            locations.append({
-                "site": "NERSC",
-                "path": f"{hpss_path}:{fc_filename}",
-                "archive": True,
-            })
-            record_patch = {
-                "locations": locations
+            # add a location indicating the bundle archive
+            new_location = {
+                "locations": [
+                    {
+                        "site": "NERSC",
+                        "path": f"{hpss_path}:{fc_filename}",
+                        "archive": True,
+                    }
+                ]
             }
-            # save the updated entry back to the File Catalog
-            await fc_rc.request("PATCH", f"/api/files/{fc_file_uuid}", record_patch)
+            self.logger.info(f"POST /api/files/{fc_file_uuid}/locations - {new_location}")
+            await fc_rc.request("POST", f"/api/files/{fc_file_uuid}/locations", new_location)
         # indicate that our file catalog updates were successful
         return True
 
