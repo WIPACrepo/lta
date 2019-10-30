@@ -216,12 +216,12 @@ class Bundler(Component):
         # run an insert query to add a row to the database
         try:
             with conn.cursor() as cursor:
-                sql = ("INSERT INTO 'jade_bundle' ("
-                       "'bundle_file', 'capacity', 'checksum', "
-                       "'closed', 'date_created', 'date_updated', "
-                       "'destination', 'reference_uuid', 'size', "
-                       "'uuid', 'version', 'jade_host_id', "
-                       "'extension', 'jade_parent_id') "
+                sql = ("INSERT INTO jade_bundle ("
+                       "bundle_file, capacity, checksum, "
+                       "closed, date_created, date_updated, "
+                       "destination, reference_uuid, size, "
+                       "uuid, version, jade_host_id, "
+                       "extension, jade_parent_id) "
                        "VALUES ("
                        "%s, %s, %s, "
                        "%s, %s, %s, "
