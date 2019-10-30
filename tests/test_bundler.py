@@ -26,6 +26,7 @@ def config():
         "MYSQL_DB": "testing-db",
         "MYSQL_HOST": "just-testing.icecube.wisc.edu",
         "MYSQL_PASSWORD": "hunter2",  # http://bash.org/?244321
+        "MYSQL_PORT": "23306",
         "MYSQL_USER": "jade-user",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
@@ -142,6 +143,7 @@ async def test_bundler_logs_configuration(mocker):
         "MYSQL_DB": "logme-testing-db",
         "MYSQL_HOST": "logme-just-testing.icecube.wisc.edu",
         "MYSQL_PASSWORD": "logme-hunter2",
+        "MYSQL_PORT": "23306",
         "MYSQL_USER": "logme-jade-user",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "5",
@@ -163,6 +165,7 @@ async def test_bundler_logs_configuration(mocker):
         call('MYSQL_DB = logme-testing-db'),
         call('MYSQL_HOST = logme-just-testing.icecube.wisc.edu'),
         call('MYSQL_PASSWORD = logme-hunter2'),
+        call('MYSQL_PORT = 23306'),
         call('MYSQL_USER = logme-jade-user'),
         call('SOURCE_SITE = WIPAC'),
         call('WORK_RETRIES = 5'),

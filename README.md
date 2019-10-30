@@ -104,6 +104,15 @@ Get a MongoDB running on port 27017.
 
     docker run --rm -it --network=host circleci/mongo:3.7.9-ram
 
+#### MySQL
+Get a MySQL running on port 8890:
+
+    docker run --name jade_lta_test -e MYSQL_ALLOW_EMPTY_PASSWORD=true -e MYSQL_USER=jade -e MYSQL_PASSWORD=hunter2 -e MYSQL_DATABASE=jade-lta -p 8890:3306 mysql
+
+Then use a MySQL client to populate it with the JADE LTA database schema:
+
+    mysql -h 127.0.0.1 -P 8890 --user jade --password jade-lta < jade-lta-schema.sql
+
 #### Token Service
 Get a token service running on port 8888:
 

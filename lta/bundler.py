@@ -30,6 +30,7 @@ EXPECTED_CONFIG.update({
     "MYSQL_DB": None,
     "MYSQL_HOST": None,
     "MYSQL_PASSWORD": None,
+    "MYSQL_PORT": "3306",
     "MYSQL_USER": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
@@ -58,6 +59,7 @@ class Bundler(Component):
         self.host = config["MYSQL_HOST"]
         self.outbox_path = config["BUNDLER_OUTBOX_PATH"]
         self.password = config["MYSQL_PASSWORD"]
+        self.port = int(config["MYSQL_PORT"])
         self.user = config["MYSQL_USER"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
@@ -81,13 +83,14 @@ class Bundler(Component):
         conn = pymysql.connect(host=self.host,
                                user=self.user,
                                password=self.password,
-                               db=self.db,
+                               database=self.db,
+                               port=self.port,
                                charset='utf8mb4',
                                cursorclass=pymysql.cursors.DictCursor)
         # run a simple query to check the database
         db_ok = False
         try:
-            self.logger.info(f"Checking MySQL Database: {self.user}@{self.host}/{self.db}")
+            self.logger.info(f"Checking MySQL Database: {self.user}@{self.host}:{self.port}/{self.db}")
             with conn.cursor() as cursor:
                 sql = "SELECT 1"
                 cursor.execute(sql)
@@ -206,7 +209,8 @@ class Bundler(Component):
         conn = pymysql.connect(host=self.host,
                                user=self.user,
                                password=self.password,
-                               db=self.db,
+                               database=self.db,
+                               port=self.port,
                                charset='utf8mb4',
                                cursorclass=pymysql.cursors.DictCursor)
         # run an insert query to add a row to the database
