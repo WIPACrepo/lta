@@ -35,24 +35,6 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
-JADE_COLUMNS = [
-    "jade_bundle_id",
-    "bundle_file",
-    "capacity",
-    "checksum",
-    "closed",
-    "date_created",
-    "date_updated",
-    "destination",
-    "reference_uuid",
-    "size",
-    "uuid",
-    "version",
-    "jade_host_id",
-    "extension",
-    "jade_parent_id",
-]
-
 class Bundler(Component):
     """
     Bundler is a Long Term Archive component.
@@ -92,6 +74,7 @@ class Bundler(Component):
         """Bundler provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    # NOTE: Remove this function when JADE LTA is retired
     def _check_mysql(self) -> bool:
         """Check our connection to the configured MySQL database."""
         # connect to the database
@@ -109,11 +92,12 @@ class Bundler(Component):
                 sql = "SELECT 1"
                 cursor.execute(sql)
                 result = cursor.fetchone()
+                self.logger.debug(f"result: {result}")
                 db_ok = True
         except Exception as e:
             self.logger.info(f"Error while checking MySQL Database: {e}")
         finally:
-            conn.close()
+            conn.close()  # type: ignore
         # return the result of our database check
         self.logger.info(f"MySQL Database OK: {db_ok}")
         return db_ok
@@ -121,7 +105,8 @@ class Bundler(Component):
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
-        work_claimed = self._check_mysql()
+        # NOTE: Change this next line to just = True when JADE LTA is retired
+        work_claimed = self._check_mysql()  # True
         while work_claimed:
             work_claimed = await self._do_work_claim()
         self.logger.info("Ending work on Bundles.")
@@ -210,9 +195,11 @@ class Bundler(Component):
         bundle["claimed"] = False
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        # NOTE: Remove two lines below when JADE LTA is retired
         self.logger.info(f"Adding row to MySQL Database: {self.user}@{self.host}/{self.db}")
         self._insert_jade_row(bundle)
 
+    # NOTE: Remove this function when JADE LTA is retired
     def _insert_jade_row(self, bundle: BundleType) -> None:
         """Insert a row into jade_bundle in the JADE LTA DB."""
         # connect to the database
@@ -259,13 +246,13 @@ class Bundler(Component):
                 self.logger.info(f"Values: {values}")
                 cursor.execute(sql, values)
             # commit the row to the database
-            conn.commit()
+            conn.commit()  # type: ignore
         except Exception as e:
             # whoops, something bad happened; log it!
             self.logger.info(f"Error while adding row to MySQL Database: {e}")
         finally:
             # close the connection to the database
-            conn.close()
+            conn.close()  # type: ignore
 
 def runner() -> None:
     """Configure a Bundler component from the environment and set it running."""

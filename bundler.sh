@@ -10,7 +10,7 @@ export LTA_REST_URL=${LTA_REST_URL:="http://127.0.0.1:8080"}
 export LTA_SITE_CONFIG=${LTA_SITE_CONFIG:="etc/site.json"}
 export MYSQL_DB=${MYSQL_DB:="jade-lta"}
 export MYSQL_HOST=${MYSQL_HOST:="jade-lta-db-test"}
-export MYSQL_PASSWORD=${MYSQL_PASSWORD:="D0b0sh"}
+export MYSQL_PASSWORD=${MYSQL_PASSWORD:="hunter2"}  # http://bash.org/?244321
 export MYSQL_USER=${MYSQL_USER:="jade"}
 export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
 export WORK_RETRIES=${WORK_RETRIES:="3"}
