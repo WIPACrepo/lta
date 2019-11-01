@@ -2,6 +2,7 @@
 """Module to implement the Bundler component of the Long Term Archive."""
 
 import asyncio
+from datetime import datetime
 import json
 from logging import Logger
 import logging
@@ -9,13 +10,15 @@ import os
 import shutil
 import sys
 from typing import Any, Dict, Optional
+from uuid import uuid4
 from zipfile import ZIP_STORED, ZipFile
 
 from rest_tools.client import RestClient  # type: ignore
+import pymysql
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .config import from_environment
-from .crypto import adler32sum, sha512sum
+from .crypto import lta_checksums
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
 
@@ -23,6 +26,11 @@ EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "BUNDLER_OUTBOX_PATH": None,
     "BUNDLER_WORKBOX_PATH": None,
+    "MYSQL_DB": None,
+    "MYSQL_HOST": None,
+    "MYSQL_PASSWORD": None,
+    "MYSQL_PORT": "3306",
+    "MYSQL_USER": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -46,7 +54,12 @@ class Bundler(Component):
         logger - The object the bundler should use for logging.
         """
         super(Bundler, self).__init__("bundler", config, logger)
+        self.db = config["MYSQL_DB"]
+        self.host = config["MYSQL_HOST"]
         self.outbox_path = config["BUNDLER_OUTBOX_PATH"]
+        self.password = config["MYSQL_PASSWORD"]
+        self.port = int(config["MYSQL_PORT"])
+        self.user = config["MYSQL_USER"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.workbox_path = config["BUNDLER_WORKBOX_PATH"]
@@ -59,10 +72,40 @@ class Bundler(Component):
         """Bundler provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    # NOTE: Remove this function when JADE LTA is retired
+    def _check_mysql(self) -> bool:
+        """Check our connection to the configured MySQL database."""
+        # connect to the database
+        conn = pymysql.connect(host=self.host,
+                               user=self.user,
+                               password=self.password,
+                               database=self.db,
+                               port=self.port,
+                               charset='utf8mb4',
+                               cursorclass=pymysql.cursors.DictCursor)
+        # run a simple query to check the database
+        db_ok = False
+        try:
+            self.logger.info(f"Checking MySQL Database: {self.user}@{self.host}:{self.port}/{self.db}")
+            with conn.cursor() as cursor:
+                sql = "SELECT 1"
+                cursor.execute(sql)
+                result = cursor.fetchone()
+                self.logger.debug(f"result: {result}")
+                db_ok = True
+        except Exception as e:
+            self.logger.info(f"Error while checking MySQL Database: {e}")
+        finally:
+            conn.close()  # type: ignore
+        # return the result of our database check
+        self.logger.info(f"MySQL Database OK: {db_ok}")
+        return db_ok
+
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
-        work_claimed = True
+        # NOTE: Change this next line to just = True when JADE LTA is retired
+        work_claimed = self._check_mysql()  # True
         while work_claimed:
             work_claimed = await self._do_work_claim()
         self.logger.info("Ending work on Bundles.")
@@ -132,14 +175,11 @@ class Bundler(Component):
         # 3.1. Compute the size of the bundle
         bundle_size = os.path.getsize(final_bundle_path)
         self.logger.info(f"Archive bundle has size {bundle_size} bytes")
-        # 3.2.1. Compute the adler32 checksum of the bundle
-        self.logger.info(f"Computing adler32 checksum for bundle: '{final_bundle_path}'")
-        checksum_adler32 = adler32sum(final_bundle_path)
-        self.logger.info(f"Bundle '{final_bundle_path}' has adler32 checksum '{checksum_adler32}'")
-        # 3.2.2. Compute the SHA512 checksum of the bundle
-        self.logger.info(f"Computing SHA512 checksum for bundle: '{final_bundle_path}'")
-        checksum_sha512 = sha512sum(final_bundle_path)
-        self.logger.info(f"Bundle '{final_bundle_path}' has SHA512 checksum '{checksum_sha512}'")
+        # 3.2. Compute the LTA checksums for the bundle
+        self.logger.info(f"Computing LTA checksums for bundle: '{final_bundle_path}'")
+        checksum = lta_checksums(final_bundle_path)
+        self.logger.info(f"Bundle '{final_bundle_path}' has adler32 checksum '{checksum['adler32']}'")
+        self.logger.info(f"Bundle '{final_bundle_path}' has SHA512 checksum '{checksum['sha512']}'")
         # 3.3. Clean up generated JSON metadata file
         self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
         os.remove(metadata_file_path)
@@ -149,14 +189,70 @@ class Bundler(Component):
         bundle["update_timestamp"] = now()
         bundle["bundle_path"] = final_bundle_path
         bundle["size"] = bundle_size
-        bundle["checksum"] = {
-            "adler32": checksum_adler32,
-            "sha512": checksum_sha512,
-        }
+        bundle["checksum"] = checksum
         bundle["verified"] = False
         bundle["claimed"] = False
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        # NOTE: Remove two lines below when JADE LTA is retired
+        self.logger.info(f"Adding row to MySQL Database: {self.user}@{self.host}/{self.db}")
+        self._insert_jade_row(bundle)
+
+    # NOTE: Remove this function when JADE LTA is retired
+    def _insert_jade_row(self, bundle: BundleType) -> None:
+        """Insert a row into jade_bundle in the JADE LTA DB."""
+        # connect to the database
+        conn = pymysql.connect(host=self.host,
+                               user=self.user,
+                               password=self.password,
+                               database=self.db,
+                               port=self.port,
+                               charset='utf8mb4',
+                               cursorclass=pymysql.cursors.DictCursor)
+        # run an insert query to add a row to the database
+        try:
+            with conn.cursor() as cursor:
+                sql = ("INSERT INTO jade_bundle ("
+                       "bundle_file, capacity, checksum, "
+                       "closed, date_created, date_updated, "
+                       "destination, reference_uuid, size, "
+                       "uuid, version, jade_host_id, "
+                       "extension, jade_parent_id) "
+                       "VALUES ("
+                       "%s, %s, %s, "
+                       "%s, %s, %s, "
+                       "%s, %s, %s, "
+                       "%s, %s, %s, "
+                       "%s, %s)")
+                now = datetime.today()
+                values = [
+                    # autogenerated                     # jade_bundle_id
+                    f"{bundle['uuid']}.zip",            # bundle_file
+                    0,                                  # capacity
+                    bundle['checksum']['sha512'],       # checksum
+                    True,                               # closed
+                    now,                                # date_created
+                    now,                                # date_updated
+                    bundle['path'],                     # destination
+                    str(uuid4()),                       # reference_uuid
+                    bundle['size'],                     # size
+                    bundle['uuid'],                     # uuid
+                    1,                                  # version
+                    2,                                  # jade_host_id (jade-lta)
+                    False,                              # extension
+                    None,                               # jade_parent_id
+                ]
+                self.logger.info(f"Executing: {sql}")
+                self.logger.info(f"Values: {values}")
+                cursor.execute(sql, values)
+            # commit the row to the database
+            conn.commit()  # type: ignore
+        except Exception as e:
+            # whoops, something bad happened; log it!
+            self.logger.info(f"Error while adding row to MySQL Database: {e}")
+        finally:
+            # close the connection to the database
+            conn.close()  # type: ignore
 
 def runner() -> None:
     """Configure a Bundler component from the environment and set it running."""

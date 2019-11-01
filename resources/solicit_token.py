@@ -16,7 +16,7 @@ EXPECTED_CONFIG = {
 }
 
 async def solicit_token(url, scope):
-    rc = RestClient(url)
+    rc = RestClient(url, "")
     result = await rc.request("GET", f"/token?scope={scope}")
     print(result["access"])
 

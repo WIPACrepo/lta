@@ -20,8 +20,8 @@ from uuid import uuid4
 
 from rest_tools.client import RestClient  # type: ignore
 
-from lta.bundler import sha512sum
 from lta.config import from_environment
+from lta.crypto import sha512sum
 
 EXPECTED_CONFIG = {
     'FAKE_CHECKSUM': "False",
