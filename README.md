@@ -130,6 +130,9 @@ the local secret.
 A script `make-token.sh` uses the local secret to create tokens for
 components to authenticate themselves with the LTA DB.
 
+A script `solicit-token.sh` asks the docker container for a token for
+components to authenticate themselves with the LTA DB.
+
 #### Testing Data
 Get yourself some testing data from the Data Warehouse.
 
