@@ -1,19 +1,14 @@
 #!/usr/bin/env bash
-export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/data/user/lta/bundler_out"}
-export BUNDLER_WORKBOX_PATH=${BUNDLER_WORKBOX_PATH:="/data/user/lta/bundler_work"}
-export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-bundler"}
+export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-nersc-mover"}
 export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
 export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="5"}
 export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"}
 export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(solicit-token.sh)"}
 export LTA_REST_URL=${LTA_REST_URL:="http://127.0.0.1:8080"}
-export MYSQL_DB=${MYSQL_DB:="jade-lta"}
-export MYSQL_HOST=${MYSQL_HOST:="127.0.0.1"}
-export MYSQL_PASSWORD=${MYSQL_PASSWORD:="hunter2"}  # http://bash.org/?244321
-export MYSQL_PORT=${MYSQL_PORT:="8890"}
-export MYSQL_USER=${MYSQL_USER:="jade"}
-export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
+export RSE_BASE_PATH=${RSE_BASE_PATH:="/path/to/rse"}
+export TAPE_BASE_PATH=${RSE_BASE_PATH:="/path/to/hpss"}
+export SOURCE_SITE=${SOURCE_SITE:="NERSC"}
 export WORK_RETRIES=${WORK_RETRIES:="3"}
 export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="30"}
 export WORK_TIMEOUT_SECONDS=${WORK_TIMEOUT_SECONDS:="5"}
-python -m lta.bundler
+python -m lta.nersc_mover

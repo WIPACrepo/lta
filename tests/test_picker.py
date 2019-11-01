@@ -23,7 +23,7 @@ def config():
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "examples/site.json",
-        "SOURCE_SITE": "WIPAC",
+        "SOURCE_SITE": "wipac",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -137,7 +137,7 @@ async def test_picker_logs_configuration(mocker):
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "examples/site.json",
-        "SOURCE_SITE": "WIPAC",
+        "SOURCE_SITE": "wipac",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
@@ -154,7 +154,7 @@ async def test_picker_logs_configuration(mocker):
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('LTA_SITE_CONFIG = examples/site.json'),
-        call('SOURCE_SITE = WIPAC'),
+        call('SOURCE_SITE = wipac'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
         call('WORK_TIMEOUT_SECONDS = 90')
@@ -194,7 +194,7 @@ async def test_picker_do_work_pop_exception(config, mocker):
     p = Picker(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -230,7 +230,7 @@ async def test_picker_do_work_claim_no_result(config, mocker):
     dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
     p = Picker(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_not_called()
 
 
@@ -247,7 +247,7 @@ async def test_picker_do_work_claim_yes_result(config, mocker):
     dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
     p = Picker(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
@@ -259,15 +259,15 @@ async def test_picker_do_work_transfer_request_fc_exception(config, mocker):
     lta_rc_mock = MagicMock()
     tr = {
         "uuid": uuid1().hex,
-        "source": "WIPAC",
-        "dest": "NERSC",
+        "source": "wipac",
+        "dest": "nersc",
         "path": "/tmp/this/is/just/a/test",
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     fc_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     with pytest.raises(HTTPError):
         await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.site": {"$eq": "WIPAC"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}')
+    fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}')
 
 
 @pytest.mark.asyncio
@@ -282,8 +282,8 @@ async def test_picker_do_work_transfer_request_fc_no_results(config, mocker):
     tr_uuid = uuid1().hex
     tr = {
         "uuid": tr_uuid,
-        "source": "WIPAC",
-        "dest": "NERSC",
+        "source": "wipac",
+        "dest": "nersc",
         "path": "/tmp/this/is/just/a/test",
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -291,7 +291,7 @@ async def test_picker_do_work_transfer_request_fc_no_results(config, mocker):
         "files": []
     }
     await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.site": {"$eq": "WIPAC"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}')
+    fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}')
     lta_rc_mock.request.assert_called_with("PATCH", f'/TransferRequests/{tr_uuid}', QUARANTINE)
 
 
@@ -307,8 +307,8 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
     tr_uuid = uuid1().hex
     tr = {
         "uuid": tr_uuid,
-        "source": "WIPAC",
-        "dest": "NERSC",
+        "source": "wipac",
+        "dest": "nersc",
         "path": "/tmp/this/is/just/a/test",
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -339,7 +339,7 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
             "locations": [
                 {
                     "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-                    "site": "WIPAC"
+                    "site": "wipac"
                 }],
             "file_size": 103166718,
             "meta_modify_date": "2019-07-26 01:53:20.857303"
@@ -353,7 +353,7 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
             "locations": [
                 {
                     "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-                    "site": "WIPAC"
+                    "site": "wipac"
                 }
             ],
             "file_size": 103064762,
@@ -368,7 +368,7 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
             "locations": [
                 {
                     "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-                    "site": "WIPAC"
+                    "site": "wipac"
                 }
             ],
             "file_size": 104136149,
