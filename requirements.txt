@@ -7,17 +7,17 @@ binpacking==1.4.1
 certifi==2019.9.11
 chardet==3.0.4
 coverage==4.5.4
-decorator==4.4.0
+decorator==4.4.1
 docutils==0.15.2
 entrypoints==0.3
-flake8==3.7.8
+flake8==3.7.9
 flake8-docstrings==1.5.0
 flake8-polyfill==1.0.2
-future==0.18.1
+future==0.18.2
 idna==2.8
 imagesize==1.1.0
 importlib-metadata==0.23
-ipython==7.8.0
+ipython==7.9.0
 ipython-genutils==0.2.0
 jedi==0.15.1
 Jinja2==2.10.3
@@ -56,10 +56,10 @@ requests-futures==1.0.0
 requests-mock==1.7.0
 requests-toolbelt==0.9.1
 -e git+https://github.com/WIPACrepo/rest-tools@74b241a7cd83f30b2bf5effac3e2b705dc867a4c#egg=rest_tools
-setuptools==41.4.0
+setuptools==41.6.0
 six==1.12.0
 snowballstemmer==2.0.0
-Sphinx==2.2.0
+Sphinx==2.2.1
 sphinxcontrib-applehelp==1.0.1
 sphinxcontrib-devhelp==1.0.1
 sphinxcontrib-htmlhelp==1.0.2
@@ -70,7 +70,7 @@ sphinxcontrib-websupport==1.1.2
 tornado==6.0.3
 traitlets==4.3.3
 typed-ast==1.4.0
-typing-extensions==3.7.4
+typing-extensions==3.7.4.1
 urllib3==1.25.6
 wcwidth==0.1.7
 wheel==0.33.6

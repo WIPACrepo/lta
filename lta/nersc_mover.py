@@ -136,8 +136,8 @@ class NerscMover(Component):
         if completed_process.returncode != 0:
             self.logger.info(f"Command to tape bundle to HPSS failed: {completed_process.args}")
             self.logger.info(f"returncode: {completed_process.returncode}")
-            self.logger.info(f"stdout: {completed_process.stdout}")
-            self.logger.info(f"stderr: {completed_process.stderr}")
+            self.logger.info(f"stdout: {str(completed_process.stdout)}")
+            self.logger.info(f"stderr: {str(completed_process.stderr)}")
             bundle_id = bundle["uuid"]
             bundle["status"] = "quarantined"
             bundle["reason"] = f"hsi Command Failed"
