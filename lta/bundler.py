@@ -21,9 +21,11 @@ from .config import from_environment
 from .crypto import lta_checksums
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
+from .rest_server import boolify
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "BUNDLE_ONCE_AND_DIE": "False",
     "BUNDLER_OUTBOX_PATH": None,
     "BUNDLER_WORKBOX_PATH": None,
     "MYSQL_DB": None,
@@ -54,6 +56,7 @@ class Bundler(Component):
         logger - The object the bundler should use for logging.
         """
         super(Bundler, self).__init__("bundler", config, logger)
+        self.bundle_once_and_die = boolify(config["BUNDLE_ONCE_AND_DIE"])
         self.db = config["MYSQL_DB"]
         self.host = config["MYSQL_HOST"]
         self.outbox_path = config["BUNDLER_OUTBOX_PATH"]
@@ -112,6 +115,10 @@ class Bundler(Component):
         work_claimed = self._check_mysql()  # True
         while work_claimed:
             work_claimed = await self._do_work_claim()
+            # if we were configured to bundle once and die
+            if self.bundle_once_and_die:
+                self.logger.info(f"BUNDLE_ONCE_AND_DIE = {self.bundle_once_and_die}")
+                sys.exit()
         self.logger.info("Ending work on Bundles.")
 
     async def _do_work_claim(self) -> bool:
