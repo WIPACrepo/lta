@@ -13,7 +13,7 @@ import pytest  # type: ignore
 import requests  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 
-from lta.rest_server import boolify, main, start, unique_id
+from lta.rest_server import boolify, CheckClaims, main, start, unique_id
 
 ALL_DOCUMENTS: Dict[str, str] = {}
 MONGODB_NAME = "lta-unit-tests"
@@ -717,3 +717,9 @@ async def test_bundles_actions_pop_errors(mongo, rest):
 
     with pytest.raises(Exception):
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=none', request)
+
+def test_check_claims_old_age():
+    """Verify that CheckClaims can determine old age for claims."""
+    cc = CheckClaims()
+    cutoff = cc.old_age()
+    assert isinstance(cutoff, str)

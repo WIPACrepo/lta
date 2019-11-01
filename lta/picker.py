@@ -81,7 +81,7 @@ class Picker(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', '/TransferRequests/actions/pop?source=WIPAC', pop_body)
+        response = await lta_rc.request('POST', f'/TransferRequests/actions/pop?source={self.source_site}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         tr = response["transfer_request"]
         if not tr:

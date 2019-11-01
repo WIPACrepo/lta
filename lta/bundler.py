@@ -23,7 +23,6 @@ EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "BUNDLER_OUTBOX_PATH": None,
     "BUNDLER_WORKBOX_PATH": None,
-    "LTA_SITE_CONFIG": "etc/site.json",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -51,9 +50,6 @@ class Bundler(Component):
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.workbox_path = config["BUNDLER_WORKBOX_PATH"]
-        with open(config["LTA_SITE_CONFIG"]) as site_data:
-            self.lta_site_config = json.load(site_data)
-        self.sites = self.lta_site_config["sites"]
 
     def _do_status(self) -> Dict[str, Any]:
         """Bundler has no additional status to contribute."""
@@ -83,7 +79,7 @@ class Bundler(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', '/Bundles/actions/pop?source=WIPAC&status=specified', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&status=specified', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
