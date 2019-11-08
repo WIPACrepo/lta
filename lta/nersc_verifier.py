@@ -183,8 +183,8 @@ class NerscVerifier(Component):
         if completed_process.returncode != 0:
             self.logger.info(f"Command to verify bundle in HPSS failed: {completed_process.args}")
             self.logger.info(f"returncode: {completed_process.returncode}")
-            self.logger.info(f"stdout: {completed_process.stdout}")
-            self.logger.info(f"stderr: {completed_process.stderr}")
+            self.logger.info(f"stdout: {str(completed_process.stdout)}")
+            self.logger.info(f"stderr: {str(completed_process.stderr)}")
             bundle_id = bundle["uuid"]
             bundle["status"] = "quarantined"
             bundle["reason"] = f"hsi Command Failed"
@@ -193,7 +193,7 @@ class NerscVerifier(Component):
             return False
         # otherwise, we succeeded; output is on stderr
         # 1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]
-        result = completed_process.stderr
+        result = str(completed_process.stderr)
         checksum_sha512 = result.split("\n")[0].split(" ")[0]
         # now we'll compare the bundle's checksum
         if bundle["checksum"]["sha512"] != checksum_sha512:

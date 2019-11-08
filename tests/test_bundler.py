@@ -14,6 +14,7 @@ from .test_util import AsyncMock
 def config():
     """Supply a stock Bundler component configuration."""
     return {
+        "BUNDLE_ONCE_AND_DIE": "False",
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "testing-bundler",
@@ -22,7 +23,6 @@ def config():
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "LTA_SITE_CONFIG": "examples/site.json",
         "MYSQL_DB": "testing-db",
         "MYSQL_HOST": "just-testing.icecube.wisc.edu",
         "MYSQL_PASSWORD": "hunter2",  # http://bash.org/?244321
@@ -131,6 +131,7 @@ async def test_bundler_logs_configuration(mocker):
     """Test to make sure the Bundler logs its configuration."""
     logger_mock = mocker.MagicMock()
     bundler_config = {
+        "BUNDLE_ONCE_AND_DIE": "False",
         "BUNDLER_OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "logme-testing-bundler",
@@ -139,7 +140,6 @@ async def test_bundler_logs_configuration(mocker):
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "LTA_SITE_CONFIG": "examples/site.json",
         "MYSQL_DB": "logme-testing-db",
         "MYSQL_HOST": "logme-just-testing.icecube.wisc.edu",
         "MYSQL_PASSWORD": "logme-hunter2",
@@ -153,6 +153,7 @@ async def test_bundler_logs_configuration(mocker):
     Bundler(bundler_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("bundler 'logme-testing-bundler' is configured:"),
+        call('BUNDLE_ONCE_AND_DIE = False'),
         call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
         call('COMPONENT_NAME = logme-testing-bundler'),
@@ -161,7 +162,6 @@ async def test_bundler_logs_configuration(mocker):
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
-        call('LTA_SITE_CONFIG = examples/site.json'),
         call('MYSQL_DB = logme-testing-db'),
         call('MYSQL_HOST = logme-just-testing.icecube.wisc.edu'),
         call('MYSQL_PASSWORD = logme-hunter2'),
@@ -287,3 +287,19 @@ async def test_bundler_do_work_dest_results(config, mocker):
         await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
         metadata_mock.assert_called_with(mocker.ANY, mode="w")
     insert_jade_row_mock.assert_called_with(mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_bundler_do_work_bundle_once_and_die(config, mocker):
+    """Test that _do_work goes on vacation when the LTA DB has no work."""
+    once = config.copy()
+    once["BUNDLE_ONCE_AND_DIE"] = "True"
+    check_mysql_mock = mocker.patch("lta.bundler.Bundler._check_mysql")
+    check_mysql_mock.return_value = True
+    logger_mock = mocker.MagicMock()
+    claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
+    claim_mock.return_value = False
+    sys_exit_mock = mocker.patch("sys.exit")
+    p = Bundler(once, logger_mock)
+    await p._do_work()
+    sys_exit_mock.assert_called()

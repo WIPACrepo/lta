@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+export BUNDLE_ONCE_AND_DIE=${BUNDLE_ONCE_AND_DIE:="False"}
 export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/data/user/lta/bundler_out"}
 export BUNDLER_WORKBOX_PATH=${BUNDLER_WORKBOX_PATH:="/data/user/lta/bundler_work"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-bundler"}

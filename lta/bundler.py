@@ -21,9 +21,11 @@ from .config import from_environment
 from .crypto import lta_checksums
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
+from .rest_server import boolify
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "BUNDLE_ONCE_AND_DIE": "False",
     "BUNDLER_OUTBOX_PATH": None,
     "BUNDLER_WORKBOX_PATH": None,
     "MYSQL_DB": None,
@@ -54,6 +56,7 @@ class Bundler(Component):
         logger - The object the bundler should use for logging.
         """
         super(Bundler, self).__init__("bundler", config, logger)
+        self.bundle_once_and_die = boolify(config["BUNDLE_ONCE_AND_DIE"])
         self.db = config["MYSQL_DB"]
         self.host = config["MYSQL_HOST"]
         self.outbox_path = config["BUNDLER_OUTBOX_PATH"]
@@ -75,28 +78,32 @@ class Bundler(Component):
     # NOTE: Remove this function when JADE LTA is retired
     def _check_mysql(self) -> bool:
         """Check our connection to the configured MySQL database."""
-        # connect to the database
-        conn = pymysql.connect(host=self.host,
-                               user=self.user,
-                               password=self.password,
-                               database=self.db,
-                               port=self.port,
-                               charset='utf8mb4',
-                               cursorclass=pymysql.cursors.DictCursor)
-        # run a simple query to check the database
-        db_ok = False
+        # make sure we clean up after ourselves
         try:
+            # connect to the database
+            conn = pymysql.connect(host=self.host,
+                                   user=self.user,
+                                   password=self.password,
+                                   database=self.db,
+                                   port=self.port,
+                                   charset='utf8mb4',
+                                   cursorclass=pymysql.cursors.DictCursor)
+            # create a cursor to execute a query
+            db_ok = False
             self.logger.info(f"Checking MySQL Database: {self.user}@{self.host}:{self.port}/{self.db}")
-            with conn.cursor() as cursor:
-                sql = "SELECT 1"
-                cursor.execute(sql)
-                result = cursor.fetchone()
-                self.logger.debug(f"result: {result}")
-                db_ok = True
+            cursor = conn.cursor()
+            sql = "SELECT 1"
+            cursor.execute(sql)
+            result = cursor.fetchone()
+            self.logger.debug(f"result: {result}")
+            db_ok = True
         except Exception as e:
             self.logger.info(f"Error while checking MySQL Database: {e}")
         finally:
-            conn.close()  # type: ignore
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
         # return the result of our database check
         self.logger.info(f"MySQL Database OK: {db_ok}")
         return db_ok
@@ -108,6 +115,10 @@ class Bundler(Component):
         work_claimed = self._check_mysql()  # True
         while work_claimed:
             work_claimed = await self._do_work_claim()
+            # if we were configured to bundle once and die
+            if self.bundle_once_and_die:
+                self.logger.info(f"BUNDLE_ONCE_AND_DIE = {self.bundle_once_and_die}")
+                sys.exit()
         self.logger.info("Ending work on Bundles.")
 
     async def _do_work_claim(self) -> bool:
@@ -201,58 +212,61 @@ class Bundler(Component):
     # NOTE: Remove this function when JADE LTA is retired
     def _insert_jade_row(self, bundle: BundleType) -> None:
         """Insert a row into jade_bundle in the JADE LTA DB."""
-        # connect to the database
-        conn = pymysql.connect(host=self.host,
-                               user=self.user,
-                               password=self.password,
-                               database=self.db,
-                               port=self.port,
-                               charset='utf8mb4',
-                               cursorclass=pymysql.cursors.DictCursor)
-        # run an insert query to add a row to the database
+        # make sure we clean up after ourselves
         try:
-            with conn.cursor() as cursor:
-                sql = ("INSERT INTO jade_bundle ("
-                       "bundle_file, capacity, checksum, "
-                       "closed, date_created, date_updated, "
-                       "destination, reference_uuid, size, "
-                       "uuid, version, jade_host_id, "
-                       "extension, jade_parent_id) "
-                       "VALUES ("
-                       "%s, %s, %s, "
-                       "%s, %s, %s, "
-                       "%s, %s, %s, "
-                       "%s, %s, %s, "
-                       "%s, %s)")
-                now = datetime.today()
-                values = [
-                    # autogenerated                     # jade_bundle_id
-                    f"{bundle['uuid']}.zip",            # bundle_file
-                    0,                                  # capacity
-                    bundle['checksum']['sha512'],       # checksum
-                    True,                               # closed
-                    now,                                # date_created
-                    now,                                # date_updated
-                    bundle['path'],                     # destination
-                    str(uuid4()),                       # reference_uuid
-                    bundle['size'],                     # size
-                    bundle['uuid'],                     # uuid
-                    1,                                  # version
-                    2,                                  # jade_host_id (jade-lta)
-                    False,                              # extension
-                    None,                               # jade_parent_id
-                ]
-                self.logger.info(f"Executing: {sql}")
-                self.logger.info(f"Values: {values}")
-                cursor.execute(sql, values)
-            # commit the row to the database
+            # connect to the database
+            conn = pymysql.connect(host=self.host,
+                                   user=self.user,
+                                   password=self.password,
+                                   database=self.db,
+                                   port=self.port,
+                                   charset='utf8mb4',
+                                   cursorclass=pymysql.cursors.DictCursor)
+            # create a cursor to execute a query
+            cursor = conn.cursor()
+            sql = ("INSERT INTO jade_bundle ("
+                   "bundle_file, capacity, checksum, "
+                   "closed, date_created, date_updated, "
+                   "destination, reference_uuid, size, "
+                   "uuid, version, jade_host_id, "
+                   "extension, jade_parent_id) "
+                   "VALUES ("
+                   "%s, %s, %s, "
+                   "%s, %s, %s, "
+                   "%s, %s, %s, "
+                   "%s, %s, %s, "
+                   "%s, %s)")
+            now = datetime.today()
+            values = [
+                # autogenerated                     # jade_bundle_id
+                f"{bundle['uuid']}.zip",            # bundle_file
+                0,                                  # capacity
+                bundle['checksum']['sha512'],       # checksum
+                True,                               # closed
+                now,                                # date_created
+                now,                                # date_updated
+                bundle['path'],                     # destination
+                str(uuid4()),                       # reference_uuid
+                bundle['size'],                     # size
+                bundle['uuid'],                     # uuid
+                1,                                  # version
+                2,                                  # jade_host_id (jade-lta)
+                False,                              # extension
+                None,                               # jade_parent_id
+            ]
+            self.logger.info(f"Executing: {sql}")
+            self.logger.info(f"Values: {values}")
+            cursor.execute(sql, values)
             conn.commit()  # type: ignore
         except Exception as e:
             # whoops, something bad happened; log it!
             self.logger.info(f"Error while adding row to MySQL Database: {e}")
         finally:
             # close the connection to the database
-            conn.close()  # type: ignore
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
 def runner() -> None:
     """Configure a Bundler component from the environment and set it running."""
