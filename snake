@@ -59,6 +59,19 @@ def doDistTask() -> None:
     run(["python", "setup.py", "sdist", "bdist_wheel"])
 
 
+def doDockerTask() -> None:
+    doCleanTask()
+    doRebuildTask()
+    current_path = os.path.dirname(os.path.realpath(__file__))
+    version = 'SNAPSHOT'
+    with open(os.path.join(current_path, 'lta', '__init__.py')) as f:
+        for line in f.readlines():
+            if '__version__' in line:
+                version = line.split('=')[-1].split('\'')[1]
+    run(["docker", "build", "-t", f"lta-db:{version}", "-f", "docker/lta-db/Dockerfile", "."])
+    run(["docker", "build", "-t", f"lta-picker:{version}", "-f", "docker/lta-picker/Dockerfile", "."])
+
+
 def doLintTask() -> None:
     flake8_cmd = ["flake8"]
     mypy_cmd = ["mypy", "--strict", "--allow-subclassing-any"]
@@ -96,6 +109,7 @@ if __name__ == "__main__":
     task(("check", "Check dependency package versions", doCheckTask))
     task(("coverage", "Perform coverage analysis", doCoverageTask))
     task(("dist", "Create a distribution tarball and wheel", doDistTask))
+    task(("docker", "Create docker containers", doDockerTask))
     task(("lint", "Run static analysis tools", doLintTask))
     task(("rebuild", "Test and lint the module", doRebuildTask))
     task(("test", "Test the module", doTestTask))

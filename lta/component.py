@@ -16,13 +16,13 @@ from .lta_const import drain_semaphore_filename
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "COMPONENT_NAME": None,
-    "HEARTBEAT_PATCH_RETRIES": None,
-    "HEARTBEAT_PATCH_TIMEOUT_SECONDS": None,
-    "HEARTBEAT_SLEEP_DURATION_SECONDS": None,
+    "HEARTBEAT_PATCH_RETRIES": "3",
+    "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
+    "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
     "LTA_REST_TOKEN": None,
     "LTA_REST_URL": None,
     "SOURCE_SITE": None,
-    "WORK_SLEEP_DURATION_SECONDS": None,
+    "WORK_SLEEP_DURATION_SECONDS": "60",
 }
 
 def now() -> str:
