@@ -45,12 +45,13 @@ tasks.
     snake clean                # Remove build cruft
     snake coverage             # Perform coverage analysis
     snake dist                 # Create a distribution tarball and wheel
+    snake docker               # Create a docker container
     snake lint                 # Run static analysis tools
     snake rebuild              # Test and lint the module
     snake test                 # Test the module
 
 The task `rebuild` doesn't really build (no need to compile Python),
-but it does run the unit tests.
+but it does run static analysis tools and unit tests.
 
 ### Bumping to the next version
 If you need to increase the version number of the project, don't
@@ -127,7 +128,7 @@ Get a File Catalog running on port 8889.
 #### LTA DB
 Get an LTA DB running on port 8080.
 
-    docker run --rm -it --network=host -e LTA_AUTH_ALGORITHM='HS512' -e LTA_AUTH_ISSUER='http://localhost:8888' -e LTA_AUTH_SECRET='secret' lta-db:latest
+    docker run --rm -it --network=host --env LTA_AUTH_ALGORITHM='HS512' --env LTA_AUTH_ISSUER='http://localhost:8888' --env LTA_AUTH_SECRET='secret' wipac/lta:latest python3 -m lta.rest_server
 
 A file `local-secret` contains the secret credentials used by the LTA DB
 to secure itself. Note, this is Bring Your Own Secret (BYOS) software, so
@@ -163,16 +164,6 @@ that interacts with the LTA DB. The output will be JSON, so to get a more
 traditional log output, use the `loglens` script to translate:
 
     ./picker.sh | loglens
-
-Alternatively, it can be run as a docker container:
-
-    docker run --rm -it --network=host \
-    -e COMPONENT_NAME="$(hostname)-picker" \
-    -e FILE_CATALOG_REST_TOKEN="$(solicit-token.sh)" \
-    -e FILE_CATALOG_REST_URL="http://127.0.0.1:8889" \
-    -e LTA_REST_TOKEN="$(solicit-token.sh)" \
-    -e LTA_REST_URL="http://127.0.0.1:8080" \
-    lta-picker:latest
 
 A script `bundler.sh` is used to generate a token and start a Bundler component
 that interacts with the LTA DB.  The output will be JSON, so to get a more
