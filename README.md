@@ -45,12 +45,13 @@ tasks.
     snake clean                # Remove build cruft
     snake coverage             # Perform coverage analysis
     snake dist                 # Create a distribution tarball and wheel
+    snake docker               # Create a docker container
     snake lint                 # Run static analysis tools
     snake rebuild              # Test and lint the module
     snake test                 # Test the module
 
 The task `rebuild` doesn't really build (no need to compile Python),
-but it does run the unit tests.
+but it does run static analysis tools and unit tests.
 
 ### Bumping to the next version
 If you need to increase the version number of the project, don't
@@ -126,6 +127,8 @@ Get a File Catalog running on port 8889.
 
 #### LTA DB
 Get an LTA DB running on port 8080.
+
+    docker run --rm -it --network=host --env LTA_AUTH_ALGORITHM='HS512' --env LTA_AUTH_ISSUER='http://localhost:8888' --env LTA_AUTH_SECRET='secret' wipac/lta:latest python3 -m lta.rest_server
 
 A file `local-secret` contains the secret credentials used by the LTA DB
 to secure itself. Note, this is Bring Your Own Secret (BYOS) software, so
