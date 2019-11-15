@@ -136,7 +136,7 @@ may want to run this command to create a secret:
 
     dd if=/dev/urandom bs=1 count=64 2>/dev/null | base64 >local-secret
 
-A script `lta-db.sh` is used to start the LTA DB service, secured with
+A script `rest-server.sh` is used to start the LTA DB service, secured with
 the local secret.
 
 A script `make-token.sh` uses the local secret to create tokens for
@@ -191,3 +191,11 @@ A script `test-data-reset.sh` automates this process:
 This script can be used to restart testing conditions within the system. The
 component scripts have 30 second delays between work cycles, so the next test
 should happen automatically after 30 seconds.
+
+### Pushing Docker containers to local registry in Kubernetes
+Here are some commands to get the Docker container pushed to our Docker
+register in our Kubernetes cluster:
+
+    kubectl -n kube-system port-forward $(kubectl get pods --namespace kube-system -l "app=docker-registry,release=docker-registry" -o jsonpath="{.items[0].metadata.name}") 5000:5000 &
+    docker tag wipac/lta:0.0.5 localhost:5000/wipac/lta:0.0.5
+    docker push localhost:5000/wipac/lta:0.0.5
