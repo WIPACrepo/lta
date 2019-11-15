@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import os
 import socket
 from typing import Dict
+from urllib.parse import quote_plus
 
 from pymongo import MongoClient  # type: ignore
 from pymongo.database import Database  # type: ignore
@@ -21,7 +22,11 @@ REMOVE_ID = {"_id": False}
 
 CONFIG = {
     'AUTH_SECRET': 'secret',
-    'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
+    'LTA_MONGODB_AUTH_USER': '',
+    'LTA_MONGODB_AUTH_PASS': '',
+    'LTA_MONGODB_DATABASE_NAME': MONGODB_NAME,
+    'LTA_MONGODB_HOST': 'localhost',
+    'LTA_MONGODB_PORT': '27017',
     'TOKEN_SERVICE': 'http://localhost:8888',
 }
 for k in CONFIG:
@@ -31,7 +36,14 @@ for k in CONFIG:
 @pytest.fixture
 def mongo(monkeypatch) -> Database:
     """Get a reference to a test instance of a MongoDB Database."""
-    client = MongoClient(CONFIG['LTA_MONGODB_URL'])
+    mongo_user = quote_plus(CONFIG["LTA_MONGODB_AUTH_USER"])
+    mongo_pass = quote_plus(CONFIG["LTA_MONGODB_AUTH_PASS"])
+    mongo_host = CONFIG["LTA_MONGODB_HOST"]
+    mongo_port = int(CONFIG["LTA_MONGODB_PORT"])
+    lta_mongodb_url = f"mongodb://{mongo_host}"
+    if mongo_user and mongo_pass:
+        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
+    client = MongoClient(lta_mongodb_url, port=mongo_port)
     db = client[MONGODB_NAME]
     for collection in db.list_collection_names():
         db.drop_collection(collection)
@@ -54,7 +66,7 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
     monkeypatch.setenv("LTA_AUTH_ISSUER", CONFIG['TOKEN_SERVICE'])
     monkeypatch.setenv("LTA_AUTH_SECRET", CONFIG['AUTH_SECRET'])
-    monkeypatch.setenv("LTA_MONGODB_NAME", MONGODB_NAME)
+    monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", MONGODB_NAME)
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
     s = start(debug=True)

@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import logging
 from typing import Any, Callable, Dict
+from urllib.parse import quote_plus
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
@@ -26,8 +27,11 @@ EXPECTED_CONFIG = {
     'LTA_AUTH_ISSUER': 'lta',
     'LTA_AUTH_SECRET': 'secret',
     'LTA_MAX_CLAIM_AGE_HOURS': '12',
-    'LTA_MONGODB_NAME': 'lta',
-    'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
+    'LTA_MONGODB_AUTH_USER': '',  # None means required to specify
+    'LTA_MONGODB_AUTH_PASS': '',  # empty means no authentication required
+    'LTA_MONGODB_DATABASE_NAME': 'lta',
+    'LTA_MONGODB_HOST': 'localhost',
+    'LTA_MONGODB_PORT': '27017',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
 }
@@ -36,8 +40,6 @@ EXPECTED_CONFIG = {
 
 AFTER = pymongo.ReturnDocument.AFTER
 ALL_DOCUMENTS: Dict[str, str] = {}
-ASCENDING = pymongo.ASCENDING
-BUNDLE_STATES = ['accessible', 'deletable', 'inaccessible', 'none', 'transferring']
 FIRST_IN_FIRST_OUT = [("create_timestamp", pymongo.ASCENDING)]
 REMOVE_ID = {"_id": False}
 TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
@@ -557,10 +559,10 @@ class StatusComponentHandler(BaseLTAHandler):
 
 # -----------------------------------------------------------------------------
 
-def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
+def ensure_mongo_indexes(mongo_url: str, mongo_port: int, mongo_db: str) -> None:
     """Ensure that necessary indexes exist in MongoDB."""
     logging.info(f"Configuring MongoDB client at: {mongo_url}")
-    client = MongoClient(mongo_url)
+    client = MongoClient(mongo_url, port=mongo_port)
     db = client[mongo_db]
     logging.info(f"Creating indexes in MongoDB database: {mongo_db}")
     # Bundle.uuid
@@ -602,9 +604,16 @@ def start(debug: bool = False) -> RestServer:
     })
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
     # configure access to MongoDB as a backing store
-    ensure_mongo_indexes(config["LTA_MONGODB_URL"], config["LTA_MONGODB_NAME"])
-    motor_client = MotorClient(config["LTA_MONGODB_URL"])
-    args['db'] = motor_client[config["LTA_MONGODB_NAME"]]
+    mongo_user = quote_plus(config["LTA_MONGODB_AUTH_USER"])
+    mongo_pass = quote_plus(config["LTA_MONGODB_AUTH_PASS"])
+    mongo_host = config["LTA_MONGODB_HOST"]
+    mongo_port = int(config["LTA_MONGODB_PORT"])
+    lta_mongodb_url = f"mongodb://{mongo_host}"
+    if mongo_user and mongo_pass:
+        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
+    ensure_mongo_indexes(lta_mongodb_url, mongo_port, config["LTA_MONGODB_DATABASE_NAME"])
+    motor_client = MotorClient(lta_mongodb_url, port=mongo_port)
+    args['db'] = motor_client[config["LTA_MONGODB_DATABASE_NAME"]]
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)

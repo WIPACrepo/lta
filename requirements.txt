@@ -46,7 +46,7 @@ PyJWT==1.7.1
 pymongo==3.9.0
 PyMySQL==0.9.3
 pyparsing==2.4.5
-pytest==5.2.2
+pytest==5.2.3
 pytest-asyncio==0.10.0
 pytest-cov==2.8.1
 pytest-mock==1.11.2
