@@ -559,10 +559,10 @@ class StatusComponentHandler(BaseLTAHandler):
 
 # -----------------------------------------------------------------------------
 
-def ensure_mongo_indexes(mongo_url: str, mongo_port: int, mongo_db: str) -> None:
+def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     """Ensure that necessary indexes exist in MongoDB."""
     logging.info(f"Configuring MongoDB client at: {mongo_url}")
-    client = MongoClient(mongo_url, port=mongo_port)
+    client = MongoClient(mongo_url)
     db = client[mongo_db]
     logging.info(f"Creating indexes in MongoDB database: {mongo_db}")
     # Bundle.uuid
@@ -608,12 +608,13 @@ def start(debug: bool = False) -> RestServer:
     mongo_pass = quote_plus(config["LTA_MONGODB_AUTH_PASS"])
     mongo_host = config["LTA_MONGODB_HOST"]
     mongo_port = int(config["LTA_MONGODB_PORT"])
-    lta_mongodb_url = f"mongodb://{mongo_host}"
+    mongo_db = config["LTA_MONGODB_DATABASE_NAME"]
+    lta_mongodb_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
     if mongo_user and mongo_pass:
-        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
-    ensure_mongo_indexes(lta_mongodb_url, mongo_port, config["LTA_MONGODB_DATABASE_NAME"])
-    motor_client = MotorClient(lta_mongodb_url, port=mongo_port)
-    args['db'] = motor_client[config["LTA_MONGODB_DATABASE_NAME"]]
+        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
+    ensure_mongo_indexes(lta_mongodb_url, mongo_db)
+    motor_client = MotorClient(lta_mongodb_url)
+    args['db'] = motor_client[mongo_db]
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)
