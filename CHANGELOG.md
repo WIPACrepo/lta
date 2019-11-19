@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
-## [0.0.7] - 2019-11-13
+## [0.0.7] - 2019-11-19
 ### Fixed
 - Fixed the way authentication credentials are provided to MongoDB
 
