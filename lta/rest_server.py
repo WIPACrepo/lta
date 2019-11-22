@@ -132,7 +132,7 @@ class BaseLTAHandler(RestHandler):
 class BundlesActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_create."""
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_create."""
         req = json_decode(self.request.body)
@@ -165,7 +165,7 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
 class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_delete."""
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_delete."""
         req = json_decode(self.request.body)
@@ -189,7 +189,7 @@ class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
 class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_update."""
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_update."""
         req = json_decode(self.request.body)
@@ -218,7 +218,7 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
 class BundlesHandler(BaseLTAHandler):
     """BundlesHandler handles collection level routes for Bundles."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self) -> None:
         """Handle GET /Bundles."""
         location = self.get_query_argument("location", default=None)
@@ -246,7 +246,7 @@ class BundlesHandler(BaseLTAHandler):
 class BundlesActionsPopHandler(BaseLTAHandler):
     """BundlesActionsPopHandler handles /Bundles/actions/pop."""
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/pop."""
         source = self.get_argument('source')
@@ -286,7 +286,7 @@ class BundlesActionsPopHandler(BaseLTAHandler):
 class BundlesSingleHandler(BaseLTAHandler):
     """BundlesSingleHandler handles object level routes for Bundles."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self, bundle_id: str) -> None:
         """Handle GET /Bundles/{uuid}."""
         query = {"uuid": bundle_id}
@@ -295,7 +295,7 @@ class BundlesSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def patch(self, bundle_id: str) -> None:
         """Handle PATCH /Bundles/{uuid}."""
         req = json_decode(self.request.body)
@@ -312,7 +312,7 @@ class BundlesSingleHandler(BaseLTAHandler):
         logging.info(f"patched Bundle {bundle_id} with {req}")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def delete(self, bundle_id: str) -> None:
         """Handle DELETE /Bundles/{uuid}."""
         query = {"uuid": bundle_id}
@@ -334,7 +334,7 @@ class MainHandler(BaseLTAHandler):
 class TransferRequestsHandler(BaseLTAHandler):
     """TransferRequestsHandler is a BaseLTAHandler that handles TransferRequests routes."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self) -> None:
         """Handle GET /TransferRequests."""
         ret = []
@@ -343,7 +343,7 @@ class TransferRequestsHandler(BaseLTAHandler):
             ret.append(row)
         self.write({'results': ret})
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def post(self) -> None:
         """Handle POST /TransferRequests."""
         req = json_decode(self.request.body)
@@ -382,7 +382,7 @@ class TransferRequestsHandler(BaseLTAHandler):
 class TransferRequestSingleHandler(BaseLTAHandler):
     """TransferRequestSingleHandler is a BaseLTAHandler that handles routes related to single TransferRequest objects."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self, request_id: str) -> None:
         """Handle GET /TransferRequests/{uuid}."""
         query = {'uuid': request_id}
@@ -391,7 +391,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def patch(self, request_id: str) -> None:
         """Handle PATCH /TransferRequests/{uuid}."""
         req = json_decode(self.request.body)
@@ -409,7 +409,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         logging.info(f"patched TransferRequest {request_id} with {req}")
         self.write({})
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def delete(self, request_id: str) -> None:
         """Handle DELETE /TransferRequests/{uuid}."""
         query = {"uuid": request_id}
@@ -421,7 +421,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
 class TransferRequestActionsPopHandler(BaseLTAHandler):
     """TransferRequestActionsPopHandler handles /TransferRequests/actions/pop."""
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /TransferRequests/actions/pop."""
         source = self.get_argument('source')
@@ -462,7 +462,7 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
 class StatusHandler(BaseLTAHandler):
     """StatusHandler is a BaseLTAHandler that handles system status routes."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self) -> None:
         """Get the overall status of the system."""
         ret: Dict[str, str] = {}
@@ -490,7 +490,7 @@ class StatusHandler(BaseLTAHandler):
 class StatusComponentHandler(BaseLTAHandler):
     """StatusComponentHandler is a BaseLTAHandler that handles component status routes."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self, component: str) -> None:
         """
         Get the detailed status of components of a given type.
@@ -537,7 +537,7 @@ class StatusComponentHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def patch(self, component: str) -> None:
         """Update the detailed status of a component."""
         req = json_decode(self.request.body)
