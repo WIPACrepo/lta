@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.8] - 2019-11-22
+### Fixed
+- Normalized roles for routes in the LTA REST server; added 'admin' to all
+- Updated requirements to latest versions
+
 ## [0.0.7] - 2019-11-19
 ### Fixed
 - Fixed the way authentication credentials are provided to MongoDB
