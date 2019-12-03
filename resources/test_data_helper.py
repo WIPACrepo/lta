@@ -61,7 +61,7 @@ async def add_catalog(site, path):
                 "file_size": os.path.getsize(logical_name),
             }
             # if we're being pedantic about real checksums in test data
-            if config["FAKE_CHECKSUM"] != "False":
+            if config["FAKE_CHECKSUM"] != "True":
                 file_record["checksum"]["sha512"] = sha512sum(logical_name)
             # add the file to the File Catalog
             try:
