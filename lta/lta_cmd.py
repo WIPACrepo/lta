@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
@@ -58,6 +58,14 @@ async def _catalog_get(rc: RestClient, path: str) -> Optional[Any]:
     catalog_file = fc_response["files"][0]
     return await rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
 
+def _enumerate_path(path: str) -> List[str]:
+    """Recursively walk the file system to enumerate files at provided path."""
+    # enumerate all of the files on disk to be checked
+    disk_files = []
+    for root, dirs, files in os.walk(path):
+        disk_files.extend([os.path.join(root, file) for file in files])
+    return disk_files
+
 # -----------------------------------------------------------------------------
 
 async def catalog_check(args: Namespace) -> None:
@@ -67,8 +75,7 @@ async def catalog_check(args: Namespace) -> None:
     disk_missing = []
     mismatch = []
     # enumerate all of the files on disk to be checked
-    for root, dirs, files in os.walk(args.path):
-        disk_files = [os.path.join(root, file) for file in files]
+    disk_files = _enumerate_path(args.path)
     # for all of the files we want to check
     for disk_file in disk_files:
         # determine the size of the file
@@ -136,8 +143,7 @@ async def catalog_load(args: Namespace) -> None:
     created = []
     updated = []
     # enumerate all of the files on disk to be checked
-    for root, dirs, files in os.walk(args.path):
-        disk_files = [os.path.join(root, file) for file in files]
+    disk_files = _enumerate_path(args.path)
     # for all of the files we want to check
     for disk_file in disk_files:
         # determine the size of the file
@@ -217,8 +223,7 @@ async def display_config(args: Namespace) -> None:
 async def request_estimate(args: Namespace) -> None:
     """Estimate the count and size of a new TransferRequest."""
     # enumerate all of the files on disk to be checked
-    for root, dirs, files in os.walk(args.path):
-        disk_files = [os.path.join(root, file) for file in files]
+    disk_files = _enumerate_path(args.path)
     # for all of the files we want to check
     size = 0
     for disk_file in disk_files:
