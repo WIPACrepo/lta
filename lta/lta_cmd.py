@@ -13,6 +13,7 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
+import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 
 from lta.config import from_environment
@@ -213,6 +214,30 @@ async def display_config(args: Namespace) -> None:
             print(f"{key}:\t\t{args.config[key]}")
 
 
+async def request_estimate(args: Namespace) -> None:
+    """Estimate the count and size of a new TransferRequest."""
+    # enumerate all of the files on disk to be checked
+    for root, dirs, files in os.walk(args.path):
+        disk_files = [os.path.join(root, file) for file in files]
+    # for all of the files we want to check
+    size = 0
+    for disk_file in disk_files:
+        # determine the size of the file
+        size += os.path.getsize(disk_file)
+    # build the result dictionary
+    result = {
+        "path": args.path,
+        "count": len(disk_files),
+        "size": size,
+    }
+    # for all of the files we want to check
+    if args.json:
+        print_dict_as_pretty_json(result)
+    else:
+        print(f"TransferReqeust for {args.path}")
+        print(f"{size:,} bytes ({hurry.filesize.size(size)}) in {len(disk_files):,} files.")
+
+
 async def request_ls(args: Namespace) -> None:
     """List all of the TransferRequest objects in the LTA DB."""
     response = await args.lta_rc.request("GET", "/TransferRequests")
@@ -366,6 +391,22 @@ async def main() -> None:
     # define a subparser for the 'request' subcommand
     parser_request = subparser.add_parser('request', help='interact with transfer requests')
     request_subparser = parser_request.add_subparsers(help='request command help')
+
+    # define a subparser for the 'request estimate' subcommand
+    parser_request_estimate = request_subparser.add_parser('estimate', help='estimate new transfer request')
+    # parser_request_estimate.add_argument("--source",
+    #                                      help="site as source of files",
+    #                                      required=True)
+    # parser_request_estimate.add_argument("--dest",
+    #                                      help="site as destination of bundles",
+    #                                      required=True)
+    parser_request_estimate.add_argument("--path",
+                                         help="Data Warehouse path to be transferred",
+                                         required=True)
+    parser_request_estimate.add_argument("--json",
+                                         help="display output in JSON",
+                                         action="store_true")
+    parser_request_estimate.set_defaults(func=request_estimate)
 
     # define a subparser for the 'request ls' subcommand
     parser_request_ls = request_subparser.add_parser('ls', help='list transfer requests')
