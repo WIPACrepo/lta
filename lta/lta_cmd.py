@@ -128,6 +128,82 @@ async def catalog_check(args: Namespace) -> None:
                 print(mm[0])
 
 
+async def catalog_load(args: Namespace) -> None:
+    """Load the files on disk into the file catalog."""
+    # something to hold our results
+    checked = []
+    created = []
+    updated = []
+    # enumerate all of the files on disk to be checked
+    for root, dirs, files in os.walk(args.path):
+        disk_files = [os.path.join(root, file) for file in files]
+    # for all of the files we want to check
+    for disk_file in disk_files:
+        # determine the size of the file
+        size = os.path.getsize(disk_file)
+        # ask the file catalog to retrieve the record of the file
+        catalog_record = await _catalog_get(args.fc_rc, disk_file)
+        # if there is a record
+        disk_checksum = None
+        if catalog_record:
+            # validate some basic facts about the record
+            check = True
+            check &= (catalog_record["logical_name"] == disk_file)
+            check &= (catalog_record["file_size"] == size)
+            if args.checksums:
+                disk_checksum = sha512sum(disk_file)
+                check &= (catalog_record["checksum"]["sha512"] == disk_checksum)
+            # if we passed the gauntlet, then move on the to next file
+            if check:
+                checked.append(disk_file)
+                continue
+        # ut oh, you got here because you've got no record or a bad record
+        if not disk_checksum:
+            disk_checksum = sha512sum(disk_file)
+        # if we've got a bad record, then we need to clean it up
+        if catalog_record:
+            patch_dict = {
+                "logical_name": disk_file,
+                "file_size": size,
+                "checksum": catalog_record["checksum"]
+            }
+            patch_dict["checksum"]["sha512"] = disk_checksum
+            await args.fc_rc.request("PATCH", f'/api/files/{catalog_record["uuid"]}', patch_dict)
+            updated.append(disk_file)
+        # otherwise, if we've got no record, then we need to make one
+        else:
+            post_dict = {
+                "logical_name": disk_file,
+                "checksum": {"sha512": disk_checksum},
+                "file_size": size,
+                "locations": [{"site": "WIPAC", "path": disk_file}],
+            }
+            await args.fc_rc.request("POST", "/api/files", post_dict)
+            created.append(disk_file)
+
+    # display the results to the caller
+    if args.json:
+        results_dict = {
+            "checked": checked,
+            "created": created,
+            "updated": updated,
+        }
+        print_dict_as_pretty_json(results_dict)
+    else:
+        if len(checked) > 0:
+            print("Records verified in the File Catalog")
+            for df in checked:
+                print(df)
+        if len(created) > 0:
+            print("Records created in the File Catalog")
+            for df in created:
+                print(df)
+        if len(updated) > 0:
+            print("Records updated in the File Catalog")
+            for df in updated:
+                print(df)
+
+
 async def display_config(args: Namespace) -> None:
     """Display the configuration provided to the application."""
     if args.json:
@@ -266,6 +342,19 @@ async def main() -> None:
                                       help="Data Warehouse path to be checked",
                                       required=True)
     parser_catalog_check.set_defaults(func=catalog_check)
+
+    # define a subparser for the 'catalog load' subcommand
+    parser_catalog_load = catalog_subparser.add_parser('load', help='load disk entries into the catalog')
+    parser_catalog_load.add_argument("--checksums",
+                                     help="verify checksums of existing files",
+                                     action="store_true")
+    parser_catalog_load.add_argument("--json",
+                                     help="display output in JSON",
+                                     action="store_true")
+    parser_catalog_load.add_argument("--path",
+                                     help="Data Warehouse path to be loaded",
+                                     required=True)
+    parser_catalog_load.set_defaults(func=catalog_load)
 
     # define a subparser for the 'display-config' subcommand
     parser_display_config = subparser.add_parser('display-config', help='display environment configuration')
