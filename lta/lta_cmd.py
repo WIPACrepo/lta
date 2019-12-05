@@ -136,6 +136,27 @@ async def catalog_check(args: Namespace) -> None:
                 print(mm[0])
 
 
+async def catalog_display(args: Namespace) -> None:
+    """Display a record from the File Catalog."""
+    # if the user specified a path
+    if args.path:
+        # ask the file catalog to retrieve the record of the file
+        catalog_record = await _catalog_get(args.fc_rc, args.path)
+
+    # if the user specified a uuid
+    if args.uuid:
+        try:
+            catalog_record = await args.fc_rc.request("GET", f"/api/files/{args.uuid}")
+        except Exception:
+            catalog_record = None
+
+    # display the record to the caller
+    if catalog_record:
+        print_dict_as_pretty_json(catalog_record)
+    else:
+        print_dict_as_pretty_json({})
+
+
 async def catalog_load(args: Namespace) -> None:
     """Load the files on disk into the file catalog."""
     # something to hold our results
@@ -372,6 +393,14 @@ async def main() -> None:
                                       help="Data Warehouse path to be checked",
                                       required=True)
     parser_catalog_check.set_defaults(func=catalog_check)
+
+    # define a subparser for the 'catalog check' subcommand
+    parser_catalog_display = catalog_subparser.add_parser('display', help='display a file catalog record')
+    parser_catalog_display.add_argument("--path",
+                                        help="Data Warehouse path to be displayed")
+    parser_catalog_display.add_argument("--uuid",
+                                        help="Catalog UUID to be displayed")
+    parser_catalog_display.set_defaults(func=catalog_display)
 
     # define a subparser for the 'catalog load' subcommand
     parser_catalog_load = catalog_subparser.add_parser('load', help='load disk entries into the catalog')
