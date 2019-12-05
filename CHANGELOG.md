@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.12] - 2019-12-05
+### Changed
+- Modified: ltacmd catalog check to be more verbose in non-JSON mode
+- Modified: ltacmd catalog load to be more verbose in non-JSON mode
+
 ## [0.0.11] - 2019-12-05
 ### Added
 - Command: ltacmd catalog display
@@ -92,7 +97,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.11...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.12...HEAD
+[0.0.12]: https://github.com/WIPACrepo/lta/compare/v0.0.10...v0.0.12
 [0.0.11]: https://github.com/WIPACrepo/lta/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/WIPACrepo/lta/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/WIPACrepo/lta/compare/v0.0.8...v0.0.9

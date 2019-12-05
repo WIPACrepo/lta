@@ -87,14 +87,20 @@ async def catalog_check(args: Namespace) -> None:
         # ask the file catalog to retrieve the record of the file
         catalog_record = await _catalog_get(args.fc_rc, disk_file)
         if not catalog_record:
+            if not args.json:
+                print(f"Missing from the File Catalog: {disk_file}")
             catalog_missing.append(disk_file)
             continue
         # check the record for discrepancies
         if catalog_record["file_size"] != size:
+            if not args.json:
+                print(f"Mismatch between Catalog and Disk: {disk_file}")
             mismatch.append((disk_file, catalog_record, size, checksum))
             continue
         if args.checksums:
             if catalog_record["checksum"]["sha512"] != checksum:
+                if not args.json:
+                    print(f"Mismatch between Catalog and Disk: {disk_file}")
                 mismatch.append((disk_file, catalog_record, size, checksum))
                 continue
 
@@ -111,6 +117,8 @@ async def catalog_check(args: Namespace) -> None:
     fc_response = await args.fc_rc.request('GET', f'/api/files?query={query_json}')
     for catalog_file in fc_response["files"]:
         if catalog_file["logical_name"] not in disk_files:
+            if not args.json:
+                print(f"Missing from the Disk: {catalog_file['logical_name']}")
             disk_missing.append(catalog_file["logical_name"])
 
     # display the results to the caller
@@ -121,19 +129,6 @@ async def catalog_check(args: Namespace) -> None:
             "mismatch": mismatch,
         }
         print_dict_as_pretty_json(results_dict)
-    else:
-        if len(catalog_missing) > 0:
-            print("Missing from the File Catalog")
-            for cm in catalog_missing:
-                print(cm)
-        if len(disk_missing) > 0:
-            print("Missing from the Disk")
-            for dm in disk_missing:
-                print(dm)
-        if len(mismatch) > 0:
-            print("Mismatch between Catalog and Disk")
-            for mm in mismatch:
-                print(mm[0])
 
 
 async def catalog_display(args: Namespace) -> None:
@@ -183,6 +178,8 @@ async def catalog_load(args: Namespace) -> None:
                 check &= (catalog_record["checksum"]["sha512"] == disk_checksum)
             # if we passed the gauntlet, then move on the to next file
             if check:
+                if not args.json:
+                    print(f"Verified record for {disk_file}")
                 checked.append(disk_file)
                 continue
         # ut oh, you got here because you've got no record or a bad record
@@ -197,6 +194,8 @@ async def catalog_load(args: Namespace) -> None:
             }
             patch_dict["checksum"]["sha512"] = disk_checksum
             await args.fc_rc.request("PATCH", f'/api/files/{catalog_record["uuid"]}', patch_dict)
+            if not args.json:
+                print(f"Updated record for {disk_file}")
             updated.append(disk_file)
         # otherwise, if we've got no record, then we need to make one
         else:
@@ -207,6 +206,8 @@ async def catalog_load(args: Namespace) -> None:
                 "locations": [{"site": "WIPAC", "path": disk_file}],
             }
             await args.fc_rc.request("POST", "/api/files", post_dict)
+            if not args.json:
+                print(f"Created record for {disk_file}")
             created.append(disk_file)
 
     # display the results to the caller
@@ -217,19 +218,6 @@ async def catalog_load(args: Namespace) -> None:
             "updated": updated,
         }
         print_dict_as_pretty_json(results_dict)
-    else:
-        if len(checked) > 0:
-            print("Records verified in the File Catalog")
-            for df in checked:
-                print(df)
-        if len(created) > 0:
-            print("Records created in the File Catalog")
-            for df in created:
-                print(df)
-        if len(updated) > 0:
-            print("Records updated in the File Catalog")
-            for df in updated:
-                print(df)
 
 
 async def display_config(args: Namespace) -> None:
