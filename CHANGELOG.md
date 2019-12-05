@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.11] - 2019-12-05
+### Added
+- Command: ltacmd catalog display
+
 ## [0.0.10] - 2019-12-04
 ### Fixed
 - Bug in the way ltacmd was enumerating files on disk
@@ -88,7 +92,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.10...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.11...HEAD
+[0.0.11]: https://github.com/WIPACrepo/lta/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/WIPACrepo/lta/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/WIPACrepo/lta/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/WIPACrepo/lta/compare/v0.0.7...v0.0.8
