@@ -145,6 +145,7 @@ class Bundler(Component):
 
     async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Build the archive file for a bundle and update the LTA DB."""
+        # 0. Get our ducks in a row about what we're doing here
         num_files = len(bundle["files"])
         source = bundle["source"]
         dest = bundle["dest"]
@@ -163,7 +164,7 @@ class Bundler(Component):
         with open(metadata_file_path, mode="w") as metadata_file:
             self.logger.info(f"Writing bundle metadata to '{metadata_file_path}'")
             metadata_file.write(json.dumps(metadata_dict))
-        # 2. Make a bundle
+        # 2. Create a ZIP bundle by writing constituent files to it
         bundle_file_path = os.path.join(self.workbox_path, f"{bundle_id}.zip")
         self.logger.info(f"Creating bundle as ZIP archive: '{bundle_file_path}'")
         with ZipFile(bundle_file_path, mode="x", compression=ZIP_STORED, allowZip64=True) as bundle_zip:
@@ -176,26 +177,24 @@ class Bundler(Component):
                 self.logger.info(f"Writing file {file_count}/{num_files}: '{bundle_me_path}' to bundle '{bundle_file_path}'")
                 bundle_zip.write(bundle_me_path, os.path.basename(bundle_me_path))
                 file_count = file_count + 1
-        # 3. Put bundle in staging storage
-        final_bundle_path = bundle_file_path
-        if self.outbox_path != self.workbox_path:
-            final_bundle_path = os.path.join(self.outbox_path, f"{bundle_id}.zip")
-            self.logger.info(f"Moving bundle from '{bundle_file_path}' to '{final_bundle_path}'")
-            shutil.move(bundle_file_path, final_bundle_path)
-        self.logger.info(f"Finished archive bundle now located at: '{final_bundle_path}'")
-        # 3.1. Compute the size of the bundle
-        bundle_size = os.path.getsize(final_bundle_path)
-        self.logger.info(f"Archive bundle has size {bundle_size} bytes")
-        # 3.2. Compute the LTA checksums for the bundle
-        self.logger.info(f"Computing LTA checksums for bundle: '{final_bundle_path}'")
-        checksum = lta_checksums(final_bundle_path)
-        self.logger.info(f"Bundle '{final_bundle_path}' has adler32 checksum '{checksum['adler32']}'")
-        self.logger.info(f"Bundle '{final_bundle_path}' has SHA512 checksum '{checksum['sha512']}'")
-        # 3.3. Clean up generated JSON metadata file
+        # 3. Clean up generated JSON metadata file
         self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
         os.remove(metadata_file_path)
         self.logger.info(f"Bundle metadata '{metadata_file_path}' was deleted.")
-        # 4. Update the Bundle in the LTA DB
+        # 4. Compute the size of the bundle
+        bundle_size = os.path.getsize(bundle_file_path)
+        self.logger.info(f"Archive bundle has size {bundle_size} bytes")
+        # 5. Compute the LTA checksums for the bundle
+        self.logger.info(f"Computing LTA checksums for bundle: '{bundle_file_path}'")
+        checksum = lta_checksums(bundle_file_path)
+        self.logger.info(f"Bundle '{bundle_file_path}' has adler32 checksum '{checksum['adler32']}'")
+        self.logger.info(f"Bundle '{bundle_file_path}' has SHA512 checksum '{checksum['sha512']}'")
+        # 6. Determine the final destination path of the bundle
+        final_bundle_path = bundle_file_path
+        if self.outbox_path != self.workbox_path:
+            final_bundle_path = os.path.join(self.outbox_path, f"{bundle_id}.zip")
+        self.logger.info(f"Finished archive bundle will be located at: '{final_bundle_path}'")
+        # 7. Update the bundle record we have with all the information we collected
         bundle["status"] = "created"
         bundle["update_timestamp"] = now()
         bundle["bundle_path"] = final_bundle_path
@@ -203,11 +202,18 @@ class Bundler(Component):
         bundle["checksum"] = checksum
         bundle["verified"] = False
         bundle["claimed"] = False
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        # 7. Add a row to the JADE-LTA database with the bundle information
         # NOTE: Remove two lines below when JADE LTA is retired
         self.logger.info(f"Adding row to MySQL Database: {self.user}@{self.host}/{self.db}")
         self._insert_jade_row(bundle)
+        # 8. Move the bundle from the work box to the outbox
+        if final_bundle_path != bundle_file_path:
+            self.logger.info(f"Moving bundle from '{bundle_file_path}' to '{final_bundle_path}'")
+            shutil.move(bundle_file_path, final_bundle_path)
+        self.logger.info(f"Finished archive bundle now located at: '{final_bundle_path}'")
+        # 9. Update the Bundle record in the LTA DB
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
 
     # NOTE: Remove this function when JADE LTA is retired
     def _insert_jade_row(self, bundle: BundleType) -> None:
