@@ -202,16 +202,16 @@ class Bundler(Component):
         bundle["checksum"] = checksum
         bundle["verified"] = False
         bundle["claimed"] = False
-        # 7. Add a row to the JADE-LTA database with the bundle information
+        # 8. Add a row to the JADE-LTA database with the bundle information
         # NOTE: Remove two lines below when JADE LTA is retired
         self.logger.info(f"Adding row to MySQL Database: {self.user}@{self.host}/{self.db}")
         self._insert_jade_row(bundle)
-        # 8. Move the bundle from the work box to the outbox
+        # 9. Move the bundle from the work box to the outbox
         if final_bundle_path != bundle_file_path:
             self.logger.info(f"Moving bundle from '{bundle_file_path}' to '{final_bundle_path}'")
             shutil.move(bundle_file_path, final_bundle_path)
         self.logger.info(f"Finished archive bundle now located at: '{final_bundle_path}'")
-        # 9. Update the Bundle record in the LTA DB
+        # 10. Update the Bundle record in the LTA DB
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
 
