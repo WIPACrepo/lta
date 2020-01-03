@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.14] - 2020-02-03
+### Fixed
+- Modified /Bundles/actions/pop to allow query by destination
+
 ## [0.0.13] - 2019-12-12
 ### Changed
 - Modified the order of bundling steps to accommodate JADE-LTA

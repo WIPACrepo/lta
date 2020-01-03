@@ -249,8 +249,11 @@ class BundlesActionsPopHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/pop."""
-        source = self.get_argument('source')
+        dest = self.get_argument('dest', None)
+        source = self.get_argument('source', None)
         status = self.get_argument('status')
+        if (not dest) and (not source):
+            raise tornado.web.HTTPError(400, reason="missing source and dest fields")
         pop_body = json_decode(self.request.body)
         if 'claimant' not in pop_body:
             raise tornado.web.HTTPError(400, reason="missing claimant field")
@@ -258,10 +261,13 @@ class BundlesActionsPopHandler(BaseLTAHandler):
         # find and claim a bundle for the specified source
         sdb = self.db.Bundles
         find_query = {
-            "source": source,
             "status": status,
             "claimed": False,
         }
+        if dest:
+            find_query["dest"] = dest
+        if source:
+            find_query["source"] = source
         right_now = now()  # https://www.youtube.com/watch?v=WaSy8yy-mr8
         update_doc = {
             "$set": {
