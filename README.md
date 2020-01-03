@@ -51,7 +51,7 @@ tasks.
     snake test                 # Test the module
 
 The task `rebuild` doesn't really build (no need to compile Python),
-but it does run static analysis tools and unit tests.
+but it does run static analysis tools and unit/integration tests.
 
 ### Bumping to the next version
 If you need to increase the version number of the project, don't

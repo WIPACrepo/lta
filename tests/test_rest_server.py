@@ -730,6 +730,41 @@ async def test_bundles_actions_pop_errors(mongo, rest):
     with pytest.raises(Exception):
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=none', request)
 
+    with pytest.raises(Exception):
+        await r.request('POST', '/Bundles/actions/pop?status=taping', request)
+
+@pytest.mark.asyncio
+async def test_bundles_actions_pop_at_destination(mongo, rest):
+    """Check pop action for bundles at destination."""
+    r = rest('system')
+
+    test_data = {
+        'bundles': [
+            {
+                "source": "WIPAC",
+                "dest": "NERSC",
+                "path": "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip",
+                "status": "taping",
+                "verified": False,
+            },
+        ]
+    }
+
+    #
+    # Create - POST /Bundles/actions/bulk_create
+    #
+    ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
+    assert len(ret["bundles"]) == 1
+    assert ret["count"] == 1
+
+    # I'm at destination NERSC, and should have work
+    claimant_body = {
+        'claimant': 'testing-nersc_mover-aaaed864-0112-4bcf-a069-bb55c12e291d',
+    }
+    ret = await r.request('POST', '/Bundles/actions/pop?dest=NERSC&status=taping', claimant_body)
+    assert ret['bundle']
+    assert ret['bundle']["path"] == "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
+
 def test_check_claims_old_age():
     """Verify that CheckClaims can determine old age for claims."""
     cc = CheckClaims()
