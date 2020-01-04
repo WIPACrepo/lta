@@ -599,6 +599,8 @@ def start(debug: bool = False) -> RestServer:
     """Start a LTA DB service."""
     config = from_environment(EXPECTED_CONFIG)
     # logger = logging.getLogger('lta.rest')
+    for name in config:
+        logging.info(f"{name} = {config[name]}")
 
     args = RestHandlerSetup({
         'auth': {
