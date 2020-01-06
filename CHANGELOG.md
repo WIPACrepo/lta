@@ -18,7 +18,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
-## [0.0.14] - 2020-02-03
+## [0.0.16] - 2020-01-06
+### Changed
+- Command: ltacmd request status now shows information about bundles
+
+## [0.0.15] - 2020-01-03
+### Added
+- LTA DB logs its configuration for debugging purposes
+
+## [0.0.14] - 2020-01-03
 ### Fixed
 - Modified /Bundles/actions/pop to allow query by destination
 
@@ -105,7 +113,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.13...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.16...HEAD
+[0.0.16]: https://github.com/WIPACrepo/lta/compare/v0.0.15...v0.0.16
+[0.0.15]: https://github.com/WIPACrepo/lta/compare/v0.0.14...v0.0.15
+[0.0.14]: https://github.com/WIPACrepo/lta/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/WIPACrepo/lta/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/WIPACrepo/lta/compare/v0.0.11...v0.0.12
 [0.0.11]: https://github.com/WIPACrepo/lta/compare/v0.0.10...v0.0.11
