@@ -66,6 +66,16 @@ def _enumerate_path(path: str) -> List[str]:
         disk_files.extend([os.path.join(root, file) for file in files])
     return disk_files
 
+async def _get_bundles_status(rc: RestClient, bundle_uuids: List[str]) -> List[Dict[str, Any]]:
+    bundles = []
+    for uuid in bundle_uuids:
+        response = await rc.request('GET', f"/Bundles/{uuid}")
+        KEYS = ['checksum', 'claimant', 'claimed', 'path', 'request', 'size', 'status', 'type', 'update_timestamp', 'uuid']
+        bundle = {k: response[k] for k in KEYS}
+        bundle["file_count"] = len(response["files"])
+        bundles.append(bundle)
+    return bundles
+
 # -----------------------------------------------------------------------------
 
 async def catalog_check(args: Namespace) -> None:
@@ -304,6 +314,8 @@ async def request_status(args: Namespace) -> None:
     results = response["results"]
     for x in results:
         if x["uuid"].startswith(args.uuid):
+            res2 = await args.lta_rc.request("GET", f"/Bundles?request={x['uuid']}")
+            x["bundles"] = await _get_bundles_status(args.lta_rc, res2["results"])
             if args.json:
                 print_dict_as_pretty_json(x)
             else:
@@ -319,6 +331,11 @@ async def request_status(args: Namespace) -> None:
                 else:
                     status_desc = "Ut oh; Unknown status type"
                 print(f"{display_id} {status}  {status_time} - {status_desc}")
+                for b in x["bundles"]:
+                    if b['claimed']:
+                        print(f"    {b['uuid']} [{b['status']}] claimant:{b['claimant']}")
+                    else:
+                        print(f"    {b['uuid']} [{b['status']}] claimed:{b['claimed']}")
 
 
 async def status(args: Namespace) -> None:

@@ -222,12 +222,15 @@ class BundlesHandler(BaseLTAHandler):
     async def get(self) -> None:
         """Handle GET /Bundles."""
         location = self.get_query_argument("location", default=None)
+        request = self.get_query_argument("request", default=None)
         status = self.get_query_argument("status", default=None)
         verified = self.get_query_argument("verified", default=None)
 
         query: Dict[str, Any] = {}
         if location:
             query["source"] = {"$regex": f"^{location}"}
+        if request:
+            query["request"] = request
         if status:
             query["status"] = status
         if verified:
@@ -249,8 +252,8 @@ class BundlesActionsPopHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/pop."""
-        dest = self.get_argument('dest', None)
-        source = self.get_argument('source', None)
+        dest = self.get_argument('dest', default=None)
+        source = self.get_argument('source', default=None)
         status = self.get_argument('status')
         if (not dest) and (not source):
             raise tornado.web.HTTPError(400, reason="missing source and dest fields")

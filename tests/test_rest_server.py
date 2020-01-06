@@ -529,6 +529,66 @@ async def test_get_bundles_filter(mongo, rest):
     assert len(results) == 1
 
 @pytest.mark.asyncio
+async def test_get_bundles_request_filter(mongo, rest):
+    """Check that GET /Bundles filters properly by query parameter request."""
+    r = rest('system')
+
+    test_data = {
+        'bundles': [
+            {
+                "request": "02faec90-9f42-4231-944e-237465c7b988",
+                "source": "WIPAC:/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip",
+                "status": "waiting",
+                "verified": False,
+            },
+            {
+                "request": "baebf071-702f-4ab5-9486-a9dec5420b84",
+                "source": "WIPAC:/tmp/path1/sub1/48091a00-0c97-482f-a716-2e721b8e9662.zip",
+                "status": "waiting",
+                "verified": False,
+            },
+            {
+                "request": "5aba93ec-3c7d-43d7-8fe9-c19e5bc25991",
+                "source": "WIPAC:/tmp/path1/sub1/24814fa8-875b-4bae-b034-ea8885d2aafe.zip",
+                "status": "processing",
+                "verified": False,
+            },
+            {
+                "request": "baebf071-702f-4ab5-9486-a9dec5420b84",
+                "source": "WIPAC:/tmp/path1/sub1/cef98a3b-9a24-4fbc-b4e7-ef251367c020.zip",
+                "status": "bundled",
+                "verified": False,
+            },
+        ]
+    }
+
+    #
+    # Create - POST /Bundles/actions/bulk_create
+    #
+    ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
+    assert len(ret["bundles"]) == 4
+    assert ret["count"] == 4
+
+    #
+    # Read - GET /Bundles
+    #
+    ret = await r.request('GET', '/Bundles')
+    results = ret["results"]
+    assert len(results) == 4
+
+    ret = await r.request('GET', '/Bundles?request=dd162dad-9880-4ed7-b3c3-f8843d765ac3')
+    results = ret["results"]
+    assert len(results) == 0
+
+    ret = await r.request('GET', '/Bundles?request=5aba93ec-3c7d-43d7-8fe9-c19e5bc25991')
+    results = ret["results"]
+    assert len(results) == 1
+
+    ret = await r.request('GET', '/Bundles?request=baebf071-702f-4ab5-9486-a9dec5420b84')
+    results = ret["results"]
+    assert len(results) == 2
+
+@pytest.mark.asyncio
 async def test_get_bundles_uuid_error(rest):
     """Check that GET /Bundles/UUID returns 404 on not found."""
     r = rest('system')
