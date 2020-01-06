@@ -107,3 +107,4 @@ venv.bak/
 .lta-*
 /etc
 /local-secret
+/service-token
