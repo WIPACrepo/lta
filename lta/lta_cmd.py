@@ -301,11 +301,7 @@ async def request_new(args: Namespace) -> None:
     else:
         display_id = tr["uuid"]
         create_time = tr["create_timestamp"].replace("T", " ")
-        source_cook = tr["source"].split(":")
-        path = source_cook[1]
-        source = source_cook[0]
-        dests = [y.split(":")[0] for y in tr["dest"]]
-        print(f"{display_id}  {create_time} {path} {source} -> {dests}")
+        print(f"{display_id}  {create_time} {path} {source} -> {dest}")
 
 
 async def request_status(args: Namespace) -> None:
