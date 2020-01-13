@@ -118,6 +118,12 @@ def test_boolify():
     assert not boolify({})
     assert not boolify([])
 
+def test_check_claims_old_age():
+    """Verify that CheckClaims can determine old age for claims."""
+    cc = CheckClaims()
+    cutoff = cc.old_age()
+    assert isinstance(cutoff, str)
+
 # -----------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -825,8 +831,57 @@ async def test_bundles_actions_pop_at_destination(mongo, rest):
     assert ret['bundle']
     assert ret['bundle']["path"] == "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
 
-def test_check_claims_old_age():
-    """Verify that CheckClaims can determine old age for claims."""
-    cc = CheckClaims()
-    cutoff = cc.old_age()
-    assert isinstance(cutoff, str)
+@pytest.mark.asyncio
+async def test_bundles_actions_bulk_create_huge(mongo, rest):
+    """Check pop action for bundles at destination."""
+    NUM_FILES_TO_MAKE_IT_HUGE = 16000  # 16000 file entries ~= 12 MB body data
+
+    r = rest(role='system', timeout=10.0)
+
+    test_data = {
+        'bundles': [
+            {
+                "type": "Bundle",
+                "status": "specified",
+                "request": "55d332222f0311eaa8e78e6b006590ea",
+                "source": "WIPAC",
+                "dest": "NERSC",
+                "path": "/data/exp/IceCube/2018/internal-system/pDAQ-2ndBld/0802",
+                "files": []
+            },
+        ]
+    }
+
+    file_spec = {
+        "_links": {
+            "parent": {
+                "href": "/api/files"
+            },
+            "self": {
+                "href": "/api/files/e73aab54-2ead-11ea-a750-f6a52f4853dd"
+            }
+        },
+        "checksum": {
+            "sha512": "d8c7ce8c2016816b0c8f543f6b36d4036abee926ccead806fd982b5fff21488f5356b73dcc381093717c629b35e81c0e52e3205abdbb905b8322e8f6919e4987"
+        },
+        "file_size": 203400520,
+        "locations": [
+            {
+                "site": "WIPAC",
+                "path": "/data/exp/IceCube/2018/internal-system/pDAQ-2ndBld/0802/ukey_21a8501c-359a-41b4-95ce-c133e06d39ae_SPS-pDAQ-2ndBld-000_20180802_053901_000000.tar.gz"
+            }
+        ],
+        "logical_name": "/data/exp/IceCube/2018/internal-system/pDAQ-2ndBld/0802/ukey_21a8501c-359a-41b4-95ce-c133e06d39ae_SPS-pDAQ-2ndBld-000_20180802_053901_000000.tar.gz",
+        "meta_modify_date": "2020-01-04 04:51:43.182447",
+        "uuid": "e73aab54-2ead-11ea-a750-f6a52f4853dd"
+    }
+
+    for i in range(1, NUM_FILES_TO_MAKE_IT_HUGE):
+        test_data["bundles"][0]["files"].append(file_spec.copy())
+
+    #
+    # Create - POST /Bundles/actions/bulk_create
+    #
+    ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
+    assert len(ret["bundles"]) == 1
+    assert ret["count"] == 1

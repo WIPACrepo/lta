@@ -14,7 +14,7 @@ from rest_tools.client import RestClient  # type: ignore
 from .component import COMMON_CONFIG, Component, status_loop, work_loop
 from .config import from_environment
 from .log_format import StructuredFormatter
-from .lta_types import BundleList, TransferRequestType
+from .lta_types import BundleType, TransferRequestType
 
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
@@ -88,7 +88,12 @@ class Picker(Component):
             self.logger.info("LTA DB did not provide a TransferRequest to work on. Going on vacation.")
             return False
         # process the TransferRequest that we were given
-        await self._do_work_transfer_request(lta_rc, tr)
+        try:
+            await self._do_work_transfer_request(lta_rc, tr)
+        except Exception as e:
+            self._quarantine_transfer_request(lta_rc, tr, f"{e}")
+            raise e
+        # if we were successful at processing work, let the caller know
         return True
 
     async def _do_work_transfer_request(self,
@@ -120,12 +125,7 @@ class Picker(Component):
         self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
         # if we didn't get any files, this is bad mojo
         if num_files < 1:
-            self.logger.info(f'There are no files to process for TransferRequest {tr["uuid"]}.')
-            quarantine = {
-                "status": "quarantined",
-                "reason": "File Catalog returned zero files for the TransferRequest",
-            }
-            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', quarantine)
+            await self._quarantine_transfer_request(lta_rc, tr, "File Catalog returned zero files for the TransferRequest")
             return
         # query the file catalog for the full records
         catalog_records = []
@@ -145,9 +145,9 @@ class Picker(Component):
         num_bundles = max(round(total_size / bundle_size), 1)
         packing_spec = to_constant_bin_number(packing_list, num_bundles, 0)  # 0: size
         # for each packing list, we create a bundle in the LTA DB
-        bulk_create: BundleList = []
+        self.logger.info(f"Creating {len(packing_spec)} new Bundles in the LTA DB.")
         for spec in packing_spec:
-            bulk_create.append({
+            await self._create_bundle(lta_rc, {
                 "type": "Bundle",
                 # "uuid": unique_id(),  # provided by LTA DB
                 "status": "specified",
@@ -159,13 +159,31 @@ class Picker(Component):
                 "path": path,
                 "files": [x[1] for x in spec],  # 1: full record
             })
-        # now we post our new bundles to the LTA DB
-        self.logger.info(f"Creating {len(bulk_create)} new Bundles in the LTA DB.")
-        create_body = {
-            "bundles": bulk_create
-        }
-        await lta_rc.request('POST', '/Bundles/actions/bulk_create', create_body)
 
+    async def _create_bundle(self,
+                             lta_rc: RestClient,
+                             bundle: BundleType) -> Any:
+        self.logger.info(f'Creating new bundle in the LTA DB.')
+        create_body = {
+            "bundles": [bundle]
+        }
+        result = await lta_rc.request('POST', '/Bundles/actions/bulk_create', create_body)
+        uuid = result["bundles"][0]
+        return uuid
+
+    async def _quarantine_transfer_request(self,
+                                           lta_rc: RestClient,
+                                           tr: TransferRequestType,
+                                           reason: str) -> None:
+        self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
+        quarantine = {
+            "status": "quarantined",
+            "reason": reason,
+        }
+        try:
+            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', quarantine)
+        except Exception as e:
+            self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
 
 def runner() -> None:
     """Configure a Picker component from the environment and set it running."""

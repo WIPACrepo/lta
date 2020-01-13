@@ -302,7 +302,8 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
     lta_rc_mock = mocker.MagicMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.return_value = {
-        "files": [uuid1().hex, uuid1().hex, uuid1().hex]
+        "bundles": [uuid1().hex, uuid1().hex, uuid1().hex],
+        "count": 3
     }
     tr_uuid = uuid1().hex
     tr = {
