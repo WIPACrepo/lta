@@ -352,13 +352,13 @@ async def request_rm(args: Namespace) -> None:
     if args.confirm != path:
         print(f"request rm: cannot remove TransferRequest {args.uuid}: path is not --confirm {args.confirm}")
         return
-    res2 = await args.lta_rc.request("DELETE", f"/TransferRequests/{args.uuid}")
+    await args.lta_rc.request("DELETE", f"/TransferRequests/{args.uuid}")
     if args.verbose:
         print(f"removed TransferRequest {args.uuid}")
     res3 = await args.lta_rc.request("GET", f"/Bundles?request={args.uuid}")
     bundles = await _get_bundles_status(args.lta_rc, res3["results"])
     for bundle in bundles:
-        res4 = await args.lta_rc.request("DELETE", f"/Bundles/{bundle['uuid']}")
+        await args.lta_rc.request("DELETE", f"/Bundles/{bundle['uuid']}")
         if args.verbose:
             print(f"removed Bundle {bundle['uuid']}")
 
