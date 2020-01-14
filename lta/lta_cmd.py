@@ -35,6 +35,7 @@ EXPECTED_CONFIG = {
 
 
 def display_time(s: str) -> str:
+    """Make a timestamp string look nice."""
     return s.replace("T", " ")
 
 def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
