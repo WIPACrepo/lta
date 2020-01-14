@@ -345,6 +345,24 @@ async def request_new(args: Namespace) -> None:
         print(f"{display_id}  {create_time} {path} {source} -> {dest}")
 
 
+async def request_rm(args: Namespace) -> None:
+    """Remove a TransferRequest from the LTA DB."""
+    response = await args.lta_rc.request("GET", f"/TransferRequests/{args.uuid}")
+    path = response["path"]
+    if args.confirm != path:
+        print(f"request rm: cannot remove TransferRequest {args.uuid}: path is not --confirm {args.confirm}")
+        return
+    res2 = await args.lta_rc.request("DELETE", f"/TransferRequests/{args.uuid}")
+    if args.verbose:
+        print(f"removed TransferRequest {args.uuid}")
+    res3 = await args.lta_rc.request("GET", f"/Bundles?request={args.uuid}")
+    bundles = await _get_bundles_status(args.lta_rc, res3["results"])
+    for bundle in bundles:
+        res4 = await args.lta_rc.request("DELETE", f"/Bundles/{bundle['uuid']}")
+        if args.verbose:
+            print(f"removed Bundle {bundle['uuid']}")
+
+
 async def request_status(args: Namespace) -> None:
     """Query the status of a TransferRequest in the LTA DB."""
     response = await args.lta_rc.request("GET", f"/TransferRequests/{args.uuid}")
@@ -493,12 +511,6 @@ async def main() -> None:
 
     # define a subparser for the 'request estimate' subcommand
     parser_request_estimate = request_subparser.add_parser('estimate', help='estimate new transfer request')
-    # parser_request_estimate.add_argument("--source",
-    #                                      help="site as source of files",
-    #                                      required=True)
-    # parser_request_estimate.add_argument("--dest",
-    #                                      help="site as destination of bundles",
-    #                                      required=True)
     parser_request_estimate.add_argument("--path",
                                          help="Data Warehouse path to be transferred",
                                          required=True)
@@ -529,6 +541,19 @@ async def main() -> None:
                                     help="display output in JSON",
                                     action="store_true")
     parser_request_new.set_defaults(func=request_new)
+
+    # define a subparser for the 'request rm' subcommand
+    parser_request_rm = request_subparser.add_parser('rm', help='delete a transfer request')
+    parser_request_rm.add_argument("--uuid",
+                                   help="identity of transfer request",
+                                   required=True)
+    parser_request_rm.add_argument("--confirm",
+                                   help="Data Warehouse path of the request",
+                                   required=True)
+    parser_request_rm.add_argument("--verbose",
+                                   help="display an output line on success",
+                                   action="store_true")
+    parser_request_rm.set_defaults(func=request_rm)
 
     # define a subparser for the 'request status' subcommand
     parser_request_status = request_subparser.add_parser('status', help='query transfer request status')
