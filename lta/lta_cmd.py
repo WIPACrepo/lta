@@ -34,6 +34,9 @@ EXPECTED_CONFIG = {
 }
 
 
+def display_time(s: str) -> str:
+    return s.replace("T", " ")
+
 def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
     """Print the provided Dict as pretty-print JSON."""
     print(json.dumps(d, indent=4, sort_keys=True))
@@ -70,13 +73,57 @@ async def _get_bundles_status(rc: RestClient, bundle_uuids: List[str]) -> List[D
     bundles = []
     for uuid in bundle_uuids:
         response = await rc.request('GET', f"/Bundles/{uuid}")
-        KEYS = ['checksum', 'claimant', 'claimed', 'path', 'request', 'size', 'status', 'type', 'update_timestamp', 'uuid']
+        KEYS = ['claimant', 'claimed', 'path', 'request', 'status', 'type', 'update_timestamp', 'uuid']
         bundle = {k: response[k] for k in KEYS}
         bundle["file_count"] = len(response["files"])
         bundles.append(bundle)
     return bundles
 
 # -----------------------------------------------------------------------------
+
+async def bundle_ls(args: Namespace) -> None:
+    """List all of the Bundle objects in the LTA DB."""
+    response = await args.lta_rc.request("GET", "/Bundles")
+    if args.json:
+        print_dict_as_pretty_json(response)
+    else:
+        results = response["results"]
+        print(f"total {len(results)}")
+        for uuid in results:
+            print(f"Bundle {uuid}")
+
+
+async def bundle_status(args: Namespace) -> None:
+    """Query the status of a Bundle in the LTA DB."""
+    response = await args.lta_rc.request("GET", f"/Bundles/{args.uuid}")
+    if args.json:
+        print_dict_as_pretty_json(response)
+    else:
+        # display information about the core fields
+        print(f"Bundle {args.uuid}")
+        print(f"    Status: {response['status']} ({display_time(response['update_timestamp'])})")
+        print(f"    Claimed: {response['claimed']}")
+        if response['claimed']:
+            print(f"        Claimant: {response['claimant']} ({display_time(response['claim_timestamp'])})")
+        print(f"    TransferRequest: {response['request']}")
+        print(f"    Source: {response['source']} -> Dest: {response['dest']}")
+        print(f"    Path: {response['path']}")
+        print(f"    Files: {len(response['files'])}")
+        # display additional information if available
+        if 'bundle_path' in response:
+            print(f"    Bundle File: {response['bundle_path']}")
+        if 'size' in response:
+            print(f"    Size: {response['size']}")
+        if 'checksum' in response:
+            print(f"    Checksum")
+            print(f"        adler32: {response['checksum']['adler32']}")
+            print(f"        sha512:  {response['checksum']['sha512']}")
+        # display the contents of the bundle, if requested
+        if args.contents:
+            print(f"    Contents:")
+            for file in response["files"]:
+                print(f"        {file['logical_name']} {file['file_size']}")
+
 
 async def catalog_check(args: Namespace) -> None:
     """Check the files on disk vs. the file catalog and vice versa."""
@@ -269,16 +316,9 @@ async def request_ls(args: Namespace) -> None:
         print_dict_as_pretty_json(response)
     else:
         results = response["results"]
-        for x in results:
-            display_id = x["uuid"]
-            if not args.long:
-                display_id = display_id[:8]
-            create_time = x["create_timestamp"].replace("T", " ")
-            path = x["path"]
-            source = x["source"]
-            dest = x["dest"]
-            status = x["status"]
-            print(f"{display_id} {status}  {create_time} {source} -> {dest} {path}")
+        print(f"total {len(results)}")
+        for request in results:
+            print(f"{display_time(request['create_timestamp'])} TransferRequest {request['uuid']} {request['source']} -> {request['dest']} {request['path']}")
 
 
 async def request_new(args: Namespace) -> None:
@@ -306,32 +346,31 @@ async def request_new(args: Namespace) -> None:
 
 async def request_status(args: Namespace) -> None:
     """Query the status of a TransferRequest in the LTA DB."""
-    response = await args.lta_rc.request("GET", "/TransferRequests")
-    results = response["results"]
-    for x in results:
-        if x["uuid"].startswith(args.uuid):
-            res2 = await args.lta_rc.request("GET", f"/Bundles?request={x['uuid']}")
-            x["bundles"] = await _get_bundles_status(args.lta_rc, res2["results"])
-            if args.json:
-                print_dict_as_pretty_json(x)
-            else:
-                display_id = x["uuid"]
-                status = x["status"]
-                status_time = x["create_timestamp"].replace("T", " ")
-                if status == "unclaimed":
-                    status_desc = "Waiting to be claimed"
-                elif status == "processing":
-                    status_desc = "Request is processing"
-                elif status == "completed":
-                    status_desc = "Request is complete"
-                else:
-                    status_desc = "Ut oh; Unknown status type"
-                print(f"{display_id} {status}  {status_time} - {status_desc}")
-                for b in x["bundles"]:
-                    if b['claimed']:
-                        print(f"    {b['uuid']} [{b['status']}] claimant:{b['claimant']}")
-                    else:
-                        print(f"    {b['uuid']} [{b['status']}] claimed:{b['claimed']}")
+    response = await args.lta_rc.request("GET", f"/TransferRequests/{args.uuid}")
+    res2 = await args.lta_rc.request("GET", f"/Bundles?request={args.uuid}")
+    response["bundles"] = await _get_bundles_status(args.lta_rc, res2["results"])
+    if args.json:
+        print_dict_as_pretty_json(response)
+    else:
+        # display information about the core fields
+        print(f"TransferRequest {args.uuid}")
+        print(f"    Status: {response['status']} ({display_time(response['update_timestamp'])})")
+        print(f"    Claimed: {response['claimed']}")
+        if response['claimed']:
+            print(f"        Claimant: {response['claimant']} ({display_time(response['claim_timestamp'])})")
+        print(f"    Source: {response['source']} -> Dest: {response['dest']}")
+        print(f"    Path: {response['path']}")
+        print(f"    Bundles: {len(response['bundles'])}")
+        # display the contents of the transfer request, if requested
+        if args.contents:
+            print(f"    Contents:")
+            for bundle in response["bundles"]:
+                print(f"        Bundle {bundle['uuid']}")
+                print(f"            Status: {bundle['status']} ({display_time(bundle['update_timestamp'])})")
+                print(f"            Claimed: {bundle['claimed']}")
+                if bundle['claimed']:
+                    print(f"                Claimant: {response['claimant']} ({display_time(response['claim_timestamp'])})")
+                print(f"            Files: {bundle['file_count']}")
 
 
 async def status(args: Namespace) -> None:
@@ -377,6 +416,30 @@ async def main() -> None:
     parser = argparse.ArgumentParser(prog="ltacmd")
     parser.set_defaults(config=config, fc_rc=fc_rc, lta_rc=lta_rc)
     subparser = parser.add_subparsers(help='command help')
+
+    # define a subparser for the 'bundle' subcommand
+    parser_bundle = subparser.add_parser('bundle', help='interact with bundles')
+    bundle_subparser = parser_bundle.add_subparsers(help='bundle command help')
+
+    # define a subparser for the 'bundle ls' subcommand
+    parser_bundle_ls = bundle_subparser.add_parser('ls', help='list bundles')
+    parser_bundle_ls.add_argument("--json",
+                                  help="display output in JSON",
+                                  action="store_true")
+    parser_bundle_ls.set_defaults(func=bundle_ls)
+
+    # define a subparser for the 'bundle status' subcommand
+    parser_bundle_status = bundle_subparser.add_parser('status', help='query bundle status')
+    parser_bundle_status.add_argument("--uuid",
+                                      help="identity of bundle",
+                                      required=True)
+    parser_bundle_status.add_argument("--contents",
+                                      help="list the contents of the bundle",
+                                      action="store_true")
+    parser_bundle_status.add_argument("--json",
+                                      help="display output in JSON",
+                                      action="store_true")
+    parser_bundle_status.set_defaults(func=bundle_status)
 
     # define a subparser for the 'catalog' subcommand
     parser_catalog = subparser.add_parser('catalog', help='interact with the file catalog')
@@ -448,9 +511,6 @@ async def main() -> None:
     parser_request_ls.add_argument("--json",
                                    help="display output in JSON",
                                    action="store_true")
-    parser_request_ls.add_argument("--long",
-                                   help="display long format UUIDs",
-                                   action="store_true")
     parser_request_ls.set_defaults(func=request_ls)
 
     # define a subparser for the 'request new' subcommand
@@ -474,6 +534,9 @@ async def main() -> None:
     parser_request_status.add_argument("--uuid",
                                        help="identity of transfer request",
                                        required=True)
+    parser_request_status.add_argument("--contents",
+                                       help="list the contents of the transfer request",
+                                       action="store_true")
     parser_request_status.add_argument("--json",
                                        help="display output in JSON",
                                        action="store_true")
