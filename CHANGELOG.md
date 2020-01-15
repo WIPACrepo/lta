@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.18] - 2020-01-14
+### Added
+- Added a new command: ltacmd request rm
+- Added new LTA DB route: GET /status/{component-type}/count
+### Changed
+- Refactored some commands: ltacmd {bundle,request} {ls,status}
+
 ## [0.0.17] - 2020-01-13
 ### Fixed
 - Fixed bug in human readable output of command ltacmd request new
@@ -118,7 +125,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.17...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.18...HEAD
+[0.0.18]: https://github.com/WIPACrepo/lta/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/WIPACrepo/lta/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/WIPACrepo/lta/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/WIPACrepo/lta/compare/v0.0.14...v0.0.15
