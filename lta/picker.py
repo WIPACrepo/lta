@@ -27,6 +27,13 @@ EXPECTED_CONFIG.update({
 })
 
 
+def as_bundle_record(catalog_record: Dict[str, Any]) -> Dict[str, Any]:
+    """Cherry pick keys from a File Catalog record to include in Bundle metadata."""
+    KEYS = ['checksum', 'file_size', 'logical_name', 'meta_modify_date', 'uuid']
+    bundle_record = {k: catalog_record[k] for k in KEYS}
+    return bundle_record
+
+
 class Picker(Component):
     """
     Picker is a Long Term Archive component.
@@ -157,7 +164,7 @@ class Picker(Component):
                 "source": source,
                 "dest": dest,
                 "path": path,
-                "files": [x[1] for x in spec],  # 1: full record
+                "files": [as_bundle_record(x[1]) for x in spec],  # 1: full record
             })
 
     async def _create_bundle(self,

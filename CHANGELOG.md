@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.19] - 2020-01-15
+### Changed
+- Picker now cooks catalog records before using them as bundle metadata
+
 ## [0.0.18] - 2020-01-14
 ### Added
 - Added a new command: ltacmd request rm
@@ -125,7 +129,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.18...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.19...HEAD
+[0.0.19]: https://github.com/WIPACrepo/lta/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/WIPACrepo/lta/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/WIPACrepo/lta/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/WIPACrepo/lta/compare/v0.0.15...v0.0.16

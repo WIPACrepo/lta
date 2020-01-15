@@ -7,7 +7,7 @@ from uuid import uuid1
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
-from lta.picker import main, Picker
+from lta.picker import as_bundle_record, main, Picker
 from .test_util import AsyncMock
 
 @pytest.fixture
@@ -380,3 +380,42 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
     await p._do_work_transfer_request(lta_rc_mock, tr)
     fc_rc_mock.assert_called_with("GET", '/api/files/1e4a88c6-247e-4e59-9c89-1a4edafafb1e')
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/bulk_create', mocker.ANY)
+
+
+def test_as_bundle_record(config, mocker):
+    """Test that bundle_record cherry picks the right keys."""
+    catalog_record = {
+        "_links": {
+            "parent": {
+                "href": "/api/files"
+            },
+            "self": {
+                "href": "/api/files/e6549962-2c91-11ea-9a10-f6a52f4853dd"
+            }
+        },
+        "checksum": {
+            "sha512": "e001e7895e9367d20e804eec5cd867ea0758ebed068c52dac9fac55bf2d263695d1e39231b667598edcb16426048f8801341c44c0d9128df67e3cc22599319a0"
+        },
+        "file_size": 4977182,
+        "locations": [
+            {
+                "path": "/data/exp/IceCube/2018/unbiased/PFDST/1120/ukey_cf9b674a-7620-498a-8d59-a47d39d80245_PFDST_PhysicsFiltering_Run00131763_Subrun00000000_00000398.tar.gz",
+                "site": "WIPAC"
+            }
+        ],
+        "logical_name": "/data/exp/IceCube/2018/unbiased/PFDST/1120/ukey_cf9b674a-7620-498a-8d59-a47d39d80245_PFDST_PhysicsFiltering_Run00131763_Subrun00000000_00000398.tar.gz",
+        "meta_modify_date": "2020-01-01 12:26:13.440651",
+        "uuid": "e6549962-2c91-11ea-9a10-f6a52f4853dd"
+    }
+
+    bundle_record = as_bundle_record(catalog_record)
+
+    assert ("_links" not in bundle_record)
+    assert bundle_record["checksum"] == {
+        "sha512": "e001e7895e9367d20e804eec5cd867ea0758ebed068c52dac9fac55bf2d263695d1e39231b667598edcb16426048f8801341c44c0d9128df67e3cc22599319a0"
+    }
+    assert bundle_record["file_size"] == 4977182
+    assert ("locations" not in bundle_record)
+    assert bundle_record["logical_name"] == "/data/exp/IceCube/2018/unbiased/PFDST/1120/ukey_cf9b674a-7620-498a-8d59-a47d39d80245_PFDST_PhysicsFiltering_Run00131763_Subrun00000000_00000398.tar.gz"
+    assert bundle_record["meta_modify_date"] == "2020-01-01 12:26:13.440651"
+    assert bundle_record["uuid"] == "e6549962-2c91-11ea-9a10-f6a52f4853dd"
