@@ -80,4 +80,4 @@ typing-extensions==3.7.4.1
 urllib3==1.25.7
 wcwidth==0.1.8
 wheel==0.33.6
-zipp==0.6.0
+zipp==1.0.0
