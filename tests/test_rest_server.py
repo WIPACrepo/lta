@@ -885,3 +885,35 @@ async def test_bundles_actions_bulk_create_huge(mongo, rest):
     ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
     assert len(ret["bundles"]) == 1
     assert ret["count"] == 1
+
+@pytest.mark.asyncio
+async def test_status_component_count(mongo, rest):
+    """Verify that GET /status/{component}/count works."""
+    r = rest('system')
+
+    request = {'picker1': {'timestamp': datetime.utcnow().isoformat(), 'foo': 'bar'}}
+    await r.request('PATCH', '/status/picker', request)
+
+    response = await r.request("GET", "/status/picker/count")
+    assert response["component"] == "picker"
+    assert response["count"] == 1
+
+    request = {'picker2': {'timestamp': datetime.utcnow().isoformat(), 'foo': 'bar'}}
+    await r.request('PATCH', '/status/picker', request)
+
+    request = {'picker3': {'timestamp': datetime.utcnow().isoformat(), 'foo': 'bar'}}
+    await r.request('PATCH', '/status/picker', request)
+
+    response = await r.request("GET", "/status/picker/count")
+    assert response["component"] == "picker"
+    assert response["count"] == 3
+
+    request = {'picker4': {'timestamp': (datetime.utcnow() - timedelta(minutes=15)).isoformat(), 'foo': 'bar'}}
+    await r.request('PATCH', '/status/picker', request)
+
+    request = {'picker5': {'timestamp': (datetime.utcnow() - timedelta(minutes=15)).isoformat(), 'foo': 'bar'}}
+    await r.request('PATCH', '/status/picker', request)
+
+    response = await r.request("GET", "/status/picker/count")
+    assert response["component"] == "picker"
+    assert response["count"] == 3

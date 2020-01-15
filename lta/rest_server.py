@@ -566,6 +566,42 @@ class StatusComponentHandler(BaseLTAHandler):
             logging.error(f"Unable to PATCH /status/{component} with {req}")
         self.write({})
 
+
+class StatusComponentCountHandler(BaseLTAHandler):
+    """StatusComponentCountHandler provides a count of active components."""
+
+    @lta_auth(roles=['admin', 'system', 'user'])
+    async def get(self, component: str) -> None:
+        """
+        Handle the route: GET /status/{component-type}/count .
+
+        In MongoDB, we store the status records like this:
+            {
+                "component": "picker"
+                "name": "picker-node001"
+                keys: values
+            }
+
+        We simply count up the ones with a 'recent' heartbeat.
+        """
+        # keep a counter
+        count = 0
+        # define an epoch
+        cutoff_time = datetime.utcnow() - timedelta(minutes=10)
+        recent_timestamp = cutoff_time.isoformat()
+        # obtain all the records of the specified component type
+        sds = self.db.Status
+        query = {"component": component}
+        async for row in sds.find(filter=query,
+                                  projection=REMOVE_ID):
+            if row["timestamp"] > recent_timestamp:
+                count = count + 1
+        # tell the caller how many of that component we found
+        self.write({
+            "component": component,
+            "count": count,
+        })
+
 # -----------------------------------------------------------------------------
 
 def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
@@ -640,6 +676,7 @@ def start(debug: bool = False) -> RestServer:
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
     server.add_route(r'/status', StatusHandler, args)
     server.add_route(r'/status/(?P<component>\w+)', StatusComponentHandler, args)
+    server.add_route(r'/status/(?P<component>\w+)/count', StatusComponentCountHandler, args)
 
     server.startup(address=config['LTA_REST_HOST'],
                    port=int(config['LTA_REST_PORT']))
