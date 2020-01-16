@@ -55,7 +55,7 @@ class NerscMover(Component):
         logger - The object the nersc_mover should use for logging.
         """
         super(NerscMover, self).__init__("nersc_mover", config, logger)
-        self.max_count = config["MAX_COUNT"]
+        self.max_count = int(config["MAX_COUNT"])
         self.rse_bath_path = config["RSE_BASE_PATH"]
         self.tape_bath_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
