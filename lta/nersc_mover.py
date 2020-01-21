@@ -19,6 +19,7 @@ from .lta_types import BundleType
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "MAX_COUNT": None,
     "RSE_BASE_PATH": None,
     "TAPE_BASE_PATH": None,
     "WORK_RETRIES": "3",
@@ -54,6 +55,7 @@ class NerscMover(Component):
         logger - The object the nersc_mover should use for logging.
         """
         super(NerscMover, self).__init__("nersc_mover", config, logger)
+        self.max_count = int(config["MAX_COUNT"])
         self.rse_bath_path = config["RSE_BASE_PATH"]
         self.tape_bath_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
@@ -77,12 +79,20 @@ class NerscMover(Component):
 
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
-        # 1. Ask the LTA DB for the next Bundle to be taped
         # configure a RestClient to talk to the LTA DB
         lta_rc = RestClient(self.lta_rest_url,
                             token=self.lta_rest_token,
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
+        # 0. Do some pre-flight checks to ensure that we can do work
+        # if the HPSS system is not available
+        args = ["/usr/common/mss/bin/hpss_avail", "archive"]
+        completed_process = run(args)
+        if completed_process.returncode != 0:
+            # prevent this instance from claiming any work
+            self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
+            return False
+        # 1. Ask the LTA DB for the next Bundle to be taped
         self.logger.info("Asking the LTA DB for a Bundle to tape at NERSC with HPSS.")
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
