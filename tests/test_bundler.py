@@ -14,7 +14,6 @@ from .test_util import AsyncMock
 def config():
     """Supply a stock Bundler component configuration."""
     return {
-        "BUNDLE_ONCE_AND_DIE": "False",
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "testing-bundler",
@@ -28,6 +27,7 @@ def config():
         "MYSQL_PASSWORD": "hunter2",  # http://bash.org/?244321
         "MYSQL_PORT": "23306",
         "MYSQL_USER": "jade-user",
+        "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
@@ -131,7 +131,6 @@ async def test_bundler_logs_configuration(mocker):
     """Test to make sure the Bundler logs its configuration."""
     logger_mock = mocker.MagicMock()
     bundler_config = {
-        "BUNDLE_ONCE_AND_DIE": "False",
         "BUNDLER_OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "logme-testing-bundler",
@@ -145,6 +144,7 @@ async def test_bundler_logs_configuration(mocker):
         "MYSQL_PASSWORD": "logme-hunter2",
         "MYSQL_PORT": "23306",
         "MYSQL_USER": "logme-jade-user",
+        "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
@@ -153,7 +153,6 @@ async def test_bundler_logs_configuration(mocker):
     Bundler(bundler_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("bundler 'logme-testing-bundler' is configured:"),
-        call('BUNDLE_ONCE_AND_DIE = False'),
         call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
         call('COMPONENT_NAME = logme-testing-bundler'),
@@ -167,6 +166,7 @@ async def test_bundler_logs_configuration(mocker):
         call('MYSQL_PASSWORD = logme-hunter2'),
         call('MYSQL_PORT = 23306'),
         call('MYSQL_USER = logme-jade-user'),
+        call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
@@ -293,7 +293,7 @@ async def test_bundler_do_work_dest_results(config, mocker):
 async def test_bundler_do_work_bundle_once_and_die(config, mocker):
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     once = config.copy()
-    once["BUNDLE_ONCE_AND_DIE"] = "True"
+    once["RUN_ONCE_AND_DIE"] = "True"
     check_mysql_mock = mocker.patch("lta.bundler.Bundler._check_mysql")
     check_mysql_mock.return_value = True
     logger_mock = mocker.MagicMock()
@@ -301,5 +301,5 @@ async def test_bundler_do_work_bundle_once_and_die(config, mocker):
     claim_mock.return_value = False
     sys_exit_mock = mocker.patch("sys.exit")
     p = Bundler(once, logger_mock)
-    await p._do_work()
-    sys_exit_mock.assert_called()
+    assert not await p._do_work()
+    sys_exit_mock.assert_not_called()

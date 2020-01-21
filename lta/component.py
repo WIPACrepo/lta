@@ -6,6 +6,7 @@ from datetime import datetime
 from logging import Logger
 import os
 from pathlib import Path
+import sys
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
@@ -13,6 +14,7 @@ from rest_tools.client import RestClient  # type: ignore
 from urllib.parse import urljoin
 
 from .lta_const import drain_semaphore_filename
+from .rest_server import boolify
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "COMPONENT_NAME": None,
@@ -21,6 +23,7 @@ COMMON_CONFIG: Dict[str, Optional[str]] = {
     "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
     "LTA_REST_TOKEN": None,
     "LTA_REST_URL": None,
+    "RUN_ONCE_AND_DIE": "False",
     "SOURCE_SITE": None,
     "WORK_SLEEP_DURATION_SECONDS": "60",
 }
@@ -68,6 +71,7 @@ class Component:
         self.heartbeat_sleep_duration_seconds = float(config["HEARTBEAT_SLEEP_DURATION_SECONDS"])
         self.lta_rest_token = config["LTA_REST_TOKEN"]
         self.lta_rest_url = config["LTA_REST_URL"]
+        self.run_once_and_die = boolify(config["RUN_ONCE_AND_DIE"])
         self.source_site = config["SOURCE_SITE"]
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
         # record some default state
@@ -87,6 +91,8 @@ class Component:
         # perform the work
         try:
             await self._do_work()
+            if self.run_once_and_die:
+                sys.exit()
         except Exception as e:
             # ut oh, something went wrong; log about it
             self.logger.error(f"Error occurred during the {self.type} work cycle")

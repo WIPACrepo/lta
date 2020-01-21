@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.20] - 2020-01-21
+### Added
+- All components have new configuration RUN_ONCE_AND_DIE; default false
+### Changed
+- Bundler no longer has BUNDLE_ONCE_AND_DIE
+
 ## [0.0.19] - 2020-01-15
 ### Changed
 - Picker now cooks catalog records before using them as bundle metadata
@@ -129,7 +135,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.19...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.20...HEAD
+[0.0.20]: https://github.com/WIPACrepo/lta/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/WIPACrepo/lta/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/WIPACrepo/lta/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/WIPACrepo/lta/compare/v0.0.16...v0.0.17

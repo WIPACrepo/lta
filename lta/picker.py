@@ -74,6 +74,7 @@ class Picker(Component):
         work_claimed = True
         while work_claimed:
             work_claimed = await self._do_work_claim()
+            work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on TransferRequests.")
 
     async def _do_work_claim(self) -> bool:
