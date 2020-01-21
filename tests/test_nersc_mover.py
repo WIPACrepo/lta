@@ -219,27 +219,6 @@ async def test_nersc_mover_hpss_not_available(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_count_too_high(config, mocker):
-    """Test that overpopulation of NerscMover components will prevent work."""
-    logger_mock = mocker.MagicMock()
-    run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
-    run_mock.return_value = ObjectLiteral(
-        returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
-        stdout="some text on stdout",
-        stderr="some text on stderr",
-    )
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
-        "component": "nersc_mover",
-        "count": 10,
-    }
-    p = NerscMover(config, logger_mock)
-    assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("GET", '/status/nersc_mover/count')
-
-
-@pytest.mark.asyncio
 async def test_nersc_mover_do_work_pop_exception(config, mocker):
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
@@ -252,10 +231,6 @@ async def test_nersc_mover_do_work_pop_exception(config, mocker):
     )
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = [
-        {
-            "component": "nersc_mover",
-            "count": 1,
-        },
         HTTPError(500, "LTA DB on fire. Again.")
     ]
     p = NerscMover(config, logger_mock)
@@ -277,10 +252,6 @@ async def test_nersc_mover_do_work_claim_no_result(config, mocker):
     )
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = [
-        {
-            "component": "nersc_mover",
-            "count": 1,
-        },
         {
             "bundle": None
         }
@@ -305,10 +276,6 @@ async def test_nersc_mover_do_work_claim_yes_result(config, mocker):
     )
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = [
-        {
-            "component": "nersc_mover",
-            "count": 1,
-        },
         {
             "bundle": {
                 "one": 1,
@@ -335,10 +302,6 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config, mocker):
     )
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = [
-        {
-            "component": "nersc_mover",
-            "count": 1,
-        },
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -369,10 +332,6 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config, mocker):
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = [
         {
-            "component": "nersc_mover",
-            "count": 1,
-        },
-        {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
@@ -401,10 +360,6 @@ async def test_nersc_mover_write_bundle_to_hpss(config, mocker):
     )
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = [
-        {
-            "component": "nersc_mover",
-            "count": 1,
-        },
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -446,10 +401,6 @@ async def test_nersc_mover_execute_hsi_command_failed(config, mocker):
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = [
         {
-            "component": "nersc_mover",
-            "count": 1,
-        },
-        {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
@@ -483,10 +434,6 @@ async def test_nersc_mover_execute_hsi_command_success(config, mocker):
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = [
-        {
-            "component": "nersc_mover",
-            "count": 1,
-        },
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",

@@ -92,13 +92,6 @@ class NerscMover(Component):
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
             return False
-        # if there are too many components of this type running, we may use up
-        # too many job slots at NERSC
-        nerscCount = await lta_rc.request('GET', '/status/nersc_mover/count')
-        if nerscCount["count"] >= self.max_count:
-            # prevent this instance from claiming any work
-            self.logger.error(f"Unable to do work; overpopulation {nerscCount['count']} NerscMover vs. maximum {self.max_count}")
-            return False
         # 1. Ask the LTA DB for the next Bundle to be taped
         self.logger.info("Asking the LTA DB for a Bundle to tape at NERSC with HPSS.")
         pop_body = {
