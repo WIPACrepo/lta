@@ -99,6 +99,34 @@ async def bundle_ls(args: Namespace) -> None:
             print(f"Bundle {uuid}")
 
 
+async def bundle_overdue(args: Namespace) -> None:
+    """List of the problematic Bundle objects in the LTA DB."""
+    # calculate our cutoff time for bundles not making progress
+    cutoff_time = datetime.utcnow() - timedelta(days=args.days)
+    # query the LTA DB to get a list of bundles to check
+    response = await args.lta_rc.request("GET", "/Bundles")
+    results = response["results"]
+    # for each bundle, query the LTA DB and check it
+    problem_bundles = []
+    for uuid in results:
+        bundle = await args.lta_rc.request("GET", f"/Bundles/{uuid}")
+        del bundle["files"]
+        if bundle["status"] == "quarantine":
+            problem_bundles.append(bundle)
+        elif datetime.fromisoformat(bundle["update_timestamp"]) < cutoff_time:
+            problem_bundles.append(bundle)
+    # report the list of miscreants to the user
+    if args.json:
+        print_dict_as_pretty_json({"bundles": problem_bundles})
+    else:
+        for bundle in problem_bundles:
+            print(f"Bundle {bundle['uuid']}")
+            print(f"    Status: {bundle['status']} ({display_time(bundle['update_timestamp'])})")
+            print(f"    Claimed: {bundle['claimed']}")
+            if bundle['claimed']:
+                print(f"        Claimant: {bundle['claimant']} ({display_time(bundle['claim_timestamp'])})")
+
+
 async def bundle_status(args: Namespace) -> None:
     """Query the status of a Bundle in the LTA DB."""
     response = await args.lta_rc.request("GET", f"/Bundles/{args.uuid}")
@@ -471,6 +499,17 @@ async def main() -> None:
                                   help="display output in JSON",
                                   action="store_true")
     parser_bundle_ls.set_defaults(func=bundle_ls)
+
+    # define a subparser for the 'bundle overdue' subcommand
+    parser_bundle_overdue = bundle_subparser.add_parser('overdue', help='list problematic bundles')
+    parser_bundle_overdue.add_argument("--days",
+                                       help="upper limit of days without progress",
+                                       type=int,
+                                       default=3)
+    parser_bundle_overdue.add_argument("--json",
+                                       help="display output in JSON",
+                                       action="store_true")
+    parser_bundle_overdue.set_defaults(func=bundle_overdue)
 
     # define a subparser for the 'bundle status' subcommand
     parser_bundle_status = bundle_subparser.add_parser('status', help='query bundle status')

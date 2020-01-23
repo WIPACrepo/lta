@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.23] - 2020-01-23
+### Added
+- Added a new command: 'ltacmd bundle overdue'
+- Added a new command: 'ltacmd bundle update-status'
+- Added a new command: 'ltacmd request update-status'
+### Fixed
+- Whitelisted archival components in command: 'ltacmd status'
+
 ## [0.0.22] - 2020-01-22
 ### Fixed
 - SiteMoveVerifier will unclaim bundles that are not yet ready for verification
@@ -143,7 +151,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.22...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.23...HEAD
+[0.0.23]: https://github.com/WIPACrepo/lta/compare/v0.0.22...v0.0.23
 [0.0.22]: https://github.com/WIPACrepo/lta/compare/v0.0.21...v0.0.22
 [0.0.21]: https://github.com/WIPACrepo/lta/compare/v0.0.20...v0.0.21
 [0.0.20]: https://github.com/WIPACrepo/lta/compare/v0.0.19...v0.0.20
