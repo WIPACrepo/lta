@@ -6,8 +6,9 @@ import json
 from logging import Logger
 import logging
 import os
+from subprocess import run
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from rest_tools.client import RestClient  # type: ignore
@@ -19,7 +20,6 @@ from .log_format import StructuredFormatter
 from .lta_types import BundleType
 from .transfer.service import instantiate
 
-
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "DEST_SITE": None,
@@ -28,6 +28,34 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
+MYQUOTA_ARGS = ["/usr/bin/myquota", "-G"]
+
+def as_nonempty_columns(s: str) -> List[str]:
+    """Split the provided string into columns and return the non-empty ones."""
+    cols = s.split(" ")
+    nonempty = list(filter(discard_empty, cols))
+    return nonempty
+
+def discard_empty(s: str) -> bool:
+    """Return true if the provided string is non-empty."""
+    if s:
+        return True
+    return False
+
+def parse_myquota(s: str) -> List[Dict[str, str]]:
+    """Split the provided string into columns and return the non-empty ones."""
+    results = []
+    lines = s.split("\n")
+    keys = as_nonempty_columns(lines[0])
+    for i in range(1, len(lines)):
+        if lines[i]:
+            values = as_nonempty_columns(lines[i])
+            quota_dict = {}
+            for j in range(0, len(keys)):
+                quota_dict[keys[j]] = values[j]
+            results.append(quota_dict)
+    return results
 
 
 class SiteMoveVerifier(Component):
@@ -59,7 +87,11 @@ class SiteMoveVerifier(Component):
 
     def _do_status(self) -> Dict[str, Any]:
         """Provide additional status for the SiteMoveVerifier."""
-        return {}
+        quota = []
+        stdout = self._execute_myquota()
+        if stdout:
+            quota = parse_myquota(stdout)
+        return {"quota": quota}
 
     def _expected_config(self) -> Dict[str, Optional[str]]:
         """Provide expected configuration dictionary."""
@@ -137,6 +169,18 @@ class SiteMoveVerifier(Component):
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
         return True
+
+    def _execute_myquota(self) -> Optional[str]:
+        completed_process = run(MYQUOTA_ARGS)
+        # if our command failed
+        if completed_process.returncode != 0:
+            self.logger.info(f"Command to check quota failed: {completed_process.args}")
+            self.logger.info(f"returncode: {completed_process.returncode}")
+            self.logger.info(f"stdout: {str(completed_process.stdout)}")
+            self.logger.info(f"stderr: {str(completed_process.stderr)}")
+            return None
+        # otherwise, we succeeded
+        return str(completed_process.stdout)
 
 
 def runner() -> None:

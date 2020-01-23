@@ -1,13 +1,14 @@
 # test_site_move_verifier.py
 """Unit tests for lta/site_move_verifier.py."""
 
-from unittest.mock import call  # MagicMock
+from unittest.mock import call, MagicMock
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
+from lta.site_move_verifier import as_nonempty_columns, discard_empty, MYQUOTA_ARGS, parse_myquota
 from lta.site_move_verifier import main, SiteMoveVerifier
-from .test_util import AsyncMock
+from .test_util import AsyncMock, ObjectLiteral
 
 @pytest.fixture
 def config():
@@ -28,6 +29,44 @@ def config():
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
     }
+
+def test_as_nonempty_columns():
+    """Test that test_as_nonempty_columns does what it says on the tin."""
+    assert as_nonempty_columns("FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT") == ["FILESYSTEM", "SPACE_USED", "SPACE_QUOTA", "SPACE_PCT", "INODE_USED", "INODE_QUOTA", "INODE_PCT"]
+    assert as_nonempty_columns("cscratch1    7638.60GiB   51200.00GiB   14.9%       0.00G        0.01G         0.1%") == ["cscratch1", "7638.60GiB", "51200.00GiB", "14.9%", "0.00G", "0.01G", "0.1%"]
+
+def test_discard_empty():
+    """Test that discard_empty does what it says on the tin."""
+    assert not discard_empty(None)
+    assert not discard_empty("")
+    assert discard_empty("alice")
+
+def test_parse_myquota():
+    """Test that parse_myquota provides expected output."""
+    stdout = """FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT
+home         1.90GiB      40.00GiB      4.7%        44.00        1.00M         0.0%
+cscratch1    12.00KiB     20.00TiB      0.0%        3.00         10.00M        0.0%
+"""
+    assert parse_myquota(stdout) == [
+        {
+            "FILESYSTEM": "home",
+            "SPACE_USED": "1.90GiB",
+            "SPACE_QUOTA": "40.00GiB",
+            "SPACE_PCT": "4.7%",
+            "INODE_USED": "44.00",
+            "INODE_QUOTA": "1.00M",
+            "INODE_PCT": "0.0%",
+        },
+        {
+            "FILESYSTEM": "cscratch1",
+            "SPACE_USED": "12.00KiB",
+            "SPACE_QUOTA": "20.00TiB",
+            "SPACE_PCT": "0.0%",
+            "INODE_USED": "3.00",
+            "INODE_QUOTA": "10.00M",
+            "INODE_PCT": "0.0%",
+        },
+    ]
 
 def test_constructor_config(config, mocker):
     """Test that a SiteMoveVerifier can be constructed with a configuration object and a logging object."""
@@ -51,8 +90,36 @@ def test_constructor_config(config, mocker):
 def test_do_status(config, mocker):
     """Verify that the SiteMoveVerifier has no additional state to offer."""
     logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.site_move_verifier.run", new_callable=MagicMock)
+    run_mock.return_value = ObjectLiteral(
+        returncode=0,
+        args=MYQUOTA_ARGS,
+        stdout="FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT\nhome         1.90GiB      40.00GiB      4.7%        44.00        1.00M         0.0%\ncscratch1    12.00KiB     20.00TiB      0.0%        3.00         10.00M        0.0%\n",
+        stderr="",
+    )
     p = SiteMoveVerifier(config, logger_mock)
-    assert p._do_status() == {}
+    assert p._do_status() == {
+        "quota": [
+            {
+                "FILESYSTEM": "home",
+                "SPACE_USED": "1.90GiB",
+                "SPACE_QUOTA": "40.00GiB",
+                "SPACE_PCT": "4.7%",
+                "INODE_USED": "44.00",
+                "INODE_QUOTA": "1.00M",
+                "INODE_PCT": "0.0%",
+            },
+            {
+                "FILESYSTEM": "cscratch1",
+                "SPACE_USED": "12.00KiB",
+                "SPACE_QUOTA": "20.00TiB",
+                "SPACE_PCT": "0.0%",
+                "INODE_USED": "3.00",
+                "INODE_QUOTA": "10.00M",
+                "INODE_PCT": "0.0%",
+            },
+        ]
+    }
 
 @pytest.mark.asyncio
 async def test_site_move_verifier_logs_configuration(mocker):
