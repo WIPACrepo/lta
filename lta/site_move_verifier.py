@@ -139,6 +139,7 @@ class SiteMoveVerifier(Component):
         # if it's not completed, we're still waiting to verify it
         if not xfer_status["completed"]:
             self.logger.info(f"Transfer of Bundle {bundle_id} is incomplete and will not be verified at this time.")
+            await self._unclaim_bundle(lta_rc, bundle)
             return False
         # when we verify bundles, we do so at the destination site
         dest = bundle["dest"]
@@ -171,6 +172,7 @@ class SiteMoveVerifier(Component):
         return True
 
     def _execute_myquota(self) -> Optional[str]:
+        """Run the myquota command to determine disk usage at the site."""
         completed_process = run(MYQUOTA_ARGS)
         # if our command failed
         if completed_process.returncode != 0:
@@ -181,6 +183,16 @@ class SiteMoveVerifier(Component):
             return None
         # otherwise, we succeeded
         return str(completed_process.stdout)
+
+    async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+        """Run the myquota command to determine disk usage at the site."""
+        self.logger.info(f"Bundle is not ready to be verified; will unclaim it.")
+        bundle_id = bundle["uuid"]
+        bundle["update_timestamp"] = now()
+        bundle["claimed"] = False
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        return True
 
 
 def runner() -> None:
