@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.22] - 2020-01-22
+### Fixed
+- SiteMoveVerifier will unclaim bundles that are not yet ready for verification
+
 ## [0.0.21] - 2020-01-22
 ### Added
 - SiteMoveVerifier now reports myquota command at NERSC as status
@@ -139,7 +143,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.21...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.22...HEAD
+[0.0.22]: https://github.com/WIPACrepo/lta/compare/v0.0.21...v0.0.22
 [0.0.21]: https://github.com/WIPACrepo/lta/compare/v0.0.20...v0.0.21
 [0.0.20]: https://github.com/WIPACrepo/lta/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/WIPACrepo/lta/compare/v0.0.18...v0.0.19

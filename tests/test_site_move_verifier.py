@@ -121,6 +121,19 @@ def test_do_status(config, mocker):
         ]
     }
 
+def test_do_status_myquota_fails(config, mocker):
+    """Verify that the SiteMoveVerifier has no additional state to offer."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.site_move_verifier.run", new_callable=MagicMock)
+    run_mock.return_value = ObjectLiteral(
+        returncode=1,
+        args=MYQUOTA_ARGS,
+        stdout="",
+        stderr="nersc file systems burned down; again",
+    )
+    p = SiteMoveVerifier(config, logger_mock)
+    assert p._do_status() == {"quota": []}
+
 @pytest.mark.asyncio
 async def test_site_move_verifier_logs_configuration(mocker):
     """Test to make sure the SiteMoveVerifier logs its configuration."""
@@ -284,8 +297,7 @@ async def test_site_move_verifier_verify_bundle_not_finished(config, mocker):
     await p._verify_bundle(lta_rc_mock, bundle_obj)
     inst_mock.assert_called_with(p.transfer_config)
     xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
-    # lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
-    lta_rc_mock.request.assert_not_called()
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
 
 @pytest.mark.asyncio
 async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
