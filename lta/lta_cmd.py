@@ -23,8 +23,12 @@ from lta.crypto import sha512sum
 
 COMPONENT_NAMES = [
     "bundler",
+    "deleter",
+    "nersc_mover",
+    "nersc_verifier",
     "picker",
     "replicator",
+    "site_move_verifier",
 ]
 
 EXPECTED_CONFIG = {
