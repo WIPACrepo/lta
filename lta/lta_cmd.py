@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 
+from lta.component import now
 from lta.config import from_environment
 from lta.crypto import sha512sum
 
@@ -124,6 +125,16 @@ async def bundle_status(args: Namespace) -> None:
             print(f"    Contents:")
             for file in response["files"]:
                 print(f"        {file['logical_name']} {file['file_size']}")
+
+
+async def bundle_update_status(args: Namespace) -> None:
+    """Update the status of a Bundle in the LTA DB."""
+    patch_body = {}
+    patch_body["status"] = args.new_status
+    patch_body["update_timestamp"] = now()
+    if not args.keep_claim:
+        patch_body["claimed"] = False
+    await args.lta_rc.request("PATCH", f"/Bundles/{args.uuid}", patch_body)
 
 
 async def catalog_check(args: Namespace) -> None:
@@ -392,6 +403,16 @@ async def request_status(args: Namespace) -> None:
                 print(f"            Files: {bundle['file_count']}")
 
 
+async def request_update_status(args: Namespace) -> None:
+    """Update the status of a TransferRequest in the LTA DB."""
+    patch_body = {}
+    patch_body["status"] = args.new_status
+    patch_body["update_timestamp"] = now()
+    if not args.keep_claim:
+        patch_body["claimed"] = False
+    await args.lta_rc.request("PATCH", f"/TransferRequests/{args.uuid}", patch_body)
+
+
 async def status(args: Namespace) -> None:
     """Query the status of the LTA DB or a component of LTA."""
     old_data = (datetime.utcnow() - timedelta(seconds=60*5)).isoformat()
@@ -459,6 +480,21 @@ async def main() -> None:
                                       help="display output in JSON",
                                       action="store_true")
     parser_bundle_status.set_defaults(func=bundle_status)
+
+    # define a subparser for the 'bundle update-status' subcommand
+    parser_bundle_update_status = bundle_subparser.add_parser('update-status', help='update bundle status')
+    parser_bundle_update_status.add_argument("--uuid",
+                                             help="identity of bundle",
+                                             required=True)
+    parser_bundle_update_status.add_argument("--new-status",
+                                             dest="new_status",
+                                             help="new status of the bundle",
+                                             required=True)
+    parser_bundle_update_status.add_argument("--keep-claim",
+                                             dest="keep_claim",
+                                             help="don't unclaim the bundle",
+                                             action="store_true")
+    parser_bundle_update_status.set_defaults(func=bundle_update_status)
 
     # define a subparser for the 'catalog' subcommand
     parser_catalog = subparser.add_parser('catalog', help='interact with the file catalog')
@@ -567,6 +603,21 @@ async def main() -> None:
                                        help="display output in JSON",
                                        action="store_true")
     parser_request_status.set_defaults(func=request_status)
+
+    # define a subparser for the 'request update-status' subcommand
+    parser_request_update_status = request_subparser.add_parser('update-status', help='update transfer request status')
+    parser_request_update_status.add_argument("--uuid",
+                                              help="identity of transfer request",
+                                              required=True)
+    parser_request_update_status.add_argument("--new-status",
+                                              dest="new_status",
+                                              help="new status of the transfer request",
+                                              required=True)
+    parser_request_update_status.add_argument("--keep-claim",
+                                              dest="keep_claim",
+                                              help="don't unclaim the transfer request",
+                                              action="store_true")
+    parser_request_update_status.set_defaults(func=request_update_status)
 
     # define a subparser for the 'status' subcommand
     parser_status = subparser.add_parser('status', help='perform a status query')
