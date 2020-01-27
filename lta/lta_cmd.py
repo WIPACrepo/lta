@@ -121,7 +121,7 @@ async def bundle_overdue(args: Namespace) -> None:
     for uuid in results:
         bundle = await args.lta_rc.request("GET", f"/Bundles/{uuid}")
         del bundle["files"]
-        if bundle["status"] == "quarantine":
+        if bundle["status"] == "quarantined":
             problem_bundles.append(bundle)
         elif as_datetime(bundle["update_timestamp"]) < cutoff_time:
             problem_bundles.append(bundle)
@@ -173,6 +173,7 @@ async def bundle_update_status(args: Namespace) -> None:
     """Update the status of a Bundle in the LTA DB."""
     patch_body = {}
     patch_body["status"] = args.new_status
+    patch_body["reason"] = ""
     patch_body["update_timestamp"] = now()
     if not args.keep_claim:
         patch_body["claimed"] = False
@@ -298,13 +299,13 @@ async def catalog_load(args: Namespace) -> None:
             disk_checksum = sha512sum(disk_file)
         # if we've got a bad record, then we need to clean it up
         if catalog_record:
-            patch_dict = {
+            patch_body = {
                 "logical_name": disk_file,
                 "file_size": size,
                 "checksum": catalog_record["checksum"]
             }
-            patch_dict["checksum"]["sha512"] = disk_checksum
-            await args.fc_rc.request("PATCH", f'/api/files/{catalog_record["uuid"]}', patch_dict)
+            patch_body["checksum"]["sha512"] = disk_checksum
+            await args.fc_rc.request("PATCH", f'/api/files/{catalog_record["uuid"]}', patch_body)
             if not args.json:
                 print(f"Updated record for {disk_file}")
             updated.append(disk_file)

@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.25] - 2020-01-27
+### Fixed
+- Fixed ltacmd bundle overdue not showing quarantined bundles
+- Modified ltacmd bundle update-status to remove quarantine reason
+- Fixed PATCH methods in Deleter, NerscVerifier, Picker, Replicator, and SiteMoveVerifier
+
 ## [0.0.24] - 2020-01-27
 ### Fixed
 - nersc-mover.sh script now uses correct TAPE_BASE_PATH
@@ -158,7 +164,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.24...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.25...HEAD
+[0.0.25]: https://github.com/WIPACrepo/lta/compare/v0.0.24...v0.0.25
 [0.0.24]: https://github.com/WIPACrepo/lta/compare/v0.0.23...v0.0.24
 [0.0.23]: https://github.com/WIPACrepo/lta/compare/v0.0.22...v0.0.23
 [0.0.22]: https://github.com/WIPACrepo/lta/compare/v0.0.21...v0.0.22

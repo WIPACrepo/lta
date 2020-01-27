@@ -103,11 +103,13 @@ class Deleter(Component):
         # ask the transfer service to cancel (i.e.: delete) the transfer
         await xfer_service.cancel(bundle["transfer_reference"])
         # update the Bundle in the LTA DB
-        bundle["status"] = "deleted"
-        bundle["update_timestamp"] = now()
-        bundle["claimed"] = False
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        patch_body = {
+            "status": "deleted",
+            "update_timestamp": now(),
+            "claimed": False,
+        }
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
     async def _update_transfer_request(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """
@@ -133,15 +135,16 @@ class Deleter(Component):
             return
         # update the TransferRequest in the LTA DB
         self.logger.info(f"Updating TransferRequest {request_uuid} to mark as completed.")
-        tr = await lta_rc.request('GET', f'/TransferRequest/{request_uuid}')
         right_now = now()
-        tr["status"] = "completed"
-        tr["update_timestamp"] = right_now
-        tr["claimed"] = False
-        tr["claimant"] = f"{self.name}-{self.instance_uuid}"
-        tr["claim_timestamp"] = right_now
-        self.logger.info(f"PATCH /TransferRequest/{request_uuid} - '{tr}'")
-        await lta_rc.request('PATCH', f'/TransferRequest/{request_uuid}', tr)
+        patch_body = {
+            "status": "completed",
+            "update_timestamp": right_now,
+            "claimed": False,
+            "claimant": f"{self.name}-{self.instance_uuid}",
+            "claim_timestamp": right_now,
+        }
+        self.logger.info(f"PATCH /TransferRequest/{request_uuid} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/TransferRequest/{request_uuid}', patch_body)
 
 
 def runner() -> None:
