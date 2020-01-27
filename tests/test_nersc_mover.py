@@ -346,7 +346,7 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config, mocker):
     ehc_mock.side_effect = [True, False]
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
@@ -378,7 +378,7 @@ async def test_nersc_mover_write_bundle_to_hpss(config, mocker):
     ehc_mock.side_effect = [True, True]
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 

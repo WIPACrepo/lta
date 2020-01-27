@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 import json
 import logging
 import os
+from time import mktime, strptime
 from typing import Any, Dict, List, Optional
 
 import hurry.filesize  # type: ignore
@@ -38,6 +39,15 @@ EXPECTED_CONFIG = {
     'LTA_REST_URL': None,
 }
 
+
+def as_datetime(s: str) -> datetime:
+    """Convert a timestamp string into a datetime object."""
+    # if Python 3.7+
+    # return datetime.fromisoformat(s)
+
+    # before Python 3.7
+    st = strptime(s, "%Y-%m-%dT%H:%M:%S")
+    return datetime.fromtimestamp(mktime(st))
 
 def display_time(s: str) -> str:
     """Make a timestamp string look nice."""
@@ -113,7 +123,7 @@ async def bundle_overdue(args: Namespace) -> None:
         del bundle["files"]
         if bundle["status"] == "quarantine":
             problem_bundles.append(bundle)
-        elif datetime.fromisoformat(bundle["update_timestamp"]) < cutoff_time:
+        elif as_datetime(bundle["update_timestamp"]) < cutoff_time:
             problem_bundles.append(bundle)
     # report the list of miscreants to the user
     if args.json:

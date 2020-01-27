@@ -111,11 +111,13 @@ class NerscMover(Component):
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Replicate the supplied bundle using the configured transfer service."""
         bundle_id = bundle["uuid"]
-        # determine the path where rucio copied the bundle
+        # determine the name and path of the bundle
         basename = os.path.basename(bundle["bundle_path"])
-        rucio_path = os.path.join(self.rse_bath_path, basename)
-        # determine the path where it should be stored on hpss
         data_warehouse_path = bundle["path"]
+        # determine the path where rucio copied the bundle
+        stupid_python_path = os.path.sep.join([self.rse_bath_path, data_warehouse_path, basename])
+        rucio_path = os.path.normpath(stupid_python_path)
+        # determine the path where it should be stored on hpss
         stupid_python_path = os.path.sep.join([self.tape_bath_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
         # run an hsi command to create the destination directory
@@ -134,11 +136,13 @@ class NerscMover(Component):
         if not await self._execute_hsi_command(lta_rc, bundle, args):
             return False
         # otherwise, update the Bundle in the LTA DB
-        bundle["status"] = "verifying"
-        bundle["update_timestamp"] = now()
-        bundle["claimed"] = False
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        patch_body = {
+            "status": "verifying",
+            "update_timestamp": now(),
+            "claimed": False,
+        }
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
     async def _execute_hsi_command(self, lta_rc: RestClient, bundle: BundleType, args: List[str]) -> bool:
@@ -150,10 +154,12 @@ class NerscMover(Component):
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             bundle_id = bundle["uuid"]
-            bundle["status"] = "quarantined"
-            bundle["reason"] = f"hsi Command Failed"
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+            patch_body = {
+                "status": "quarantined",
+                "reason": "hsi Command Failed",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # otherwise, we succeeded
         return True

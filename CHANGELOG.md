@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.24] - 2020-01-27
+### Fixed
+- nersc-mover.sh script now uses correct TAPE_BASE_PATH
+- NerscMover component provides correct source path to HSI command
+- PATCH methods in NerscMover only patch necessary fields in the bundle
+- ltacmd bundle overdue no longer requires Python 3.7+
+
 ## [0.0.23] - 2020-01-23
 ### Added
 - Added a new command: 'ltacmd bundle overdue'
@@ -151,7 +158,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.23...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.24...HEAD
+[0.0.24]: https://github.com/WIPACrepo/lta/compare/v0.0.23...v0.0.24
 [0.0.23]: https://github.com/WIPACrepo/lta/compare/v0.0.22...v0.0.23
 [0.0.22]: https://github.com/WIPACrepo/lta/compare/v0.0.21...v0.0.22
 [0.0.21]: https://github.com/WIPACrepo/lta/compare/v0.0.20...v0.0.21
