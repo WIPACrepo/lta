@@ -1,11 +1,28 @@
 #!/bin/bash
 # nersc_supervisor.sh
+# Cron job.
+$ Argument:  optional integer between 0 and 2 that controls the log level.
+#  Default is 0
+
 # We rely on slurm jobs to do the grunt work of archiving,
 #  de-archiving, and verifying bundles.
 # This checks to see how many of them are running, and
 #  starts new ones if something falls short.  Mostly the
 #  new jobs will find nothing to do and quit, but that
 #  doesn't matter.
+#
+# We have 2 distinct ways of determining whether there are slurm jobs running.
+# Ask sacct about the job history, and figure out how many jobs have not completed.
+#  This may be for a variety of reasons, listed below
+# Ask squeue for which jobs are currently running.  If jobs have failed they
+#  won't appear here, but will appear in the previous list.
+#
+# The second method is definitive for determining whether or not to
+#  submit a new job.  However, the sacct information tells me if something
+#  needs to be looked at.
+#
+# The sacct info could be accumulated with a different script, if desired.
+#
 # The names here are open to change at the pleasure of
 #  Patrick and David.
 # James Bellinger	22-Jan-2020
@@ -15,12 +32,7 @@
 ###############
 # Assumptions #
 ###############
-#  The scripts that this invokes print a START at the
-# start and an END at the end.  This lets us keep
-# track of what has failed.
-# This is currently NOT TRUE
-#
-#  The sbatch options have not changed since 22-Jan-2020
+#  The slurm options have not changed since 22-Jan-2020
 #
 #  The names of the scripts are as in 22-Jan-2020, with
 # a XXX.sh script which defines the environment and invokes
@@ -59,12 +71,10 @@
 # Abbreviation:  NS_ = NERSC_Supervisor
 #
 
-
 # Definitions
 
 declare -i NS_LOG_DETAIL count expectedcount fc activeJobs maxjobs
 #declare -i incomplete
-
 
 export NS_BASE=/global/homes/i/icecubed/NEWLTA/lta
 export NS_LOG="${NS_BASE}/ns.log"
@@ -83,6 +93,9 @@ export maxjobs=14
 ###
 # logging
 function logit {
+  # invocation:  logit # "message"
+  # # is the logging level; higher means less important
+  # message is quoted
   declare -i level
   if [[ "$2" == "" ]]; then return; fi
   level=$1
@@ -99,6 +112,7 @@ function logit {
 # Return info about slurm jobs
 function getrunning {
   logit 2 "getrunning"
+  # no arguments
   if ! rawinfo=$(${SQUEUE} -h -o "%.18i %.15j %.2t %.10M %.42k %R" -u icecubed -q xfer -M escori)
     then
       logit 0 "SLURM is not working"
@@ -111,13 +125,15 @@ function getrunning {
 ###
 # Launch a process of the appropriate type
 function launch {
+  # argument:  class of job to submit:  e.g. nersc_mover
+  # I expect a shell script which in turn invokes a python script
+  #  but that can be changed at will
   if [[ ! -f ${NS_SCRIPT_PATH}/$1".sh" ]]
     then
       logit 0 "Submit script $1.sh was not found"
       return 1
     fi
   logit 2 "launch $1"
-  #if ! ${SBATCH}  -o "${NS_SLURM_LOG}/slurm-$1-%j.out" -q xfer -M escori -t 12:00:00 "${NS_SCRIPT_PATH}/$1.sh"
   if ! ${SBATCH}  -o "${NS_SLURM_LOG}/slurm-$1-%j.out" -q xfer -M escori -t 12:00:00 "${NS_SCRIPT_PATH}/$1.sh"
     then
       logit 0 "Submit of $1 failed"
@@ -167,90 +183,53 @@ function cleanupLogs {
 # Check the slurm job activity information, count the incomplete entries
 
 function countIncomplete {
+  # No arguments
   #
   logit 2 'Entering countIncomplete'
   twoweeksbefore=$(/usr/bin/date +%s | /usr/bin/awk '{printf("%s\n",strftime("%Y-%m-%d",$1));}')
+  # NOTA BENE:  The same job number can appear several times in the output.
+  # Therefore I have to sort -u the result.
+  # bash will treat the contents of "listing" as a single line, of course.
   listing=$(/usr/bin/sacct -n -b -S "${twoweeksbefore}" -M escori -p | /usr/bin/awk '{split($0,b,"|");split(b[1],a,".");if(b[2]!="COMPLETED")print a[1],b[2],b[3],"|";}' |/usr/bin/sort -u)
   logit 2 "${listing}"
   echo "${listing}" | /usr/bin/awk '{n=split($0,a,"|");print n-1;}'
   return 0
 }
 
-
-
-#####
-# More initialization
+###################################################################
 # This is where the main work really begins.
-###
+#############################################
 #
-declare -i NS_LOG_DETAIL count expectedcount fc incomplete activeJobs
 
-export NS_DEBUG="True"
+# First find and set the logging level
 
-###############################
-# Setup for debugging/testing #
-###############################
-
-if [[ ${NS_DEBUG} == "True" ]]
- then
-   export NS_FAIL_TEST_SBATCH=0		# Vary these at will
-   export NS_FAIL_TEST_SQUEUE=0
-   export NS_LOG=/scratch/jbellinger/ns.log
-   export NS_SLURM_LOG=/scratch/jbellinger
-   export NS_SLURM_LOG_SEEN=/scratch/jbellinger/seen
-   NS_SCRIPT_PATH=$(pwd)
-   export NS_SCRIPT_PATH
-   export NS_FAKE_QUEUE="234567 bigmem slurm-nersc-mover-234567.out icecubed PD 0:00 1 ()\n 765432 bigmem slurm-nersc-verifier-765432.out icecubed PD 0:00 1 ()"
-   function SBATCH {
-      fakejob=$(date +%s | awk '{print substr($1,4,6);}')
-      fname=$(echo "$3" | /usr/bin/sed "s/%j/${fakejob}/")
-      echo "START" >> "${fname}"
-      echo "END" >> "${fname}"
-      return ${NS_FAIL_TEST_SBATCH}
-   }
-   function SQUEUE {
-      base="CLUSTER: escori\n        JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)\n"
-      base=${base}"\n"${NS_FAKE_QUEUE}
-      echo "${base}"
-      return ${NS_FAIL_TEST_SQUEUE}
-   }
- else
-   export NS_LOG=/global/homes/i/icecubed/LTA/ns.log
-   export NS_SLURM_LOG=/global/homes/i/icecubed/LTA/SLURMLOGS
-   export NS_SLURM_LOG_SEEN=/global/homes/i/icecubed/LTA/SLURMLOGS/seen
-   NS_SCRIPT_PATH=$( dirname "$(cd "$( dirname "{BASH_SOURCE[0]}" )" && pwd )" )
-   export NS_SCRIPT_PATH
-   function SBATCH {
-     answer=$(/usr/bin/sbatch "$@")
-     echo "${answer}"
-   }
-   function SQUEUE {
-     answer=$(/usr/bin/squeue "$@")
-     echo "${answer}"
-   }
- fi
-#############################
-# Done w/ DEBUG definitions #
-#############################
-
-export NS_PHONE_HOME=False
-export NS_LOG_DETAIL=2
-
-### Main event
+if [[ "$1" == "" ]]
+  then
+    NS_LOG_DETAIL=0
+  else
+    NS_LOG_DETAIL=$1
+  fi
+echo "DE1"
+# Log (or not, depending on the level)
 logit 1 "Invocation"
 
-# If we are going to be in communication w/ Madison
-# First pass is not going to be
-#
-if [[ ${NS_PHONE_HOME} == "True" ]]
-  then
-    export FILE_CATALOG_REST_TOKEN=${FILE_CATALOG_REST_TOKEN:="$(solicit-token.sh)"}
-    export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="http://127.0.0.1:8889"}
-    export LTA_SITE_CONFIG=${LTA_SITE_CONFIG:="etc/site.json"}
-  fi
-#
-# Not used (yet?)
+# Not used yet
 #export NS_CONTROL=/global/homes/i/icecubed/LTA/NS_CONTROL.json
+
+# This string controls what we want to see at all times. 
+#   0 verifiers, 0 retrievers, 1 mover
+#declare -i NS_LOG_DETAIL count expectedcount fc incomplete activeJobs
+
+export NS_LOG=/global/homes/i/icecubed/LTA/ns.log
+export NS_SLURM_LOG=/global/homes/i/icecubed/LTA/SLURMLOGS
+export NS_SLURM_LOG_SEEN=/global/homes/i/icecubed/LTA/SLURMLOGS/seen
+NS_SCRIPT_PATH=$( dirname "$(cd "$( dirname "{BASH_SOURCE[0]}" )" && pwd )" )
+export NS_SCRIPT_PATH
+SBATCH=/usr/bin/sbatch
+SQUEUE=/usr/bin/squeue
+
+export NS_PHONE_HOME=False
+
 #
 export NS_DESIRED="nersc-mover:1 nersc-verifier:0 nersc-retriever:0"
 
@@ -261,18 +240,17 @@ export NS_DESIRED="nersc-mover:1 nersc-verifier:0 nersc-retriever:0"
 ###
 # Clean up the slurm log files and count how many didn't finish
 ###
-#if ! incomplete=$(cleanupLogs)
-if ! incomplete=$(countIncomplete)
-  then
-    exit 1
-  fi
+#if ! incomplete=$(countIncomplete)
+#  then
+#    exit 1
+#  fi
 
 ###
 # How many slurm jobs are running right now?
 ###
 if ! whatWeHave=$(getrunning)
   then
-    exit 1
+    exit 2
   fi
 
 ###
@@ -306,13 +284,6 @@ for desired in ${NS_DESIRED}
         logit 2 "Launching ${class} ${count} ${expectedcount}"
       fi
   done
-  ###
-  # Add a warning if things seem out of sync.  Likely only temporary
-  ###
-  if [[ ${activeJobs} -lt ${incomplete} ]]
-    then
-      logit 1 "More incomplete files than active jobs:  ${incomplete} ${activeJobs}"
-    fi
 
 ########
 # Done #
