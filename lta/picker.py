@@ -184,12 +184,12 @@ class Picker(Component):
                                            tr: TransferRequestType,
                                            reason: str) -> None:
         self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
-        quarantine = {
+        patch_body = {
             "status": "quarantined",
             "reason": reason,
         }
         try:
-            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', quarantine)
+            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
         except Exception as e:
             self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
 

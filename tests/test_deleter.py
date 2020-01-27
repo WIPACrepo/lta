@@ -252,4 +252,10 @@ async def test_deleter_update_transfer_request_yes(config, mocker):
     ]
     p = Deleter(config, logger_mock)
     await p._update_transfer_request(lta_rc_mock, deleted_bundle)
-    lta_rc_mock.request.assert_called_with("PATCH", '/TransferRequest/a8758a77-2a66-46e6-b43d-b4c74d3078a6', transfer_request)
+    lta_rc_mock.request.assert_called_with("PATCH", '/TransferRequest/a8758a77-2a66-46e6-b43d-b4c74d3078a6', {
+        "status": "completed",
+        "update_timestamp": mocker.ANY,
+        "claimed": False,
+        "claimant": mocker.ANY,
+        "claim_timestamp": mocker.ANY,
+    })

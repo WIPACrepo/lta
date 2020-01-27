@@ -158,11 +158,13 @@ class NerscVerifier(Component):
     async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is verified."""
         bundle_id = bundle["uuid"]
-        bundle["status"] = "completed"
-        bundle["update_timestamp"] = now()
-        bundle["claimed"] = False
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        patch_body = {
+            "status": "completed",
+            "update_timestamp": now(),
+            "claimed": False,
+        }
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         # the morning sun has vanquished the horrible night
         return True
 
@@ -187,10 +189,12 @@ class NerscVerifier(Component):
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             bundle_id = bundle["uuid"]
-            bundle["status"] = "quarantined"
-            bundle["reason"] = f"hsi Command Failed"
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+            patch_body = {
+                "status": "quarantined",
+                "reason": "hsi Command Failed",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # otherwise, we succeeded; output is on stderr
         # 1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]
@@ -201,10 +205,12 @@ class NerscVerifier(Component):
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info(f"These checksums do NOT match, and the Bundle will NOT be verified.")
-            bundle["status"] = "quarantined"
-            bundle["reason"] = f"Checksum mismatch between creation and destination: {checksum_sha512}"
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+            patch_body = {
+                "status": "quarantined",
+                "reason": f"Checksum mismatch between creation and destination: {checksum_sha512}",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # having passed the gauntlet, we indicate the checksums match
         return True

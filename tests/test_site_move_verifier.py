@@ -329,8 +329,10 @@ async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
     inst_mock.assert_called_with(p.transfer_config)
     xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
-    assert bundle_obj["status"] == "quarantined"
-    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
+        "status": "quarantined",
+        "reason": mocker.ANY,
+    })
 
 @pytest.mark.asyncio
 async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
@@ -362,5 +364,8 @@ async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
     inst_mock.assert_called_with(p.transfer_config)
     xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
-    assert bundle_obj["status"] == "taping"
-    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
+        "status": "taping",
+        "update_timestamp": mocker.ANY,
+        "claimed": False,
+    })

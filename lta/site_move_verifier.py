@@ -157,18 +157,22 @@ class SiteMoveVerifier(Component):
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info(f"These checksums do NOT match, and the Bundle will NOT be verified.")
-            bundle["status"] = "quarantined"
-            bundle["reason"] = f"Checksum mismatch between creation and destination: {checksum_sha512}"
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+            patch_body: Dict[str, Any] = {
+                "status": "quarantined",
+                "reason": f"Checksum mismatch between creation and destination: {checksum_sha512}",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # update the Bundle in the LTA DB
         self.logger.info(f"Destination checksum matches bundle creation checksum; the bundle is now verified.")
-        bundle["status"] = self.next_status
-        bundle["update_timestamp"] = now()
-        bundle["claimed"] = False
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        patch_body = {
+            "status": self.next_status,
+            "update_timestamp": now(),
+            "claimed": False,
+        }
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
     def _execute_myquota(self) -> Optional[str]:
@@ -188,10 +192,12 @@ class SiteMoveVerifier(Component):
         """Run the myquota command to determine disk usage at the site."""
         self.logger.info(f"Bundle is not ready to be verified; will unclaim it.")
         bundle_id = bundle["uuid"]
-        bundle["update_timestamp"] = now()
-        bundle["claimed"] = False
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        patch_body: Dict[str, Any] = {
+            "update_timestamp": now(),
+            "claimed": False,
+        }
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
 
