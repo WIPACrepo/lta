@@ -28,10 +28,55 @@
 #
 #  The scripts to invoke are in the directory ABOVE the
 # directory containing this script.
-# 
+#
+#################
+# Error returns # 
+#################
+# 0 	OK
+# 1	Failed to "sacct" -- slurm job history
+# 2	Failed to "squeue" -- get slurm activity
+# 3	Failed to "sbatch" -- submit job
+#
+# sacct job state codes as of 24-Jan-2020:
+#       BF  BOOT_FAIL       Job  terminated due to launch failure, typically due to a hardware failure (e.g. unable to boot the node or block and the
+#                           job can not be requeued).
+#       CA  CANCELLED       Job was explicitly cancelled by the user or system administrator.  The job may or may not have been initiated.
+#       CD  COMPLETED       Job has terminated all processes on all nodes with an exit code of zero.
+#       DL  DEADLINE        Job terminated on deadline.
+#       F   FAILED          Job terminated with non-zero exit code or other failure condition.
+#       NF  NODE_FAIL       Job terminated due to failure of one or more allocated nodes.
+#       OOM OUT_OF_MEMORY   Job experienced out of memory error.
+#       PD  PENDING         Job is awaiting resource allocation.
+#       PR  PREEMPTED       Job terminated due to preemption.
+#       R   RUNNING         Job currently has an allocation.
+#       RQ  REQUEUED        Job was requeued.
+#       RS  RESIZING        Job is about to change size.
+#       RV  REVOKED         Sibling was removed from cluster due to other cluster starting the job.
+#       S   SUSPENDED       Job has an allocation, but execution has been suspended and CPUs have been released for other jobs.
+#       TO  TIMEOUT         Job terminated upon reaching its time limit.
+
 #
 # Abbreviation:  NS_ = NERSC_Supervisor
 #
+
+
+# Definitions
+
+declare -i NS_LOG_DETAIL count expectedcount fc activeJobs maxjobs
+#declare -i incomplete
+
+
+export NS_BASE=/global/homes/i/icecubed/NEWLTA/lta
+export NS_LOG="${NS_BASE}/ns.log"
+export NS_SLURM_LOG="${NS_BASE}/SLURMLOGS"
+export NS_SLURM_LOG_SEEN="${NS_SLURM_LOG}/seen"
+NS_SCRIPT_PATH="${NS_BASE}"
+export NS_SCRIPT_PATH
+export SBATCH=/usr/bin/sbatch
+export SQUEUE=/usr/bin/squeue
+export SACCT=/usr/bin/sacct
+export maxjobs=14
+
 ###
 # Functions follow
 
@@ -54,7 +99,7 @@ function logit {
 # Return info about slurm jobs
 function getrunning {
   logit 2 "getrunning"
-  if ! rawinfo=$(SQUEUE -u icecubed -q xfer -t 12:00:00 -M escori)
+  if ! rawinfo=$(${SQUEUE} -h -o "%.18i %.15j %.2t %.10M %.42k %R" -u icecubed -q xfer -M escori)
     then
       logit 0 "SLURM is not working"
       return 1
@@ -72,7 +117,8 @@ function launch {
       return 1
     fi
   logit 2 "launch $1"
-  if ! SBATCH  --comments="${1}" -o "${NS_SLURM_LOG}/slurm-$1-%j.out" "${NS_SCRIPT_PATH}/$1.sh"
+  #if ! ${SBATCH}  -o "${NS_SLURM_LOG}/slurm-$1-%j.out" -q xfer -M escori -t 12:00:00 "${NS_SCRIPT_PATH}/$1.sh"
+  if ! ${SBATCH}  -o "${NS_SLURM_LOG}/slurm-$1-%j.out" -q xfer -M escori -t 12:00:00 "${NS_SCRIPT_PATH}/$1.sh"
     then
       logit 0 "Submit of $1 failed"
       return 1
@@ -232,7 +278,10 @@ if ! whatWeHave=$(getrunning)
 ###
 # Loop over the list of expected job types
 # At the moment this info is hard-wired in NS_DESIRED, but
-# we could load from a json initialization file instead
+# we should load from a json initialization file instead
+# Keeping track of activeJobs is future-proofing the system
+# I should count them all and compare with maxjobs before
+# submitting anything.
 ###
 activeJobs=0
 for desired in ${NS_DESIRED}
@@ -242,11 +291,9 @@ for desired in ${NS_DESIRED}
     count=0
     for chunks in ${whatWeHave}
       do
-         # ? Check that this works.  Might have to use (n-1)/2 if comment appears
-         fc=$(echo "${chunks}" | awk -v var="${class}" '{n=split($0,a,var);print n-1}')
+         fc=$(echo "${chunks}" | awk -v var="${class}.sh" '{n=split($0,a,var);print n-1}')
          count=$(( count + fc ))
       done
-      count=$(( count / 2 ))		# Should appear in comment and name
       activeJobs=$(( activeJobs + count ))
     ###
     # Do we need to do anything?
@@ -255,7 +302,7 @@ for desired in ${NS_DESIRED}
       then
         # only launch 1 at a time
         if ! launch "${class}"
-          then exit 1; fi
+          then exit 3; fi
         logit 2 "Launching ${class} ${count} ${expectedcount}"
       fi
   done
