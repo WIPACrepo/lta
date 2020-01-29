@@ -12,7 +12,7 @@ import json
 import logging
 import os
 from time import mktime, strptime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
@@ -39,6 +39,10 @@ EXPECTED_CONFIG = {
     'LTA_REST_URL': None,
 }
 
+KILOBYTE = 1024
+MEGABYTE = KILOBYTE * KILOBYTE
+GIGABYTE = MEGABYTE * KILOBYTE
+MINIMUM_REQUEST_SIZE = 100 * GIGABYTE
 
 def as_datetime(s: str) -> datetime:
     """Convert a timestamp string into a datetime object."""
@@ -94,6 +98,17 @@ async def _get_bundles_status(rc: RestClient, bundle_uuids: List[str]) -> List[D
         bundle["file_count"] = len(response["files"])
         bundles.append(bundle)
     return bundles
+
+def _get_files_and_size(path: str) -> Tuple[List[str], int]:
+    """Recursively walk and add the files of files in the file system."""
+    # enumerate all of the files on disk to be checked
+    disk_files = _enumerate_path(path)
+    # for all of the files we want to check
+    size = 0
+    for disk_file in disk_files:
+        # determine the size of the file
+        size += os.path.getsize(disk_file)
+    return (disk_files, size)
 
 # -----------------------------------------------------------------------------
 
@@ -343,13 +358,9 @@ async def display_config(args: Namespace) -> None:
 
 async def request_estimate(args: Namespace) -> None:
     """Estimate the count and size of a new TransferRequest."""
-    # enumerate all of the files on disk to be checked
-    disk_files = _enumerate_path(args.path)
-    # for all of the files we want to check
-    size = 0
-    for disk_file in disk_files:
-        # determine the size of the file
-        size += os.path.getsize(disk_file)
+    files_and_size = _get_files_and_size(args.path)
+    disk_files = files_and_size[0]
+    size = files_and_size[1]
     # build the result dictionary
     result = {
         "path": args.path,
@@ -360,7 +371,7 @@ async def request_estimate(args: Namespace) -> None:
     if args.json:
         print_dict_as_pretty_json(result)
     else:
-        print(f"TransferReqeust for {args.path}")
+        print(f"TransferRequest for {args.path}")
         print(f"{size:,} bytes ({hurry.filesize.size(size)}) in {len(disk_files):,} files.")
 
 
@@ -378,6 +389,16 @@ async def request_ls(args: Namespace) -> None:
 
 async def request_new(args: Namespace) -> None:
     """Create a new TransferRequest and add it to the LTA DB."""
+    # determine how big the transfer request is going to be
+    files_and_size = _get_files_and_size(args.path)
+    disk_files = files_and_size[0]
+    size = files_and_size[1]
+    # if it doesn't meet our minimize size requirement
+    if size < MINIMUM_REQUEST_SIZE:
+        # and the operator has not forced the issue
+        if not args.force:
+            # raise an Exception to prevent the command from creating a too small request
+            raise Exception(f"TransferRequest for {args.path}\n{size:,} bytes ({hurry.filesize.size(size)}) in {len(disk_files):,} files.\nMinimum required size: {MINIMUM_REQUEST_SIZE:,} bytes.")
     # get some stuff
     source = args.source
     dest = args.dest
@@ -635,6 +656,9 @@ async def main() -> None:
                                     required=True)
     parser_request_new.add_argument("--json",
                                     help="display output in JSON",
+                                    action="store_true")
+    parser_request_new.add_argument("--force",
+                                    help="force small size transfer request",
                                     action="store_true")
     parser_request_new.set_defaults(func=request_new)
 
