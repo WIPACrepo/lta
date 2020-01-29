@@ -68,23 +68,23 @@ traditional log file.
 For example, running a Picker and sending its log output through the
 log lens:
 
-    picker.sh | loglens
+    bin/picker.sh | loglens
 
 ### Log Filter
 There is a small helper script `logfilter` that can be used to cull
 non-JSON output from structured log output. If debugging messages
 are crashing the log lens, this construction may help:
 
-    picker.sh | logfilter | loglens
+    bin/picker.sh | logfilter | loglens
 
 ### Local test environment
 It is possible to test LTA locally, but the setup for the local test
 environment has a few steps. This section walks you through that process.
 
 #### Install docker
-For Linux Mint 18, there is a script in the root directory:
+For Linux Mint 18, there is a script in the resources directory:
 
-    install-docker.sh
+    resources/install-docker.sh
 
 #### Install circleci-cli
 As root, the following command installs circleci-cli locally:
@@ -136,13 +136,13 @@ may want to run this command to create a secret:
 
     dd if=/dev/urandom bs=1 count=64 2>/dev/null | base64 >local-secret
 
-A script `rest-server.sh` is used to start the LTA DB service, secured with
+A script `bin/rest-server.sh` is used to start the LTA DB service, secured with
 the local secret.
 
-A script `make-token.sh` uses the local secret to create tokens for
+A script `resources/make-token.sh` uses the local secret to create tokens for
 components to authenticate themselves with the LTA DB.
 
-A script `solicit-token.sh` asks the docker container for a token for
+A script `resources/solicit-token.sh` asks the docker container for a token for
 components to authenticate themselves with the LTA DB.
 
 #### Testing Data
@@ -152,37 +152,37 @@ Get yourself some testing data from the Data Warehouse.
     cd /data/exp/IceCube/2013/filtered/PFFilt/1109
     scp jadenorth-2:/data/exp/IceCube/2013/filtered/PFFilt/1109/* .
 
-A script `test-data-helper.sh` can be used to register these files with the
+A script `resources/test-data-helper.sh` can be used to register these files with the
 File Catalog. Here we invoke the 'add-catalog' subcommand to add files to the
 catalog at the WIPAC site.
 
-    ./test-data-helper.sh add-catalog WIPAC /data/exp/IceCube/2013/filtered/PFFilt/1109
+    resources/test-data-helper.sh add-catalog WIPAC /data/exp/IceCube/2013/filtered/PFFilt/1109
 
 #### LTA Components
-A script `picker.sh` is used to generate a token and start a Picker component
+A script `bin/picker.sh` is used to generate a token and start a Picker component
 that interacts with the LTA DB. The output will be JSON, so to get a more
 traditional log output, use the `loglens` script to translate:
 
-    ./picker.sh | loglens
+    bin/picker.sh | loglens
 
-A script `bundler.sh` is used to generate a token and start a Bundler component
+A script `bin/bundler.sh` is used to generate a token and start a Bundler component
 that interacts with the LTA DB.  The output will be JSON, so to get a more
 traditional log output, use the `loglens` script to translate:
 
-    ./bundler.sh | loglens
+    bin/bundler.sh | loglens
 
 #### LTA Archival Kickoff
-A script `make-transfer-request.sh` can be used to POST a TransferRequest object
+A script `resources/make-transfer-request.sh` can be used to POST a TransferRequest object
 to the LTA DB and get the data archival process started. An example of usage
 would be:
 
-    ./make-transfer-request.sh WIPAC:/data/exp/IceCube/2013/filtered/PFFilt/1109 DESY:/data/exp/IceCube/2013/filtered/PFFilt/1109 NERSC:/data/exp/IceCube/2013/filtered/PFFilt/1109
+    resources/make-transfer-request.sh WIPAC:/data/exp/IceCube/2013/filtered/PFFilt/1109 DESY:/data/exp/IceCube/2013/filtered/PFFilt/1109 NERSC:/data/exp/IceCube/2013/filtered/PFFilt/1109
 
 This creates a transfer of `/data/exp/IceCube/2013/filtered/PFFilt/1109` from
 WIPAC to the destinations DESY and NESRC.
 
 #### Test Data Reset
-A script `test-data-reset.sh` automates this process:
+A script `resources/test-data-reset.sh` automates this process:
 - Clear files from the File Catalog
 - Clear transfer requests from the LTA DB
 - Register files with the File catalog
