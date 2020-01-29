@@ -458,7 +458,7 @@ async def request_update_status(args: Namespace) -> None:
 
 async def status(args: Namespace) -> None:
     """Query the status of the LTA DB or a component of LTA."""
-    old_data = (datetime.utcnow() - timedelta(seconds=60*5)).isoformat()
+    old_data = (datetime.utcnow() - timedelta(days=args.days)).isoformat()
 
     def date_ok(d: str) -> bool:
         return d > old_data
@@ -467,7 +467,12 @@ async def status(args: Namespace) -> None:
     if args.component:
         response = await args.lta_rc.request("GET", f"/status/{args.component}")
         if args.json:
-            print_dict_as_pretty_json(response)
+            r = response.copy()
+            for key in response:
+                timestamp = response[key]['timestamp']
+                if not date_ok(timestamp):
+                    del r[key]
+            print_dict_as_pretty_json(r)
         else:
             for key in response:
                 timestamp = response[key]['timestamp']
@@ -475,6 +480,7 @@ async def status(args: Namespace) -> None:
                 if date_ok(timestamp):
                     status = "OK"
                 print(f"{(key+':'):<25}[{status:<4}] {timestamp.replace('T', ' ')}")
+
     # otherwise we want the status of the whole system
     else:
         response = await args.lta_rc.request("GET", "/status")
@@ -679,6 +685,10 @@ async def main() -> None:
                                choices=COMPONENT_NAMES,
                                help="optional LTA component",
                                nargs='?')
+    parser_status.add_argument("--days",
+                               help="ignore status reports older than",
+                               type=int,
+                               default=2)
     parser_status.add_argument("--json",
                                help="display output in JSON",
                                action="store_true")

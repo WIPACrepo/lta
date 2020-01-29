@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.26] - 2020-01-29
+### Changed
+- Added --days to ltacmd status {component} to cull old status heartbeats
+
 ## [0.0.25] - 2020-01-27
 ### Fixed
 - Fixed ltacmd bundle overdue not showing quarantined bundles
@@ -164,7 +168,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.25...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.26...HEAD
+[0.0.26]: https://github.com/WIPACrepo/lta/compare/v0.0.25...v0.0.26
 [0.0.25]: https://github.com/WIPACrepo/lta/compare/v0.0.24...v0.0.25
 [0.0.24]: https://github.com/WIPACrepo/lta/compare/v0.0.23...v0.0.24
 [0.0.23]: https://github.com/WIPACrepo/lta/compare/v0.0.22...v0.0.23
