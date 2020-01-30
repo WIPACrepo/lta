@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.27] - 2020-01-30
+### Changed
+- Updated Python package requirements to latest versions
+
 ## [0.0.26] - 2020-01-29
 ### Changed
 - Added --days to ltacmd status {component} to cull old status heartbeats
@@ -168,7 +172,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.26...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.27...HEAD
+[0.0.27]: https://github.com/WIPACrepo/lta/compare/v0.0.26...v0.0.27
 [0.0.26]: https://github.com/WIPACrepo/lta/compare/v0.0.25...v0.0.26
 [0.0.25]: https://github.com/WIPACrepo/lta/compare/v0.0.24...v0.0.25
 [0.0.24]: https://github.com/WIPACrepo/lta/compare/v0.0.23...v0.0.24
