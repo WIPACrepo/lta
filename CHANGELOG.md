@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.27] - 2020-01-29
+### Added
+- Added health check for MongoDB prior to route logic in LTA REST server
+
 ## [0.0.26] - 2020-01-29
 ### Changed
 - Added --days to ltacmd status {component} to cull old status heartbeats

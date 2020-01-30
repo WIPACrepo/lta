@@ -58,6 +58,51 @@ def unique_id() -> str:
 
 # -----------------------------------------------------------------------------
 
+def db_health_check(method):  # type: ignore
+    """
+    Ensure that MongoDB is healthy before processing route logic.
+
+    On a health check failure, raises a 429 error. (Too Many Requests)
+    On a database failure, raises a 500 error. (Internal Server Error)
+
+    Raises:
+        :py:class:`tornado.web.HTTPError`
+    """
+    @wraps(method)
+    async def wrapper(self, *args, **kwargs):  # type: ignore
+        # if there is no MongoDB, then bail
+        if not self.db_health:
+            raise tornado.web.HTTPError(500, reason="no reference to admin database")
+        # ask MongoDB how many queries have been running for how long
+        health_query = [
+            {
+                '$currentOp': {
+                    'allUsers': False,
+                    'idleConnections': False,
+                }
+            },
+            {
+                '$project': {
+                    'secs_running': 1,
+                }
+            }
+        ]
+        results = []
+        cursor = self.db_health.aggregate(health_query)
+        async for doc in cursor:
+            results.append(doc)
+        # if there are too many query-seconds, then bail
+        query_seconds = 0
+        for r in results:
+            query_seconds += r["secs_running"]
+        if query_seconds > 30:
+            raise tornado.web.HTTPError(429, reason="database is heavily loaded")
+        # otherwise, we passed the gauntlet
+        return await method(self, *args, **kwargs)
+    return wrapper
+
+# -----------------------------------------------------------------------------
+
 def lta_auth(**_auth: Any) -> Callable[..., Any]:
     """
     Handle RBAC authorization for LTA.
@@ -75,6 +120,7 @@ def lta_auth(**_auth: Any) -> Callable[..., Any]:
 
     """
     def make_wrapper(method: Callable[..., Any]) -> Any:
+        @db_health_check  # type: ignore
         @authenticated  # type: ignore
         @catch_error  # type: ignore
         @wraps(method)
@@ -121,11 +167,12 @@ class CheckClaims:
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
 
-    def initialize(self, check_claims: CheckClaims, db: MotorDatabase, *args: Any, **kwargs: Any) -> None:
+    def initialize(self, check_claims: CheckClaims, db: MotorDatabase, db_health: MotorDatabase, *args: Any, **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.check_claims = check_claims
         self.db = db
+        self.db_health = db_health
 
 # -----------------------------------------------------------------------------
 
@@ -650,6 +697,7 @@ def start(debug: bool = False) -> RestServer:
         'debug': debug
     })
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
+
     # configure access to MongoDB as a backing store
     mongo_user = quote_plus(config["LTA_MONGODB_AUTH_USER"])
     mongo_pass = quote_plus(config["LTA_MONGODB_AUTH_PASS"])
@@ -662,6 +710,13 @@ def start(debug: bool = False) -> RestServer:
     ensure_mongo_indexes(lta_mongodb_url, mongo_db)
     motor_client = MotorClient(lta_mongodb_url)
     args['db'] = motor_client[mongo_db]
+
+    # configure access to MongoDB for health checks
+    mongodb_health_url = f"mongodb://{mongo_host}:{mongo_port}/admin"
+    if mongo_user and mongo_pass:
+        mongodb_health_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/admin"
+    motor_client = MotorClient(mongodb_health_url)
+    args['db_health'] = motor_client["admin"]
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)
