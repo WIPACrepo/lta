@@ -34,6 +34,7 @@ EXPECTED_CONFIG = {
     'LTA_MONGODB_PORT': '27017',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
+    'MONGODB_MAX_QUERY_SECONDS': '30'
 }
 
 # -----------------------------------------------------------------------------
@@ -74,19 +75,7 @@ def db_health_check(method):  # type: ignore
         if not self.db_health:
             raise tornado.web.HTTPError(500, reason="no reference to admin database")
         # ask MongoDB how many queries have been running for how long
-        health_query = [
-            {
-                '$currentOp': {
-                    'allUsers': False,
-                    'idleConnections': False,
-                }
-            },
-            {
-                '$project': {
-                    'secs_running': 1,
-                }
-            }
-        ]
+        health_query = [{'$currentOp': {'allUsers': False, 'idleConnections': False}}, {'$project': {'secs_running': 1}}]
         results = []
         cursor = self.db_health.aggregate(health_query)
         async for doc in cursor:
@@ -95,8 +84,8 @@ def db_health_check(method):  # type: ignore
         query_seconds = 0
         for r in results:
             query_seconds += r["secs_running"]
-        if query_seconds > 30:
-            raise tornado.web.HTTPError(429, reason="database is heavily loaded")
+        if query_seconds > self.mongodb_max_query_seconds:
+            raise tornado.web.HTTPError(429, reason=f"database has {len(results)} queries, running for a total of {query_seconds} seconds; LTA will not add to the heavy load (maximum: {self.mongodb_max_query_seconds} seconds)")
         # otherwise, we passed the gauntlet
         return await method(self, *args, **kwargs)
     return wrapper
@@ -167,12 +156,19 @@ class CheckClaims:
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
 
-    def initialize(self, check_claims: CheckClaims, db: MotorDatabase, db_health: MotorDatabase, *args: Any, **kwargs: Any) -> None:
+    def initialize(self,
+                   check_claims: CheckClaims,
+                   db: MotorDatabase,
+                   db_health: MotorDatabase,
+                   mongodb_max_query_seconds: int,
+                   *args: Any,
+                   **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.check_claims = check_claims
         self.db = db
         self.db_health = db_health
+        self.mongodb_max_query_seconds = mongodb_max_query_seconds
 
 # -----------------------------------------------------------------------------
 
@@ -717,6 +713,7 @@ def start(debug: bool = False) -> RestServer:
         mongodb_health_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/admin"
     motor_client = MotorClient(mongodb_health_url)
     args['db_health'] = motor_client["admin"]
+    args['mongodb_max_query_seconds'] = int(config['MONGODB_MAX_QUERY_SECONDS'])
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)
