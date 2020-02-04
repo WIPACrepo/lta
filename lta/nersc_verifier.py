@@ -176,15 +176,14 @@ class NerscVerifier(Component):
         basename = os.path.basename(bundle["bundle_path"])
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
-        # run an hsi command to calculate the checksum of the archive as stored
-        #     hashverify    -> Verify checksum hash for existing HPSS file(s)
-        #     -A            -> enable auto-scheduling of retrievals
-        #     -H sha512     -> specify that the SHA512 algorithm be used to calculate the checksum
-        args = ["hsi", "hashverify", "-A", "-H", "sha512", hpss_path]
+        # run an hsi command to obtain the checksum of the archive as stored
+        #     -q            -> specifies "quiet" mode. Suppresses login message,file transfer progress messages, etc.
+        #     hashlist      -> List checksum hash for HPSS file(s)
+        args = ["hsi", "-q", "hashlist", hpss_path]
         completed_process = run(args)
         # if our command failed
         if completed_process.returncode != 0:
-            self.logger.info(f"Command to verify bundle in HPSS failed: {completed_process.args}")
+            self.logger.info(f"Command to list checksum in HPSS failed: {completed_process.args}")
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
@@ -208,6 +207,46 @@ class NerscVerifier(Component):
             patch_body = {
                 "status": "quarantined",
                 "reason": f"Checksum mismatch between creation and destination: {checksum_sha512}",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+            return False
+        # run an hsi command to calculate the checksum of the archive as stored
+        #     -q            -> specifies "quiet" mode. Suppresses login message,file transfer progress messages, etc.
+        #     hashverify    -> Verify checksum hash for existing HPSS file(s)
+        #     -A            -> enable auto-scheduling of retrievals
+        args = ["hsi", "-q", "hashverify", "-A", hpss_path]
+        completed_process = run(args)
+        # if our command failed
+        if completed_process.returncode != 0:
+            self.logger.info(f"Command to verify bundle in HPSS failed: {completed_process.args}")
+            self.logger.info(f"returncode: {completed_process.returncode}")
+            self.logger.info(f"stdout: {str(completed_process.stdout)}")
+            self.logger.info(f"stderr: {str(completed_process.stderr)}")
+            bundle_id = bundle["uuid"]
+            patch_body = {
+                "status": "quarantined",
+                "reason": "hsi Command Failed",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+            return False
+        # otherwise, we succeeded; output is on stderr
+        # /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK
+        result = str(completed_process.stderr)
+        checksum_type = result.split("\n")[0].split(" ")[1]
+        checksum_result = result.split("\n")[0].split(" ")[2]
+        # now we'll compare the bundle's checksum
+        if (checksum_type != '(sha512)') or (checksum_result != 'OK'):
+            self.logger.info(f"Command to verify bundle in HPSS returned bad results: {completed_process.args}")
+            self.logger.info(f"EXPECTED: {hpss_path}: (sha512) OK")
+            self.logger.info(f"returncode: {completed_process.returncode}")
+            self.logger.info(f"stdout: {str(completed_process.stdout)}")
+            self.logger.info(f"stderr: {str(completed_process.stderr)}")
+            self.logger.info(f"This result does NOT match, and the Bundle will NOT be verified.")
+            patch_body = {
+                "status": "quarantined",
+                "reason": f"hashverify unable to verify checksum in HPSS: {result}",
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
