@@ -47,6 +47,10 @@ def doCheckTask() -> None:
                     print(f"{package_name} can be upgraded from {package_version} to {latest_version}")
 
 
+def do_circleci_task() -> None:
+    run(["circleci", "local", "execute", "--job", "test"])
+
+
 def doCoverageTask() -> None:
     doCleanTask()
     run(["pytest", "--cov=lta", "--cov-report=html", "--no-cov-on-fail", "tests"])
@@ -107,6 +111,7 @@ if __name__ == "__main__":
     # define tasks
     task(("clean", "Remove build cruft", doCleanTask))
     task(("check", "Check dependency package versions", doCheckTask))
+    task(("circleci", "Perform CI build and test", do_circleci_task))
     task(("coverage", "Perform coverage analysis", doCoverageTask))
     task(("dist", "Create a distribution tarball and wheel", doDistTask))
     task(("docker", "Create a docker container", doDockerTask))
