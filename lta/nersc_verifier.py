@@ -181,7 +181,9 @@ class NerscVerifier(Component):
         # run an hsi command to obtain the checksum of the archive as stored
         #     -q            -> specifies "quiet" mode. Suppresses login message,file transfer progress messages, etc.
         #     hashlist      -> List checksum hash for HPSS file(s)
-        args = ["hsi", "-q", "hashlist", hpss_path]
+        # DEBUG: maybe -P instead?
+        # args = ["hsi", "-q", "hashlist", hpss_path]
+        args = ["hsi", "-P", "hashlist", hpss_path]
         completed_process = run(args)
         # DEBUG: Let's see this output
         self.logger.info(f"Command: {completed_process.args}")
@@ -204,7 +206,9 @@ class NerscVerifier(Component):
             return False
         # otherwise, we succeeded; output is on stderr
         # 1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]
-        result = str(completed_process.stderr)
+        # DEBUG: maybe -P instead?
+        # result = str(completed_process.stderr)
+        result = str(completed_process.stdout)
         lines = result.split("\n")
         cols = lines[0].split(" ")
         checksum_sha512 = cols[0]
@@ -229,7 +233,9 @@ class NerscVerifier(Component):
         #     -q            -> specifies "quiet" mode. Suppresses login message,file transfer progress messages, etc.
         #     hashverify    -> Verify checksum hash for existing HPSS file(s)
         #     -A            -> enable auto-scheduling of retrievals
-        args = ["hsi", "-q", "hashverify", "-A", hpss_path]
+        # DEBUG: maybe -P instead?
+        # args = ["hsi", "-q", "hashverify", "-A", hpss_path]
+        args = ["hsi", "-P", "hashverify", "-A", hpss_path]
         completed_process = run(args)
         # DEBUG: Let's see this output
         self.logger.info(f"Command: {completed_process.args}")
@@ -252,7 +258,9 @@ class NerscVerifier(Component):
             return False
         # otherwise, we succeeded; output is on stderr
         # /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK
-        result = str(completed_process.stderr)
+        # DEBUG: maybe -P instead?
+        # result = str(completed_process.stderr)
+        result = str(completed_process.stdout)
         lines = result.split("\n")
         cols = lines[0].split(" ")
         checksum_type = cols[1]
