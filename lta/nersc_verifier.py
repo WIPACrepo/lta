@@ -5,7 +5,7 @@ import asyncio
 from logging import Logger
 import logging
 import os
-from subprocess import run, STDERR, STDOUT
+from subprocess import run, PIPE
 import sys
 from typing import Any, Dict, Optional
 
@@ -186,7 +186,7 @@ class NerscVerifier(Component):
         args = ["hsi", "-P", "hashlist", hpss_path]
         # DEBUG: python 3.6 ... :-(
         # completed_process = run(args, capture_output=True)
-        completed_process = run(args, stdout=STDOUT, stderr=STDERR)
+        completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # DEBUG: Let's see this output
         self.logger.info(f"Command: {completed_process.args}")
         self.logger.info(f"returncode: {completed_process.returncode}")
@@ -240,7 +240,7 @@ class NerscVerifier(Component):
         args = ["hsi", "-P", "hashverify", "-A", hpss_path]
         # DEBUG: python 3.6 ... :-(
         # completed_process = run(args, capture_output=True)
-        completed_process = run(args, stdout=STDOUT, stderr=STDERR)
+        completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # DEBUG: Let's see this output
         self.logger.info(f"Command: {completed_process.args}")
         self.logger.info(f"returncode: {completed_process.returncode}")
