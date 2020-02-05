@@ -184,7 +184,7 @@ class NerscVerifier(Component):
         # DEBUG: maybe -P instead?
         # args = ["hsi", "-q", "hashlist", hpss_path]
         args = ["hsi", "-P", "hashlist", hpss_path]
-        completed_process = run(args)
+        completed_process = run(args, capture_output=True)
         # DEBUG: Let's see this output
         self.logger.info(f"Command: {completed_process.args}")
         self.logger.info(f"returncode: {completed_process.returncode}")
@@ -236,7 +236,7 @@ class NerscVerifier(Component):
         # DEBUG: maybe -P instead?
         # args = ["hsi", "-q", "hashverify", "-A", hpss_path]
         args = ["hsi", "-P", "hashverify", "-A", hpss_path]
-        completed_process = run(args)
+        completed_process = run(args, capture_output=True)
         # DEBUG: Let's see this output
         self.logger.info(f"Command: {completed_process.args}")
         self.logger.info(f"returncode: {completed_process.returncode}")
