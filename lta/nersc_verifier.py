@@ -91,7 +91,9 @@ class NerscVerifier(Component):
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
         response = await lta_rc.request('POST', '/Bundles/actions/pop?dest=NERSC&status=verifying', pop_body)
-        self.logger.info(f"LTA DB responded with: {response}")
+        # DEBUG: Suppress a huge bundle output
+        # self.logger.info(f"LTA DB responded with: {response}")
+        self.logger.info(f"LTA DB responded with: REDACTED-DEBUG")
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify at NERSC with HPSS. Going on vacation.")
@@ -181,6 +183,11 @@ class NerscVerifier(Component):
         #     hashlist      -> List checksum hash for HPSS file(s)
         args = ["hsi", "-q", "hashlist", hpss_path]
         completed_process = run(args)
+        # DEBUG: Let's see this output
+        self.logger.info(f"Command: {completed_process.args}")
+        self.logger.info(f"returncode: {completed_process.returncode}")
+        self.logger.info(f"stdout: {str(completed_process.stdout)}")
+        self.logger.info(f"stderr: {str(completed_process.stderr)}")
         # if our command failed
         if completed_process.returncode != 0:
             self.logger.info(f"Command to list checksum in HPSS failed: {completed_process.args}")
@@ -198,7 +205,14 @@ class NerscVerifier(Component):
         # otherwise, we succeeded; output is on stderr
         # 1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]
         result = str(completed_process.stderr)
-        checksum_sha512 = result.split("\n")[0].split(" ")[0]
+        lines = result.split("\n")
+        cols = lines[0].split(" ")
+        checksum_sha512 = cols[0]
+        # DEBUG: Let's see this output
+        self.logger.info(f"result: {result}")
+        self.logger.info(f"lines: {lines}")
+        self.logger.info(f"cols: {cols}")
+        self.logger.info(f"checksum_sha512: {checksum_sha512}")
         # now we'll compare the bundle's checksum
         if bundle["checksum"]["sha512"] != checksum_sha512:
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
@@ -217,6 +231,11 @@ class NerscVerifier(Component):
         #     -A            -> enable auto-scheduling of retrievals
         args = ["hsi", "-q", "hashverify", "-A", hpss_path]
         completed_process = run(args)
+        # DEBUG: Let's see this output
+        self.logger.info(f"Command: {completed_process.args}")
+        self.logger.info(f"returncode: {completed_process.returncode}")
+        self.logger.info(f"stdout: {str(completed_process.stdout)}")
+        self.logger.info(f"stderr: {str(completed_process.stderr)}")
         # if our command failed
         if completed_process.returncode != 0:
             self.logger.info(f"Command to verify bundle in HPSS failed: {completed_process.args}")
@@ -234,8 +253,16 @@ class NerscVerifier(Component):
         # otherwise, we succeeded; output is on stderr
         # /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK
         result = str(completed_process.stderr)
-        checksum_type = result.split("\n")[0].split(" ")[1]
-        checksum_result = result.split("\n")[0].split(" ")[2]
+        lines = result.split("\n")
+        cols = lines[0].split(" ")
+        checksum_type = cols[1]
+        checksum_result = cols[2]
+        # DEBUG: Let's see this output
+        self.logger.info(f"result: {result}")
+        self.logger.info(f"lines: {lines}")
+        self.logger.info(f"cols: {cols}")
+        self.logger.info(f"checksum_type: {checksum_type}")
+        self.logger.info(f"checksum_result: {checksum_result}")
         # now we'll compare the bundle's checksum
         if (checksum_type != '(sha512)') or (checksum_result != 'OK'):
             self.logger.info(f"Command to verify bundle in HPSS returned bad results: {completed_process.args}")

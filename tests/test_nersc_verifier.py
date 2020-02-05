@@ -290,10 +290,14 @@ async def test_nersc_verifier_verify_bundle_in_hpss_success_no_quarantine(config
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout="some text on stdout",
             stderr="97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
         ),
         ObjectLiteral(
             returncode=0,
+            args=["hsi", "-q", "hashverify", "-A", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout="some text on stdout",
             stderr="/home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK\n",
         ),
     ]
@@ -350,6 +354,8 @@ async def test_nersc_verifier_verify_bundle_in_hpss_mismatch_checksum_quarantine
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout="some text on stdout",
             stderr="1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]\n",
         ),
     ]
@@ -377,6 +383,8 @@ async def test_nersc_verifier_verify_bundle_in_hpss_failure_hashverify_quarantin
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout="some text on stdout",
             stderr="97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
         ),
         ObjectLiteral(
@@ -410,6 +418,8 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quaranti
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout="some text on stdout",
             stderr="97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
         ),
         ObjectLiteral(
@@ -443,6 +453,8 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_result_quaran
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout="some text on stdout",
             stderr="97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
         ),
         ObjectLiteral(
