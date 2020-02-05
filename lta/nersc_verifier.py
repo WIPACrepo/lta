@@ -210,7 +210,7 @@ class NerscVerifier(Component):
         # 1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]
         # DEBUG: maybe -P instead?
         # result = str(completed_process.stderr)
-        result = str(completed_process.stdout)
+        result = completed_process.stdout.decode("utf-8")
         lines = result.split("\n")
         cols = lines[0].split(" ")
         checksum_sha512 = cols[0]
@@ -264,7 +264,7 @@ class NerscVerifier(Component):
         # /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK
         # DEBUG: maybe -P instead?
         # result = str(completed_process.stderr)
-        result = str(completed_process.stdout)
+        result = completed_process.stdout.decode("utf-8")
         lines = result.split("\n")
         cols = lines[0].split(" ")
         checksum_type = cols[1]
