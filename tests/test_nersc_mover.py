@@ -222,6 +222,28 @@ async def test_nersc_mover_hpss_not_available(config, mocker):
 
 
 @pytest.mark.asyncio
+async def test_nersc_mover_hsi_not_available(config, mocker):
+    """Test that a bad returncode on hpss_avail will prevent work."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=1,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
+    p = NerscMover(config, logger_mock)
+    assert not await p._do_work_claim()
+
+@pytest.mark.asyncio
 async def test_nersc_mover_do_work_pop_exception(config, mocker):
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
@@ -391,6 +413,12 @@ async def test_nersc_mover_execute_hsi_command_failed(config, mocker):
         ObjectLiteral(
             returncode=0,
             args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
             stdout="some text on stdout",
             stderr="some text on stderr",
         ),

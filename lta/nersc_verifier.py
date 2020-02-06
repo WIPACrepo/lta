@@ -80,13 +80,28 @@ class NerscVerifier(Component):
 
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
+        # 0. Do some pre-flight checks to ensure that we can do work
+        # if the HPSS system is not available
+        args = ["/usr/common/mss/bin/hpss_avail", "archive"]
+        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+        if completed_process.returncode != 0:
+            # prevent this instance from claiming any work
+            self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
+            return False
+        # if the hsi command has gone AWOL
+        args = ["/usr/bin/which", "hsi"]
+        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+        if completed_process.returncode != 0:
+            # prevent this instance from claiming any work
+            self.logger.error(f"Unable to do work; hsi command not available (returncode: {completed_process.returncode})")
+            return False
         # 1. Ask the LTA DB for the next Bundle to be verified
+        self.logger.info("Asking the LTA DB for a Bundle to verify at NERSC with HPSS.")
         # configure a RestClient to talk to the LTA DB
         lta_rc = RestClient(self.lta_rest_url,
                             token=self.lta_rest_token,
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
-        self.logger.info("Asking the LTA DB for a Bundle to verify at NERSC with HPSS.")
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
@@ -97,10 +112,20 @@ class NerscVerifier(Component):
             self.logger.info("LTA DB did not provide a Bundle to verify at NERSC with HPSS. Going on vacation.")
             return False
         # process the Bundle that we were given
-        if await self._verify_bundle_in_hpss(lta_rc, bundle):
-            await self._add_bundle_to_file_catalog(bundle)
-            await self._update_bundle_in_lta_db(lta_rc, bundle)
-        return True
+        try:
+            if await self._verify_bundle_in_hpss(lta_rc, bundle):
+                await self._add_bundle_to_file_catalog(bundle)
+                await self._update_bundle_in_lta_db(lta_rc, bundle)
+            return True
+        except Exception as e:
+            bundle_id = bundle["uuid"]
+            patch_body = {
+                "status": "quarantined",
+                "reason": f"Exception during execution: {e}",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+        return False
 
     async def _add_bundle_to_file_catalog(self, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records."""
