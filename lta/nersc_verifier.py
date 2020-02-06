@@ -5,7 +5,7 @@ import asyncio
 from logging import Logger
 import logging
 import os
-from subprocess import run, PIPE
+from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, Optional
 
@@ -91,9 +91,7 @@ class NerscVerifier(Component):
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
         response = await lta_rc.request('POST', '/Bundles/actions/pop?dest=NERSC&status=verifying', pop_body)
-        # DEBUG: Suppress a huge bundle output
-        # self.logger.info(f"LTA DB responded with: {response}")
-        self.logger.info(f"LTA DB responded with: REDACTED-DEBUG")
+        self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify at NERSC with HPSS. Going on vacation.")
@@ -179,48 +177,38 @@ class NerscVerifier(Component):
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
         # run an hsi command to obtain the checksum of the archive as stored
-        #     -q            -> specifies "quiet" mode. Suppresses login message,file transfer progress messages, etc.
+        #     -P            -> ("popen" flag) - specifies that HSI is being run via popen (as a child process).
+        #                      All messages (listable output,error message) are written to stdout.
+        #                      HSI may not be used to pipe output to stdout if this flag is specified
+        #                      It also results in setting "quiet" (no extraneous messages) mode,
+        #                      disabling verbose response messages, and disabling interactive file transfer messages
         #     hashlist      -> List checksum hash for HPSS file(s)
-        # DEBUG: maybe -P instead?
-        # args = ["hsi", "-q", "hashlist", hpss_path]
         args = ["hsi", "-P", "hashlist", hpss_path]
-        # DEBUG: python 3.6 ... :-(
-        # completed_process = run(args, capture_output=True)
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
-        # DEBUG: Let's see this output
-        self.logger.info(f"Command: {completed_process.args}")
-        self.logger.info(f"returncode: {completed_process.returncode}")
-        self.logger.info(f"stdout: {str(completed_process.stdout)}")
-        self.logger.info(f"stderr: {str(completed_process.stderr)}")
         # if our command failed
         if completed_process.returncode != 0:
-            self.logger.info(f"Command to list checksum in HPSS failed: {completed_process.args}")
+            self.logger.error("Command to list checksum in HPSS failed")
+            self.logger.info(f"Command: {completed_process.args}")
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             bundle_id = bundle["uuid"]
             patch_body = {
                 "status": "quarantined",
-                "reason": "hsi Command Failed",
+                "reason": "hsi hashlist Command Failed",
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # otherwise, we succeeded; output is on stderr
         # 1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]
-        # DEBUG: maybe -P instead?
-        # result = str(completed_process.stderr)
         result = completed_process.stdout.decode("utf-8")
         lines = result.split("\n")
         cols = lines[0].split(" ")
         checksum_sha512 = cols[0]
-        # DEBUG: Let's see this output
-        self.logger.info(f"result: {result}")
-        self.logger.info(f"lines: {lines}")
-        self.logger.info(f"cols: {cols}")
-        self.logger.info(f"checksum_sha512: {checksum_sha512}")
         # now we'll compare the bundle's checksum
         if bundle["checksum"]["sha512"] != checksum_sha512:
+            self.logger.error("Command to obtain bundle checksum in HPSS returned bad results")
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info(f"These checksums do NOT match, and the Bundle will NOT be verified.")
@@ -232,52 +220,41 @@ class NerscVerifier(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # run an hsi command to calculate the checksum of the archive as stored
-        #     -q            -> specifies "quiet" mode. Suppresses login message,file transfer progress messages, etc.
+        #     -P            -> ("popen" flag) - specifies that HSI is being run via popen (as a child process).
+        #                      All messages (listable output,error message) are written to stdout.
+        #                      HSI may not be used to pipe output to stdout if this flag is specified
+        #                      It also results in setting "quiet" (no extraneous messages) mode,
+        #                      disabling verbose response messages, and disabling interactive file transfer messages
         #     hashverify    -> Verify checksum hash for existing HPSS file(s)
         #     -A            -> enable auto-scheduling of retrievals
-        # DEBUG: maybe -P instead?
-        # args = ["hsi", "-q", "hashverify", "-A", hpss_path]
         args = ["hsi", "-P", "hashverify", "-A", hpss_path]
-        # DEBUG: python 3.6 ... :-(
-        # completed_process = run(args, capture_output=True)
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
-        # DEBUG: Let's see this output
-        self.logger.info(f"Command: {completed_process.args}")
-        self.logger.info(f"returncode: {completed_process.returncode}")
-        self.logger.info(f"stdout: {str(completed_process.stdout)}")
-        self.logger.info(f"stderr: {str(completed_process.stderr)}")
         # if our command failed
         if completed_process.returncode != 0:
-            self.logger.info(f"Command to verify bundle in HPSS failed: {completed_process.args}")
+            self.logger.error("Command to verify bundle in HPSS failed")
+            self.logger.info(f"Command: {completed_process.args}")
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             bundle_id = bundle["uuid"]
             patch_body = {
                 "status": "quarantined",
-                "reason": "hsi Command Failed",
+                "reason": "hsi hashverify Command Failed",
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # otherwise, we succeeded; output is on stderr
         # /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK
-        # DEBUG: maybe -P instead?
-        # result = str(completed_process.stderr)
         result = completed_process.stdout.decode("utf-8")
         lines = result.split("\n")
         cols = lines[0].split(" ")
         checksum_type = cols[1]
         checksum_result = cols[2]
-        # DEBUG: Let's see this output
-        self.logger.info(f"result: {result}")
-        self.logger.info(f"lines: {lines}")
-        self.logger.info(f"cols: {cols}")
-        self.logger.info(f"checksum_type: {checksum_type}")
-        self.logger.info(f"checksum_result: {checksum_result}")
         # now we'll compare the bundle's checksum
         if (checksum_type != '(sha512)') or (checksum_result != 'OK'):
-            self.logger.info(f"Command to verify bundle in HPSS returned bad results: {completed_process.args}")
+            self.logger.error("Command to verify bundle in HPSS returned bad results")
+            self.logger.info(f"Command: {completed_process.args}")
             self.logger.info(f"EXPECTED: {hpss_path}: (sha512) OK")
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")

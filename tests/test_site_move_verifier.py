@@ -94,7 +94,7 @@ def test_do_status(config, mocker):
     run_mock.return_value = ObjectLiteral(
         returncode=0,
         args=MYQUOTA_ARGS,
-        stdout="FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT\nhome         1.90GiB      40.00GiB      4.7%        44.00        1.00M         0.0%\ncscratch1    12.00KiB     20.00TiB      0.0%        3.00         10.00M        0.0%\n",
+        stdout=b"FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT\nhome         1.90GiB      40.00GiB      4.7%        44.00        1.00M         0.0%\ncscratch1    12.00KiB     20.00TiB      0.0%        3.00         10.00M        0.0%\n",
         stderr="",
     )
     p = SiteMoveVerifier(config, logger_mock)
