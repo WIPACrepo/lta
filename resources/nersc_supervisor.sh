@@ -1,7 +1,7 @@
 #!/bin/bash
 # nersc_supervisor.sh
 # Cron job.
-$ Argument:  optional integer between 0 and 2 that controls the log level.
+# Argument:  optional integer between 0 and 2 that controls the log level.
 #  Default is 0
 
 # We rely on slurm jobs to do the grunt work of archiving,
@@ -27,12 +27,11 @@ $ Argument:  optional integer between 0 and 2 that controls the log level.
 #  Patrick and David.
 # James Bellinger	22-Jan-2020
 #
-# General logic and error handling tested on cobalt on 21-Jan
-#
 ###############
 # Assumptions #
 ###############
-#  The slurm options have not changed since 22-Jan-2020
+#
+#  The slurm command options have not changed since 22-Jan-2020
 #
 #  The names of the scripts are as in 22-Jan-2020, with
 # a XXX.sh script which defines the environment and invokes
@@ -73,19 +72,25 @@ $ Argument:  optional integer between 0 and 2 that controls the log level.
 
 # Definitions
 
-declare -i NS_LOG_DETAIL count expectedcount fc activeJobs maxjobs
+declare -i NS_LOG_DETAIL count expectedcount fc activeJobs
 #declare -i incomplete
 
 export NS_BASE=/global/homes/i/icecubed/NEWLTA/lta
 export NS_LOG="${NS_BASE}/ns.log"
 export NS_SLURM_LOG="${NS_BASE}/SLURMLOGS"
 export NS_SLURM_LOG_SEEN="${NS_SLURM_LOG}/seen"
-NS_SCRIPT_PATH="${NS_BASE}"
+NS_SCRIPT_PATH="${NS_BASE}/bin"
 export NS_SCRIPT_PATH
 export SBATCH=/usr/bin/sbatch
 export SQUEUE=/usr/bin/squeue
 export SACCT=/usr/bin/sacct
-export maxjobs=14
+#export NS_CONTROL="${NS_BASE}/NS_CONTROL.json"
+export NS_PHONE_HOME=False
+##########
+# CONTROL
+# This string controls what we want to see at all times. 
+#   0 verifiers, 0 retrievers, 3 mover
+export NS_DESIRED="nersc-mover:3 nersc-verifier:1 nersc-retriever:0"
 
 ###
 # Functions follow
@@ -99,6 +104,7 @@ function logit {
   declare -i level
   if [[ "$2" == "" ]]; then return; fi
   level=$1
+  # sanity check
   if [[ ${NS_LOG_DETAIL} -eq 0 ]]; then return; fi
  
   if [[ ${NS_LOG_DETAIL} -ge ${level} ]]
@@ -111,8 +117,8 @@ function logit {
 ###
 # Return info about slurm jobs
 function getrunning {
-  logit 2 "getrunning"
   # no arguments
+  logit 2 "getrunning"
   if ! rawinfo=$(${SQUEUE} -h -o "%.18i %.25j %.2t %.10M %.42k %R" -u icecubed -q xfer -M escori)
     then
       logit 0 "SLURM is not working"
@@ -143,43 +149,6 @@ function launch {
 }
 
 ###
-# Inspect the slurm logs
-# If completed, move to "seen"
-# If not completed, count and make that available to the main
-#  program for comparison w/ the number of slurm jobs.  We
-#  can have a race condition in which one of the incomplete
-#  slurm jobs completes by the time we ask what's active.
-# I figure the process itself (and its heartbeat) will manage
-#  the error reporting
-function cleanupLogs {
-  declare -i unfinished
-  logit 2 "cleanupLogs"
-  if [[ ! -d ${NS_SLURM_LOG} ]]
-    then
-      logit 0 "Misconfiguration with slurm log ${NS_SLURM_LOG}"
-      return 1
-    fi
-  #
-  fileList=$(/usr/bin/ls "${NS_SLURM_LOG}/"*.out)
-  if [[ "${fileList}" == "" ]]; then return; fi
-  unfinished=0
-  for filename in ${fileList}
-    do
-       stuff=$(/usr/bin/grep -Ei '^START|^END' "${filename}")
-       bc=$(echo "${stuff}" | /usr/bin/awk 'BEGIN{x=0;}{if($1=="START")x=x+1;if($1=="END")x=x+2;}END{print x;}')
-       if [[ "${bc}" == "3" ]]
-         then
-           if ! /usr/bin/mv "${filename}" "${NS_SLURM_LOG_SEEN}/"
-             then return $?; fi
-         else
-           unfinished=$(( unfinished + 1 ))
-         fi
-    done
-  echo "${unfinished}"
-  return 0
-}
-
-###
 # Check the slurm job activity information, count the incomplete entries
 
 function countIncomplete {
@@ -190,9 +159,16 @@ function countIncomplete {
   # NOTA BENE:  The same job number can appear several times in the output.
   # Therefore I have to sort -u the result.
   # bash will treat the contents of "listing" as a single line, of course.
-  listing=$(/usr/bin/sacct -n -b -S "${twoweeksbefore}" -M escori -p | /usr/bin/awk '{split($0,b,"|");split(b[1],a,".");if(b[2]!="COMPLETED")print a[1],b[2],b[3],"|";}' |/usr/bin/sort -u)
-  logit 2 "${listing}"
-  echo "${listing}" | /usr/bin/awk '{n=split($0,a,"|");print n-1;}'
+  listing=$(${SACCT} -n -b -S "${twoweeksbefore}" -M escori -p | /usr/bin/awk '{split($0,b,"|");split(b[1],a,".");if(b[2]!="COMPLETED")print a[1],b[2],b[3],"|";}' |/usr/bin/sort -u)
+  if [[ "${listing}" == "" ]]
+    then
+        echo 0
+        return 0
+    fi
+  # Steve doesn't think I need to log the incomplete info
+  #logit 2 "${listing}"
+  # Count the number of not-completed, skipping the terminal "|" if any
+  echo "${listing}" | /usr/bin/awk '{n=split($0,a,"|");m=n-1;if(m<0)m=0;print m;}'
   return 0
 }
 
@@ -209,37 +185,18 @@ if [[ "$1" == "" ]]
   else
     NS_LOG_DETAIL=$1
   fi
-echo "DE1"
 # Log (or not, depending on the level)
 logit 1 "Invocation"
 
 # Not used yet
-#export NS_CONTROL=/global/homes/i/icecubed/LTA/NS_CONTROL.json
 
-# This string controls what we want to see at all times. 
-#   0 verifiers, 0 retrievers, 1 mover
-#declare -i NS_LOG_DETAIL count expectedcount fc incomplete activeJobs
 
-export NS_LOG=/global/homes/i/icecubed/LTA/ns.log
-export NS_SLURM_LOG=/global/homes/i/icecubed/LTA/SLURMLOGS
-export NS_SLURM_LOG_SEEN=/global/homes/i/icecubed/LTA/SLURMLOGS/seen
-NS_SCRIPT_PATH=$( dirname "$(cd "$( dirname "{BASH_SOURCE[0]}" )" && pwd )" )
-export NS_SCRIPT_PATH
-SBATCH=/usr/bin/sbatch
-SQUEUE=/usr/bin/squeue
 
-export NS_PHONE_HOME=False
-
-#
-export NS_DESIRED="nersc-mover:1 nersc-verifier:0 nersc-retriever:0"
 
 ##################
 # Start the work #
 ##################
 
-###
-# Clean up the slurm log files and count how many didn't finish
-###
 #if ! incomplete=$(countIncomplete)
 #  then
 #    exit 1
