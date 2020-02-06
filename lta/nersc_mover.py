@@ -80,11 +80,6 @@ class NerscMover(Component):
 
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
-        # configure a RestClient to talk to the LTA DB
-        lta_rc = RestClient(self.lta_rest_url,
-                            token=self.lta_rest_token,
-                            timeout=self.work_timeout_seconds,
-                            retries=self.work_retries)
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
         args = ["/usr/common/mss/bin/hpss_avail", "archive"]
@@ -93,8 +88,20 @@ class NerscMover(Component):
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
             return False
+        # if the hsi command has gone AWOL
+        args = ["/usr/bin/which", "hsi"]
+        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+        if completed_process.returncode != 0:
+            # prevent this instance from claiming any work
+            self.logger.error(f"Unable to do work; hsi command not available (returncode: {completed_process.returncode})")
+            return False
         # 1. Ask the LTA DB for the next Bundle to be taped
         self.logger.info("Asking the LTA DB for a Bundle to tape at NERSC with HPSS.")
+        # configure a RestClient to talk to the LTA DB
+        lta_rc = RestClient(self.lta_rest_url,
+                            token=self.lta_rest_token,
+                            timeout=self.work_timeout_seconds,
+                            retries=self.work_retries)
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
@@ -105,8 +112,18 @@ class NerscMover(Component):
             self.logger.info("LTA DB did not provide a Bundle to tape at NERSC with HPSS. Going on vacation.")
             return False
         # process the Bundle that we were given
-        await self._write_bundle_to_hpss(lta_rc, bundle)
-        return True
+        try:
+            await self._write_bundle_to_hpss(lta_rc, bundle)
+            return True
+        except Exception as e:
+            bundle_id = bundle["uuid"]
+            patch_body = {
+                "status": "quarantined",
+                "reason": f"Exception during execution: {e}",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+        return False
 
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Replicate the supplied bundle using the configured transfer service."""

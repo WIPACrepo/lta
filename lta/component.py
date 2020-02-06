@@ -91,8 +91,6 @@ class Component:
         # perform the work
         try:
             await self._do_work()
-            if self.run_once_and_die:
-                sys.exit()
         except Exception as e:
             # ut oh, something went wrong; log about it
             self.logger.error(f"Error occurred during the {self.type} work cycle")
@@ -100,6 +98,9 @@ class Component:
         # stop the work cycle stopwatch
         self.last_work_end_timestamp = datetime.utcnow().isoformat()
         self.logger.info(f"Ending {self.type} work cycle")
+        # if we are configured to run once and die, then die
+        if self.run_once_and_die:
+            sys.exit()
 
     def validate_config(self, config: Dict[str, str]) -> None:
         """Validate the configuration provided to the component."""

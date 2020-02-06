@@ -137,9 +137,60 @@ async def test_nersc_verifier_run_exception(config, mocker):
     assert p.last_work_end_timestamp
 
 @pytest.mark.asyncio
+async def test_nersc_verifier_hpss_not_available(config, mocker):
+    """Test that a bad returncode on hpss_avail will prevent work."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.return_value = ObjectLiteral(
+        returncode=1,
+        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        stdout="some text on stdout",
+        stderr="some text on stderr",
+    )
+    p = NerscVerifier(config, logger_mock)
+    assert not await p._do_work_claim()
+
+@pytest.mark.asyncio
+async def test_nersc_verifier_hsi_not_available(config, mocker):
+    """Test that a bad returncode on hpss_avail will prevent work."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=1,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
+    p = NerscVerifier(config, logger_mock)
+    assert not await p._do_work_claim()
+
+@pytest.mark.asyncio
 async def test_nersc_verifier_do_work_pop_exception(config, mocker):
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = NerscVerifier(config, logger_mock)
@@ -171,6 +222,21 @@ async def test_nersc_verifier_do_work_yes_results(config, mocker):
 async def test_nersc_verifier_do_work_claim_no_result(config, mocker):
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
         "bundle": None
@@ -185,6 +251,21 @@ async def test_nersc_verifier_do_work_claim_no_result(config, mocker):
 async def test_nersc_verifier_do_work_claim_yes_result(config, mocker):
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
         "bundle": {
@@ -202,6 +283,21 @@ async def test_nersc_verifier_do_work_claim_yes_result(config, mocker):
 async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config, mocker):
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
         "bundle": {
@@ -218,6 +314,42 @@ async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config,
     vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
     abtfc_mock.assert_called_with({"one": 1})
     ubild_mock.assert_called_with(mocker.ANY, {"one": 1})
+
+@pytest.mark.asyncio
+async def test_nersc_verifier_do_work_claim_exception_caught(config, mocker):
+    """Test that _do_work_claim quarantines a Bundle if it catches an Exception."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.side_effect = [
+        {
+            "bundle": {
+                "uuid": "45ae2ad39c664fda86e5981be0976d9c",
+                "one": 1,
+            },
+        },
+        {}
+    ]
+    vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=AsyncMock)
+    vbih_mock.side_effect = Exception("Database totally on fire, guys")
+    p = NerscVerifier(config, logger_mock)
+    assert not await p._do_work_claim()
+    lta_rc_mock.assert_called_with("PATCH", '/Bundles/45ae2ad39c664fda86e5981be0976d9c', mocker.ANY)
+    vbih_mock.assert_called_with(mocker.ANY, {"uuid": "45ae2ad39c664fda86e5981be0976d9c", "one": 1})
 
 @pytest.mark.asyncio
 async def test_nersc_verifier_add_bundle_to_file_catalog(config, mocker):
