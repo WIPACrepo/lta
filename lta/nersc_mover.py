@@ -5,7 +5,7 @@ import asyncio
 from logging import Logger
 import logging
 import os
-from subprocess import run
+from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -88,7 +88,7 @@ class NerscMover(Component):
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
         args = ["/usr/common/mss/bin/hpss_avail", "archive"]
-        completed_process = run(args)
+        completed_process = run(args, stdout=PIPE, stderr=PIPE)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
@@ -146,7 +146,7 @@ class NerscMover(Component):
         return True
 
     async def _execute_hsi_command(self, lta_rc: RestClient, bundle: BundleType, args: List[str]) -> bool:
-        completed_process = run(args)
+        completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
             self.logger.info(f"Command to tape bundle to HPSS failed: {completed_process.args}")

@@ -6,7 +6,7 @@ import json
 from logging import Logger
 import logging
 import os
-from subprocess import run
+from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -177,7 +177,7 @@ class SiteMoveVerifier(Component):
 
     def _execute_myquota(self) -> Optional[str]:
         """Run the myquota command to determine disk usage at the site."""
-        completed_process = run(MYQUOTA_ARGS)
+        completed_process = run(MYQUOTA_ARGS, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
             self.logger.info(f"Command to check quota failed: {completed_process.args}")
@@ -186,7 +186,7 @@ class SiteMoveVerifier(Component):
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             return None
         # otherwise, we succeeded
-        return str(completed_process.stdout)
+        return completed_process.stdout.decode("utf-8")
 
     async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Run the myquota command to determine disk usage at the site."""
