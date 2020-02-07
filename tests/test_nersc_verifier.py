@@ -22,6 +22,7 @@ def config():
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "TAPE_BASE_PATH": "/path/to/hpss",
+        "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
@@ -67,6 +68,7 @@ async def test_nersc_verifier_logs_configuration(mocker):
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "TAPE_BASE_PATH": "/logme/path/to/hpss",
         "WORK_RETRIES": "5",
@@ -84,6 +86,7 @@ async def test_nersc_verifier_logs_configuration(mocker):
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
+        call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
         call('TAPE_BASE_PATH = /logme/path/to/hpss'),
         call('WORK_RETRIES = 5'),
@@ -134,9 +137,60 @@ async def test_nersc_verifier_run_exception(config, mocker):
     assert p.last_work_end_timestamp
 
 @pytest.mark.asyncio
+async def test_nersc_verifier_hpss_not_available(config, mocker):
+    """Test that a bad returncode on hpss_avail will prevent work."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.return_value = ObjectLiteral(
+        returncode=1,
+        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        stdout="some text on stdout",
+        stderr="some text on stderr",
+    )
+    p = NerscVerifier(config, logger_mock)
+    assert not await p._do_work_claim()
+
+@pytest.mark.asyncio
+async def test_nersc_verifier_hsi_not_available(config, mocker):
+    """Test that a bad returncode on hpss_avail will prevent work."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=1,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
+    p = NerscVerifier(config, logger_mock)
+    assert not await p._do_work_claim()
+
+@pytest.mark.asyncio
 async def test_nersc_verifier_do_work_pop_exception(config, mocker):
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = NerscVerifier(config, logger_mock)
@@ -168,6 +222,21 @@ async def test_nersc_verifier_do_work_yes_results(config, mocker):
 async def test_nersc_verifier_do_work_claim_no_result(config, mocker):
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
         "bundle": None
@@ -182,6 +251,21 @@ async def test_nersc_verifier_do_work_claim_no_result(config, mocker):
 async def test_nersc_verifier_do_work_claim_yes_result(config, mocker):
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
         "bundle": {
@@ -199,6 +283,21 @@ async def test_nersc_verifier_do_work_claim_yes_result(config, mocker):
 async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config, mocker):
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
         "bundle": {
@@ -215,6 +314,42 @@ async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config,
     vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
     abtfc_mock.assert_called_with({"one": 1})
     ubild_mock.assert_called_with(mocker.ANY, {"one": 1})
+
+@pytest.mark.asyncio
+async def test_nersc_verifier_do_work_claim_exception_caught(config, mocker):
+    """Test that _do_work_claim quarantines a Bundle if it catches an Exception."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["/usr/bin/which", "hsi"],
+            stdout="some text on stdout",
+            stderr="some text on stderr",
+        ),
+    ]
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.side_effect = [
+        {
+            "bundle": {
+                "uuid": "45ae2ad39c664fda86e5981be0976d9c",
+                "one": 1,
+            },
+        },
+        {}
+    ]
+    vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=AsyncMock)
+    vbih_mock.side_effect = Exception("Database totally on fire, guys")
+    p = NerscVerifier(config, logger_mock)
+    assert not await p._do_work_claim()
+    lta_rc_mock.assert_called_with("PATCH", '/Bundles/45ae2ad39c664fda86e5981be0976d9c', mocker.ANY)
+    vbih_mock.assert_called_with(mocker.ANY, {"uuid": "45ae2ad39c664fda86e5981be0976d9c", "one": 1})
 
 @pytest.mark.asyncio
 async def test_nersc_verifier_add_bundle_to_file_catalog(config, mocker):
@@ -287,7 +422,15 @@ async def test_nersc_verifier_verify_bundle_in_hpss_success_no_quarantine(config
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            stderr="97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout=b"97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
+            stderr=b"",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["hsi", "-q", "hashverify", "-A", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout=b"/home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK\n",
+            stderr=b"",
         ),
     ]
     lta_mock = mocker.MagicMock()
@@ -295,7 +438,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_success_no_quarantine(config
     lta_mock.request = lta_rc_mock
     p = NerscVerifier(config, logger_mock)
     assert await p._verify_bundle_in_hpss(lta_mock, bundle)
-    assert run_mock.call_count == 1
+    assert run_mock.call_count == 2
     lta_rc_mock.assert_not_called()
 
 @pytest.mark.asyncio
@@ -314,9 +457,9 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hsi_failure_quarantine(confi
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=1,
-            args=["hsi", "hashverify", "-A", "-H", "sha512", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
-            stdout="some text on stdout",
-            stderr="some text on stderr",
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout=b"",
+            stderr=b"",
         ),
     ]
     lta_mock = mocker.MagicMock()
@@ -343,7 +486,9 @@ async def test_nersc_verifier_verify_bundle_in_hpss_mismatch_checksum_quarantine
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            stderr="1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]\n",
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout=b"1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]\n",
+            stderr=b"",
         ),
     ]
     lta_mock = mocker.MagicMock()
@@ -352,4 +497,109 @@ async def test_nersc_verifier_verify_bundle_in_hpss_mismatch_checksum_quarantine
     p = NerscVerifier(config, logger_mock)
     assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
     assert run_mock.call_count == 1
+    lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
+
+@pytest.mark.asyncio
+async def test_nersc_verifier_verify_bundle_in_hpss_failure_hashverify_quarantine(config, mocker):
+    """Test that _verify_bundle_in_hpss does not quarantine a bundle if the HSI command succeeds."""
+    logger_mock = mocker.MagicMock()
+    bundle = {
+        "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
+        "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+        "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
+        "checksum": {
+            "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
+        },
+    }
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout=b"97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
+            stderr=b"",
+        ),
+        ObjectLiteral(
+            returncode=1,
+            args=["hsi", "-q", "hashverify", "-A", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout=b"",
+            stderr=b"",
+        ),
+    ]
+    lta_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_mock.request = lta_rc_mock
+    p = NerscVerifier(config, logger_mock)
+    assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
+    assert run_mock.call_count == 2
+    lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
+
+@pytest.mark.asyncio
+async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quarantine(config, mocker):
+    """Test that _verify_bundle_in_hpss does not quarantine a bundle if the HSI command succeeds."""
+    logger_mock = mocker.MagicMock()
+    bundle = {
+        "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
+        "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+        "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
+        "checksum": {
+            "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
+        },
+    }
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout=b"97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
+            stderr=b"",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["hsi", "-q", "hashverify", "-A", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout=b"/home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha256) OK\n",
+            stderr=b"",
+        ),
+    ]
+    lta_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_mock.request = lta_rc_mock
+    p = NerscVerifier(config, logger_mock)
+    assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
+    assert run_mock.call_count == 2
+    lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
+
+@pytest.mark.asyncio
+async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_result_quarantine(config, mocker):
+    """Test that _verify_bundle_in_hpss does not quarantine a bundle if the HSI command succeeds."""
+    logger_mock = mocker.MagicMock()
+    bundle = {
+        "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
+        "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+        "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
+        "checksum": {
+            "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
+        },
+    }
+    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
+    run_mock.side_effect = [
+        ObjectLiteral(
+            returncode=0,
+            args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout=b"97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
+            stderr=b"",
+        ),
+        ObjectLiteral(
+            returncode=0,
+            args=["hsi", "-q", "hashverify", "-A", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
+            stdout=b"/home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha256) OK\n",
+            stderr=b"",
+        ),
+    ]
+    lta_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_mock.request = lta_rc_mock
+    p = NerscVerifier(config, logger_mock)
+    assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
+    assert run_mock.call_count == 2
     lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)

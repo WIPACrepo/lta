@@ -11,19 +11,25 @@ from datetime import datetime, timedelta
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from time import mktime, strptime
+from typing import Any, Dict, List, Optional, Tuple
 
 import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 
+from lta.component import now
 from lta.config import from_environment
 from lta.crypto import sha512sum
 
 
 COMPONENT_NAMES = [
     "bundler",
+    "deleter",
+    "nersc_mover",
+    "nersc_verifier",
     "picker",
     "replicator",
+    "site_move_verifier",
 ]
 
 EXPECTED_CONFIG = {
@@ -33,6 +39,19 @@ EXPECTED_CONFIG = {
     'LTA_REST_URL': None,
 }
 
+KILOBYTE = 1024
+MEGABYTE = KILOBYTE * KILOBYTE
+GIGABYTE = MEGABYTE * KILOBYTE
+MINIMUM_REQUEST_SIZE = 100 * GIGABYTE
+
+def as_datetime(s: str) -> datetime:
+    """Convert a timestamp string into a datetime object."""
+    # if Python 3.7+
+    # return datetime.fromisoformat(s)
+
+    # before Python 3.7
+    st = strptime(s, "%Y-%m-%dT%H:%M:%S")
+    return datetime.fromtimestamp(mktime(st))
 
 def display_time(s: str) -> str:
     """Make a timestamp string look nice."""
@@ -80,6 +99,17 @@ async def _get_bundles_status(rc: RestClient, bundle_uuids: List[str]) -> List[D
         bundles.append(bundle)
     return bundles
 
+def _get_files_and_size(path: str) -> Tuple[List[str], int]:
+    """Recursively walk and add the files of files in the file system."""
+    # enumerate all of the files on disk to be checked
+    disk_files = _enumerate_path(path)
+    # for all of the files we want to check
+    size = 0
+    for disk_file in disk_files:
+        # determine the size of the file
+        size += os.path.getsize(disk_file)
+    return (disk_files, size)
+
 # -----------------------------------------------------------------------------
 
 async def bundle_ls(args: Namespace) -> None:
@@ -92,6 +122,34 @@ async def bundle_ls(args: Namespace) -> None:
         print(f"total {len(results)}")
         for uuid in results:
             print(f"Bundle {uuid}")
+
+
+async def bundle_overdue(args: Namespace) -> None:
+    """List of the problematic Bundle objects in the LTA DB."""
+    # calculate our cutoff time for bundles not making progress
+    cutoff_time = datetime.utcnow() - timedelta(days=args.days)
+    # query the LTA DB to get a list of bundles to check
+    response = await args.lta_rc.request("GET", "/Bundles")
+    results = response["results"]
+    # for each bundle, query the LTA DB and check it
+    problem_bundles = []
+    for uuid in results:
+        bundle = await args.lta_rc.request("GET", f"/Bundles/{uuid}")
+        del bundle["files"]
+        if bundle["status"] == "quarantined":
+            problem_bundles.append(bundle)
+        elif as_datetime(bundle["update_timestamp"]) < cutoff_time:
+            problem_bundles.append(bundle)
+    # report the list of miscreants to the user
+    if args.json:
+        print_dict_as_pretty_json({"bundles": problem_bundles})
+    else:
+        for bundle in problem_bundles:
+            print(f"Bundle {bundle['uuid']}")
+            print(f"    Status: {bundle['status']} ({display_time(bundle['update_timestamp'])})")
+            print(f"    Claimed: {bundle['claimed']}")
+            if bundle['claimed']:
+                print(f"        Claimant: {bundle['claimant']} ({display_time(bundle['claim_timestamp'])})")
 
 
 async def bundle_status(args: Namespace) -> None:
@@ -124,6 +182,17 @@ async def bundle_status(args: Namespace) -> None:
             print(f"    Contents:")
             for file in response["files"]:
                 print(f"        {file['logical_name']} {file['file_size']}")
+
+
+async def bundle_update_status(args: Namespace) -> None:
+    """Update the status of a Bundle in the LTA DB."""
+    patch_body = {}
+    patch_body["status"] = args.new_status
+    patch_body["reason"] = ""
+    patch_body["update_timestamp"] = now()
+    if not args.keep_claim:
+        patch_body["claimed"] = False
+    await args.lta_rc.request("PATCH", f"/Bundles/{args.uuid}", patch_body)
 
 
 async def catalog_check(args: Namespace) -> None:
@@ -245,13 +314,13 @@ async def catalog_load(args: Namespace) -> None:
             disk_checksum = sha512sum(disk_file)
         # if we've got a bad record, then we need to clean it up
         if catalog_record:
-            patch_dict = {
+            patch_body = {
                 "logical_name": disk_file,
                 "file_size": size,
                 "checksum": catalog_record["checksum"]
             }
-            patch_dict["checksum"]["sha512"] = disk_checksum
-            await args.fc_rc.request("PATCH", f'/api/files/{catalog_record["uuid"]}', patch_dict)
+            patch_body["checksum"]["sha512"] = disk_checksum
+            await args.fc_rc.request("PATCH", f'/api/files/{catalog_record["uuid"]}', patch_body)
             if not args.json:
                 print(f"Updated record for {disk_file}")
             updated.append(disk_file)
@@ -289,13 +358,9 @@ async def display_config(args: Namespace) -> None:
 
 async def request_estimate(args: Namespace) -> None:
     """Estimate the count and size of a new TransferRequest."""
-    # enumerate all of the files on disk to be checked
-    disk_files = _enumerate_path(args.path)
-    # for all of the files we want to check
-    size = 0
-    for disk_file in disk_files:
-        # determine the size of the file
-        size += os.path.getsize(disk_file)
+    files_and_size = _get_files_and_size(args.path)
+    disk_files = files_and_size[0]
+    size = files_and_size[1]
     # build the result dictionary
     result = {
         "path": args.path,
@@ -306,7 +371,7 @@ async def request_estimate(args: Namespace) -> None:
     if args.json:
         print_dict_as_pretty_json(result)
     else:
-        print(f"TransferReqeust for {args.path}")
+        print(f"TransferRequest for {args.path}")
         print(f"{size:,} bytes ({hurry.filesize.size(size)}) in {len(disk_files):,} files.")
 
 
@@ -324,6 +389,16 @@ async def request_ls(args: Namespace) -> None:
 
 async def request_new(args: Namespace) -> None:
     """Create a new TransferRequest and add it to the LTA DB."""
+    # determine how big the transfer request is going to be
+    files_and_size = _get_files_and_size(args.path)
+    disk_files = files_and_size[0]
+    size = files_and_size[1]
+    # if it doesn't meet our minimize size requirement
+    if size < MINIMUM_REQUEST_SIZE:
+        # and the operator has not forced the issue
+        if not args.force:
+            # raise an Exception to prevent the command from creating a too small request
+            raise Exception(f"TransferRequest for {args.path}\n{size:,} bytes ({hurry.filesize.size(size)}) in {len(disk_files):,} files.\nMinimum required size: {MINIMUM_REQUEST_SIZE:,} bytes.")
     # get some stuff
     source = args.source
     dest = args.dest
@@ -392,9 +467,19 @@ async def request_status(args: Namespace) -> None:
                 print(f"            Files: {bundle['file_count']}")
 
 
+async def request_update_status(args: Namespace) -> None:
+    """Update the status of a TransferRequest in the LTA DB."""
+    patch_body = {}
+    patch_body["status"] = args.new_status
+    patch_body["update_timestamp"] = now()
+    if not args.keep_claim:
+        patch_body["claimed"] = False
+    await args.lta_rc.request("PATCH", f"/TransferRequests/{args.uuid}", patch_body)
+
+
 async def status(args: Namespace) -> None:
     """Query the status of the LTA DB or a component of LTA."""
-    old_data = (datetime.utcnow() - timedelta(seconds=60*5)).isoformat()
+    old_data = (datetime.utcnow() - timedelta(days=args.days)).isoformat()
 
     def date_ok(d: str) -> bool:
         return d > old_data
@@ -403,7 +488,12 @@ async def status(args: Namespace) -> None:
     if args.component:
         response = await args.lta_rc.request("GET", f"/status/{args.component}")
         if args.json:
-            print_dict_as_pretty_json(response)
+            r = response.copy()
+            for key in response:
+                timestamp = response[key]['timestamp']
+                if not date_ok(timestamp):
+                    del r[key]
+            print_dict_as_pretty_json(r)
         else:
             for key in response:
                 timestamp = response[key]['timestamp']
@@ -411,6 +501,7 @@ async def status(args: Namespace) -> None:
                 if date_ok(timestamp):
                     status = "OK"
                 print(f"{(key+':'):<25}[{status:<4}] {timestamp.replace('T', ' ')}")
+
     # otherwise we want the status of the whole system
     else:
         response = await args.lta_rc.request("GET", "/status")
@@ -447,6 +538,17 @@ async def main() -> None:
                                   action="store_true")
     parser_bundle_ls.set_defaults(func=bundle_ls)
 
+    # define a subparser for the 'bundle overdue' subcommand
+    parser_bundle_overdue = bundle_subparser.add_parser('overdue', help='list problematic bundles')
+    parser_bundle_overdue.add_argument("--days",
+                                       help="upper limit of days without progress",
+                                       type=int,
+                                       default=3)
+    parser_bundle_overdue.add_argument("--json",
+                                       help="display output in JSON",
+                                       action="store_true")
+    parser_bundle_overdue.set_defaults(func=bundle_overdue)
+
     # define a subparser for the 'bundle status' subcommand
     parser_bundle_status = bundle_subparser.add_parser('status', help='query bundle status')
     parser_bundle_status.add_argument("--uuid",
@@ -459,6 +561,21 @@ async def main() -> None:
                                       help="display output in JSON",
                                       action="store_true")
     parser_bundle_status.set_defaults(func=bundle_status)
+
+    # define a subparser for the 'bundle update-status' subcommand
+    parser_bundle_update_status = bundle_subparser.add_parser('update-status', help='update bundle status')
+    parser_bundle_update_status.add_argument("--uuid",
+                                             help="identity of bundle",
+                                             required=True)
+    parser_bundle_update_status.add_argument("--new-status",
+                                             dest="new_status",
+                                             help="new status of the bundle",
+                                             required=True)
+    parser_bundle_update_status.add_argument("--keep-claim",
+                                             dest="keep_claim",
+                                             help="don't unclaim the bundle",
+                                             action="store_true")
+    parser_bundle_update_status.set_defaults(func=bundle_update_status)
 
     # define a subparser for the 'catalog' subcommand
     parser_catalog = subparser.add_parser('catalog', help='interact with the file catalog')
@@ -540,6 +657,9 @@ async def main() -> None:
     parser_request_new.add_argument("--json",
                                     help="display output in JSON",
                                     action="store_true")
+    parser_request_new.add_argument("--force",
+                                    help="force small size transfer request",
+                                    action="store_true")
     parser_request_new.set_defaults(func=request_new)
 
     # define a subparser for the 'request rm' subcommand
@@ -568,12 +688,31 @@ async def main() -> None:
                                        action="store_true")
     parser_request_status.set_defaults(func=request_status)
 
+    # define a subparser for the 'request update-status' subcommand
+    parser_request_update_status = request_subparser.add_parser('update-status', help='update transfer request status')
+    parser_request_update_status.add_argument("--uuid",
+                                              help="identity of transfer request",
+                                              required=True)
+    parser_request_update_status.add_argument("--new-status",
+                                              dest="new_status",
+                                              help="new status of the transfer request",
+                                              required=True)
+    parser_request_update_status.add_argument("--keep-claim",
+                                              dest="keep_claim",
+                                              help="don't unclaim the transfer request",
+                                              action="store_true")
+    parser_request_update_status.set_defaults(func=request_update_status)
+
     # define a subparser for the 'status' subcommand
     parser_status = subparser.add_parser('status', help='perform a status query')
     parser_status.add_argument("component",
                                choices=COMPONENT_NAMES,
                                help="optional LTA component",
                                nargs='?')
+    parser_status.add_argument("--days",
+                               help="ignore status reports older than",
+                               type=int,
+                               default=2)
     parser_status.add_argument("--json",
                                help="display output in JSON",
                                action="store_true")

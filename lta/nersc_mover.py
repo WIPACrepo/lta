@@ -5,7 +5,7 @@ import asyncio
 from logging import Logger
 import logging
 import os
-from subprocess import run
+from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -19,6 +19,7 @@ from .lta_types import BundleType
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "MAX_COUNT": None,
     "RSE_BASE_PATH": None,
     "TAPE_BASE_PATH": None,
     "WORK_RETRIES": "3",
@@ -54,6 +55,7 @@ class NerscMover(Component):
         logger - The object the nersc_mover should use for logging.
         """
         super(NerscMover, self).__init__("nersc_mover", config, logger)
+        self.max_count = int(config["MAX_COUNT"])
         self.rse_bath_path = config["RSE_BASE_PATH"]
         self.tape_bath_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
@@ -73,17 +75,33 @@ class NerscMover(Component):
         work_claimed = True
         while work_claimed:
             work_claimed = await self._do_work_claim()
+            work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
+        # 0. Do some pre-flight checks to ensure that we can do work
+        # if the HPSS system is not available
+        args = ["/usr/common/mss/bin/hpss_avail", "archive"]
+        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+        if completed_process.returncode != 0:
+            # prevent this instance from claiming any work
+            self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
+            return False
+        # if the hsi command has gone AWOL
+        args = ["/usr/bin/which", "hsi"]
+        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+        if completed_process.returncode != 0:
+            # prevent this instance from claiming any work
+            self.logger.error(f"Unable to do work; hsi command not available (returncode: {completed_process.returncode})")
+            return False
         # 1. Ask the LTA DB for the next Bundle to be taped
+        self.logger.info("Asking the LTA DB for a Bundle to tape at NERSC with HPSS.")
         # configure a RestClient to talk to the LTA DB
         lta_rc = RestClient(self.lta_rest_url,
                             token=self.lta_rest_token,
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
-        self.logger.info("Asking the LTA DB for a Bundle to tape at NERSC with HPSS.")
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
@@ -94,17 +112,29 @@ class NerscMover(Component):
             self.logger.info("LTA DB did not provide a Bundle to tape at NERSC with HPSS. Going on vacation.")
             return False
         # process the Bundle that we were given
-        await self._write_bundle_to_hpss(lta_rc, bundle)
-        return True
+        try:
+            await self._write_bundle_to_hpss(lta_rc, bundle)
+            return True
+        except Exception as e:
+            bundle_id = bundle["uuid"]
+            patch_body = {
+                "status": "quarantined",
+                "reason": f"Exception during execution: {e}",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+        return False
 
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Replicate the supplied bundle using the configured transfer service."""
         bundle_id = bundle["uuid"]
-        # determine the path where rucio copied the bundle
+        # determine the name and path of the bundle
         basename = os.path.basename(bundle["bundle_path"])
-        rucio_path = os.path.join(self.rse_bath_path, basename)
-        # determine the path where it should be stored on hpss
         data_warehouse_path = bundle["path"]
+        # determine the path where rucio copied the bundle
+        stupid_python_path = os.path.sep.join([self.rse_bath_path, data_warehouse_path, basename])
+        rucio_path = os.path.normpath(stupid_python_path)
+        # determine the path where it should be stored on hpss
         stupid_python_path = os.path.sep.join([self.tape_bath_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
         # run an hsi command to create the destination directory
@@ -123,15 +153,17 @@ class NerscMover(Component):
         if not await self._execute_hsi_command(lta_rc, bundle, args):
             return False
         # otherwise, update the Bundle in the LTA DB
-        bundle["status"] = "verifying"
-        bundle["update_timestamp"] = now()
-        bundle["claimed"] = False
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        patch_body = {
+            "status": "verifying",
+            "update_timestamp": now(),
+            "claimed": False,
+        }
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
     async def _execute_hsi_command(self, lta_rc: RestClient, bundle: BundleType, args: List[str]) -> bool:
-        completed_process = run(args)
+        completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
             self.logger.info(f"Command to tape bundle to HPSS failed: {completed_process.args}")
@@ -139,10 +171,12 @@ class NerscMover(Component):
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             bundle_id = bundle["uuid"]
-            bundle["status"] = "quarantined"
-            bundle["reason"] = f"hsi Command Failed"
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+            patch_body = {
+                "status": "quarantined",
+                "reason": "hsi Command Failed",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # otherwise, we succeeded
         return True

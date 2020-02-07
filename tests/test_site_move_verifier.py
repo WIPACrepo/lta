@@ -1,13 +1,14 @@
 # test_site_move_verifier.py
 """Unit tests for lta/site_move_verifier.py."""
 
-from unittest.mock import call  # MagicMock
+from unittest.mock import call, MagicMock
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
+from lta.site_move_verifier import as_nonempty_columns, discard_empty, MYQUOTA_ARGS, parse_myquota
 from lta.site_move_verifier import main, SiteMoveVerifier
-from .test_util import AsyncMock
+from .test_util import AsyncMock, ObjectLiteral
 
 @pytest.fixture
 def config():
@@ -21,12 +22,51 @@ def config():
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "NEXT_STATUS": "taping",
+        "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "TRANSFER_CONFIG_PATH": "examples/rucio.json",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
     }
+
+def test_as_nonempty_columns():
+    """Test that test_as_nonempty_columns does what it says on the tin."""
+    assert as_nonempty_columns("FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT") == ["FILESYSTEM", "SPACE_USED", "SPACE_QUOTA", "SPACE_PCT", "INODE_USED", "INODE_QUOTA", "INODE_PCT"]
+    assert as_nonempty_columns("cscratch1    7638.60GiB   51200.00GiB   14.9%       0.00G        0.01G         0.1%") == ["cscratch1", "7638.60GiB", "51200.00GiB", "14.9%", "0.00G", "0.01G", "0.1%"]
+
+def test_discard_empty():
+    """Test that discard_empty does what it says on the tin."""
+    assert not discard_empty(None)
+    assert not discard_empty("")
+    assert discard_empty("alice")
+
+def test_parse_myquota():
+    """Test that parse_myquota provides expected output."""
+    stdout = """FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT
+home         1.90GiB      40.00GiB      4.7%        44.00        1.00M         0.0%
+cscratch1    12.00KiB     20.00TiB      0.0%        3.00         10.00M        0.0%
+"""
+    assert parse_myquota(stdout) == [
+        {
+            "FILESYSTEM": "home",
+            "SPACE_USED": "1.90GiB",
+            "SPACE_QUOTA": "40.00GiB",
+            "SPACE_PCT": "4.7%",
+            "INODE_USED": "44.00",
+            "INODE_QUOTA": "1.00M",
+            "INODE_PCT": "0.0%",
+        },
+        {
+            "FILESYSTEM": "cscratch1",
+            "SPACE_USED": "12.00KiB",
+            "SPACE_QUOTA": "20.00TiB",
+            "SPACE_PCT": "0.0%",
+            "INODE_USED": "3.00",
+            "INODE_QUOTA": "10.00M",
+            "INODE_PCT": "0.0%",
+        },
+    ]
 
 def test_constructor_config(config, mocker):
     """Test that a SiteMoveVerifier can be constructed with a configuration object and a logging object."""
@@ -50,8 +90,49 @@ def test_constructor_config(config, mocker):
 def test_do_status(config, mocker):
     """Verify that the SiteMoveVerifier has no additional state to offer."""
     logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.site_move_verifier.run", new_callable=MagicMock)
+    run_mock.return_value = ObjectLiteral(
+        returncode=0,
+        args=MYQUOTA_ARGS,
+        stdout=b"FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT\nhome         1.90GiB      40.00GiB      4.7%        44.00        1.00M         0.0%\ncscratch1    12.00KiB     20.00TiB      0.0%        3.00         10.00M        0.0%\n",
+        stderr="",
+    )
     p = SiteMoveVerifier(config, logger_mock)
-    assert p._do_status() == {}
+    assert p._do_status() == {
+        "quota": [
+            {
+                "FILESYSTEM": "home",
+                "SPACE_USED": "1.90GiB",
+                "SPACE_QUOTA": "40.00GiB",
+                "SPACE_PCT": "4.7%",
+                "INODE_USED": "44.00",
+                "INODE_QUOTA": "1.00M",
+                "INODE_PCT": "0.0%",
+            },
+            {
+                "FILESYSTEM": "cscratch1",
+                "SPACE_USED": "12.00KiB",
+                "SPACE_QUOTA": "20.00TiB",
+                "SPACE_PCT": "0.0%",
+                "INODE_USED": "3.00",
+                "INODE_QUOTA": "10.00M",
+                "INODE_PCT": "0.0%",
+            },
+        ]
+    }
+
+def test_do_status_myquota_fails(config, mocker):
+    """Verify that the SiteMoveVerifier has no additional state to offer."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.site_move_verifier.run", new_callable=MagicMock)
+    run_mock.return_value = ObjectLiteral(
+        returncode=1,
+        args=MYQUOTA_ARGS,
+        stdout="",
+        stderr="nersc file systems burned down; again",
+    )
+    p = SiteMoveVerifier(config, logger_mock)
+    assert p._do_status() == {"quota": []}
 
 @pytest.mark.asyncio
 async def test_site_move_verifier_logs_configuration(mocker):
@@ -66,6 +147,7 @@ async def test_site_move_verifier_logs_configuration(mocker):
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
         "NEXT_STATUS": "prognosticating",
+        "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "TRANSFER_CONFIG_PATH": "examples/rucio.json",
         "WORK_RETRIES": "5",
@@ -83,6 +165,7 @@ async def test_site_move_verifier_logs_configuration(mocker):
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
         call('NEXT_STATUS = prognosticating'),
+        call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
         call('TRANSFER_CONFIG_PATH = examples/rucio.json'),
         call('WORK_RETRIES = 5'),
@@ -214,8 +297,7 @@ async def test_site_move_verifier_verify_bundle_not_finished(config, mocker):
     await p._verify_bundle(lta_rc_mock, bundle_obj)
     inst_mock.assert_called_with(p.transfer_config)
     xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
-    # lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
-    lta_rc_mock.request.assert_not_called()
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
 
 @pytest.mark.asyncio
 async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
@@ -247,8 +329,10 @@ async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
     inst_mock.assert_called_with(p.transfer_config)
     xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
-    assert bundle_obj["status"] == "quarantined"
-    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
+        "status": "quarantined",
+        "reason": mocker.ANY,
+    })
 
 @pytest.mark.asyncio
 async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
@@ -280,5 +364,8 @@ async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
     inst_mock.assert_called_with(p.transfer_config)
     xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
-    assert bundle_obj["status"] == "taping"
-    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
+        "status": "taping",
+        "update_timestamp": mocker.ANY,
+        "claimed": False,
+    })

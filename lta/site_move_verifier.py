@@ -6,8 +6,9 @@ import json
 from logging import Logger
 import logging
 import os
+from subprocess import PIPE, run
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from rest_tools.client import RestClient  # type: ignore
@@ -19,7 +20,6 @@ from .log_format import StructuredFormatter
 from .lta_types import BundleType
 from .transfer.service import instantiate
 
-
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "DEST_SITE": None,
@@ -28,6 +28,34 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
+MYQUOTA_ARGS = ["/usr/bin/myquota", "-G"]
+
+def as_nonempty_columns(s: str) -> List[str]:
+    """Split the provided string into columns and return the non-empty ones."""
+    cols = s.split(" ")
+    nonempty = list(filter(discard_empty, cols))
+    return nonempty
+
+def discard_empty(s: str) -> bool:
+    """Return true if the provided string is non-empty."""
+    if s:
+        return True
+    return False
+
+def parse_myquota(s: str) -> List[Dict[str, str]]:
+    """Split the provided string into columns and return the non-empty ones."""
+    results = []
+    lines = s.split("\n")
+    keys = as_nonempty_columns(lines[0])
+    for i in range(1, len(lines)):
+        if lines[i]:
+            values = as_nonempty_columns(lines[i])
+            quota_dict = {}
+            for j in range(0, len(keys)):
+                quota_dict[keys[j]] = values[j]
+            results.append(quota_dict)
+    return results
 
 
 class SiteMoveVerifier(Component):
@@ -59,7 +87,11 @@ class SiteMoveVerifier(Component):
 
     def _do_status(self) -> Dict[str, Any]:
         """Provide additional status for the SiteMoveVerifier."""
-        return {}
+        quota = []
+        stdout = self._execute_myquota()
+        if stdout:
+            quota = parse_myquota(stdout)
+        return {"quota": quota}
 
     def _expected_config(self) -> Dict[str, Optional[str]]:
         """Provide expected configuration dictionary."""
@@ -71,6 +103,7 @@ class SiteMoveVerifier(Component):
         work_claimed = True
         while work_claimed:
             work_claimed = await self._do_work_claim()
+            work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
     async def _do_work_claim(self) -> bool:
@@ -106,6 +139,7 @@ class SiteMoveVerifier(Component):
         # if it's not completed, we're still waiting to verify it
         if not xfer_status["completed"]:
             self.logger.info(f"Transfer of Bundle {bundle_id} is incomplete and will not be verified at this time.")
+            await self._unclaim_bundle(lta_rc, bundle)
             return False
         # when we verify bundles, we do so at the destination site
         dest = bundle["dest"]
@@ -123,18 +157,47 @@ class SiteMoveVerifier(Component):
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info(f"These checksums do NOT match, and the Bundle will NOT be verified.")
-            bundle["status"] = "quarantined"
-            bundle["reason"] = f"Checksum mismatch between creation and destination: {checksum_sha512}"
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+            patch_body: Dict[str, Any] = {
+                "status": "quarantined",
+                "reason": f"Checksum mismatch between creation and destination: {checksum_sha512}",
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # update the Bundle in the LTA DB
         self.logger.info(f"Destination checksum matches bundle creation checksum; the bundle is now verified.")
-        bundle["status"] = self.next_status
-        bundle["update_timestamp"] = now()
-        bundle["claimed"] = False
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        patch_body = {
+            "status": self.next_status,
+            "update_timestamp": now(),
+            "claimed": False,
+        }
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+        return True
+
+    def _execute_myquota(self) -> Optional[str]:
+        """Run the myquota command to determine disk usage at the site."""
+        completed_process = run(MYQUOTA_ARGS, stdout=PIPE, stderr=PIPE)
+        # if our command failed
+        if completed_process.returncode != 0:
+            self.logger.info(f"Command to check quota failed: {completed_process.args}")
+            self.logger.info(f"returncode: {completed_process.returncode}")
+            self.logger.info(f"stdout: {str(completed_process.stdout)}")
+            self.logger.info(f"stderr: {str(completed_process.stderr)}")
+            return None
+        # otherwise, we succeeded
+        return completed_process.stdout.decode("utf-8")
+
+    async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+        """Run the myquota command to determine disk usage at the site."""
+        self.logger.info(f"Bundle is not ready to be verified; will unclaim it.")
+        bundle_id = bundle["uuid"]
+        patch_body: Dict[str, Any] = {
+            "update_timestamp": now(),
+            "claimed": False,
+        }
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
 

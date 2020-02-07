@@ -74,6 +74,7 @@ class Picker(Component):
         work_claimed = True
         while work_claimed:
             work_claimed = await self._do_work_claim()
+            work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on TransferRequests.")
 
     async def _do_work_claim(self) -> bool:
@@ -183,12 +184,12 @@ class Picker(Component):
                                            tr: TransferRequestType,
                                            reason: str) -> None:
         self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
-        quarantine = {
+        patch_body = {
             "status": "quarantined",
             "reason": reason,
         }
         try:
-            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', quarantine)
+            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
         except Exception as e:
             self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
 

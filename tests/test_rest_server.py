@@ -71,7 +71,7 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
     s = start(debug=True)
 
-    def client(role='admin', timeout=0.1):
+    def client(role='admin', timeout=0.25):
         if CONFIG['TOKEN_SERVICE']:
             r = requests.get(CONFIG['TOKEN_SERVICE']+'/token',
                              params={'scope': f'lta:{role}'})

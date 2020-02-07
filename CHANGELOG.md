@@ -18,6 +18,49 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.27] - 2020-01-30
+### Changed
+- Updated Python package requirements to latest versions
+
+## [0.0.26] - 2020-01-29
+### Changed
+- Added --days to ltacmd status {component} to cull old status heartbeats
+
+## [0.0.25] - 2020-01-27
+### Fixed
+- Fixed ltacmd bundle overdue not showing quarantined bundles
+- Modified ltacmd bundle update-status to remove quarantine reason
+- Fixed PATCH methods in Deleter, NerscVerifier, Picker, Replicator, and SiteMoveVerifier
+
+## [0.0.24] - 2020-01-27
+### Fixed
+- nersc-mover.sh script now uses correct TAPE_BASE_PATH
+- NerscMover component provides correct source path to HSI command
+- PATCH methods in NerscMover only patch necessary fields in the bundle
+- ltacmd bundle overdue no longer requires Python 3.7+
+
+## [0.0.23] - 2020-01-23
+### Added
+- Added a new command: 'ltacmd bundle overdue'
+- Added a new command: 'ltacmd bundle update-status'
+- Added a new command: 'ltacmd request update-status'
+### Fixed
+- Whitelisted archival components in command: 'ltacmd status'
+
+## [0.0.22] - 2020-01-22
+### Fixed
+- SiteMoveVerifier will unclaim bundles that are not yet ready for verification
+
+## [0.0.21] - 2020-01-22
+### Added
+- SiteMoveVerifier now reports myquota command at NERSC as status
+
+## [0.0.20] - 2020-01-21
+### Added
+- All components have new configuration RUN_ONCE_AND_DIE; default false
+### Changed
+- Bundler no longer has BUNDLE_ONCE_AND_DIE
+
 ## [0.0.19] - 2020-01-15
 ### Changed
 - Picker now cooks catalog records before using them as bundle metadata
@@ -129,7 +172,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.19...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.27...HEAD
+[0.0.27]: https://github.com/WIPACrepo/lta/compare/v0.0.26...v0.0.27
+[0.0.26]: https://github.com/WIPACrepo/lta/compare/v0.0.25...v0.0.26
+[0.0.25]: https://github.com/WIPACrepo/lta/compare/v0.0.24...v0.0.25
+[0.0.24]: https://github.com/WIPACrepo/lta/compare/v0.0.23...v0.0.24
+[0.0.23]: https://github.com/WIPACrepo/lta/compare/v0.0.22...v0.0.23
+[0.0.22]: https://github.com/WIPACrepo/lta/compare/v0.0.21...v0.0.22
+[0.0.21]: https://github.com/WIPACrepo/lta/compare/v0.0.20...v0.0.21
+[0.0.20]: https://github.com/WIPACrepo/lta/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/WIPACrepo/lta/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/WIPACrepo/lta/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/WIPACrepo/lta/compare/v0.0.16...v0.0.17

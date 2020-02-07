@@ -66,6 +66,7 @@ class Replicator(Component):
         work_claimed = True
         while work_claimed:
             work_claimed = await self._do_work_claim()
+            work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
     async def _do_work_claim(self) -> bool:
@@ -98,12 +99,14 @@ class Replicator(Component):
         # ask the transfer service to start the transfer
         xfer_ref = await xfer_service.start(bundle)
         # update the Bundle in the LTA DB
-        bundle["status"] = "transferring"
-        bundle["update_timestamp"] = now()
-        bundle["claimed"] = False
-        bundle["transfer_reference"] = xfer_ref
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        patch_body = {
+            "status": "transferring",
+            "update_timestamp": now(),
+            "claimed": False,
+            "transfer_reference": xfer_ref,
+        }
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
 def runner() -> None:
     """Configure a Replicator component from the environment and set it running."""
