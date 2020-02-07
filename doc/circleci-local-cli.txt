@@ -1,0 +1,14 @@
+https://icecube-spno.slack.com/archives/CAH0NDF8B/p1555342792000200
+
+dschultz [10:39 AM]
+https://circleci.com/docs/2.0/local-cli/
+circleci.comcircleci.com
+Using the CircleCI Local CLI - CircleCI
+How to run local jobs with the CLI
+as root: `curl -fLSs https://circle.ci/cli | bash`
+in project: `circleci local execute --job JOB_NAME`
+for file catalog, JOB_NAME is "test"
+for @pmeade: https://github.com/CircleCI-Public/circleci-cli/releases
+
+
+https://gist.github.com/dweldon/39ca0536168a92815a56df44eb55a337

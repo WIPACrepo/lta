@@ -6,22 +6,35 @@ from datetime import datetime
 from logging import Logger
 import os
 from pathlib import Path
+import sys
 from typing import Any, Dict, Optional
+from uuid import uuid4
 
 from rest_tools.client import RestClient  # type: ignore
 from urllib.parse import urljoin
 
 from .lta_const import drain_semaphore_filename
+from .rest_server import boolify
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "COMPONENT_NAME": None,
-    "HEARTBEAT_PATCH_RETRIES": None,
-    "HEARTBEAT_PATCH_TIMEOUT_SECONDS": None,
-    "HEARTBEAT_SLEEP_DURATION_SECONDS": None,
+    "HEARTBEAT_PATCH_RETRIES": "3",
+    "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
+    "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
     "LTA_REST_TOKEN": None,
     "LTA_REST_URL": None,
-    "WORK_SLEEP_DURATION_SECONDS": None,
+    "RUN_ONCE_AND_DIE": "False",
+    "SOURCE_SITE": None,
+    "WORK_SLEEP_DURATION_SECONDS": "60",
 }
+
+def now() -> str:
+    """Return string timestamp for current time, to the second."""
+    return datetime.utcnow().isoformat(timespec='seconds')
+
+def unique_id() -> str:
+    """Return a unique ID for a module instance."""
+    return str(uuid4())
 
 class Component:
     """
@@ -49,6 +62,7 @@ class Component:
         # assimilate provided arguments
         self.type = component_type
         self.name = config["COMPONENT_NAME"]
+        self.instance_uuid = unique_id()
         self.config = config
         self.logger = logger
         # validate and assimilate the configuration
@@ -57,6 +71,8 @@ class Component:
         self.heartbeat_sleep_duration_seconds = float(config["HEARTBEAT_SLEEP_DURATION_SECONDS"])
         self.lta_rest_token = config["LTA_REST_TOKEN"]
         self.lta_rest_url = config["LTA_REST_URL"]
+        self.run_once_and_die = boolify(config["RUN_ONCE_AND_DIE"])
+        self.source_site = config["SOURCE_SITE"]
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
         # record some default state
         timestamp = datetime.utcnow().isoformat()
@@ -82,6 +98,9 @@ class Component:
         # stop the work cycle stopwatch
         self.last_work_end_timestamp = datetime.utcnow().isoformat()
         self.logger.info(f"Ending {self.type} work cycle")
+        # if we are configured to run once and die, then die
+        if self.run_once_and_die:
+            sys.exit()
 
     def validate_config(self, config: Dict[str, str]) -> None:
         """Validate the configuration provided to the component."""

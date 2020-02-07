@@ -27,6 +27,7 @@ class Monitor:
         rest_url (str): url to LTA REST API
         token (str): token for LTA REST API
         interval (int): time interval between monitoring points
+
     """
 
     def __init__(self, lta_rest_url: str, lta_rest_token: str,

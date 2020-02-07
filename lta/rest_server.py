@@ -7,9 +7,9 @@ Run with `python -m lta.rest_server`.
 import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
-import json
 import logging
 from typing import Any, Callable, Dict
+from urllib.parse import quote_plus
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
@@ -27,19 +27,20 @@ EXPECTED_CONFIG = {
     'LTA_AUTH_ISSUER': 'lta',
     'LTA_AUTH_SECRET': 'secret',
     'LTA_MAX_CLAIM_AGE_HOURS': '12',
-    'LTA_MONGODB_NAME': 'lta',
-    'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
+    'LTA_MONGODB_AUTH_USER': '',  # None means required to specify
+    'LTA_MONGODB_AUTH_PASS': '',  # empty means no authentication required
+    'LTA_MONGODB_DATABASE_NAME': 'lta',
+    'LTA_MONGODB_HOST': 'localhost',
+    'LTA_MONGODB_PORT': '27017',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
-    'LTA_SITE_CONFIG': 'etc/site.json',
 }
 
 # -----------------------------------------------------------------------------
 
 AFTER = pymongo.ReturnDocument.AFTER
 ALL_DOCUMENTS: Dict[str, str] = {}
-ASCENDING = pymongo.ASCENDING
-BUNDLE_STATES = ['accessible', 'deletable', 'inaccessible', 'none', 'transferring']
+FIRST_IN_FIRST_OUT = [("create_timestamp", pymongo.ASCENDING)]
 REMOVE_ID = {"_id": False}
 TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
@@ -120,19 +121,18 @@ class CheckClaims:
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
 
-    def initialize(self, check_claims: CheckClaims, db: MotorDatabase, sites: Any, *args: Any, **kwargs: Any) -> None:
+    def initialize(self, check_claims: CheckClaims, db: MotorDatabase, *args: Any, **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.check_claims = check_claims
         self.db = db
-        self.sites = sites["sites"]
 
 # -----------------------------------------------------------------------------
 
 class BundlesActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_create."""
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_create."""
         req = json_decode(self.request.body)
@@ -144,10 +144,10 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(400, reason="bundles field is empty")
 
         for xfer_bundle in req["bundles"]:
-            # TODO: The caller should provide the status; we shouldn't overwrite
-            # xfer_bundle["status"] = "waiting"
+            right_now = now()  # https://www.youtube.com/watch?v=BQkFEG_iZUA
             xfer_bundle["uuid"] = unique_id()
-            xfer_bundle["create_timestamp"] = now()
+            xfer_bundle["create_timestamp"] = right_now
+            xfer_bundle["update_timestamp"] = right_now
             xfer_bundle["claimed"] = False
 
         ret = await self.db.Bundles.insert_many(documents=req["bundles"])
@@ -165,7 +165,7 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
 class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_delete."""
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_delete."""
         req = json_decode(self.request.body)
@@ -189,7 +189,7 @@ class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
 class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_update."""
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_update."""
         req = json_decode(self.request.body)
@@ -218,16 +218,19 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
 class BundlesHandler(BaseLTAHandler):
     """BundlesHandler handles collection level routes for Bundles."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self) -> None:
         """Handle GET /Bundles."""
         location = self.get_query_argument("location", default=None)
+        request = self.get_query_argument("request", default=None)
         status = self.get_query_argument("status", default=None)
         verified = self.get_query_argument("verified", default=None)
 
         query: Dict[str, Any] = {}
         if location:
             query["source"] = {"$regex": f"^{location}"}
+        if request:
+            query["request"] = request
         if status:
             query["status"] = status
         if verified:
@@ -244,106 +247,55 @@ class BundlesHandler(BaseLTAHandler):
         self.write(ret)
 
 class BundlesActionsPopHandler(BaseLTAHandler):
-    """
-    BundlesActionsPopHandler handles /Bundles/actions/pop.
+    """BundlesActionsPopHandler handles /Bundles/actions/pop."""
 
-    Bundler provides (provisional; Bundler doesn't exist yet):
-        bundle_obj = {
-            "bundle_uuid": UUID,
-            "location": "SITE:PATH",
-            "checksum": {
-                "sha512": "216f...4618",
-            },
-            "status": "none",
-            "verified": False,
-            "manifest": [
-                { manifest_record },
-            ]
-        }
-
-    Manifest Schema (provisional; Bundler doesn't exist yet):
-        manifest_record = {
-            "uuid": uuid,
-            "logical_name": "/data/exp/IceCube...",
-            "bundle_size": 123456789,
-            "checksum": {
-                "sha512": "...",
-            }
-        }
-
-    LTA DB annotates:
-        xfer_bundle["uuid"] = unique_id()
-        xfer_bundle["create_timestamp"] = now()
-    """
-
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/pop."""
-        # we're looking for bundles at the specified site...
-        site = self.get_argument('site')
-        if site not in self.sites:
-            raise tornado.web.HTTPError(400, reason="invalid site")
-        # ...and in the specified state
+        dest = self.get_argument('dest', default=None)
+        source = self.get_argument('source', default=None)
         status = self.get_argument('status')
-        if status not in BUNDLE_STATES:
-            raise tornado.web.HTTPError(400, reason="invalid bundle state")
-        # by default you get 1, but you can ask for more
-        limit = self.get_argument('limit', 1)
-        try:
-            limit = int(limit)
-        except Exception:
-            raise tornado.web.HTTPError(400, reason="limit is not an int")
-        # get the self-identification of the claiming component
+        if (not dest) and (not source):
+            raise tornado.web.HTTPError(400, reason="missing source and dest fields")
         pop_body = json_decode(self.request.body)
-        # find some unclaimed bundles to process
+        if 'claimant' not in pop_body:
+            raise tornado.web.HTTPError(400, reason="missing claimant field")
+        claimant = pop_body["claimant"]
+        # find and claim a bundle for the specified source
         sdb = self.db.Bundles
-        old_age = self.check_claims.old_age()
-        query = {
-            "$and": [
-                {"location": {"$regex": f"^{site}"}},
-                {"status": f"{status}"},
-                {"$or": [
-                    {"claimed": False},
-                    {"claim_time": {"$lt": f"{old_age}"}}
-                ]}
-            ]
+        find_query = {
+            "status": status,
+            "claimed": False,
         }
-        sort = [('create_timestamp', ASCENDING)]
-        ret = []
-        async for row in sdb.find(filter=query,
-                                  projection=REMOVE_ID,
-                                  sort=sort):
-            if (limit > 0):
-                uuid = row["uuid"]
-                row["claimant"] = pop_body
-                row["claimed"] = True
-                row["claim_time"] = now()
-                update_query = {
-                    "$and": [
-                        {"uuid": uuid},
-                        {"$or": [
-                            {"claimed": False},
-                            {"claim_time": {"$lt": f"{old_age}"}}
-                        ]}
-                    ]
-                }
-                update_doc = {"$set": row}
-                ret2 = await sdb.find_one_and_update(filter=update_query,
-                                                     update=update_doc,
-                                                     projection=REMOVE_ID,
-                                                     return_document=AFTER)
-                if not ret2:
-                    logging.error(f"Unable to claim Bundle {uuid}")
-                else:
-                    logging.info(f"claimed Bundle {uuid} for {pop_body}")
-                    limit = limit - 1
-                    ret.append(row)
-        self.write({'results': ret})
+        if dest:
+            find_query["dest"] = dest
+        if source:
+            find_query["source"] = source
+        right_now = now()  # https://www.youtube.com/watch?v=WaSy8yy-mr8
+        update_doc = {
+            "$set": {
+                "update_timestamp": right_now,
+                "claimed": True,
+                "claimant": claimant,
+                "claim_timestamp": right_now,
+            }
+        }
+        bundle = await sdb.find_one_and_update(filter=find_query,
+                                               update=update_doc,
+                                               projection=REMOVE_ID,
+                                               sort=FIRST_IN_FIRST_OUT,
+                                               return_document=AFTER)
+        # return what we found to the caller
+        if not bundle:
+            logging.info(f"Unclaimed Bundle with source {source} and status {status} does not exist.")
+        else:
+            logging.info(f"Bundle {bundle['uuid']} claimed by {claimant}")
+        self.write({'bundle': bundle})
 
 class BundlesSingleHandler(BaseLTAHandler):
     """BundlesSingleHandler handles object level routes for Bundles."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self, bundle_id: str) -> None:
         """Handle GET /Bundles/{uuid}."""
         query = {"uuid": bundle_id}
@@ -352,7 +304,7 @@ class BundlesSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def patch(self, bundle_id: str) -> None:
         """Handle PATCH /Bundles/{uuid}."""
         req = json_decode(self.request.body)
@@ -369,298 +321,12 @@ class BundlesSingleHandler(BaseLTAHandler):
         logging.info(f"patched Bundle {bundle_id} with {req}")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def delete(self, bundle_id: str) -> None:
         """Handle DELETE /Bundles/{uuid}."""
         query = {"uuid": bundle_id}
         await self.db.Bundles.delete_one(filter=query)
         logging.info(f"deleted Bundle {bundle_id}")
-        self.set_status(204)
-
-# -----------------------------------------------------------------------------
-
-class FilesActionsBulkCreateHandler(BaseLTAHandler):
-    """Handler for /Files/actions/bulk_create."""
-
-    @lta_auth(roles=['system'])
-    async def post(self) -> None:
-        """Handle POST /Files/actions/bulk_create."""
-        req = json_decode(self.request.body)
-        if 'files' not in req:
-            raise tornado.web.HTTPError(400, reason="missing files field")
-        if not isinstance(req['files'], list):
-            raise tornado.web.HTTPError(400, reason="files field is not a list")
-        if not req['files']:
-            raise tornado.web.HTTPError(400, reason="files field is empty")
-
-        for xfer_file in req["files"]:
-            xfer_file["uuid"] = unique_id()
-            xfer_file["create_timestamp"] = now()
-            xfer_file["status"] = "waiting"
-
-        ret = await self.db.Files.insert_many(documents=req["files"])
-        create_count = len(ret.inserted_ids)
-
-        uuids = []
-        for x in req["files"]:
-            uuid = x["uuid"]
-            uuids.append(uuid)
-            logging.info(f"created File {uuid}")
-
-        self.set_status(201)
-        self.write({'files': uuids, 'count': create_count})
-
-class FilesActionsBulkDeleteHandler(BaseLTAHandler):
-    """Handler for /Files/actions/bulk_delete."""
-
-    @lta_auth(roles=['system'])
-    async def post(self) -> None:
-        """Handle POST /Files/actions/bulk_delete."""
-        req = json_decode(self.request.body)
-        if 'files' not in req:
-            raise tornado.web.HTTPError(400, reason="missing files field")
-        if not isinstance(req['files'], list):
-            raise tornado.web.HTTPError(400, reason="files field is not a list")
-        if not req['files']:
-            raise tornado.web.HTTPError(400, reason="files field is empty")
-
-        results = []
-        for uuid in req["files"]:
-            query = {"uuid": uuid}
-            ret = await self.db.Files.delete_one(filter=query)
-            if ret.deleted_count > 0:
-                logging.info(f"deleted File {uuid}")
-                results.append(uuid)
-
-        self.write({'files': results, 'count': len(results)})
-
-class FilesActionsBulkUpdateHandler(BaseLTAHandler):
-    """Handler for /Files/actions/bulk_update."""
-
-    @lta_auth(roles=['system'])
-    async def post(self) -> None:
-        """Handle POST /Files/actions/bulk_update."""
-        req = json_decode(self.request.body)
-        if 'update' not in req:
-            raise tornado.web.HTTPError(400, reason="missing update field")
-        if not isinstance(req['update'], dict):
-            raise tornado.web.HTTPError(400, reason="update field is not an object")
-        if 'files' not in req:
-            raise tornado.web.HTTPError(400, reason="missing files field")
-        if not isinstance(req['files'], list):
-            raise tornado.web.HTTPError(400, reason="files field is not a list")
-        if not req['files']:
-            raise tornado.web.HTTPError(400, reason="files field is empty")
-
-        results = []
-        for uuid in req["files"]:
-            query = {"uuid": uuid}
-            update_doc = {"$set": req["update"]}
-            ret = await self.db.Files.update_one(filter=query, update=update_doc)
-            if ret.modified_count > 0:
-                logging.info(f"updated File {uuid}")
-                results.append(uuid)
-
-        self.write({'files': results, 'count': len(results)})
-
-class FilesHandler(BaseLTAHandler):
-    """FilesHandler handles collection level routes for Files."""
-
-    @lta_auth(roles=['admin', 'user', 'system'])
-    async def get(self) -> None:
-        """Handle GET /Files."""
-        location = self.get_query_argument("location", default=None)
-        transfer_request_uuid = self.get_query_argument("transfer_request_uuid", default=None)
-        bundle_uuid = self.get_query_argument("bundle_uuid", default=None)
-        status = self.get_query_argument("status", default=None)
-
-        query = {}
-        if location:
-            query["source"] = {"$regex": f"^{location}"}
-        if transfer_request_uuid:
-            query["request"] = transfer_request_uuid
-        if bundle_uuid:
-            query["bundle"] = bundle_uuid
-        if status:
-            query["status"] = status
-
-        results = []
-        async for row in self.db.Files.find(filter=query,
-                                            projection=REMOVE_ID):
-            results.append(row["uuid"])
-
-        ret = {
-            'results': results,
-        }
-        self.write(ret)
-
-class FilesActionsPopHandler(BaseLTAHandler):
-    """
-    FilesActionsPopHandler handles /Files/actions/pop.
-
-    Picker provides:
-        file_obj = {
-            "source": "SITE:PATH",
-            "dest": "SITE:PATH",
-            "request": "UUID",
-            "catalog": file_catalog_record
-        }
-
-    Catalog Schema:
-        catalog_file = {
-            "uuid": uuid,
-            "logical_name": "/data/exp/IceCube...",
-            "locations": [
-                {"site": "WIPAC", "path": "/data/exp/IceCube..."},
-                {"site": "NERSC", "path": "/data/archive/ad43d3...23.zip", archive: True},
-            ]
-            "file_size": 123456789,
-            "data_type": "real",
-        }
-
-    LTA DB annotates:
-        xfer_file["uuid"] = unique_id()
-        xfer_file["create_timestamp"] = now()
-        xfer_file["status"] = "waiting"
-    """
-
-    @lta_auth(roles=['system'])
-    async def post(self) -> None:
-        """Handle POST /Files/actions/pop."""
-        # if there aren't enough files to fill the bundle, should we force it?
-        force = self.get_argument('force', False)
-        # figure out which site is bundling files
-        src = self.get_argument('source')
-        if src not in self.sites:
-            raise tornado.web.HTTPError(400, reason="invalid source site")
-        # figure out where the bundle is headed
-        dest = self.get_argument('dest')
-        if dest not in self.sites:
-            raise tornado.web.HTTPError(400, reason="invalid dest site")
-        # change the limit on the number of files that can be bundled
-        limit = self.get_argument('limit', 100000)
-        try:
-            limit = int(limit)
-        except Exception:
-            raise tornado.web.HTTPError(400, reason="limit is not an int")
-        # skip a number of files in the sorted results
-        skip = self.get_argument('skip', 0)
-        try:
-            skip = int(skip)
-        except Exception:
-            raise tornado.web.HTTPError(400, reason="skip is not an int")
-        # figure out how big the bundle should be
-        bundle_max_size = self.sites[dest]["bundle_size"]
-        # get the self-identification of the claiming bundler
-        pop_body = json_decode(self.request.body)
-        # let's find some files we can bundle
-        sdf = self.db.Files
-        query = {
-            "source": {"$regex": f"^{src}"},
-            "dest": {"$regex": f"^{dest}"},
-            "status": "waiting"
-        }
-        sort = [('catalog.logical_name', ASCENDING)]
-        bundle_files = []
-        bundle_full = False
-        bundle_size = 0
-        async for row in sdf.find(filter=query,
-                                  projection=REMOVE_ID,
-                                  skip=skip,
-                                  sort=sort):
-            uuid = row["uuid"]
-            file_size = row["catalog"]["file_size"]
-            # do a sanity check; no monster-sized files please
-            if file_size > bundle_max_size:
-                logging.error(f"unable to bundle File {uuid} (size: {file_size}); bundle size is {bundle_max_size}")
-                update_query = {"uuid": uuid}
-                update_doc = {"$set": row}
-                row["status"] = "quarantine"
-                ret = await sdf.find_one_and_update(filter=update_query, update=update_doc)
-                if not ret:
-                    logging.error(f"unable to quarantine File {uuid} for being too large!")
-                continue
-            # use The Price is Right rules to pick files for bundling
-            if (limit > 0) and ((bundle_size + file_size) < bundle_max_size):
-                # we try to claim the file in the database
-                bundle_file = row
-                bundle_file["claimant"] = pop_body
-                bundle_file["claimed"] = True
-                bundle_file["claim_time"] = now()
-                bundle_file["status"] = "processing"
-                update_query = {"uuid": uuid, "status": "waiting"}
-                update_doc = {"$set": bundle_file}
-                ret = await sdf.find_one_and_update(filter=update_query, update=update_doc)
-                if not ret:
-                    # this has failed...
-                    logging.error(f"Unable to claim File {uuid} for bundle")
-                else:
-                    # this has passed...
-                    bundle_files.append(bundle_file)
-                    bundle_size = bundle_size + file_size
-                    limit = limit - 1
-                    logging.info(f"claimed File {uuid} for bundling")
-            # otherwise, we've hit the limit; this bundle is full
-            else:
-                bundle_full = True
-                break
-        # if the bundle isn't full and we're not forcing it, just bail
-        if (not bundle_full) and (not force):
-            # unclaim everything that we previously claimed
-            for bundle_file in bundle_files:
-                uuid = bundle_file["uuid"]
-                bundle_file["claimant"] = None
-                bundle_file["claimed"] = False
-                bundle_file["claim_time"] = None
-                bundle_file["status"] = "waiting"
-                update_query = {"uuid": uuid}
-                update_doc = {"$set": bundle_file}
-                ret = await sdf.find_one_and_update(filter=update_query, update=update_doc)
-                if not ret:
-                    logging.error(f"Unable to un-claim file {uuid}")
-                else:
-                    logging.info(f"un-claimed File {uuid} for bundling")
-            # tell the caller that we've got nothing
-            self.write({'results': []})
-            return
-        # the bundle is either full or we're forcing it
-        self.write({'results': bundle_files})
-
-class FilesSingleHandler(BaseLTAHandler):
-    """FilesSingleHandler handles object level routes for Files."""
-
-    @lta_auth(roles=['admin', 'user', 'system'])
-    async def get(self, file_id: str) -> None:
-        """Handle GET /Files/{uuid}."""
-        query = {"uuid": file_id}
-        ret = await self.db.Files.find_one(filter=query, projection=REMOVE_ID)
-        if not ret:
-            raise tornado.web.HTTPError(404, reason="not found")
-        self.write(ret)
-
-    @lta_auth(roles=['admin', 'user', 'system'])
-    async def patch(self, file_id: str) -> None:
-        """Handle PATCH /Files/{uuid}."""
-        req = json_decode(self.request.body)
-        if 'uuid' in req and req['uuid'] != file_id:
-            raise tornado.web.HTTPError(400, reason="bad request")
-        query = {"uuid": file_id}
-        update_doc = {"$set": req}
-        ret = await self.db.Files.find_one_and_update(filter=query,
-                                                      update=update_doc,
-                                                      projection=REMOVE_ID,
-                                                      return_document=AFTER)
-        if not ret:
-            raise tornado.web.HTTPError(404, reason="not found")
-        logging.info(f"patched File {file_id} with {req}")
-        self.write(ret)
-
-    @lta_auth(roles=['admin', 'user', 'system'])
-    async def delete(self, file_id: str) -> None:
-        """Handle DELETE /Files/{uuid}."""
-        query = {"uuid": file_id}
-        await self.db.Files.delete_one(filter=query)
-        logging.info(f"deleted File {file_id}")
         self.set_status(204)
 
 # -----------------------------------------------------------------------------
@@ -677,7 +343,7 @@ class MainHandler(BaseLTAHandler):
 class TransferRequestsHandler(BaseLTAHandler):
     """TransferRequestsHandler is a BaseLTAHandler that handles TransferRequests routes."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self) -> None:
         """Handle GET /TransferRequests."""
         ret = []
@@ -686,7 +352,7 @@ class TransferRequestsHandler(BaseLTAHandler):
             ret.append(row)
         self.write({'results': ret})
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def post(self) -> None:
         """Handle POST /TransferRequests."""
         req = json_decode(self.request.body)
@@ -694,15 +360,29 @@ class TransferRequestsHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(400, reason="missing source field")
         if 'dest' not in req:
             raise tornado.web.HTTPError(400, reason="missing dest field")
-        if not isinstance(req['dest'], list):
-            raise tornado.web.HTTPError(400, reason="dest field is not a list")
+        if 'path' not in req:
+            raise tornado.web.HTTPError(400, reason="missing path field")
+        if not isinstance(req['source'], str):
+            raise tornado.web.HTTPError(400, reason="source field is not a string")
+        if not isinstance(req['dest'], str):
+            raise tornado.web.HTTPError(400, reason="dest field is not a string")
+        if not isinstance(req['path'], str):
+            raise tornado.web.HTTPError(400, reason="path field is not a string")
+        if not req['source']:
+            raise tornado.web.HTTPError(400, reason="source field is empty")
         if not req['dest']:
             raise tornado.web.HTTPError(400, reason="dest field is empty")
+        if not req['path']:
+            raise tornado.web.HTTPError(400, reason="path field is empty")
 
+        right_now = now()  # https://www.youtube.com/watch?v=He0p5I0b8j8
+
+        req['type'] = "TransferRequest"
         req['uuid'] = unique_id()
+        req['status'] = "unclaimed"
+        req['create_timestamp'] = right_now
+        req['update_timestamp'] = right_now
         req['claimed'] = False
-        req['claim_time'] = ''
-        req['create_timestamp'] = now()
         await self.db.TransferRequests.insert_one(document=req)
         logging.info(f"created TransferRequest {req['uuid']}")
         self.set_status(201)
@@ -711,7 +391,7 @@ class TransferRequestsHandler(BaseLTAHandler):
 class TransferRequestSingleHandler(BaseLTAHandler):
     """TransferRequestSingleHandler is a BaseLTAHandler that handles routes related to single TransferRequest objects."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self, request_id: str) -> None:
         """Handle GET /TransferRequests/{uuid}."""
         query = {'uuid': request_id}
@@ -720,7 +400,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def patch(self, request_id: str) -> None:
         """Handle PATCH /TransferRequests/{uuid}."""
         req = json_decode(self.request.body)
@@ -738,7 +418,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         logging.info(f"patched TransferRequest {request_id} with {req}")
         self.write({})
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def delete(self, request_id: str) -> None:
         """Handle DELETE /TransferRequests/{uuid}."""
         query = {"uuid": request_id}
@@ -750,65 +430,48 @@ class TransferRequestSingleHandler(BaseLTAHandler):
 class TransferRequestActionsPopHandler(BaseLTAHandler):
     """TransferRequestActionsPopHandler handles /TransferRequests/actions/pop."""
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /TransferRequests/actions/pop."""
-        src = self.get_argument('source')
-        limit = self.get_argument('limit', 1)
-        try:
-            limit = int(limit)
-        except Exception:
-            raise tornado.web.HTTPError(400, reason="limit is not an int")
+        source = self.get_argument('source')
         pop_body = json_decode(self.request.body)
-        # find unclaimed or old transfer requests for the specified source
+        if 'claimant' not in pop_body:
+            raise tornado.web.HTTPError(400, reason="missing claimant field")
+        claimant = pop_body["claimant"]
+        # find and claim a transfer request for the specified source
         sdtr = self.db.TransferRequests
-        old_age = self.check_claims.old_age()
-        query = {
-            "$and": [
-                {"source": {"$regex": f"^{src}"}},
-                {"$or": [
-                    {"claimed": False},
-                    {"claim_time": {"$lt": f"{old_age}"}}
-                ]}
-            ]
+        find_query = {
+            "source": source,
+            "status": "unclaimed",
         }
-        ret = []
-        async for row in sdtr.find(filter=query,
-                                   projection=REMOVE_ID):
-            if (limit > 0):
-                uuid = row["uuid"]
-                row["claimant"] = pop_body
-                row["claimed"] = True
-                row["claim_time"] = now()
-                update_query = {
-                    "$and": [
-                        {"uuid": uuid},
-                        {"$or": [
-                            {"claimed": False},
-                            {"claim_time": {"$lt": f"{old_age}"}}
-                        ]}
-                    ]
-                }
-                update_doc = {"$set": row}
-                ret2 = await sdtr.find_one_and_update(filter=update_query,
-                                                      update=update_doc,
-                                                      projection=REMOVE_ID,
-                                                      return_document=AFTER)
-                if not ret2:
-                    logging.error(f"Unable to claim TransferRequest {uuid}")
-                else:
-                    logging.info(f"claimed TransferRequest {uuid} for {pop_body}")
-                    limit = limit - 1
-                    ret.append(row)
-        self.write({'results': ret})
-
+        right_now = now()  # https://www.youtube.com/watch?v=nRGCZh5A8T4
+        update_doc = {
+            "$set": {
+                "status": "processing",
+                "update_timestamp": right_now,
+                "claimed": True,
+                "claimant": claimant,
+                "claim_timestamp": right_now,
+            }
+        }
+        tr = await sdtr.find_one_and_update(filter=find_query,
+                                            update=update_doc,
+                                            projection=REMOVE_ID,
+                                            sort=FIRST_IN_FIRST_OUT,
+                                            return_document=AFTER)
+        # return what we found to the caller
+        if not tr:
+            logging.info(f"Unclaimed TransferRequest with source {source} does not exist.")
+        else:
+            logging.info(f"TransferRequest {tr['uuid']} claimed by {claimant}")
+        self.write({'transfer_request': tr})
 
 # -----------------------------------------------------------------------------
 
 class StatusHandler(BaseLTAHandler):
     """StatusHandler is a BaseLTAHandler that handles system status routes."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self) -> None:
         """Get the overall status of the system."""
         ret: Dict[str, str] = {}
@@ -836,7 +499,7 @@ class StatusHandler(BaseLTAHandler):
 class StatusComponentHandler(BaseLTAHandler):
     """StatusComponentHandler is a BaseLTAHandler that handles component status routes."""
 
-    @lta_auth(roles=['admin', 'user', 'system'])
+    @lta_auth(roles=['admin', 'system', 'user'])
     async def get(self, component: str) -> None:
         """
         Get the detailed status of components of a given type.
@@ -883,7 +546,7 @@ class StatusComponentHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
 
-    @lta_auth(roles=['system'])
+    @lta_auth(roles=['admin', 'system'])
     async def patch(self, component: str) -> None:
         """Update the detailed status of a component."""
         req = json_decode(self.request.body)
@@ -903,6 +566,42 @@ class StatusComponentHandler(BaseLTAHandler):
             logging.error(f"Unable to PATCH /status/{component} with {req}")
         self.write({})
 
+
+class StatusComponentCountHandler(BaseLTAHandler):
+    """StatusComponentCountHandler provides a count of active components."""
+
+    @lta_auth(roles=['admin', 'system', 'user'])
+    async def get(self, component: str) -> None:
+        """
+        Handle the route: GET /status/{component-type}/count .
+
+        In MongoDB, we store the status records like this:
+            {
+                "component": "picker"
+                "name": "picker-node001"
+                keys: values
+            }
+
+        We simply count up the ones with a 'recent' heartbeat.
+        """
+        # keep a counter
+        count = 0
+        # define an epoch
+        cutoff_time = datetime.utcnow() - timedelta(minutes=10)
+        recent_timestamp = cutoff_time.isoformat()
+        # obtain all the records of the specified component type
+        sds = self.db.Status
+        query = {"component": component}
+        async for row in sds.find(filter=query,
+                                  projection=REMOVE_ID):
+            if row["timestamp"] > recent_timestamp:
+                count = count + 1
+        # tell the caller how many of that component we found
+        self.write({
+            "component": component,
+            "count": count,
+        })
+
 # -----------------------------------------------------------------------------
 
 def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
@@ -918,13 +617,6 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     if 'bundles_uuid_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.Bundles.uuid")
         db.Bundles.create_index('uuid', name='bundles_uuid_index', unique=True)
-    # Files.uuid
-    if 'files_catalog_logical_name_index' not in db.Files.index_information():
-        logging.info(f"Creating index for {mongo_db}.Files.catalog.logical_name")
-        db.Files.create_index('catalog.logical_name', name='files_catalog_logical_name_index', unique=False)
-    if 'files_uuid_index' not in db.Files.index_information():
-        logging.info(f"Creating index for {mongo_db}.Files.uuid")
-        db.Files.create_index('uuid', name='files_uuid_index', unique=True)
     # Status.{component, name}
     if 'status_component_index' not in db.Status.index_information():
         logging.info(f"Creating index for {mongo_db}.Status.component")
@@ -933,6 +625,9 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
         logging.info(f"Creating index for {mongo_db}.Status.name")
         db.Status.create_index('name', name='status_name_index', unique=False)
     # TransferRequests.uuid
+    if 'transfer_requests_create_timestamp_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.TransferRequests.create_timestamp")
+        db.TransferRequests.create_index('create_timestamp', name='transfer_requests_create_timestamp_index', unique=False)
     if 'transfer_requests_uuid_index' not in db.TransferRequests.index_information():
         logging.info(f"Creating index for {mongo_db}.TransferRequests.uuid")
         db.TransferRequests.create_index('uuid', name='transfer_requests_uuid_index', unique=True)
@@ -943,6 +638,8 @@ def start(debug: bool = False) -> RestServer:
     """Start a LTA DB service."""
     config = from_environment(EXPECTED_CONFIG)
     # logger = logging.getLogger('lta.rest')
+    for name in config:
+        logging.info(f"{name} = {config[name]}")
 
     args = RestHandlerSetup({
         'auth': {
@@ -954,12 +651,17 @@ def start(debug: bool = False) -> RestServer:
     })
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
     # configure access to MongoDB as a backing store
-    ensure_mongo_indexes(config["LTA_MONGODB_URL"], config["LTA_MONGODB_NAME"])
-    motor_client = MotorClient(config["LTA_MONGODB_URL"])
-    args['db'] = motor_client[config["LTA_MONGODB_NAME"]]
-    # site configuration
-    with open(config["LTA_SITE_CONFIG"]) as site_data:
-        args['sites'] = json.load(site_data)
+    mongo_user = quote_plus(config["LTA_MONGODB_AUTH_USER"])
+    mongo_pass = quote_plus(config["LTA_MONGODB_AUTH_PASS"])
+    mongo_host = config["LTA_MONGODB_HOST"]
+    mongo_port = int(config["LTA_MONGODB_PORT"])
+    mongo_db = config["LTA_MONGODB_DATABASE_NAME"]
+    lta_mongodb_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
+    if mongo_user and mongo_pass:
+        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
+    ensure_mongo_indexes(lta_mongodb_url, mongo_db)
+    motor_client = MotorClient(lta_mongodb_url)
+    args['db'] = motor_client[mongo_db]
 
     server = RestServer(debug=debug)
     server.add_route(r'/', MainHandler, args)
@@ -969,17 +671,12 @@ def start(debug: bool = False) -> RestServer:
     server.add_route(r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler, args)
     server.add_route(r'/Bundles/actions/pop', BundlesActionsPopHandler, args)
     server.add_route(r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler, args)
-    server.add_route(r'/Files', FilesHandler, args)
-    server.add_route(r'/Files/actions/bulk_create', FilesActionsBulkCreateHandler, args)
-    server.add_route(r'/Files/actions/bulk_delete', FilesActionsBulkDeleteHandler, args)
-    server.add_route(r'/Files/actions/bulk_update', FilesActionsBulkUpdateHandler, args)
-    server.add_route(r'/Files/actions/pop', FilesActionsPopHandler, args)
-    server.add_route(r'/Files/(?P<file_id>\w+)', FilesSingleHandler, args)
     server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
     server.add_route(r'/status', StatusHandler, args)
     server.add_route(r'/status/(?P<component>\w+)', StatusComponentHandler, args)
+    server.add_route(r'/status/(?P<component>\w+)/count', StatusComponentCountHandler, args)
 
     server.startup(address=config['LTA_REST_HOST'],
                    port=int(config['LTA_REST_PORT']))

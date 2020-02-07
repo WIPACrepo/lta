@@ -15,7 +15,6 @@ def config():
     """Supply a stock Bundler component configuration."""
     return {
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
-        "BUNDLER_SITE_SOURCE": "WIPAC",
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "testing-bundler",
         "HEARTBEAT_PATCH_RETRIES": "3",
@@ -23,7 +22,13 @@ def config():
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "LTA_SITE_CONFIG": "etc/site.json",
+        "MYSQL_DB": "testing-db",
+        "MYSQL_HOST": "just-testing.icecube.wisc.edu",
+        "MYSQL_PASSWORD": "hunter2",  # http://bash.org/?244321
+        "MYSQL_PORT": "23306",
+        "MYSQL_USER": "jade-user",
+        "RUN_ONCE_AND_DIE": "False",
+        "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -127,7 +132,6 @@ async def test_bundler_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     bundler_config = {
         "BUNDLER_OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
-        "BUNDLER_SITE_SOURCE": "WIPAC",
         "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "logme-testing-bundler",
         "HEARTBEAT_PATCH_RETRIES": "1",
@@ -135,7 +139,13 @@ async def test_bundler_logs_configuration(mocker):
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "LTA_SITE_CONFIG": "etc/site.json",
+        "MYSQL_DB": "logme-testing-db",
+        "MYSQL_HOST": "logme-just-testing.icecube.wisc.edu",
+        "MYSQL_PASSWORD": "logme-hunter2",
+        "MYSQL_PORT": "23306",
+        "MYSQL_USER": "logme-jade-user",
+        "RUN_ONCE_AND_DIE": "False",
+        "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
@@ -144,7 +154,6 @@ async def test_bundler_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("bundler 'logme-testing-bundler' is configured:"),
         call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
-        call('BUNDLER_SITE_SOURCE = WIPAC'),
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
         call('COMPONENT_NAME = logme-testing-bundler'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
@@ -152,7 +161,13 @@ async def test_bundler_logs_configuration(mocker):
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
-        call('LTA_SITE_CONFIG = etc/site.json'),
+        call('MYSQL_DB = logme-testing-db'),
+        call('MYSQL_HOST = logme-just-testing.icecube.wisc.edu'),
+        call('MYSQL_PASSWORD = logme-hunter2'),
+        call('MYSQL_PORT = 23306'),
+        call('MYSQL_USER = logme-jade-user'),
+        call('RUN_ONCE_AND_DIE = False'),
+        call('SOURCE_SITE = WIPAC'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
         call('WORK_TIMEOUT_SECONDS = 90'),
@@ -186,56 +201,64 @@ async def test_bundler_run_exception(config, mocker):
 @pytest.mark.asyncio
 async def test_bundler_do_work_pop_exception(config, mocker):
     """Test that _do_work raises when the RestClient can't pop."""
+    check_mysql_mock = mocker.patch("lta.bundler.Bundler._check_mysql")
+    check_mysql_mock.return_value = True
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = Bundler(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Files/actions/pop?source=WIPAC&dest=DESY', {'bundler': 'testing-bundler'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=specified', mocker.ANY)
 
 
 @pytest.mark.asyncio
 async def test_bundler_do_work_no_results(config, mocker):
     """Test that _do_work goes on vacation when the LTA DB has no work."""
+    check_mysql_mock = mocker.patch("lta.bundler.Bundler._check_mysql")
+    check_mysql_mock.return_value = True
+    logger_mock = mocker.MagicMock()
+    claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
+    claim_mock.return_value = False
+    p = Bundler(config, logger_mock)
+    await p._do_work()
+
+
+@pytest.mark.asyncio
+async def test_bundler_do_work_claim_no_results(config, mocker):
+    """Test that _do_work_claim returns False when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
-        "results": []
+        "bundle": None
     }
     p = Bundler(config, logger_mock)
-    await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Files/actions/pop?source=WIPAC&dest=NERSC', {'bundler': 'testing-bundler'})
+    assert not await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=specified', mocker.ANY)
 
 
 @pytest.mark.asyncio
 async def test_bundler_do_work_yes_results(config, mocker):
-    """Test that _do_work processes each TransferRequest it gets from the LTA DB."""
+    """Test that _do_work_claim processes each Bundle that it gets from the LTA DB."""
+    BUNDLE_OBJ = {
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
+    }
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
-        "results": [
-            {
-                "one": 1
-            },
-            {
-                "two": 2
-            },
-            {
-                "three": 3
-            }
-        ]
+        "bundle": BUNDLE_OBJ,
     }
-    dwtr_mock = mocker.patch("lta.bundler.Bundler._build_bundle_for_destination_site", new_callable=AsyncMock)
+    dwb_mock = mocker.patch("lta.bundler.Bundler._do_work_bundle", new_callable=AsyncMock)
     p = Bundler(config, logger_mock)
-    await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Files/actions/pop?source=WIPAC&dest=NERSC', {'bundler': 'testing-bundler'})
-    dwtr_mock.assert_called_with("NERSC", mocker.ANY, [{"one": 1}, {"two": 2}, {"three": 3}])
+    assert await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=specified', mocker.ANY)
+    dwb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ)
 
 
 @pytest.mark.asyncio
 async def test_bundler_do_work_dest_results(config, mocker):
-    """Test that _do_work processes each TransferRequest it gets from the LTA DB."""
+    """Test that _do_work_bundle does the work of preparing an archive."""
+    insert_jade_row_mock = mocker.patch("lta.bundler.Bundler._insert_jade_row")
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
@@ -244,33 +267,39 @@ async def test_bundler_do_work_dest_results(config, mocker):
     mock_zipfile_write.return_value = None
     mock_shutil_move = mocker.patch("shutil.move")
     mock_shutil_move.return_value = None
-    mock_sha512sum = mocker.patch("lta.bundler.sha512sum")
-    mock_sha512sum.return_value = "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570"
+    mock_lta_checksums = mocker.patch("lta.bundler.lta_checksums")
+    mock_lta_checksums.return_value = {
+        "adler32": "89d5efeb",
+        "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+    }
+    mock_os_path_getsize = mocker.patch("os.path.getsize")
+    mock_os_path_getsize.return_value = 1048900
     mock_os_remove = mocker.patch("os.remove")
     mock_os_remove.return_value = None
     p = Bundler(config, logger_mock)
-    results = [
-        {
-            "catalog": {
-                "uuid": "44e2c70c-c111-4d33-9acd-7a617ed28ee4",
-                "logical_name": "/tmp/my/data/file1.tar.gz",
-            },
-        },
-        {
-            "catalog": {
-                "uuid": "7f5b45aa-074d-4e72-9168-890e7473f71d",
-                "logical_name": "/tmp/my/data/file2.tar.gz",
-            },
-        },
-        {
-            "catalog": {
-                "uuid": "115023df-b341-44e8-8083-1d9ddf54f5c1",
-                "logical_name": "/tmp/my/data/file3.tar.gz",
-            },
-        },
-    ]
+    BUNDLE_OBJ = {
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+        "source": "WIPAC",
+        "dest": "NERSC",
+        "files": [{"logical_name": "/path/to/a/data/file", }],
+    }
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
-        await p._build_bundle_for_destination_site("NERSC", lta_rc_mock, results)
+        await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
         metadata_mock.assert_called_with(mocker.ANY, mode="w")
-        # lta_rc_mock.assert_called_with('POST', '/Bundles/actions/bulk_create', mocker.ANY)
-        lta_rc_mock.assert_not_called()
+    insert_jade_row_mock.assert_called_with(mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_bundler_do_work_bundle_once_and_die(config, mocker):
+    """Test that _do_work goes on vacation when the LTA DB has no work."""
+    once = config.copy()
+    once["RUN_ONCE_AND_DIE"] = "True"
+    check_mysql_mock = mocker.patch("lta.bundler.Bundler._check_mysql")
+    check_mysql_mock.return_value = True
+    logger_mock = mocker.MagicMock()
+    claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
+    claim_mock.return_value = False
+    sys_exit_mock = mocker.patch("sys.exit")
+    p = Bundler(once, logger_mock)
+    assert not await p._do_work()
+    sys_exit_mock.assert_not_called()

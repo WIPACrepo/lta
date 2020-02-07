@@ -1,0 +1,16 @@
+{
+    "sites": {
+        "desy": {
+            "bundle_size": 100000000000,
+            "rucio_dataset": "dataset-desy"
+        },
+        "nersc": {
+            "bundle_size": 500000000000,
+            "rucio_dataset": "dataset-nersc"
+        },
+        "wipac": {
+            "bundle_size": 1000000000,
+            "rucio_dataset": "dataset-wipac"
+        }
+    }
+}

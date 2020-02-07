@@ -1,0 +1,371 @@
+# test_site_move_verifier.py
+"""Unit tests for lta/site_move_verifier.py."""
+
+from unittest.mock import call, MagicMock
+
+import pytest  # type: ignore
+from tornado.web import HTTPError  # type: ignore
+
+from lta.site_move_verifier import as_nonempty_columns, discard_empty, MYQUOTA_ARGS, parse_myquota
+from lta.site_move_verifier import main, SiteMoveVerifier
+from .test_util import AsyncMock, ObjectLiteral
+
+@pytest.fixture
+def config():
+    """Supply a stock SiteMoveVerifier component configuration."""
+    return {
+        "COMPONENT_NAME": "testing-site_move_verifier",
+        "DEST_SITE": "NERSC",
+        "HEARTBEAT_PATCH_RETRIES": "3",
+        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
+        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "LTA_REST_TOKEN": "fake-lta-rest-token",
+        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "NEXT_STATUS": "taping",
+        "RUN_ONCE_AND_DIE": "False",
+        "SOURCE_SITE": "WIPAC",
+        "TRANSFER_CONFIG_PATH": "examples/rucio.json",
+        "WORK_RETRIES": "3",
+        "WORK_SLEEP_DURATION_SECONDS": "60",
+        "WORK_TIMEOUT_SECONDS": "30",
+    }
+
+def test_as_nonempty_columns():
+    """Test that test_as_nonempty_columns does what it says on the tin."""
+    assert as_nonempty_columns("FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT") == ["FILESYSTEM", "SPACE_USED", "SPACE_QUOTA", "SPACE_PCT", "INODE_USED", "INODE_QUOTA", "INODE_PCT"]
+    assert as_nonempty_columns("cscratch1    7638.60GiB   51200.00GiB   14.9%       0.00G        0.01G         0.1%") == ["cscratch1", "7638.60GiB", "51200.00GiB", "14.9%", "0.00G", "0.01G", "0.1%"]
+
+def test_discard_empty():
+    """Test that discard_empty does what it says on the tin."""
+    assert not discard_empty(None)
+    assert not discard_empty("")
+    assert discard_empty("alice")
+
+def test_parse_myquota():
+    """Test that parse_myquota provides expected output."""
+    stdout = """FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT
+home         1.90GiB      40.00GiB      4.7%        44.00        1.00M         0.0%
+cscratch1    12.00KiB     20.00TiB      0.0%        3.00         10.00M        0.0%
+"""
+    assert parse_myquota(stdout) == [
+        {
+            "FILESYSTEM": "home",
+            "SPACE_USED": "1.90GiB",
+            "SPACE_QUOTA": "40.00GiB",
+            "SPACE_PCT": "4.7%",
+            "INODE_USED": "44.00",
+            "INODE_QUOTA": "1.00M",
+            "INODE_PCT": "0.0%",
+        },
+        {
+            "FILESYSTEM": "cscratch1",
+            "SPACE_USED": "12.00KiB",
+            "SPACE_QUOTA": "20.00TiB",
+            "SPACE_PCT": "0.0%",
+            "INODE_USED": "3.00",
+            "INODE_QUOTA": "10.00M",
+            "INODE_PCT": "0.0%",
+        },
+    ]
+
+def test_constructor_config(config, mocker):
+    """Test that a SiteMoveVerifier can be constructed with a configuration object and a logging object."""
+    logger_mock = mocker.MagicMock()
+    p = SiteMoveVerifier(config, logger_mock)
+    assert p.name == "testing-site_move_verifier"
+    assert p.dest_site == "NERSC"
+    assert p.heartbeat_patch_retries == 3
+    assert p.heartbeat_patch_timeout_seconds == 30
+    assert p.heartbeat_sleep_duration_seconds == 60
+    assert p.lta_rest_token == "fake-lta-rest-token"
+    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.next_status == "taping"
+    assert p.source_site == "WIPAC"
+    assert p.transfer_config
+    assert p.work_retries == 3
+    assert p.work_sleep_duration_seconds == 60
+    assert p.work_timeout_seconds == 30
+    assert p.logger == logger_mock
+
+def test_do_status(config, mocker):
+    """Verify that the SiteMoveVerifier has no additional state to offer."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.site_move_verifier.run", new_callable=MagicMock)
+    run_mock.return_value = ObjectLiteral(
+        returncode=0,
+        args=MYQUOTA_ARGS,
+        stdout=b"FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT\nhome         1.90GiB      40.00GiB      4.7%        44.00        1.00M         0.0%\ncscratch1    12.00KiB     20.00TiB      0.0%        3.00         10.00M        0.0%\n",
+        stderr="",
+    )
+    p = SiteMoveVerifier(config, logger_mock)
+    assert p._do_status() == {
+        "quota": [
+            {
+                "FILESYSTEM": "home",
+                "SPACE_USED": "1.90GiB",
+                "SPACE_QUOTA": "40.00GiB",
+                "SPACE_PCT": "4.7%",
+                "INODE_USED": "44.00",
+                "INODE_QUOTA": "1.00M",
+                "INODE_PCT": "0.0%",
+            },
+            {
+                "FILESYSTEM": "cscratch1",
+                "SPACE_USED": "12.00KiB",
+                "SPACE_QUOTA": "20.00TiB",
+                "SPACE_PCT": "0.0%",
+                "INODE_USED": "3.00",
+                "INODE_QUOTA": "10.00M",
+                "INODE_PCT": "0.0%",
+            },
+        ]
+    }
+
+def test_do_status_myquota_fails(config, mocker):
+    """Verify that the SiteMoveVerifier has no additional state to offer."""
+    logger_mock = mocker.MagicMock()
+    run_mock = mocker.patch("lta.site_move_verifier.run", new_callable=MagicMock)
+    run_mock.return_value = ObjectLiteral(
+        returncode=1,
+        args=MYQUOTA_ARGS,
+        stdout="",
+        stderr="nersc file systems burned down; again",
+    )
+    p = SiteMoveVerifier(config, logger_mock)
+    assert p._do_status() == {"quota": []}
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_logs_configuration(mocker):
+    """Test to make sure the SiteMoveVerifier logs its configuration."""
+    logger_mock = mocker.MagicMock()
+    site_move_verifier_config = {
+        "COMPONENT_NAME": "logme-testing-site_move_verifier",
+        "DEST_SITE": "NERSC",
+        "HEARTBEAT_PATCH_RETRIES": "1",
+        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
+        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
+        "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
+        "NEXT_STATUS": "prognosticating",
+        "RUN_ONCE_AND_DIE": "False",
+        "SOURCE_SITE": "WIPAC",
+        "TRANSFER_CONFIG_PATH": "examples/rucio.json",
+        "WORK_RETRIES": "5",
+        "WORK_SLEEP_DURATION_SECONDS": "70",
+        "WORK_TIMEOUT_SECONDS": "90",
+    }
+    SiteMoveVerifier(site_move_verifier_config, logger_mock)
+    EXPECTED_LOGGER_CALLS = [
+        call("site_move_verifier 'logme-testing-site_move_verifier' is configured:"),
+        call('COMPONENT_NAME = logme-testing-site_move_verifier'),
+        call('DEST_SITE = NERSC'),
+        call('HEARTBEAT_PATCH_RETRIES = 1'),
+        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
+        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
+        call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
+        call('NEXT_STATUS = prognosticating'),
+        call('RUN_ONCE_AND_DIE = False'),
+        call('SOURCE_SITE = WIPAC'),
+        call('TRANSFER_CONFIG_PATH = examples/rucio.json'),
+        call('WORK_RETRIES = 5'),
+        call('WORK_SLEEP_DURATION_SECONDS = 70'),
+        call('WORK_TIMEOUT_SECONDS = 90')
+    ]
+    logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
+
+@pytest.mark.asyncio
+async def test_script_main(config, mocker, monkeypatch):
+    """
+    Verify SiteMoveVerifier component behavior when run as a script.
+
+    Test to make sure running the SiteMoveVerifier as a script does the setup work
+    that we expect and then launches the site_move_verifier service.
+    """
+    for key in config.keys():
+        monkeypatch.setenv(key, config[key])
+    mock_event_loop = mocker.patch("asyncio.get_event_loop")
+    mock_root_logger = mocker.patch("logging.getLogger")
+    mock_status_loop = mocker.patch("lta.site_move_verifier.status_loop")
+    mock_work_loop = mocker.patch("lta.site_move_verifier.work_loop")
+    main()
+    mock_event_loop.assert_called()
+    mock_root_logger.assert_called()
+    mock_status_loop.assert_called()
+    mock_work_loop.assert_called()
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_run(config, mocker):
+    """Test the SiteMoveVerifier does the work the site_move_verifier should do."""
+    logger_mock = mocker.MagicMock()
+    p = SiteMoveVerifier(config, logger_mock)
+    p._do_work = AsyncMock()
+    await p.run()
+    p._do_work.assert_called()
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_run_exception(config, mocker):
+    """Test an error doesn't kill the SiteMoveVerifier."""
+    logger_mock = mocker.MagicMock()
+    p = SiteMoveVerifier(config, logger_mock)
+    p.last_work_end_timestamp = None
+    p._do_work = AsyncMock()
+    p._do_work.side_effect = [Exception("bad thing happen!")]
+    await p.run()
+    p._do_work.assert_called()
+    assert p.last_work_end_timestamp
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_do_work_pop_exception(config, mocker):
+    """Test that _do_work raises when the RestClient can't pop."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
+    p = SiteMoveVerifier(config, logger_mock)
+    with pytest.raises(HTTPError):
+        await p._do_work()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_do_work_no_results(config, mocker):
+    """Test that _do_work goes on vacation when the LTA DB has no work."""
+    logger_mock = mocker.MagicMock()
+    dwc_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._do_work_claim", new_callable=AsyncMock)
+    dwc_mock.return_value = False
+    p = SiteMoveVerifier(config, logger_mock)
+    await p._do_work()
+    dwc_mock.assert_called()
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_do_work_yes_results(config, mocker):
+    """Test that _do_work keeps working until the LTA DB has no work."""
+    logger_mock = mocker.MagicMock()
+    dwc_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._do_work_claim", new_callable=AsyncMock)
+    dwc_mock.side_effect = [True, True, False]
+    p = SiteMoveVerifier(config, logger_mock)
+    await p._do_work()
+    dwc_mock.assert_called()
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_do_work_claim_no_result(config, mocker):
+    """Test that _do_work_claim does not work when the LTA DB has no work."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "bundle": None
+    }
+    vb_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._verify_bundle", new_callable=AsyncMock)
+    p = SiteMoveVerifier(config, logger_mock)
+    await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    vb_mock.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_do_work_claim_yes_result(config, mocker):
+    """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "bundle": {
+            "one": 1,
+        },
+    }
+    vb_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._verify_bundle", new_callable=AsyncMock)
+    p = SiteMoveVerifier(config, logger_mock)
+    assert await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    vb_mock.assert_called_with(mocker.ANY, {"one": 1})
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_verify_bundle_not_finished(config, mocker):
+    """Test that _delete_bundle deletes a completed bundle transfer."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    inst_mock = mocker.patch("lta.site_move_verifier.instantiate")
+    xfer_service_mock = AsyncMock()
+    inst_mock.return_value = xfer_service_mock
+    xfer_service_mock.status.return_value = {
+        "ref": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "completed": False,
+        "status": "PROCESSING",
+    }
+    bundle_obj = {
+        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
+        "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+    }
+    p = SiteMoveVerifier(config, logger_mock)
+    await p._verify_bundle(lta_rc_mock, bundle_obj)
+    inst_mock.assert_called_with(p.transfer_config)
+    xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
+    """Test that _delete_bundle deletes a completed bundle transfer."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    inst_mock = mocker.patch("lta.site_move_verifier.instantiate")
+    xfer_service_mock = AsyncMock()
+    inst_mock.return_value = xfer_service_mock
+    xfer_service_mock.status.return_value = {
+        "ref": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "completed": True,
+        "status": "COMPLETED",
+    }
+    hash_mock = mocker.patch("lta.site_move_verifier.sha512sum")
+    hash_mock.return_value = "54321"
+    bundle_obj = {
+        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
+        "dest": "nersc",
+        "path": "/data/exp/IceCube/2014/unbiased/PFRaw/1109",
+        "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "bundle_path": "/mnt/lfss/lta/scratch/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "checksum": {
+            "sha512": "12345",
+        },
+    }
+    p = SiteMoveVerifier(config, logger_mock)
+    await p._verify_bundle(lta_rc_mock, bundle_obj)
+    inst_mock.assert_called_with(p.transfer_config)
+    xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
+    hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
+        "status": "quarantined",
+        "reason": mocker.ANY,
+    })
+
+@pytest.mark.asyncio
+async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
+    """Test that _delete_bundle deletes a completed bundle transfer."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    inst_mock = mocker.patch("lta.site_move_verifier.instantiate")
+    xfer_service_mock = AsyncMock()
+    inst_mock.return_value = xfer_service_mock
+    xfer_service_mock.status.return_value = {
+        "ref": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "completed": True,
+        "status": "COMPLETED",
+    }
+    hash_mock = mocker.patch("lta.site_move_verifier.sha512sum")
+    hash_mock.return_value = "12345"
+    bundle_obj = {
+        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
+        "dest": "nersc",
+        "path": "/data/exp/IceCube/2014/unbiased/PFRaw/1109",
+        "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "bundle_path": "/mnt/lfss/lta/scratch/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "checksum": {
+            "sha512": "12345",
+        },
+    }
+    p = SiteMoveVerifier(config, logger_mock)
+    await p._verify_bundle(lta_rc_mock, bundle_obj)
+    inst_mock.assert_called_with(p.transfer_config)
+    xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
+    hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
+        "status": "taping",
+        "update_timestamp": mocker.ANY,
+        "claimed": False,
+    })

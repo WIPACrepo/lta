@@ -6,6 +6,8 @@ Subcommands:
         Add all of the files in <path> to the File Catalog at site <site>
     clear-catalog
         Remove all files from the File Catalog
+    clear-lta-bundles
+        Remove all Bundles from the LTA DB
     clear-lta-transfer-requests
         Remove all Transfer Requests from the LTA DB
 """
@@ -18,8 +20,8 @@ from uuid import uuid4
 
 from rest_tools.client import RestClient  # type: ignore
 
-from lta.bundler import sha512sum
 from lta.config import from_environment
+from lta.crypto import sha512sum
 
 EXPECTED_CONFIG = {
     'FAKE_CHECKSUM': "False",
@@ -58,8 +60,8 @@ async def add_catalog(site, path):
                 ],
                 "file_size": os.path.getsize(logical_name),
             }
-            # if we've being pedantic about checksums in test data
-            if config["FAKE_CHECKSUM"] != "False":
+            # if we're being pedantic about real checksums in test data
+            if config["FAKE_CHECKSUM"] != "True":
                 file_record["checksum"]["sha512"] = sha512sum(logical_name)
             # add the file to the File Catalog
             try:
@@ -93,30 +95,32 @@ async def clear_catalog():
                 clearing = False
         except Exception as e:
             # whoopsy daisy...
+            clearing = False
             print(e)
 
 
-async def clear_lta_files():
+async def clear_lta_bundles():
     # configure a RestClient from the environment
     config = from_environment(EXPECTED_CONFIG)
     rc = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
-    # while there are still transfer requests
+    # while there are still bundles
     clearing = True
     while clearing:
         try:
-            # get a list of all the files in the LTA DB
-            response = await rc.request("GET", "/Files")
+            # get a list of all the bundles in the LTA DB
+            response = await rc.request("GET", "/Bundles")
             results = response["results"]
-            # for each file that we found
+            # for each bundle that we found
             for uuid in results:
-                # remove it from the file catalog
-                print(f"DELETE /Files/{uuid}")
-                response2 = await rc.request("DELETE", f"/Files/{uuid}")
+                # remove it from the LTA DB
+                print(f"DELETE /Bundles/{uuid}")
+                response2 = await rc.request("DELETE", f"/Bundles/{uuid}")
             # if we didn't get any files back, we're done
             if len(results) < 1:
                 clearing = False
         except Exception as e:
             # whoopsy daisy...
+            clearing = False
             print(e)
 
 
@@ -129,7 +133,7 @@ async def clear_lta_transfer_requests():
     while clearing:
         try:
             # get a list of up to 50 transfer requests
-            # technically a lie; the LTA DB doesn't honor either start or limit
+            # technically a lie; the LTA DB honors neither start nor limit
             response = await rc.request("GET", "/TransferRequests?start=0&limit=50")
             results = response["results"]
             # for each file that we found
@@ -143,6 +147,7 @@ async def clear_lta_transfer_requests():
                 clearing = False
         except Exception as e:
             # whoopsy daisy...
+            clearing = False
             print(e)
 
 
@@ -163,9 +168,9 @@ async def main():
     # if we're clearing files from the catalog
     elif subcommand == "clear-catalog":
         await clear_catalog()
-    # if we're clearing files from the LTA DB
-    elif subcommand == "clear-lta-files":
-        await clear_lta_files()
+    # if we're clearing bundles from the LTA DB
+    elif subcommand == "clear-lta-bundles":
+        await clear_lta_bundles()
     # if we're clearing transfer requests from the LTA DB
     elif subcommand == "clear-lta-transfer-requests":
         await clear_lta_transfer_requests()

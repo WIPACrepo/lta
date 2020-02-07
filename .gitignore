@@ -105,4 +105,6 @@ venv.bak/
 
 # LTA project specific ignores
 .lta-*
-local-secret
+/etc
+/local-secret
+/service-token

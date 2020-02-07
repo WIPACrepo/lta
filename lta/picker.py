@@ -2,28 +2,36 @@
 """Module to implement the Picker component of the Long Term Archive."""
 
 import asyncio
-from datetime import datetime
 import json
 import logging
 from logging import Logger
 import sys
 from typing import Any, Dict, Optional
 
+from binpacking import to_constant_bin_number  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 
 from .component import COMMON_CONFIG, Component, status_loop, work_loop
 from .config import from_environment
 from .log_format import StructuredFormatter
-from .lta_types import CatalogFileType, DestList, FileList, TransferRequestType
+from .lta_types import BundleType, TransferRequestType
 
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
+    "LTA_SITE_CONFIG": "etc/site.json",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
+
+def as_bundle_record(catalog_record: Dict[str, Any]) -> Dict[str, Any]:
+    """Cherry pick keys from a File Catalog record to include in Bundle metadata."""
+    KEYS = ['checksum', 'file_size', 'logical_name', 'meta_modify_date', 'uuid']
+    bundle_record = {k: catalog_record[k] for k in KEYS}
+    return bundle_record
 
 
 class Picker(Component):
@@ -48,6 +56,9 @@ class Picker(Component):
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
+        with open(config["LTA_SITE_CONFIG"]) as site_data:
+            self.lta_site_config = json.load(site_data)
+        self.sites = self.lta_site_config["sites"]
 
     def _do_status(self) -> Dict[str, Any]:
         """Picker has no additional status to contribute."""
@@ -59,6 +70,15 @@ class Picker(Component):
 
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
+        self.logger.info("Starting work on TransferRequests.")
+        work_claimed = True
+        while work_claimed:
+            work_claimed = await self._do_work_claim()
+            work_claimed &= not self.run_once_and_die
+        self.logger.info("Ending work on TransferRequests.")
+
+    async def _do_work_claim(self) -> bool:
+        """Claim a transfer request and perform work on it."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
         # configure a RestClient to talk to the LTA DB
         lta_rc = RestClient(self.lta_rest_url,
@@ -67,26 +87,22 @@ class Picker(Component):
                             retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a TransferRequest to work on.")
         pop_body = {
-            "picker": self.name
+            "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', '/TransferRequests/actions/pop?source=WIPAC', pop_body)
+        response = await lta_rc.request('POST', f'/TransferRequests/actions/pop?source={self.source_site}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
-        results = response["results"]
-        if not results:
-            self.logger.info(f"No TransferRequests are available to work on. Going on vacation.")
-            return
-        self.logger.info(f"There are {len(results)} TransferRequest(s) to work on.")
-        # for each TransferRequest that we were given
-        for tr in results:
-            # TODO: what do we do with broken transfer requests?
-            # try:
-            #     await self._do_work_transfer_request(lta_rc, tr)
-            # except Exception as e:
-            #     self.logger.error("Unable to process TR {UUID}")
-            #     lta_rc.request('PATCH', '/TransferRequest/{uuid}', {"quarantine": f"exception: {e}"})
+        tr = response["transfer_request"]
+        if not tr:
+            self.logger.info("LTA DB did not provide a TransferRequest to work on. Going on vacation.")
+            return False
+        # process the TransferRequest that we were given
+        try:
             await self._do_work_transfer_request(lta_rc, tr)
-        # log a friendly message
-        self.logger.info(f'Done working on all TransferRequests.')
+        except Exception as e:
+            self._quarantine_transfer_request(lta_rc, tr, f"{e}")
+            raise e
+        # if we were successful at processing work, let the caller know
+        return True
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,
@@ -98,91 +114,84 @@ class Picker(Component):
                            timeout=self.work_timeout_seconds,
                            retries=self.work_retries)
         # figure out which files need to go
-        src_split = tr['source'].split(':', 1)
-        src_site = src_split[0]
-        src_path = src_split[1]
-        # figure out where they need to go to
-        dests: DestList = []
-        for dst in tr['dest']:
-            dst_split = dst.split(':', 1)
-            dests.append((dst_split[0], dst_split[1]))
+        source = tr["source"]
+        dest = tr["dest"]
+        path = tr["path"]
         # query the file catalog for the source files
-        self.logger.info(f"Asking the File Catalog about files in {src_split}:{src_path}")
+        self.logger.info(f"Asking the File Catalog about files in {source}:{path}")
         query_dict = {
             "locations.site": {
-                "$eq": f"{src_site}"
+                "$eq": source
             },
             "locations.path": {
-                "$regex": f"^{src_path}"
+                "$regex": f"^{path}"
             }
         }
         query_json = json.dumps(query_dict)
         fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}')
-        self.logger.info(f'File Catalog returned {len(fc_response["files"])} file(s) to process.')
-        # TODO: If there are no files, that seems like something to alert on
-        # if len(fc_response["files"]) < 1:
-        #     self.alerter.error("TR {UUID} wanted to archive {site}:{path} but the File Catalog reported 0 files!")
-        #     lta_rc.request('PATCH', '/TransferRequest/{uuid}', {"quarantine": "file_catalog_count == 0"})
-        #     return
-        # for each file provided by the catalog
-        bulk_create: FileList = []
+        num_files = len(fc_response["files"])
+        self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
+        # if we didn't get any files, this is bad mojo
+        if num_files < 1:
+            await self._quarantine_transfer_request(lta_rc, tr, "File Catalog returned zero files for the TransferRequest")
+            return
+        # query the file catalog for the full records
+        catalog_records = []
         for catalog_file in fc_response["files"]:
-            bulk_create.extend(await self._do_work_catalog_file(lta_rc, tr, fc_rc, dests, catalog_file))
-        # 3. Update the LTA DB with Files needed for bundling
-        self.logger.info(f'Identified {len(bulk_create)} transfer(s) to add to the LTA DB.')
-        create_body = {
-            "files": bulk_create
-        }
-        await lta_rc.request('POST', '/Files/actions/bulk_create', create_body)
-        # 4. Return the TransferRequest to the LTA DB as picked
-        self.logger.info(f'Marking TransferRequest {tr["uuid"]} as complete in the LTA DB.')
-        complete = {
-            "complete": {
-                "timestamp": datetime.utcnow().isoformat(),
-                "picker": self.name
-            }
-        }
-        await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', complete)
-        self.logger.info(f'Deleting TransferRequest {tr["uuid"]} from the LTA DB.')
-        await lta_rc.request('DELETE', f'/TransferRequests/{tr["uuid"]}')
-        self.logger.info(f'Done working on TransferRequest {tr["uuid"]}.')
-
-    async def _do_work_catalog_file(self,
-                                    lta_rc: RestClient,
-                                    tr: TransferRequestType,
-                                    fc_rc: RestClient,
-                                    dests: DestList,
-                                    catalog_file: CatalogFileType) -> FileList:
-        self.logger.info(f'Processing catalog file: {catalog_file["logical_name"]}')
-        # ask the File Catalog for the full record of the file
-        fc_response2 = await fc_rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
-        # create a container to hold our results
-        bulk_create: FileList = []
-        # for each destination in the transfer request
-        for dest in dests:
-            # check to see if our full record contains that location
-            already_there = False
-            for loc in fc_response2["locations"]:
-                if (loc["site"] is dest[0]) and (loc["path"].startswith(dest[1])):
-                    already_there = True
-                    break
-            # if the file is already at that destination
-            if already_there:
-                self.logger.info(f'Catalog file {catalog_file["logical_name"]} is already at {dest[0]}:{dest[1]}')
-                # move on to the next destination
-                continue
-            # otherwise, we need to create this File object in the LTA DB
-            self.logger.info(f'Adding catalog file {catalog_file["logical_name"]} transfer {tr["source"]} -> {dest[0]}:{dest[1]} to bulk create list.')
-            file_obj = {
-                "source": tr["source"],
-                "dest": f"{dest[0]}:{dest[1]}",
+            catalog_record = await fc_rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
+            catalog_records.append(catalog_record)
+        # add up the sizes of everything returned by the catalog
+        packing_list = []
+        total_size = 0
+        for catalog_record in catalog_records:
+            file_size = catalog_record["file_size"]
+            #                    0: size    1: full record
+            packing_list.append((file_size, catalog_record))
+            total_size += file_size
+        # divide that by the size requested at the destination
+        bundle_size = self.sites[dest]["bundle_size"]
+        num_bundles = max(round(total_size / bundle_size), 1)
+        packing_spec = to_constant_bin_number(packing_list, num_bundles, 0)  # 0: size
+        # for each packing list, we create a bundle in the LTA DB
+        self.logger.info(f"Creating {len(packing_spec)} new Bundles in the LTA DB.")
+        for spec in packing_spec:
+            await self._create_bundle(lta_rc, {
+                "type": "Bundle",
+                # "uuid": unique_id(),  # provided by LTA DB
+                "status": "specified",
+                # "create_timestamp": right_now,  # provided by LTA DB
+                # "update_timestamp": right_now,  # provided by LTA DB
                 "request": tr["uuid"],
-                "catalog": fc_response2
-            }
-            bulk_create.append(file_obj)
-        # return our list to the caller
-        return bulk_create
+                "source": source,
+                "dest": dest,
+                "path": path,
+                "files": [as_bundle_record(x[1]) for x in spec],  # 1: full record
+            })
 
+    async def _create_bundle(self,
+                             lta_rc: RestClient,
+                             bundle: BundleType) -> Any:
+        self.logger.info(f'Creating new bundle in the LTA DB.')
+        create_body = {
+            "bundles": [bundle]
+        }
+        result = await lta_rc.request('POST', '/Bundles/actions/bulk_create', create_body)
+        uuid = result["bundles"][0]
+        return uuid
+
+    async def _quarantine_transfer_request(self,
+                                           lta_rc: RestClient,
+                                           tr: TransferRequestType,
+                                           reason: str) -> None:
+        self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
+        patch_body = {
+            "status": "quarantined",
+            "reason": reason,
+        }
+        try:
+            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
+        except Exception as e:
+            self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
 
 def runner() -> None:
     """Configure a Picker component from the environment and set it running."""
