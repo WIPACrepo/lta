@@ -3,7 +3,7 @@
 # Cron job.
 # Argument:  optional integer between 0 and 2 that controls the log level.
 #  Default is 0
-#
+
 # We rely on slurm jobs to do the grunt work of archiving,
 #  de-archiving, and verifying bundles.
 # This checks to see how many of them are running, and
@@ -46,6 +46,7 @@
 # 0 	OK
 # 1	Failed to "sacct" -- slurm job history
 # 2	Failed to "squeue" -- get slurm activity
+# 3	Failed to "sbatch" -- submit job
 #
 # sacct job state codes as of 24-Jan-2020:
 #       BF  BOOT_FAIL       Job  terminated due to launch failure, typically due to a hardware failure (e.g. unable to boot the node or block and the
@@ -69,22 +70,27 @@
 # Abbreviation:  NS_ = NERSC_Supervisor
 #
 
-
 # Definitions
 
 declare -i NS_LOG_DETAIL count expectedcount fc activeJobs
 #declare -i incomplete
 
-
-export NS_BASE=/global/homes/i/icecubed/LTA
+export NS_BASE=/global/homes/i/icecubed/NEWLTA/lta
 export NS_LOG="${NS_BASE}/ns.log"
 export NS_SLURM_LOG="${NS_BASE}/SLURMLOGS"
 export NS_SLURM_LOG_SEEN="${NS_SLURM_LOG}/seen"
-NS_SCRIPT_PATH="${NS_BASE}/lta"
+NS_SCRIPT_PATH="${NS_BASE}/bin"
 export NS_SCRIPT_PATH
 export SBATCH=/usr/bin/sbatch
 export SQUEUE=/usr/bin/squeue
 export SACCT=/usr/bin/sacct
+#export NS_CONTROL="${NS_BASE}/NS_CONTROL.json"
+export NS_PHONE_HOME=False
+##########
+# CONTROL
+# This string controls what we want to see at all times. 
+#   3 verifiers, 0 retrievers, 3 mover
+export NS_DESIRED="nersc-mover:3 nersc-verifier:3 nersc-retriever:0"
 
 ###
 # Functions follow
@@ -96,9 +102,9 @@ function logit {
   # # is the logging level; higher means less important
   # message is quoted
   declare -i level
-  # sanity check
   if [[ "$2" == "" ]]; then return; fi
   level=$1
+  # sanity check
   if [[ ${NS_LOG_DETAIL} -eq 0 ]]; then return; fi
  
   if [[ ${NS_LOG_DETAIL} -ge ${level} ]]
@@ -113,7 +119,7 @@ function logit {
 function getrunning {
   # no arguments
   logit 2 "getrunning"
-  if ! rawinfo=$(${SQUEUE} -u icecubed -q xfer -M escori)
+  if ! rawinfo=$(${SQUEUE} -h -o "%.18i %.25j %.2t %.10M %.42k %R" -u icecubed -q xfer -M escori)
     then
       logit 0 "SLURM is not working"
       return 1
@@ -134,7 +140,7 @@ function launch {
       return 1
     fi
   logit 2 "launch $1"
-  if ! ${SBATCH}  --comments="${1}" -o "${NS_SLURM_LOG}/slurm-$1-%j.out" -q xfer -M escori -t 12:00:00 "${NS_SCRIPT_PATH}/$1.sh"
+  if ! ${SBATCH}  -o "${NS_SLURM_LOG}/slurm-$1-%j.out" -q xfer -M escori -t 12:00:00 "${NS_SCRIPT_PATH}/$1.sh"
     then
       logit 0 "Submit of $1 failed"
       return 1
@@ -166,7 +172,6 @@ function countIncomplete {
   return 0
 }
 
-
 ###################################################################
 # This is where the main work really begins.
 #############################################
@@ -180,24 +185,18 @@ if [[ "$1" == "" ]]
   else
     NS_LOG_DETAIL=$1
   fi
-
 # Log (or not, depending on the level)
 logit 1 "Invocation"
 
 # Not used yet
-#export NS_CONTROL=/global/homes/i/icecubed/LTA/NS_CONTROL.json
 
-# This string controls what we want to see at all times. 
-#   0 verifiers, 0 retrievers, 1 mover
-export NS_DESIRED="nersc-mover:1 nersc-verifier:0 nersc-retriever:0"
+
+
 
 ##################
 # Start the work #
 ##################
 
-####
-## Count how many jobs didn't finish
-####
 #if ! incomplete=$(countIncomplete)
 #  then
 #    exit 1
@@ -211,11 +210,13 @@ if ! whatWeHave=$(getrunning)
     exit 2
   fi
 
-
 ###
 # Loop over the list of expected job types
 # At the moment this info is hard-wired in NS_DESIRED, but
 # we should load from a json initialization file instead
+# Keeping track of activeJobs is future-proofing the system
+# I should count them all and compare with maxjobs before
+# submitting anything.
 ###
 activeJobs=0
 for desired in ${NS_DESIRED}
@@ -225,11 +226,9 @@ for desired in ${NS_DESIRED}
     count=0
     for chunks in ${whatWeHave}
       do
-         # ? Check that this works.  Might have to use (n-1)/2 if comment appears
-         fc=$(echo "${chunks}" | awk -v var="${class}" '{n=split($0,a,var);print n-1}')
+         fc=$(echo "${chunks}" | awk -v var="${class}.sh" '{n=split($0,a,var);print n-1}')
          count=$(( count + fc ))
       done
-      count=$(( count / 2 ))		# Should appear in comment and name
       activeJobs=$(( activeJobs + count ))
     ###
     # Do we need to do anything?
@@ -238,7 +237,7 @@ for desired in ${NS_DESIRED}
       then
         # only launch 1 at a time
         if ! launch "${class}"
-          then exit 1; fi
+          then exit 3; fi
         logit 2 "Launching ${class} ${count} ${expectedcount}"
       fi
   done
