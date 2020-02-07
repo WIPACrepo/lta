@@ -66,7 +66,7 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
     monkeypatch.setenv("LTA_AUTH_ISSUER", CONFIG['TOKEN_SERVICE'])
     monkeypatch.setenv("LTA_AUTH_SECRET", CONFIG['AUTH_SECRET'])
-    monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", CONFIG['LTA_MONGODB_NAME'])
+    monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", CONFIG['LTA_MONGODB_DATABASE_NAME'])
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
     s = start(debug=True)
