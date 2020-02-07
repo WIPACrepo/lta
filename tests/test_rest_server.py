@@ -17,14 +17,13 @@ from rest_tools.client import RestClient  # type: ignore
 from lta.rest_server import boolify, CheckClaims, main, start, unique_id
 
 ALL_DOCUMENTS: Dict[str, str] = {}
-MONGODB_NAME = "lta-unit-tests"
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
     'AUTH_SECRET': 'secret',
     'LTA_MONGODB_AUTH_USER': '',
     'LTA_MONGODB_AUTH_PASS': '',
-    'LTA_MONGODB_DATABASE_NAME': MONGODB_NAME,
+    'LTA_MONGODB_DATABASE_NAME': 'lta',
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
     'TOKEN_SERVICE': 'http://localhost:8888',
@@ -44,9 +43,10 @@ def mongo(monkeypatch) -> Database:
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
     client = MongoClient(lta_mongodb_url, port=mongo_port)
-    db = client[MONGODB_NAME]
+    db = client[CONFIG['LTA_MONGODB_DATABASE_NAME']]
     for collection in db.list_collection_names():
-        db.drop_collection(collection)
+        if 'system' not in collection:
+            db.drop_collection(collection)
     return db
 
 @pytest.fixture
@@ -66,7 +66,7 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
     monkeypatch.setenv("LTA_AUTH_ISSUER", CONFIG['TOKEN_SERVICE'])
     monkeypatch.setenv("LTA_AUTH_SECRET", CONFIG['AUTH_SECRET'])
-    monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", MONGODB_NAME)
+    monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", CONFIG['LTA_MONGODB_DATABASE_NAME'])
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
     s = start(debug=True)
