@@ -5,6 +5,7 @@ jobs:
             - image: circleci/python:3.7.2
               environment:
                 LTA_MONGODB_URL: mongodb://localhost:27017
+                LTA_MONGODB_NAME: lta-unit-tests
                 TOKEN_SERVICE: http://localhost:12345
                 AUTH_SECRET: lkjlksdldkfjlsdjflsdnfkl
             - image: circleci/mongo:3.7.9-ram
@@ -18,7 +19,9 @@ jobs:
             - run: ./setupenv.sh
             - run: |
                 . env/bin/activate &&
-                ./snake rebuild
+                resources/enable_profiling.py &&
+                ./snake rebuild &&
+                resources/profile_queries.py
 workflows:
     version: 2
     build_and_test:

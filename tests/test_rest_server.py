@@ -17,11 +17,11 @@ import requests  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 
 ALL_DOCUMENTS: Dict[str, str] = {}
-MONGODB_NAME = "lta-unit-tests"
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
     'LTA_MONGODB_URL': 'mongodb://localhost:27017/',
+    'LTA_MONGODB_NAME': 'lta-unit-tests',
     'TOKEN_SERVICE': '',
     'AUTH_SECRET': 'secret',
 }
@@ -48,9 +48,10 @@ class ObjectLiteral:
 def mongo(monkeypatch) -> Database:
     """Get a reference to a test instance of a MongoDB Database."""
     client = MongoClient(CONFIG['LTA_MONGODB_URL'])
-    db = client[MONGODB_NAME]
+    db = client[CONFIG['LTA_MONGODB_NAME']]
     for collection in db.list_collection_names():
-        db.drop_collection(collection)
+        if 'system' not in collection:
+            db.drop_collection(collection)
     return db
 
 @pytest.fixture
@@ -70,7 +71,7 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
     monkeypatch.setenv("LTA_AUTH_ISSUER", CONFIG['TOKEN_SERVICE'])
     monkeypatch.setenv("LTA_AUTH_SECRET", CONFIG['AUTH_SECRET'])
-    monkeypatch.setenv("LTA_MONGODB_NAME", MONGODB_NAME)
+    monkeypatch.setenv("LTA_MONGODB_NAME", CONFIG['LTA_MONGODB_NAME'])
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     s = start(debug=True)
 
