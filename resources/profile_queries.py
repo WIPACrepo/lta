@@ -37,6 +37,8 @@ for query in ret:
     try:
         if 'find' in query['command'] and query['command']['find'] == 'collections':
             continue
+        if 'find' in query['command'] and query['command']['filter'] == {} and query['command']['projection'] in ({}, {'_id': False}):
+            continue
         if 'planSummary' not in query:
             print(query)
             continue

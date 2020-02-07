@@ -617,6 +617,18 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     if 'bundles_uuid_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.Bundles.uuid")
         db.Bundles.create_index('uuid', name='bundles_uuid_index', unique=True)
+    if 'bundles_request_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.Bundles.request")
+        db.Bundles.create_index('request', name='bundles_request_index')
+    if 'bundles_status_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.Bundles.status")
+        db.Bundles.create_index('status', name='bundles_status_index')
+    if 'bundles_source_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.Bundles.source")
+        db.Bundles.create_index('source', name='bundles_source_index')
+    if 'bundles_verified_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.Bundles.verified")
+        db.Bundles.create_index('verified', name='bundles_verified_index')
     # Status.{component, name}
     if 'status_component_index' not in db.Status.index_information():
         logging.info(f"Creating index for {mongo_db}.Status.component")
