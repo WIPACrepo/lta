@@ -88,13 +88,6 @@ class NerscMover(Component):
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
             return False
-        # if the hsi command has gone AWOL
-        args = ["/usr/bin/which", "hsi"]
-        completed_process = run(args, stdout=PIPE, stderr=PIPE)
-        if completed_process.returncode != 0:
-            # prevent this instance from claiming any work
-            self.logger.error(f"Unable to do work; hsi command not available (returncode: {completed_process.returncode})")
-            return False
         # 1. Ask the LTA DB for the next Bundle to be taped
         self.logger.info("Asking the LTA DB for a Bundle to tape at NERSC with HPSS.")
         # configure a RestClient to talk to the LTA DB
@@ -141,7 +134,7 @@ class NerscMover(Component):
         #     mkdir     -> create a directory to store the bundle on tape
         #     -p        -> create any intermediate (parent) directories as necessary
         hpss_base = os.path.dirname(hpss_path)
-        args = ["hsi", "mkdir", "-p", hpss_base]
+        args = ["/usr/common/mss/bin/hsi", "mkdir", "-p", hpss_base]
         if not await self._execute_hsi_command(lta_rc, bundle, args):
             return False
         # run an hsi command to put the file on tape
@@ -149,7 +142,7 @@ class NerscMover(Component):
         #     -c on     -> turn on the calculation of checksums by the hpss system
         #     -H sha512 -> specify that the SHA512 algorithm be used to calculate the checksum
         #     :         -> HPSS ... ¯\_(ツ)_/¯
-        args = ["hsi", "put", "-c", "on", "-H", "sha512", rucio_path, ":", hpss_path]
+        args = ["/usr/common/mss/bin/hsi", "put", "-c", "on", "-H", "sha512", rucio_path, ":", hpss_path]
         if not await self._execute_hsi_command(lta_rc, bundle, args):
             return False
         # otherwise, update the Bundle in the LTA DB
