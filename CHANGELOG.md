@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.28] - 2020-02-10
+### Fixed
+- NerscMover and NerscVerifier now use full path for hsi command
+
 ## [0.0.27] - 2020-01-30
 ### Changed
 - Updated Python package requirements to latest versions
@@ -172,7 +176,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.27...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.28...HEAD
+[0.0.28]: https://github.com/WIPACrepo/lta/compare/v0.0.27...v0.0.28
 [0.0.27]: https://github.com/WIPACrepo/lta/compare/v0.0.26...v0.0.27
 [0.0.26]: https://github.com/WIPACrepo/lta/compare/v0.0.25...v0.0.26
 [0.0.25]: https://github.com/WIPACrepo/lta/compare/v0.0.24...v0.0.25

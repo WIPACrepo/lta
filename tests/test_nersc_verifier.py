@@ -151,28 +151,6 @@ async def test_nersc_verifier_hpss_not_available(config, mocker):
     assert not await p._do_work_claim()
 
 @pytest.mark.asyncio
-async def test_nersc_verifier_hsi_not_available(config, mocker):
-    """Test that a bad returncode on hpss_avail will prevent work."""
-    logger_mock = mocker.MagicMock()
-    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
-    run_mock.side_effect = [
-        ObjectLiteral(
-            returncode=0,
-            args=["/usr/common/mss/bin/hpss_avail", "archive"],
-            stdout="some text on stdout",
-            stderr="some text on stderr",
-        ),
-        ObjectLiteral(
-            returncode=1,
-            args=["/usr/bin/which", "hsi"],
-            stdout="some text on stdout",
-            stderr="some text on stderr",
-        ),
-    ]
-    p = NerscVerifier(config, logger_mock)
-    assert not await p._do_work_claim()
-
-@pytest.mark.asyncio
 async def test_nersc_verifier_do_work_pop_exception(config, mocker):
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()

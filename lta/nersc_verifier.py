@@ -88,13 +88,6 @@ class NerscVerifier(Component):
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
             return False
-        # if the hsi command has gone AWOL
-        args = ["/usr/bin/which", "hsi"]
-        completed_process = run(args, stdout=PIPE, stderr=PIPE)
-        if completed_process.returncode != 0:
-            # prevent this instance from claiming any work
-            self.logger.error(f"Unable to do work; hsi command not available (returncode: {completed_process.returncode})")
-            return False
         # 1. Ask the LTA DB for the next Bundle to be verified
         self.logger.info("Asking the LTA DB for a Bundle to verify at NERSC with HPSS.")
         # configure a RestClient to talk to the LTA DB
@@ -208,7 +201,7 @@ class NerscVerifier(Component):
         #                      It also results in setting "quiet" (no extraneous messages) mode,
         #                      disabling verbose response messages, and disabling interactive file transfer messages
         #     hashlist      -> List checksum hash for HPSS file(s)
-        args = ["hsi", "-P", "hashlist", hpss_path]
+        args = ["/usr/common/mss/bin/hsi", "-P", "hashlist", hpss_path]
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
@@ -252,7 +245,7 @@ class NerscVerifier(Component):
         #                      disabling verbose response messages, and disabling interactive file transfer messages
         #     hashverify    -> Verify checksum hash for existing HPSS file(s)
         #     -A            -> enable auto-scheduling of retrievals
-        args = ["hsi", "-P", "hashverify", "-A", hpss_path]
+        args = ["/usr/common/mss/bin/hsi", "-P", "hashverify", "-A", hpss_path]
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
