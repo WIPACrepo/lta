@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.0.29] - 2020-02-10
+### Changed
+- ltacmd catalog commands use queries more friendly to MongoDB look up
+
 ## [0.0.28] - 2020-02-10
 ### Fixed
 - NerscMover and NerscVerifier now use full path for hsi command
