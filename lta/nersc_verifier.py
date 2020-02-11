@@ -27,6 +27,14 @@ EXPECTED_CONFIG.update({
 })
 
 
+def as_catalog_record(bundle_record: BundleType) -> Dict[str, Any]:
+    """Cherry pick keys from a File Catalog record to include in Bundle metadata."""
+    catalog_record = bundle_record.copy()
+    uuids = [x["uuid"] for x in bundle_record["files"]]
+    catalog_record["files"] = uuids
+    return catalog_record
+
+
 class NerscVerifier(Component):
     """
     NerscVerifier is a Long Term Archive component.

@@ -6,7 +6,7 @@ from unittest.mock import call, MagicMock
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
-from lta.nersc_verifier import main, NerscVerifier
+from lta.nersc_verifier import as_catalog_record, main, NerscVerifier
 from .test_util import AsyncMock, ObjectLiteral
 
 @pytest.fixture
@@ -29,6 +29,116 @@ def config():
         "WORK_TIMEOUT_SECONDS": "30",
     }
 
+def test_as_catalog_record():
+    """Check that as_catalog_record trims down metadata appropriately."""
+    bundle_record = {
+        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/b33686fe41b711ea85fbc6259865d176.zip",
+        "checksum": {
+            "adler32": "5d69e3ca",
+            "sha512": "e7ea63cf36d5b793c9c372d815b7781943cd9c2e2f664d0000de4595779036174902428cedcc32c9542260df620ff5a4cbee91fe124502bc9c71837233169606"
+        },
+        "claim_timestamp": "2020-02-11T04:05:04",
+        "claimant": "cori05-nersc-verifier-5568d5d5-81a5-44a0-ac97-6f067e8d11a3",
+        "claimed": False,
+        "create_timestamp": "2020-01-28T10:19:42",
+        "dest": "NERSC",
+        "files": [
+            {
+                "checksum": {
+                    "sha512": "b098ec20b12ee795dff25158873f86df1090f66479e3604b40dbce096a67f52f79f8decd2d1834a3b1e45dc42b703673b0ba194b93c5b705534d1a2422ce1cb8"
+                },
+                "file_size": 1188095831,
+                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_246d4979-e8b7-4fcf-96e5-4afa15a91d44_PFRaw_PhysicsFiltering_Run00131614_Subrun00000000_00000202.tar.gz",
+                "meta_modify_date": "2020-01-28 10:15:26.125535",
+                "uuid": "1a1e9648-41b7-11ea-85e1-666154400f62"
+            },
+            {
+                "checksum": {
+                    "sha512": "29532b62b8dcc0bdf0937ae7dc891be3ab57ded69913d27ab552051fc36d9fe04573ef8a705e6c81c344c0888af0c0de1664c6e6a8fa830d72362b87c5c60ec6"
+                },
+                "file_size": 1186829262,
+                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_4ba6dab2-eacb-4bec-a80b-27eb5c54893d_PFRaw_PhysicsFiltering_Run00131613_Subrun00000000_00000185.tar.gz",
+                "meta_modify_date": "2020-01-28 10:13:47.437259",
+                "uuid": "df4bf342-41b6-11ea-9608-666154400f62"
+            },
+            {
+                "checksum": {
+                    "sha512": "78dd0c99dd413ce234b689b0752cf01134a798c4971da59321b34cffb0be58b01099f97a3e8cba714183d3f4aa50a3559541975bc8c4e05141ff131b12d3cd08"
+                },
+                "file_size": 1186640189,
+                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_44c00140-770f-4655-8d60-fb75997e8ef9_PFRaw_PhysicsFiltering_Run00131613_Subrun00000000_00000204.tar.gz",
+                "meta_modify_date": "2020-01-28 10:13:22.664175",
+                "uuid": "d087dff6-41b6-11ea-b2e4-666154400f62"
+            },
+            {
+                "checksum": {
+                    "sha512": "33ace6b9b780f97bcf18382464fe08c96bcdb3a4aef5d6ac7656cdbbe05e75a73e95fd8b64207604484c04173ac566b96051d853749a67da26693b85ddd5bc09"
+                },
+                "file_size": 1186616485,
+                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_b2a04d2b-904d-4271-98cf-1ceff5947318_PFRaw_PhysicsFiltering_Run00131613_Subrun00000000_00000148.tar.gz",
+                "meta_modify_date": "2020-01-28 10:15:56.761259",
+                "uuid": "2c6139f8-41b7-11ea-bd61-666154400f62"
+            },
+            {
+                "checksum": {
+                    "sha512": "34c3ea6508cb2123c2cdbe70a64fd37f983bef13a32a00afc92a4df808ebeea5b8176ba2232fe7da48fb1c4986c3263dc4df6e00c5c51c3f44821e0018cb99b3"
+                },
+                "file_size": 1186547342,
+                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_6d48effb-ce8e-48ce-8c17-3e05029eee09_PFRaw_PhysicsFiltering_Run00131615_Subrun00000000_00000034.tar.gz",
+                "meta_modify_date": "2020-01-28 10:14:17.251869",
+                "uuid": "f1114e3a-41b6-11ea-bee2-666154400f62"
+            },
+            {
+                "checksum": {
+                    "sha512": "af834a9d03ee6390610d8bf8ddc46219369a505d0a42b9035eecbf92c3f34db966736392b8b02d1932ddf12ca2828cb5e43de9903af9945bf686d8de135f9c0d"
+                },
+                "file_size": 1186445818,
+                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_2f6786cd-245b-4e8d-815b-7f7f3ae9b313_PFRaw_PhysicsFiltering_Run00131612_Subrun00000000_00000050.tar.gz",
+                "meta_modify_date": "2020-01-28 10:14:49.604150",
+                "uuid": "0459dd3a-41b7-11ea-9bd9-666154400f62"
+            }
+        ],
+        "path": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012",
+        "reason": "",
+        "request": "945e546841b711eaaf1bc6259865d176",
+        "size": 7121179847,
+        "source": "WIPAC",
+        "status": "completed",
+        "type": "Bundle",
+        "update_timestamp": "2020-02-11T04:06:03",
+        "uuid": "b33686fe41b711ea85fbc6259865d176",
+        "verified": False
+    }
+    assert as_catalog_record(bundle_record) == {
+        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/b33686fe41b711ea85fbc6259865d176.zip",
+        "checksum": {
+            "adler32": "5d69e3ca",
+            "sha512": "e7ea63cf36d5b793c9c372d815b7781943cd9c2e2f664d0000de4595779036174902428cedcc32c9542260df620ff5a4cbee91fe124502bc9c71837233169606"
+        },
+        "claim_timestamp": "2020-02-11T04:05:04",
+        "claimant": "cori05-nersc-verifier-5568d5d5-81a5-44a0-ac97-6f067e8d11a3",
+        "claimed": False,
+        "create_timestamp": "2020-01-28T10:19:42",
+        "dest": "NERSC",
+        "files": [
+            "1a1e9648-41b7-11ea-85e1-666154400f62",
+            "df4bf342-41b6-11ea-9608-666154400f62",
+            "d087dff6-41b6-11ea-b2e4-666154400f62",
+            "2c6139f8-41b7-11ea-bd61-666154400f62",
+            "f1114e3a-41b6-11ea-bee2-666154400f62",
+            "0459dd3a-41b7-11ea-9bd9-666154400f62",
+        ],
+        "path": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012",
+        "reason": "",
+        "request": "945e546841b711eaaf1bc6259865d176",
+        "size": 7121179847,
+        "source": "WIPAC",
+        "status": "completed",
+        "type": "Bundle",
+        "update_timestamp": "2020-02-11T04:06:03",
+        "uuid": "b33686fe41b711ea85fbc6259865d176",
+        "verified": False
+    }
 
 def test_constructor_config(config, mocker):
     """Test that a NerscVerifier can be constructed with a configuration object and a logging object."""
