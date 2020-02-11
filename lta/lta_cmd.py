@@ -66,9 +66,15 @@ def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
 async def _catalog_get(rc: RestClient, path: str) -> Optional[Any]:
     """Get the File Catalog record (if any) of the provided path."""
     query_dict = {
+        "locations.site": {
+            "$eq": "WIPAC"
+        },
+        "locations.path": {
+            "$eq": path
+        },
         "logical_name": {
             "$eq": path
-        }
+        },
     }
     query_json = json.dumps(query_dict)
     fc_response = await rc.request('GET', f'/api/files?query={query_json}')
@@ -106,13 +112,6 @@ def _get_files_and_size(path: str) -> Tuple[List[str], int]:
         # determine the size of the file
         size += os.path.getsize(disk_file)
     return (disk_files, size)
-
-def _has_WIPAC_location(catalog_record: Dict[str, Any], disk_file: str) -> bool:
-    locations = catalog_record["locations"]
-    for location in locations:
-        if (location["site"] == "WIPAC") and (location["path"] == disk_file):
-            return True
-    return False
 
 # -----------------------------------------------------------------------------
 
@@ -237,6 +236,12 @@ async def catalog_check(args: Namespace) -> None:
 
     # enumerate all of the catalog files to be checked
     query_dict = {
+        "locations.site": {
+            "$eq": "WIPAC"
+        },
+        "locations.path": {
+            "$regex": f"^{args.path}"
+        },
         "logical_name": {
             "$regex": f"^{args.path}"
         }
@@ -298,10 +303,7 @@ async def catalog_load(args: Namespace) -> None:
         disk_checksum = None
         if catalog_record:
             # validate some basic facts about the record
-            check = True
-            # check &= (catalog_record["logical_name"] == disk_file)
-            check &= _has_WIPAC_location(catalog_record, disk_file)
-            check &= (catalog_record["file_size"] == size)
+            check = (catalog_record["file_size"] == size)
             if args.checksums:
                 disk_checksum = sha512sum(disk_file)
                 check &= (catalog_record["checksum"]["sha512"] == disk_checksum)
