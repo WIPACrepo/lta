@@ -71,7 +71,10 @@ async def _catalog_get(rc: RestClient, path: str) -> Optional[Any]:
         },
         "locations.path": {
             "$eq": path
-        }
+        },
+        "logical_name": {
+            "$eq": path
+        },
     }
     query_json = json.dumps(query_dict)
     fc_response = await rc.request('GET', f'/api/files?query={query_json}')
@@ -238,6 +241,9 @@ async def catalog_check(args: Namespace) -> None:
         },
         "locations.path": {
             "$regex": f"^{args.path}"
+        },
+        "logical_name": {
+            "$regex": f"^{args.path}"
         }
     }
     query_json = json.dumps(query_dict)
@@ -297,9 +303,7 @@ async def catalog_load(args: Namespace) -> None:
         disk_checksum = None
         if catalog_record:
             # validate some basic facts about the record
-            check = True
-            check &= (catalog_record["logical_name"] == disk_file)
-            check &= (catalog_record["file_size"] == size)
+            check = (catalog_record["file_size"] == size)
             if args.checksums:
                 disk_checksum = sha512sum(disk_file)
                 check &= (catalog_record["checksum"]["sha512"] == disk_checksum)
