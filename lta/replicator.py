@@ -78,18 +78,39 @@ class Replicator(Component):
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to transfer.")
+        source = self.source_site
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', '/Bundles/actions/pop?source=WIPAC&status=created', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={source}&status=created', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to transfer. Going on vacation.")
             return False
         # process the Bundle that we were given
-        await self._replicate_bundle_to_destination_site(lta_rc, bundle)
+        try:
+            await self._replicate_bundle_to_destination_site(lta_rc, bundle)
+        except Exception as e:
+            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            raise e
+        # if we were successful at processing work, let the caller know
         return True
+
+    async def _quarantine_bundle(self,
+                                 lta_rc: RestClient,
+                                 bundle: BundleType,
+                                 reason: str) -> None:
+        """Quarantine the supplied bundle using the supplied reason."""
+        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
+        patch_body = {
+            "status": "quarantined",
+            "reason": reason,
+        }
+        try:
+            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
+        except Exception as e:
+            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""

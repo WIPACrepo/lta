@@ -1,5 +1,6 @@
 """Small workbench to poke at Rucio via the REST interface."""
 import asyncio
+import json
 from uuid import uuid4
 
 from lta.config import from_environment
@@ -14,7 +15,7 @@ EXPECTED_CONFIG = {
 }
 
 
-def print_response(response: RucioResponse) -> None:
+def print_response(title: str, response: RucioResponse) -> None:
     """Print some interesting things from the Response object."""
     # print(response.apparent_encoding)
     # print(response.headers)
@@ -22,8 +23,15 @@ def print_response(response: RucioResponse) -> None:
     # print(response.reason)
     # print(response.status_code)
     # print(response.text)
-    print(response)
+    print(title)
+    print(json.dumps(response, indent=4, sort_keys=True))
     print("")
+
+
+async def rucio_get(rc: RucioClient, route: str) -> None:
+    """Query Rucio and print the response."""
+    r = await rc.get(route)
+    print_response(route, r)
 
 
 async def main():
@@ -32,20 +40,15 @@ async def main():
     rc = RucioClient(config["RUCIO_REST_URL"])
     await rc.auth(config["RUCIO_ACCOUNT"], config["RUCIO_USERNAME"], config["RUCIO_PASSWORD"])
 
-    r = await rc.get("/accounts/whoami")
-    print_response(r)
+    await rucio_get(rc, "/accounts/whoami")
 
-    r = await rc.get("/rses/")
-    print_response(r)
+    await rucio_get(rc, "/rses/")
 
-    r = await rc.get("/scopes/")
-    print_response(r)
+    await rucio_get(rc, "/scopes/")
 
-    r = await rc.get("/dids/new")
-    print_response(r)
+    # await rucio_get(rc, "/dids/new")
 
-    r = await rc.get("/dids/user.root/")
-    print_response(r)
+    await rucio_get(rc, "/dids/lta/")
 
     # try to create a File within Rucio
     # ignore_availability = True
@@ -69,8 +72,7 @@ async def main():
     # r = await rc.post(f"/replicas/", replicas_dict)
     # print_response(r)
 
-    r = await rc.get("/replicas/user.root/0c977538-a491-4eb4-94d4-b0fc5b0f0a85.zip")
-    print_response(r)
+    # await rucio_get(rc, "/replicas/user.root/0c977538-a491-4eb4-94d4-b0fc5b0f0a85.zip")
 
     # try to create a Container DID within Rucio
     # scope = "user.root"
@@ -82,22 +84,21 @@ async def main():
     # r = await rc.post(f"/dids/{scope}/{name}", did_dict)
     # print_response(r)
 
-    # try to create a Dataset DID within Rucio
-    # scope = "user.root"
-    # name = "dataset-nersc"
+    # # try to create a Dataset DID within Rucio
+    # scope = "lta"
+    # name = "dataset-test-1"
     # did_dict = {
     #     "type": "DATASET",
     #     # "lifetime": 300,
     # }
     # r = await rc.post(f"/dids/{scope}/{name}", did_dict)
-    # print_response(r)
+    # print_response(f"POST /dids/{scope}/{name}", r)
 
     # # show the information about the Dataset DID that we created
-    # scope = "user.root"
-    # name = "dataset-nersc"
-    # r = await rc.get(f"/dids/{scope}/{name}")
-    # print_response(r)
-    #
+    # scope = "lta"
+    # name = "dataset-test-1"
+    # r = await rucio_get(f"/dids/{scope}/{name}")
+
     # # attach the FILE DID to the DATASET DID within Rucio
     # scope = "user.root"
     # name = "dataset-nersc"
@@ -115,10 +116,9 @@ async def main():
     # print_response(r)
 
     # check the DATASET DID to see what is attached
-    scope = "user.root"
-    name = "dataset-nersc"
-    r = await rc.get(f"/dids/{scope}/{name}/dids")
-    print_response(r)
+    scope = "lta"
+    name = "dataset-test-1"
+    await rucio_get(rc, f"/dids/{scope}/{name}/dids")
 
     # List all replicas for data identifiers
     scope = "user.root"
@@ -132,7 +132,7 @@ async def main():
         "all_states": True,
     }
     r = await rc.post(f"/replicas/list", list_dict)
-    print_response(r)
+    print_response("POST /replicas/list", r)
 
 
 if __name__ == '__main__':

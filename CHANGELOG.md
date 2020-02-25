@@ -18,6 +18,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.1.0] - 2020-02-25
+### Added
+- bin/site-move-verifier.sh was created to run a SiteMoveVerifier component
+### Changed
+- Added /dump directory to .gitignore for developer convenience
+- Modified docker-deps-{down,up}.sh to handle jade_lta_test container better
+- Modified ltacmd to display the reason a TransferRequest or Bundle is quarantined
+- replicator.py will now quarantine bundles that fail processing for some reason
+- site_move_verifier.py will now quarantine bundles that fail processing for some reason
+- Modified ltacmd script to have test/production configuration lines
+- Updated Python requirements to latest available versions
+- resources/rucio-workbench.sh has the correct information for production Rucio
+- rucio_workbench.py had some minor development changes
+- resources/test-data-reset.sh was modified to use resources directory scripts
+- resources/test-data-reset.sh was modified to test Rucio-talking components
+### Fixed
+- bin/replicator.sh was sorely outdated, and has been brought up to date
+- bundler.py not to fail hard when unable to reach MySQL dependency
+- picker.py now awaits the function to quarantine a bad transfer request
+- replicator.py now queries the LTA DB with the correct SOURCE_SITE
+
 ## [0.0.31] - 2020-02-11
 ### Changed
 - NerscVerifier trims down the bundle metadata added to the File Catalog
@@ -188,7 +209,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.31...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/WIPACrepo/lta/compare/v0.0.31...v0.1.0
 [0.0.31]: https://github.com/WIPACrepo/lta/compare/v0.0.30...v0.0.31
 [0.0.30]: https://github.com/WIPACrepo/lta/compare/v0.0.29...v0.0.30
 [0.0.29]: https://github.com/WIPACrepo/lta/compare/v0.0.28...v0.0.29
