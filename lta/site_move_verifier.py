@@ -125,8 +125,28 @@ class SiteMoveVerifier(Component):
             self.logger.info("LTA DB did not provide a Bundle to verify. Going on vacation.")
             return False
         # process the Bundle that we were given
-        await self._verify_bundle(lta_rc, bundle)
+        try:
+            await self._verify_bundle(lta_rc, bundle)
+        except Exception as e:
+            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            raise e
+        # if we were successful at processing work, let the caller know
         return True
+
+    async def _quarantine_bundle(self,
+                                 lta_rc: RestClient,
+                                 bundle: BundleType,
+                                 reason: str) -> None:
+        """Quarantine the supplied bundle using the supplied reason."""
+        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
+        patch_body = {
+            "status": "quarantined",
+            "reason": reason,
+        }
+        try:
+            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
+        except Exception as e:
+            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
     async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the provided Bundle with the transfer service and update the LTA DB."""

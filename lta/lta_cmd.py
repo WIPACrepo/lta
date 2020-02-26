@@ -164,6 +164,8 @@ async def bundle_status(args: Namespace) -> None:
         # display information about the core fields
         print(f"Bundle {args.uuid}")
         print(f"    Status: {response['status']} ({display_time(response['update_timestamp'])})")
+        if response['status'] == "quarantined":
+            print(f"        Reason: {response['reason']}")
         print(f"    Claimed: {response['claimed']}")
         if response['claimed']:
             print(f"        Claimant: {response['claimant']} ({display_time(response['claim_timestamp'])})")
@@ -387,6 +389,8 @@ async def request_status(args: Namespace) -> None:
         # display information about the core fields
         print(f"TransferRequest {args.uuid}")
         print(f"    Status: {response['status']} ({display_time(response['update_timestamp'])})")
+        if response['status'] == "quarantined":
+            print(f"        Reason: {response['reason']}")
         print(f"    Claimed: {response['claimed']}")
         if response['claimed']:
             print(f"        Claimant: {response['claimant']} ({display_time(response['claim_timestamp'])})")

@@ -75,6 +75,9 @@ class Bundler(Component):
     # NOTE: Remove this function when JADE LTA is retired
     def _check_mysql(self) -> bool:
         """Check our connection to the configured MySQL database."""
+        conn = None
+        cursor = None
+        db_ok = False
         # make sure we clean up after ourselves
         try:
             # connect to the database
@@ -86,7 +89,6 @@ class Bundler(Component):
                                    charset='utf8mb4',
                                    cursorclass=pymysql.cursors.DictCursor)
             # create a cursor to execute a query
-            db_ok = False
             self.logger.info(f"Checking MySQL Database: {self.user}@{self.host}:{self.port}/{self.db}")
             cursor = conn.cursor()
             sql = "SELECT 1"
@@ -102,7 +104,7 @@ class Bundler(Component):
             if conn:
                 conn.close()
         # return the result of our database check
-        self.logger.info(f"MySQL Database OK: {db_ok}")
+        self.logger.info(f"MySQL Database Connection: {db_ok}")
         return db_ok
 
     async def _do_work(self) -> None:

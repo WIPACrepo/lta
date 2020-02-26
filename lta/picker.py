@@ -99,7 +99,7 @@ class Picker(Component):
         try:
             await self._do_work_transfer_request(lta_rc, tr)
         except Exception as e:
-            self._quarantine_transfer_request(lta_rc, tr, f"{e}")
+            await self._quarantine_transfer_request(lta_rc, tr, f"{e}")
             raise e
         # if we were successful at processing work, let the caller know
         return True

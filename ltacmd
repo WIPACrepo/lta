@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
+#-------------------------------------------------------------------------------
+# test configuration
+#-------------------------------------------------------------------------------
 export FILE_CATALOG_REST_TOKEN=${FILE_CATALOG_REST_TOKEN:="$(resources/solicit-token.sh)"}
 export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="http://127.0.0.1:8889"}
 export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(resources/solicit-token.sh)"}
 export LTA_REST_URL=${LTA_REST_URL:="http://127.0.0.1:8080"}
+#-------------------------------------------------------------------------------
+# production configuration
+#-------------------------------------------------------------------------------
+# export FILE_CATALOG_REST_TOKEN=${FILE_CATALOG_REST_TOKEN:="$(<service-token)"}
+# export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="https://file-catalog.icecube.wisc.edu"}
+# export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(<service-token)"}
+# export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq"}
+# run the command
 python -m lta.lta_cmd $@
