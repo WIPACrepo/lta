@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 import json
 import logging
 import os
+import sys
 from time import mktime, strptime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -21,6 +22,9 @@ from lta.component import now
 from lta.config import from_environment
 from lta.crypto import sha512sum
 
+ExitCode = int
+EXIT_OK = 0
+EXIT_ERROR = 1
 
 COMPONENT_NAMES = [
     "bundler",
@@ -115,7 +119,7 @@ def _get_files_and_size(path: str) -> Tuple[List[str], int]:
 
 # -----------------------------------------------------------------------------
 
-async def bundle_ls(args: Namespace) -> None:
+async def bundle_ls(args: Namespace) -> ExitCode:
     """List all of the Bundle objects in the LTA DB."""
     response = await args.lta_rc.request("GET", "/Bundles")
     if args.json:
@@ -125,9 +129,10 @@ async def bundle_ls(args: Namespace) -> None:
         print(f"total {len(results)}")
         for uuid in results:
             print(f"Bundle {uuid}")
+    return EXIT_OK
 
 
-async def bundle_overdue(args: Namespace) -> None:
+async def bundle_overdue(args: Namespace) -> ExitCode:
     """List of the problematic Bundle objects in the LTA DB."""
     # calculate our cutoff time for bundles not making progress
     cutoff_time = datetime.utcnow() - timedelta(days=args.days)
@@ -153,9 +158,10 @@ async def bundle_overdue(args: Namespace) -> None:
             print(f"    Claimed: {bundle['claimed']}")
             if bundle['claimed']:
                 print(f"        Claimant: {bundle['claimant']} ({display_time(bundle['claim_timestamp'])})")
+    return EXIT_OK
 
 
-async def bundle_status(args: Namespace) -> None:
+async def bundle_status(args: Namespace) -> ExitCode:
     """Query the status of a Bundle in the LTA DB."""
     response = await args.lta_rc.request("GET", f"/Bundles/{args.uuid}")
     if args.json:
@@ -187,9 +193,10 @@ async def bundle_status(args: Namespace) -> None:
             print(f"    Contents:")
             for file in response["files"]:
                 print(f"        {file['logical_name']} {file['file_size']}")
+    return EXIT_OK
 
 
-async def bundle_update_status(args: Namespace) -> None:
+async def bundle_update_status(args: Namespace) -> ExitCode:
     """Update the status of a Bundle in the LTA DB."""
     patch_body = {}
     patch_body["status"] = args.new_status
@@ -198,10 +205,12 @@ async def bundle_update_status(args: Namespace) -> None:
     if not args.keep_claim:
         patch_body["claimed"] = False
     await args.lta_rc.request("PATCH", f"/Bundles/{args.uuid}", patch_body)
+    return EXIT_OK
 
 
-async def catalog_check(args: Namespace) -> None:
+async def catalog_check(args: Namespace) -> ExitCode:
     """Check the files on disk vs. the file catalog and vice versa."""
+    exit_code = EXIT_OK
     # something to hold our results
     catalog_missing = []
     disk_missing = []
@@ -219,18 +228,21 @@ async def catalog_check(args: Namespace) -> None:
         # ask the file catalog to retrieve the record of the file
         catalog_record = await _catalog_get(args.fc_rc, disk_file)
         if not catalog_record:
+            exit_code = EXIT_ERROR
             if not args.json:
                 print(f"Missing from the File Catalog: {disk_file}")
             catalog_missing.append(disk_file)
             continue
         # check the record for discrepancies
         if catalog_record["file_size"] != size:
+            exit_code = EXIT_ERROR
             if not args.json:
                 print(f"Mismatch between Catalog and Disk: {disk_file}")
             mismatch.append((disk_file, catalog_record, size, checksum))
             continue
         if args.checksums:
             if catalog_record["checksum"]["sha512"] != checksum:
+                exit_code = EXIT_ERROR
                 if not args.json:
                     print(f"Mismatch between Catalog and Disk: {disk_file}")
                 mismatch.append((disk_file, catalog_record, size, checksum))
@@ -252,6 +264,7 @@ async def catalog_check(args: Namespace) -> None:
     fc_response = await args.fc_rc.request('GET', f'/api/files?query={query_json}')
     for catalog_file in fc_response["files"]:
         if catalog_file["logical_name"] not in disk_files:
+            exit_code = EXIT_ERROR
             if not args.json:
                 print(f"Missing from the Disk: {catalog_file['logical_name']}")
             disk_missing.append(catalog_file["logical_name"])
@@ -265,8 +278,11 @@ async def catalog_check(args: Namespace) -> None:
         }
         print_dict_as_pretty_json(results_dict)
 
+    # return the appropriate exit code based on what we found
+    return exit_code
 
-async def catalog_display(args: Namespace) -> None:
+
+async def catalog_display(args: Namespace) -> ExitCode:
     """Display a record from the File Catalog."""
     # if the user specified a path
     if args.path:
@@ -286,17 +302,20 @@ async def catalog_display(args: Namespace) -> None:
     else:
         print_dict_as_pretty_json({})
 
+    return EXIT_OK
 
-async def display_config(args: Namespace) -> None:
+
+async def display_config(args: Namespace) -> ExitCode:
     """Display the configuration provided to the application."""
     if args.json:
         print_dict_as_pretty_json(args.config)
     else:
         for key in args.config:
             print(f"{key}:\t\t{args.config[key]}")
+    return EXIT_OK
 
 
-async def request_estimate(args: Namespace) -> None:
+async def request_estimate(args: Namespace) -> ExitCode:
     """Estimate the count and size of a new TransferRequest."""
     files_and_size = _get_files_and_size(args.path)
     disk_files = files_and_size[0]
@@ -313,9 +332,10 @@ async def request_estimate(args: Namespace) -> None:
     else:
         print(f"TransferRequest for {args.path}")
         print(f"{size:,} bytes ({hurry.filesize.size(size)}) in {len(disk_files):,} files.")
+    return EXIT_OK
 
 
-async def request_ls(args: Namespace) -> None:
+async def request_ls(args: Namespace) -> ExitCode:
     """List all of the TransferRequest objects in the LTA DB."""
     response = await args.lta_rc.request("GET", "/TransferRequests")
     if args.json:
@@ -325,9 +345,10 @@ async def request_ls(args: Namespace) -> None:
         print(f"total {len(results)}")
         for request in results:
             print(f"{display_time(request['create_timestamp'])} TransferRequest {request['uuid']} {request['source']} -> {request['dest']} {request['path']}")
+    return EXIT_OK
 
 
-async def request_new(args: Namespace) -> None:
+async def request_new(args: Namespace) -> ExitCode:
     """Create a new TransferRequest and add it to the LTA DB."""
     # determine how big the transfer request is going to be
     files_and_size = _get_files_and_size(args.path)
@@ -358,15 +379,16 @@ async def request_new(args: Namespace) -> None:
         display_id = tr["uuid"]
         create_time = tr["create_timestamp"].replace("T", " ")
         print(f"{display_id}  {create_time} {path} {source} -> {dest}")
+    return EXIT_OK
 
 
-async def request_rm(args: Namespace) -> None:
+async def request_rm(args: Namespace) -> ExitCode:
     """Remove a TransferRequest from the LTA DB."""
     response = await args.lta_rc.request("GET", f"/TransferRequests/{args.uuid}")
     path = response["path"]
     if args.confirm != path:
         print(f"request rm: cannot remove TransferRequest {args.uuid}: path is not --confirm {args.confirm}")
-        return
+        return EXIT_ERROR
     await args.lta_rc.request("DELETE", f"/TransferRequests/{args.uuid}")
     if args.verbose:
         print(f"removed TransferRequest {args.uuid}")
@@ -376,9 +398,10 @@ async def request_rm(args: Namespace) -> None:
         await args.lta_rc.request("DELETE", f"/Bundles/{bundle['uuid']}")
         if args.verbose:
             print(f"removed Bundle {bundle['uuid']}")
+    return EXIT_OK
 
 
-async def request_status(args: Namespace) -> None:
+async def request_status(args: Namespace) -> ExitCode:
     """Query the status of a TransferRequest in the LTA DB."""
     response = await args.lta_rc.request("GET", f"/TransferRequests/{args.uuid}")
     res2 = await args.lta_rc.request("GET", f"/Bundles?request={args.uuid}")
@@ -407,9 +430,10 @@ async def request_status(args: Namespace) -> None:
                 if bundle['claimed']:
                     print(f"                Claimant: {response['claimant']} ({display_time(response['claim_timestamp'])})")
                 print(f"            Files: {bundle['file_count']}")
+    return EXIT_OK
 
 
-async def request_update_status(args: Namespace) -> None:
+async def request_update_status(args: Namespace) -> ExitCode:
     """Update the status of a TransferRequest in the LTA DB."""
     patch_body = {}
     patch_body["status"] = args.new_status
@@ -417,9 +441,10 @@ async def request_update_status(args: Namespace) -> None:
     if not args.keep_claim:
         patch_body["claimed"] = False
     await args.lta_rc.request("PATCH", f"/TransferRequests/{args.uuid}", patch_body)
+    return EXIT_OK
 
 
-async def status(args: Namespace) -> None:
+async def status(args: Namespace) -> ExitCode:
     """Query the status of the LTA DB or a component of LTA."""
     old_data = (datetime.utcnow() - timedelta(days=args.days)).isoformat()
 
@@ -454,6 +479,8 @@ async def status(args: Namespace) -> None:
             for key in response:
                 if key != "health":
                     print(f"{(key+':'):<14}{response[key]}")
+
+    return EXIT_OK
 
 # -----------------------------------------------------------------------------
 
@@ -651,11 +678,14 @@ async def main() -> None:
     args = parser.parse_args()
     if hasattr(args, "func"):
         try:
-            await args.func(args)
+            exit_code = await args.func(args)
+            sys.exit(exit_code)
         except Exception as e:
             print(e)
+            sys.exit(EXIT_ERROR)
     else:
         parser.print_usage()
+        sys.exit(EXIT_OK)
 
 
 if __name__ == '__main__':
