@@ -255,6 +255,27 @@ async def test_locator_do_work_claim_yes_result(config, mocker):
 
 
 @pytest.mark.asyncio
+async def test_locator_do_work_claim_exception_when_processing(config, mocker):
+    """Test that _do_work_claim processes the TransferRequest it gets from the LTA DB."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "transfer_request": {
+            "one": 1,
+        },
+    }
+    dwtr_mock = mocker.patch("lta.locator.Locator._do_work_transfer_request", new_callable=AsyncMock)
+    dwtr_mock.side_effect = Exception("lta db crashed like launchpad mcquack")
+    qtr_mock = mocker.patch("lta.locator.Locator._quarantine_transfer_request", new_callable=AsyncMock)
+    p = Locator(config, logger_mock)
+    with pytest.raises(Exception):
+        await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?dest=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
+    qtr_mock.assert_called_with(mocker.ANY, {"one": 1}, "lta db crashed like launchpad mcquack")
+
+
+@pytest.mark.asyncio
 async def test_locator_do_work_transfer_request_fc_exception(config, mocker):
     """Test that _do_work_transfer_request raises an exception if the File Catalog has an error."""
     logger_mock = mocker.MagicMock()
@@ -298,91 +319,162 @@ async def test_locator_do_work_transfer_request_fc_no_results(config, mocker):
     lta_rc_mock.request.assert_called_with("PATCH", f'/TransferRequests/{tr_uuid}', QUARANTINE)
 
 
-# @pytest.mark.asyncio
-# async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
-#     """Test that _do_work_transfer_request processes each file it gets back from the File Catalog."""
-#     logger_mock = mocker.MagicMock()
-#     lta_rc_mock = mocker.MagicMock()
-#     lta_rc_mock.request = AsyncMock()
-#     lta_rc_mock.request.return_value = {
-#         "bundles": [uuid1().hex, uuid1().hex, uuid1().hex],
-#         "count": 3
-#     }
-#     tr_uuid = uuid1().hex
-#     tr = {
-#         "uuid": tr_uuid,
-#         "source": "wipac",
-#         "dest": "nersc",
-#         "path": "/tmp/this/is/just/a/test",
-#     }
-#     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-#     fc_rc_mock.side_effect = [
-#         {
-#             "_links": {
-#                 "parent": {
-#                     "href": "/api"
-#                 },
-#                 "self": {
-#                     "href": "/api/files"
-#                 }
-#             },
-#             "files": [
-#                 {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-#                  "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4"},
-#                 {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-#                  "uuid": "89528506-9950-43dc-a910-f5108a1d25c0"},
-#                 {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-#                  "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e"}]
-#         },
-#         {
-#             "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-#             "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4",
-#             "checksum": {
-#                 "sha512": "63c25d9bcf7bacc8cdb7ccf0a480403eea111a6b8db2d0c54fef0e39c32fe76f75b3632b3582ef888caeaf8a8aac44fb51d0eb051f67e874f9fe694981649b74"
-#             },
-#             "locations": [
-#                 {
-#                     "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-#                     "site": "wipac"
-#                 }],
-#             "file_size": 103166718,
-#             "meta_modify_date": "2019-07-26 01:53:20.857303"
-#         },
-#         {
-#             "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-#             "uuid": "89528506-9950-43dc-a910-f5108a1d25c0",
-#             "checksum": {
-#                 "sha512": "5acee016b1f7a367f549d3a861af32a66e5b577753d6d7b8078a30129f6535108042a74b70b1374a9f7506022e6cc64372a8d01500db5d56afb17071cba6da9e"
-#             },
-#             "locations": [
-#                 {
-#                     "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-#                     "site": "wipac"
-#                 }
-#             ],
-#             "file_size": 103064762,
-#             "meta_modify_date": "2019-07-26 01:53:20.646010"
-#         },
-#         {
-#             "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-#             "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e",
-#             "checksum": {
-#                 "sha512": "ae7c1639aeaacbd69b8540a117e71a6a92b5e4eff0d7802150609daa98d99fd650f8285e26af23f97f441f3047afbce88ad54bb3feb4fe243a429934d0ee4211"
-#             },
-#             "locations": [
-#                 {
-#                     "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-#                     "site": "wipac"
-#                 }
-#             ],
-#             "file_size": 104136149,
-#             "meta_modify_date": "2019-07-26 01:53:22.591198"
-#         }
-#     ]
-#     p = Locator(config, logger_mock)
-#     await p._do_work_transfer_request(lta_rc_mock, tr)
-#     fc_rc_mock.assert_called_with("GET", '/api/files/1e4a88c6-247e-4e59-9c89-1a4edafafb1e')
-#     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/bulk_create', mocker.ANY)
+@pytest.mark.asyncio
+async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
+    """Test that _do_work_transfer_request processes each file it gets back from the File Catalog."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.MagicMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {}
+    cb_mock = mocker.patch("lta.locator.Locator._create_bundle", new_callable=AsyncMock)
+    tr_uuid = uuid1().hex
+    tr = {
+        "uuid": tr_uuid,
+        "source": "nersc",
+        "dest": "wipac",
+        "path": "/tmp/this/is/just/a/test",
+    }
+    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    fc_rc_mock.side_effect = [
+        {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
+            },
+            "files": [
+                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
+                 "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4"},
+                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
+                 "uuid": "89528506-9950-43dc-a910-f5108a1d25c0"},
+                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
+                 "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e"}]
+        },
+        {
+            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
+            "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4",
+            "checksum": {
+                "sha512": "63c25d9bcf7bacc8cdb7ccf0a480403eea111a6b8db2d0c54fef0e39c32fe76f75b3632b3582ef888caeaf8a8aac44fb51d0eb051f67e874f9fe694981649b74"
+            },
+            "locations": [
+                {
+                    "path": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+                    "site": "nersc",
+                    "archive": True,
+                }],
+            "file_size": 103166718,
+            "meta_modify_date": "2019-07-26 01:53:20.857303"
+        },
+        {
+            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
+            "uuid": "89528506-9950-43dc-a910-f5108a1d25c0",
+            "checksum": {
+                "sha512": "5acee016b1f7a367f549d3a861af32a66e5b577753d6d7b8078a30129f6535108042a74b70b1374a9f7506022e6cc64372a8d01500db5d56afb17071cba6da9e"
+            },
+            "locations": [
+                {
+                    "path": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+                    "site": "nersc",
+                    "archive": True,
+                }
+            ],
+            "file_size": 103064762,
+            "meta_modify_date": "2019-07-26 01:53:20.646010"
+        },
+        {
+            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
+            "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e",
+            "checksum": {
+                "sha512": "ae7c1639aeaacbd69b8540a117e71a6a92b5e4eff0d7802150609daa98d99fd650f8285e26af23f97f441f3047afbce88ad54bb3feb4fe243a429934d0ee4211"
+            },
+            "locations": [
+                {
+                    "path": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+                    "site": "nersc",
+                    "archive": True,
+                }
+            ],
+            "file_size": 104136149,
+            "meta_modify_date": "2019-07-26 01:53:22.591198"
+        },
+        {
+            "uuid": "8abe369e59a111ea81bb534d1a62b1fe",
+            "logical_name": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+            "checksum": {
+                "adler32": "c14e315e",
+                "sha512": "e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a",
+            },
+            "locations": [
+                {
+                    "site": "NERSC",
+                    "path": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+                    "hpss": True,
+                    "online": False,
+                }
+            ],
+            "file_size": 1048576,
+            "meta_modify_date": "2019-07-26 01:53:22.591198",
+            "lta": {},
+        }
+    ]
+    p = Locator(config, logger_mock)
+    await p._do_work_transfer_request(lta_rc_mock, tr)
+    fc_rc_mock.assert_called_with("GET", '/api/files/8abe369e59a111ea81bb534d1a62b1fe')
+    cb_mock.assert_called_with(lta_rc_mock, {
+        'type': 'Bundle',
+        'status': 'located',
+        'request': tr_uuid,
+        'source': 'nersc',
+        'dest': 'wipac',
+        'path': '/tmp/this/is/just/a/test',
+        'catalog': {
+            'checksum': {
+                'adler32': 'c14e315e',
+                'sha512': 'e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a',
+            },
+            'file_size': 1048576,
+            'logical_name': '/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip',
+            'meta_modify_date': '2019-07-26 01:53:22.591198',
+            'uuid': '8abe369e59a111ea81bb534d1a62b1fe'
+        }
+    })
+
+
+@pytest.mark.asyncio
+async def test_locator_create_bundle(config, mocker):
+    """Test that _create_bundle does what it says on the tin."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.MagicMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
+        "bundles": [uuid1().hex]
+    }
+    bundle = {
+        'type': 'Bundle',
+        'status': 'located',
+        'request': uuid1().hex,
+        'source': 'nersc',
+        'dest': 'wipac',
+        'path': '/tmp/this/is/just/a/test',
+        'catalog': {
+            'checksum': {
+                'adler32': 'c14e315e',
+                'sha512': 'e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a',
+            },
+            'file_size': 1048576,
+            'logical_name': '/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip',
+            'meta_modify_date': '2019-07-26 01:53:22.591198',
+            'uuid': '8abe369e59a111ea81bb534d1a62b1fe'
+        }
+    }
+    p = Locator(config, logger_mock)
+    await p._create_bundle(lta_rc_mock, bundle)
+    lta_rc_mock.request.assert_called_with("POST", "/Bundles/actions/bulk_create", {
+        "bundles": [bundle],
+    })
 
 
 def test_as_lta_record(config, mocker):
