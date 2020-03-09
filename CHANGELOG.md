@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.1.1] - 2020-03-09
+### Fixed
+- Picker handling of errors while querying the File Catalog
+
 ## [0.1.0] - 2020-02-25
 ### Added
 - bin/site-move-verifier.sh was created to run a SiteMoveVerifier component
