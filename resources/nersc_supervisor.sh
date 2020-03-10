@@ -123,7 +123,7 @@ function logit {
 function getrunning {
   # no arguments
   logit 2 "getrunning"
-  if ! rawinfo=$(${SQUEUE} -h -o "%.18i %.25j %.2t %.10M %.42k %R" -u icecubed -q xfer -M escori | /usr/bin/grep -E "${HSI_MODULES}")
+  if ! rawinfo=$(${SQUEUE} -h -o "%.18i %.30j %.2t %.10M %.42k %R" -u icecubed -q xfer -M escori | /usr/bin/grep -E "${HSI_MODULES}")
     then
       logit 0 "SLURM is not working"
       return 1
