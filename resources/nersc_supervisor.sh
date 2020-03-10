@@ -90,7 +90,11 @@ export NS_PHONE_HOME=False
 # CONTROL
 # This string controls what we want to see at all times. 
 #   3 verifiers, 0 retrievers, 3 mover
-export NS_DESIRED="nersc-mover:3 nersc-verifier:3 nersc-retriever:0"
+export NS_DESIRED="nersc-mover:3 nersc-verifier:3 nersc-retriever:0 site-move-verifier:0"
+# Not all slurm jobs use the hsi facility.  site-move-verifier is one that does not, and
+#  presumably its counterpart used during retrieving will also not be.  So, make a list
+#  of those that DO.
+export HSI_MODULES="nersc-mover|nersc-verifier|nersc-retriever"
 
 ###
 # Functions follow
@@ -119,7 +123,7 @@ function logit {
 function getrunning {
   # no arguments
   logit 2 "getrunning"
-  if ! rawinfo=$(${SQUEUE} -h -o "%.18i %.25j %.2t %.10M %.42k %R" -u icecubed -q xfer -M escori)
+  if ! rawinfo=$(${SQUEUE} -h -o "%.18i %.25j %.2t %.10M %.42k %R" -u icecubed -q xfer -M escori | /usr/bin/grep -E "${HSI_MODULES}")
     then
       logit 0 "SLURM is not working"
       return 1
