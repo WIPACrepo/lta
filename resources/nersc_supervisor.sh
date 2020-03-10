@@ -123,7 +123,7 @@ function logit {
 function getrunning {
   # no arguments
   logit 2 "getrunning"
-  if ! rawinfo=$(${SQUEUE} -h -o "%.18i %.30j %.2t %.10M %.42k %R" -u icecubed -q xfer -M escori | /usr/bin/grep -E "${HSI_MODULES}")
+  if ! rawinfo=$(${SQUEUE} -h -o "%.18i %.30j %.2t %.10M %.42k %R" -u icecubed -q xfer -M escori)
     then
       logit 0 "SLURM is not working"
       return 1
@@ -207,7 +207,7 @@ logit 1 "Invocation"
 #  fi
 
 ###
-# How many slurm jobs are running right now?
+# What slurm jobs are running right now?
 ###
 if ! whatWeHave=$(getrunning)
   then
@@ -232,8 +232,11 @@ for desired in ${NS_DESIRED}
       do
          fc=$(echo "${chunks}" | awk -v var="${class}.sh" '{n=split($0,a,var);print n-1}')
          count=$(( count + fc ))
+         if echo "${chunks}" | grep -E ${HSI_MODULES} >& /dev/null
+           then
+             activeJobs=$(( activeJobs + fc ))
+           fi
       done
-      activeJobs=$(( activeJobs + count ))
     ###
     # Do we need to do anything?
     ###
