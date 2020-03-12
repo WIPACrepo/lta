@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.2.0] - 2020-03-11
+### Security
+- Replicator now takes RUCIO_PASSWORD from environment
+### Fixed
+- Replicator handling of errors while replicating Bundles
+
 ## [0.1.1] - 2020-03-09
 ### Fixed
 - Picker handling of errors while querying the File Catalog
@@ -213,7 +219,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/WIPACrepo/lta/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/WIPACrepo/lta/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/WIPACrepo/lta/compare/v0.0.31...v0.1.0
 [0.0.31]: https://github.com/WIPACrepo/lta/compare/v0.0.30...v0.0.31
 [0.0.30]: https://github.com/WIPACrepo/lta/compare/v0.0.29...v0.0.30

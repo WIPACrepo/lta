@@ -19,6 +19,7 @@ from .transfer.service import instantiate
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "RUCIO_PASSWORD": None,
     "TRANSFER_CONFIG_PATH": "etc/rucio.json",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
@@ -49,6 +50,7 @@ class Replicator(Component):
         super(Replicator, self).__init__("replicator", config, logger)
         with open(config["TRANSFER_CONFIG_PATH"]) as config_data:
             self.transfer_config = json.load(config_data)
+        self.transfer_config["password"] = config["RUCIO_PASSWORD"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
@@ -93,7 +95,7 @@ class Replicator(Component):
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
         except Exception as e:
             await self._quarantine_bundle(lta_rc, bundle, f"{e}")
-            raise e
+            return False
         # if we were successful at processing work, let the caller know
         return True
 

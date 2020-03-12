@@ -19,6 +19,7 @@ def config():
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "RUCIO_PASSWORD": "hunter2",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "TRANSFER_CONFIG_PATH": "examples/rucio.json",
@@ -61,6 +62,7 @@ async def test_replicator_logs_configuration(mocker):
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
+        "RUCIO_PASSWORD": "hunter3",  # electric boogaloo
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "TRANSFER_CONFIG_PATH": "examples/rucio.json",
@@ -77,6 +79,7 @@ async def test_replicator_logs_configuration(mocker):
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
+        call('RUCIO_PASSWORD = hunter3'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
         call('TRANSFER_CONFIG_PATH = examples/rucio.json'),
@@ -204,3 +207,30 @@ async def test_replicator_replicate_bundle_to_destination_site(config, mocker):
     inst_mock.assert_called_with(p.transfer_config)
     xfer_service_mock.start.assert_called_with(bundle_obj)
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
+
+@pytest.mark.asyncio
+async def test_replicator_quarantine_on_replicate_exception(config, mocker):
+    """Test that _do_work_claim attempts to quarantine a Bundle that fails to get replicated."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "bundle": {
+            "one": 1,
+        },
+    }
+    rbtds_mock = mocker.patch("lta.replicator.Replicator._replicate_bundle_to_destination_site", new_callable=AsyncMock)
+    rbtds_mock.side_effect = Exception("Rucio caught fire, then we roasted marshmellows.")
+    qb_mock = mocker.patch("lta.replicator.Replicator._quarantine_bundle", new_callable=AsyncMock)
+    p = Replicator(config, logger_mock)
+    await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    qb_mock.assert_called_with(mocker.ANY, {"one": 1}, "Rucio caught fire, then we roasted marshmellows.")
+
+@pytest.mark.asyncio
+async def test_replicator_quarantine_bundle_with_reason(config, mocker):
+    """Test that _do_work_claim attempts to quarantine a Bundle that fails to get replicated."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    p = Replicator(config, logger_mock)
+    await p._quarantine_bundle(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"}, "Rucio caught fire, then we roasted marshmellows.")
+    lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
