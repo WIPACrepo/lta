@@ -1,8 +1,9 @@
 # test_config.py
 """Unit tests for lta/config.py."""
 
-from lta.config import from_environment
 import pytest
+
+from rest_tools.server import from_environment
 
 
 def test_from_environment_none():

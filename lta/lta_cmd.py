@@ -17,9 +17,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
+from rest_tools.server import from_environment
 
 from lta.component import now
-from lta.config import from_environment
 from lta.crypto import sha512sum
 
 ExitCode = int

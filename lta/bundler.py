@@ -14,10 +14,10 @@ from uuid import uuid4
 from zipfile import ZIP_STORED, ZipFile
 
 from rest_tools.client import RestClient  # type: ignore
+from rest_tools.server import from_environment
 import pymysql
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
-from .config import from_environment
 from .crypto import lta_checksums
 from .log_format import StructuredFormatter
 from .lta_types import BundleType

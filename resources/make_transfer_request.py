@@ -6,9 +6,8 @@ Run with `python -m lta.make_transfer_request WIPAC:/data/exp/blah DESY:/data/ex
 
 import asyncio
 from rest_tools.client import RestClient  # type: ignore
+from rest_tools.server import from_environment
 import sys
-
-from lta.config import from_environment
 
 EXPECTED_CONFIG = {
     'LTA_REST_TOKEN': None,

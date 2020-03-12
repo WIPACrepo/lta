@@ -4,9 +4,7 @@ Token printing factory.
 Run with `python -m lta.make_token`.
 """
 
-from rest_tools.server import Auth  # type: ignore
-
-from lta.config import from_environment
+from rest_tools.server import Auth, from_environment  # type: ignore
 
 EXPECTED_CONFIG = {
     'LTA_AUTH_ALGORITHM': None,
