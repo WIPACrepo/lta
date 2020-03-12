@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 
 from binpacking import to_constant_bin_number  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import from_environment
+from rest_tools.server import from_environment  # type: ignore
 
 from .component import COMMON_CONFIG, Component, status_loop, work_loop
 from .log_format import StructuredFormatter

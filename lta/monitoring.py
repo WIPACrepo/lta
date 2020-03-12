@@ -7,7 +7,7 @@ import sys
 from typing import cast, Any, Dict, Mapping
 
 from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import from_environment
+from rest_tools.server import from_environment  # type: ignore
 
 from .log_format import StructuredFormatter
 

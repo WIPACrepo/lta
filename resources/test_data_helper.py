@@ -19,7 +19,7 @@ import sys
 from uuid import uuid4
 
 from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import from_environment
+from rest_tools.server import from_environment  # type: ignore
 
 from lta.crypto import sha512sum
 

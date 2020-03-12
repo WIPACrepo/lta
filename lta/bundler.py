@@ -14,7 +14,7 @@ from uuid import uuid4
 from zipfile import ZIP_STORED, ZipFile
 
 from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import from_environment
+from rest_tools.server import from_environment  # type: ignore
 import pymysql
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop

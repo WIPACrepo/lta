@@ -6,7 +6,7 @@ Run with `python -m lta.make_transfer_request WIPAC:/data/exp/blah DESY:/data/ex
 
 import asyncio
 from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import from_environment
+from rest_tools.server import from_environment  # type: ignore
 import sys
 
 EXPECTED_CONFIG = {

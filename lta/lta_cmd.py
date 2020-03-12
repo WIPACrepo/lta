@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import from_environment
+from rest_tools.server import from_environment  # type: ignore
 
 from lta.component import now
 from lta.crypto import sha512sum

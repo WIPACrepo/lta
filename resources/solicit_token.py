@@ -7,7 +7,7 @@ Run with `python -m lta.solicit_token`.
 import asyncio
 
 from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import from_environment
+from rest_tools.server import from_environment  # type: ignore
 
 EXPECTED_CONFIG = {
     'LTA_AUTH_ROLE': None,
