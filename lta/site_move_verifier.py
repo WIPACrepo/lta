@@ -12,9 +12,9 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from rest_tools.client import RestClient  # type: ignore
+from rest_tools.server import from_environment  # type: ignore
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
-from .config import from_environment
 from .crypto import sha512sum
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
