@@ -128,7 +128,11 @@ async def bundle_ls(args: Namespace) -> ExitCode:
         results = response["results"]
         print(f"total {len(results)}")
         for uuid in results:
-            print(f"Bundle {uuid}")
+            if args.show_status:
+                bundle = await args.lta_rc.request("GET", f"/Bundles/{uuid}")
+                print(f"Bundle {uuid} {bundle['status']}")
+            else:
+                print(f"Bundle {uuid}")
     return EXIT_OK
 
 
@@ -504,6 +508,10 @@ async def main() -> None:
     parser_bundle_ls = bundle_subparser.add_parser('ls', help='list bundles')
     parser_bundle_ls.add_argument("--json",
                                   help="display output in JSON",
+                                  action="store_true")
+    parser_bundle_ls.add_argument("--status",
+                                  dest="show_status",
+                                  help="display the status of the bundle",
                                   action="store_true")
     parser_bundle_ls.set_defaults(func=bundle_ls)
 

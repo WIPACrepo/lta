@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.2.1] - 2020-03-14
+### Added
+- Added better logging to RucioClient to help debug Rucio error codes
+- Added --status flag to display status in ltacmd bundle ls
+
 ## [0.2.0] - 2020-03-11
 ### Security
 - Replicator now takes RUCIO_PASSWORD from environment
@@ -219,7 +224,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/WIPACrepo/lta/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/WIPACrepo/lta/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/WIPACrepo/lta/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/WIPACrepo/lta/compare/v0.0.31...v0.1.0
