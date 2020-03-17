@@ -3,7 +3,8 @@
 
 import copy
 import importlib
-from typing import Any, Dict, Union
+from logging import Logger
+from typing import Any, Dict, Optional, Union
 
 from ..lta_types import BundleType
 
@@ -15,9 +16,10 @@ TransferStatus = Dict[str, Union[bool, str]]
 class TransferService:
     """TransferService is an abstract base class that specifies an interface to transfer services."""
 
-    def __init__(self, config: TransferServiceConfig):
+    def __init__(self, config: TransferServiceConfig, logger: Optional[Logger] = None):
         """Initialize a TransferService object."""
         self.config = copy.deepcopy(config)
+        self.logger = logger
 
     async def cancel(self, ref: TransferReference) -> TransferStatus:
         """Ask the TransferService to cancel a transfer."""
@@ -32,12 +34,12 @@ class TransferService:
         raise NotImplementedError("TransferService.status() is abstract and must be implemented in a subclass")
 
 
-def instantiate(config: TransferServiceConfig) -> TransferService:
+def instantiate(config: TransferServiceConfig, logger: Optional[Logger] = None) -> TransferService:
     """Instantiate a transfer service object according to the provided configuration."""
     split_name = config["name"].split(".")
     module_name = ".".join(split_name[:-1])
     module = importlib.import_module(module_name)
     class_name = split_name[-1]
     class_obj = getattr(module, class_name)
-    instance = class_obj(config)  # type: TransferService
+    instance = class_obj(config, logger)  # type: TransferService
     return instance

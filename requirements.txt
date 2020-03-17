@@ -8,7 +8,7 @@ binpacking==1.4.1
 certifi==2019.11.28
 cffi==1.14.0
 chardet==3.0.4
-coverage==5.0.3
+coverage==5.0.4
 cryptography==2.8
 decorator==4.4.2
 docutils==0.16
@@ -51,7 +51,7 @@ PyJWT==1.7.1
 pymongo==3.10.1
 PyMySQL==0.9.3
 pyparsing==2.4.6
-pytest==5.3.5
+pytest==5.4.1
 pytest-asyncio==0.10.0
 pytest-cov==2.8.1
 pytest-mock==2.0.0

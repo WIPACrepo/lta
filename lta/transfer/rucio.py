@@ -3,6 +3,8 @@
 
 import asyncio
 from datetime import datetime
+import logging
+from logging import Logger
 import os
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urljoin
@@ -29,8 +31,14 @@ class RucioClient:
 
     def __init__(self,
                  rucio_url: str,
+                 logger: Optional[Logger] = None,
                  retries: int = 0):
         """Initialize a RucioClient object."""
+        if logger:
+            self.logger = logger
+        else:
+            self.logger = logging.getLogger('lta.transfer.Rucio')
+            self.logger.addHandler(logging.NullHandler())
         self.session = AsyncSession(retries)
         self.session.headers = {
             "Accept": "application/json, application/x-json-stream",
@@ -55,9 +63,11 @@ class RucioClient:
             "Accept": None,
         }
         req_url = urljoin(self.url, "/auth/userpass")
+        self.logger.debug(f"GET {req_url}\n{headers}")
         r = await asyncio.wrap_future(self.session.get(req_url, headers=headers))
         r.raise_for_status()
         self.token = r.headers["X-Rucio-Auth-Token"]
+        self.logger.debug(f"X-Rucio-Auth-Token: {self.token}")
 
     def close(self) -> None:
         """Close the AsyncSession."""
@@ -70,9 +80,12 @@ class RucioClient:
         """Execute a DELETE verb on the provided route."""
         req_headers = self._apply_auth(headers)
         req_url = urljoin(self.url, route)
+        self.logger.debug(f"DELETE {req_url}\n{req_headers}\n{json}")
         r = await asyncio.wrap_future(self.session.delete(req_url, json=json, headers=req_headers))
         r.raise_for_status()
-        return self._decode(r)
+        result = self._decode(r)
+        self.logger.debug(f"Response: {result}")
+        return result
 
     async def get(self,
                   route: str,
@@ -80,9 +93,12 @@ class RucioClient:
         """Execute a GET verb on the provided route."""
         req_headers = self._apply_auth(headers)
         req_url = urljoin(self.url, route)
+        self.logger.debug(f"GET {req_url}\n{req_headers}")
         r = await asyncio.wrap_future(self.session.get(req_url, headers=req_headers))
         r.raise_for_status()
-        return self._decode(r)
+        result = self._decode(r)
+        self.logger.debug(f"Response: {result}")
+        return result
 
     async def post(self,
                    route: str,
@@ -91,9 +107,12 @@ class RucioClient:
         """Execute a POST verb on the provided route."""
         req_headers = self._apply_auth(headers)
         req_url = urljoin(self.url, route)
+        self.logger.debug(f"POST {req_url}\n{req_headers}\n{json}")
         r = await asyncio.wrap_future(self.session.post(req_url, json=json, headers=req_headers))
         r.raise_for_status()
-        return self._decode(r)
+        result = self._decode(r)
+        self.logger.debug(f"Response: {result}")
+        return result
 
     def _apply_auth(self, headers: Dict[str, str]) -> Dict[str, str]:
         """Add authentication header if an authentication token is available."""
@@ -136,9 +155,9 @@ class RucioClient:
 class RucioTransferService(TransferService):
     """RucioTransferService uses Rucio to transfer a file from site to site."""
 
-    def __init__(self, config: TransferServiceConfig):
+    def __init__(self, config: TransferServiceConfig, logger: Optional[Logger] = None):
         """Initialize a RucioTransferService object."""
-        super(RucioTransferService, self).__init__(config)
+        super(RucioTransferService, self).__init__(config, logger)
         self.account = self.config.get("account", "root")
         self.password = self.config.get("password", "hunter2")  # http://bash.org/?244321
         self.rest_url = self.config.get("rest_url", "http://rucio.icecube.wisc.edu:30475/")
@@ -149,7 +168,7 @@ class RucioTransferService(TransferService):
     async def cancel(self, ref: TransferReference) -> TransferStatus:
         """Ask the RucioTransferService to cancel a file transfer."""
         # ensure that we can connect to and authenticate with Rucio
-        rc = await self._get_valid_rucio_client()
+        rc = await self._get_valid_rucio_client(self.logger)
         # remove the file did (replica) from the dataset_did
         await self._detach_replica_from_dataset(rc, ref)
         # tell the caller that the file transfer was canceled
@@ -163,7 +182,7 @@ class RucioTransferService(TransferService):
     async def start(self, spec: TransferSpec) -> TransferReference:
         """Ask the RucioTransferService to start a file transfer."""
         # ensure that we can connect to and authenticate with Rucio
-        rc = await self._get_valid_rucio_client()
+        rc = await self._get_valid_rucio_client(self.logger)
         # 2.1. register the bundle as a replica within rucio
         #     rucio upload --rse $RSE --scope SCOPE --register-after-upload --pfn PFN --name NAME /PATH/TO/BUNDLE
         file_did = await self._register_bundle_as_replica(rc, spec)
@@ -179,7 +198,7 @@ class RucioTransferService(TransferService):
     async def status(self, ref: TransferReference) -> TransferStatus:
         """Query the RucioTransferService about the status of a prior transfer."""
         # ensure that we can connect to and authenticate with Rucio
-        rc = await self._get_valid_rucio_client()
+        rc = await self._get_valid_rucio_client(self.logger)
         # query the state of the replica on the destination rse
         rucio_state = await self._query_replica_from_dataset(rc, ref)
         # Rucio states:
@@ -276,10 +295,10 @@ class RucioTransferService(TransferService):
             if replica["name"] == name:
                 raise Exception(f"{detach_url} replica name found; expected name == '{name}' NOT to be in the list")
 
-    async def _get_valid_rucio_client(self) -> RucioClient:
+    async def _get_valid_rucio_client(self, logger: Optional[Logger] = None) -> RucioClient:
         """Ensure that we can connect to and authenticate with Rucio."""
         # create the RucioClient object and authenticate with Rucio
-        rc = RucioClient(self.rest_url)
+        rc = RucioClient(self.rest_url, logger)
         await rc.auth(self.account, self.username, self.password)
         # check to see that our account authenticated properly
         r = await rc.get("/accounts/whoami")
