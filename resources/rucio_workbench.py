@@ -3,7 +3,8 @@ import asyncio
 import json
 from uuid import uuid4
 
-from lta.config import from_environment
+from rest_tools.server import from_environment  # type: ignore
+
 from lta.transfer.rucio import RucioClient, RucioResponse
 
 EXPECTED_CONFIG = {
