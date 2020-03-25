@@ -89,8 +89,9 @@ export NS_PHONE_HOME=False
 ##########
 # CONTROL
 # This string controls what we want to see at all times. 
-#   3 verifiers, 0 retrievers, 3 mover
-export NS_DESIRED="nersc-mover:3 nersc-verifier:3 nersc-retriever:0 site-move-verifier:0"
+#   2 site-move-verifier, 0 retrievers, 2 nersc-mover, 2 nersc-verifiers
+# Only the last 3 need HSI
+export NS_DESIRED="nersc-mover:2 nersc-verifier:2 nersc-retriever:0 site-move-verifier:2"
 # Not all slurm jobs use the hsi facility.  site-move-verifier is one that does not, and
 #  presumably its counterpart used during retrieving will also not be.  So, make a list
 #  of those that DO.
@@ -144,7 +145,7 @@ function launch {
       return 1
     fi
   logit 2 "launch $1"
-  if ! ${SBATCH}  -o "${NS_SLURM_LOG}/slurm-$1-%j.out" -q xfer -M escori -t 12:00:00 "${NS_SCRIPT_PATH}/$1.sh"
+  if ! ${SBATCH}  -o "${NS_SLURM_LOG}/slurm-$1-%j.out" -q xfer -M escori -t 12:00:00 "${NS_SCRIPT_PATH}/$1.sh" >> ${NS_BASE}/resources/submission.log 2>&1
     then
       logit 0 "Submit of $1 failed"
       return 1
