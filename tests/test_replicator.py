@@ -204,7 +204,7 @@ async def test_replicator_replicate_bundle_to_destination_site(config, mocker):
     }
     p = Replicator(config, logger_mock)
     await p._replicate_bundle_to_destination_site(lta_rc_mock, bundle_obj)
-    inst_mock.assert_called_with(p.transfer_config)
+    inst_mock.assert_called_with(p.transfer_config, logger_mock)
     xfer_service_mock.start.assert_called_with(bundle_obj)
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
 

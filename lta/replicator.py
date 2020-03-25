@@ -118,7 +118,7 @@ class Replicator(Component):
         """Replicate the supplied bundle using the configured transfer service."""
         bundle_id = bundle["uuid"]
         # instantiate a TransferService to replicate the bundle
-        xfer_service = instantiate(self.transfer_config)
+        xfer_service = instantiate(self.transfer_config, self.logger)
         # ask the transfer service to start the transfer
         xfer_ref = await xfer_service.start(bundle)
         # update the Bundle in the LTA DB

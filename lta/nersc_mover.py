@@ -125,7 +125,7 @@ class NerscMover(Component):
         basename = os.path.basename(bundle["bundle_path"])
         data_warehouse_path = bundle["path"]
         # determine the path where rucio copied the bundle
-        stupid_python_path = os.path.sep.join([self.rse_bath_path, data_warehouse_path, basename])
+        stupid_python_path = os.path.sep.join([self.rse_bath_path, basename])
         rucio_path = os.path.normpath(stupid_python_path)
         # determine the path where it should be stored on hpss
         stupid_python_path = os.path.sep.join([self.tape_bath_path, data_warehouse_path, basename])
