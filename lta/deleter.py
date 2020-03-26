@@ -19,6 +19,7 @@ from .transfer.service import instantiate
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "RUCIO_PASSWORD": None,
     "TRANSFER_CONFIG_PATH": "etc/rucio.json",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
@@ -50,9 +51,9 @@ class Deleter(Component):
         super(Deleter, self).__init__("deleter", config, logger)
         with open(config["TRANSFER_CONFIG_PATH"]) as config_data:
             self.transfer_config = json.load(config_data)
+        self.transfer_config["password"] = config["RUCIO_PASSWORD"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        pass
 
     def _do_status(self) -> Dict[str, Any]:
         """Provide additional status for the Deleter."""
@@ -80,10 +81,11 @@ class Deleter(Component):
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to delete.")
+        source = self.source_site
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', '/Bundles/actions/pop?source=WIPAC&status=completed', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={source}&status=completed', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
