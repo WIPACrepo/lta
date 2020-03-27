@@ -12,7 +12,7 @@ from binpacking import to_constant_bin_number  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
 
-from .component import COMMON_CONFIG, Component, status_loop, work_loop
+from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
 from .lta_types import BundleType, TransferRequestType
 
@@ -190,9 +190,11 @@ class Picker(Component):
                                            tr: TransferRequestType,
                                            reason: str) -> None:
         self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
+        right_now = now()
         patch_body = {
             "status": "quarantined",
             "reason": reason,
+            "work_priority_timestamp": right_now,
         }
         try:
             await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)

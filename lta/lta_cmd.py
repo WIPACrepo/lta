@@ -173,6 +173,7 @@ async def bundle_status(args: Namespace) -> ExitCode:
     else:
         # display information about the core fields
         print(f"Bundle {args.uuid}")
+        print(f"    Priority: {response['work_priority_timestamp']}")
         print(f"    Status: {response['status']} ({display_time(response['update_timestamp'])})")
         if response['status'] == "quarantined":
             print(f"        Reason: {response['reason']}")
@@ -415,6 +416,7 @@ async def request_status(args: Namespace) -> ExitCode:
     else:
         # display information about the core fields
         print(f"TransferRequest {args.uuid}")
+        print(f"    Priority: {response['work_priority_timestamp']}")
         print(f"    Status: {response['status']} ({display_time(response['update_timestamp'])})")
         if response['status'] == "quarantined":
             print(f"        Reason: {response['reason']}")

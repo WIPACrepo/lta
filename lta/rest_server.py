@@ -38,7 +38,7 @@ EXPECTED_CONFIG = {
 
 AFTER = pymongo.ReturnDocument.AFTER
 ALL_DOCUMENTS: Dict[str, str] = {}
-FIRST_IN_FIRST_OUT = [("create_timestamp", pymongo.ASCENDING)]
+FIRST_IN_FIRST_OUT = [("work_priority_timestamp", pymongo.ASCENDING)]
 REMOVE_ID = {"_id": False}
 TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
@@ -146,6 +146,7 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             xfer_bundle["uuid"] = unique_id()
             xfer_bundle["create_timestamp"] = right_now
             xfer_bundle["update_timestamp"] = right_now
+            xfer_bundle["work_priority_timestamp"] = right_now
             xfer_bundle["claimed"] = False
 
         ret = await self.db.Bundles.insert_many(documents=req["bundles"])
@@ -290,6 +291,25 @@ class BundlesActionsPopHandler(BaseLTAHandler):
             logging.info(f"Bundle {bundle['uuid']} claimed by {claimant}")
         self.write({'bundle': bundle})
 
+class BundlesActionsResetWorkPriorityHandler(BaseLTAHandler):
+    """BundlesActionsResetWorkPriorityHandler handles /Bundles/actions/reset_work_priority."""
+
+    @lta_auth(roles=['admin', 'system'])
+    async def post(self) -> None:
+        """Handle POST /Bundles/actions/reset_work_priority."""
+        # find every bundle and set work_priority_timestamp to create_timestamp
+        sdb = self.db.Bundles
+        async for row in sdb.find(filter=ALL_DOCUMENTS, projection=REMOVE_ID):
+            update_filter = {"uuid": row["uuid"]}
+            update_doc = {
+                "$set": {
+                    "work_priority_timestamp": row["create_timestamp"],
+                },
+            }
+            await sdb.update_one(filter=update_filter,
+                                 update=update_doc)
+        self.set_status(200)
+
 class BundlesSingleHandler(BaseLTAHandler):
     """BundlesSingleHandler handles object level routes for Bundles."""
 
@@ -380,6 +400,7 @@ class TransferRequestsHandler(BaseLTAHandler):
         req['status'] = "unclaimed"
         req['create_timestamp'] = right_now
         req['update_timestamp'] = right_now
+        req['work_priority_timestamp'] = right_now
         req['claimed'] = False
         await self.db.TransferRequests.insert_one(document=req)
         logging.info(f"created TransferRequest {req['uuid']}")
@@ -463,6 +484,25 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
         else:
             logging.info(f"TransferRequest {tr['uuid']} claimed by {claimant}")
         self.write({'transfer_request': tr})
+
+class TransferRequestActionsResetWorkPriorityHandler(BaseLTAHandler):
+    """TransferRequestsActionsResetWorkPriorityHandler handles /TransferRequests/actions/reset_work_priority."""
+
+    @lta_auth(roles=['admin', 'system'])
+    async def post(self) -> None:
+        """Handle POST /TransferRequests/actions/reset_work_priority."""
+        # find every transfer request and set work_priority_timestamp to create_timestamp
+        sdtr = self.db.TransferRequests
+        async for row in sdtr.find(filter=ALL_DOCUMENTS, projection=REMOVE_ID):
+            update_filter = {"uuid": row["uuid"]}
+            update_doc = {
+                "$set": {
+                    "work_priority_timestamp": row["create_timestamp"],
+                },
+            }
+            await sdtr.update_one(filter=update_filter,
+                                  update=update_doc)
+        self.set_status(200)
 
 # -----------------------------------------------------------------------------
 
@@ -612,6 +652,9 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     if 'bundles_create_timestamp_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.Bundles.create_timestamp")
         db.Bundles.create_index('create_timestamp', name='bundles_create_timestamp_index', unique=False)
+    if 'bundles_work_priority_timestamp_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.Bundles.work_priority_timestamp")
+        db.Bundles.create_index('work_priority_timestamp', name='bundles_work_priority_timestamp_index', unique=False)
     if 'bundles_uuid_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.Bundles.uuid")
         db.Bundles.create_index('uuid', name='bundles_uuid_index', unique=True)
@@ -638,6 +681,9 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     if 'transfer_requests_create_timestamp_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.TransferRequests.create_timestamp")
         db.TransferRequests.create_index('create_timestamp', name='transfer_requests_create_timestamp_index', unique=False)
+    if 'transfer_requests_work_priority_timestamp_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.TransferRequests.work_priority_timestamp")
+        db.TransferRequests.create_index('work_priority_timestamp', name='transfer_requests_work_priority_timestamp_index', unique=False)
     if 'transfer_requests_uuid_index' not in db.TransferRequests.index_information():
         logging.info(f"Creating index for {mongo_db}.TransferRequests.uuid")
         db.TransferRequests.create_index('uuid', name='transfer_requests_uuid_index', unique=True)
@@ -680,10 +726,12 @@ def start(debug: bool = False) -> RestServer:
     server.add_route(r'/Bundles/actions/bulk_delete', BundlesActionsBulkDeleteHandler, args)
     server.add_route(r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler, args)
     server.add_route(r'/Bundles/actions/pop', BundlesActionsPopHandler, args)
+    server.add_route(r'/Bundles/actions/reset_work_priority', BundlesActionsResetWorkPriorityHandler, args)
     server.add_route(r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler, args)
     server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
+    server.add_route(r'/TransferRequests/actions/reset_work_priority', TransferRequestActionsResetWorkPriorityHandler, args)
     server.add_route(r'/status', StatusHandler, args)
     server.add_route(r'/status/(?P<component>\w+)', StatusComponentHandler, args)
     server.add_route(r'/status/(?P<component>\w+)/count', StatusComponentCountHandler, args)

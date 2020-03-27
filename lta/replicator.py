@@ -105,9 +105,11 @@ class Replicator(Component):
                                  reason: str) -> None:
         """Quarantine the supplied bundle using the supplied reason."""
         self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
+        right_now = now()
         patch_body = {
             "status": "quarantined",
             "reason": reason,
+            "work_priority_timestamp": right_now,
         }
         try:
             await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)

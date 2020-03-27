@@ -139,9 +139,11 @@ class SiteMoveVerifier(Component):
                                  reason: str) -> None:
         """Quarantine the supplied bundle using the supplied reason."""
         self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
+        right_now = now()
         patch_body = {
             "status": "quarantined",
             "reason": reason,
+            "work_priority_timestamp": right_now,
         }
         try:
             await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
@@ -177,9 +179,11 @@ class SiteMoveVerifier(Component):
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info(f"These checksums do NOT match, and the Bundle will NOT be verified.")
+            right_now = now()
             patch_body: Dict[str, Any] = {
                 "status": "quarantined",
                 "reason": f"Checksum mismatch between creation and destination: {checksum_sha512}",
+                "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
@@ -212,9 +216,11 @@ class SiteMoveVerifier(Component):
         """Run the myquota command to determine disk usage at the site."""
         self.logger.info(f"Bundle is not ready to be verified; will unclaim it.")
         bundle_id = bundle["uuid"]
+        right_now = now()
         patch_body: Dict[str, Any] = {
-            "update_timestamp": now(),
+            "update_timestamp": right_now,
             "claimed": False,
+            "work_priority_timestamp": right_now,
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
