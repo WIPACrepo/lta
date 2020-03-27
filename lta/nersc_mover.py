@@ -110,9 +110,11 @@ class NerscMover(Component):
             return True
         except Exception as e:
             bundle_id = bundle["uuid"]
+            right_now = now()
             patch_body = {
                 "status": "quarantined",
                 "reason": f"Exception during execution: {e}",
+                "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
@@ -164,9 +166,11 @@ class NerscMover(Component):
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             bundle_id = bundle["uuid"]
+            right_now = now()
             patch_body = {
                 "status": "quarantined",
                 "reason": "hsi Command Failed",
+                "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)

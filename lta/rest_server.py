@@ -38,7 +38,7 @@ EXPECTED_CONFIG = {
 
 AFTER = pymongo.ReturnDocument.AFTER
 ALL_DOCUMENTS: Dict[str, str] = {}
-FIRST_IN_FIRST_OUT = [("create_timestamp", pymongo.ASCENDING)]
+FIRST_IN_FIRST_OUT = [("work_priority_timestamp", pymongo.ASCENDING)]
 REMOVE_ID = {"_id": False}
 TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
@@ -146,6 +146,7 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             xfer_bundle["uuid"] = unique_id()
             xfer_bundle["create_timestamp"] = right_now
             xfer_bundle["update_timestamp"] = right_now
+            xfer_bundle["work_priority_timestamp"] = right_now
             xfer_bundle["claimed"] = False
 
         ret = await self.db.Bundles.insert_many(documents=req["bundles"])
@@ -380,6 +381,7 @@ class TransferRequestsHandler(BaseLTAHandler):
         req['status'] = "unclaimed"
         req['create_timestamp'] = right_now
         req['update_timestamp'] = right_now
+        req['work_priority_timestamp'] = right_now
         req['claimed'] = False
         await self.db.TransferRequests.insert_one(document=req)
         logging.info(f"created TransferRequest {req['uuid']}")
@@ -612,6 +614,9 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     if 'bundles_create_timestamp_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.Bundles.create_timestamp")
         db.Bundles.create_index('create_timestamp', name='bundles_create_timestamp_index', unique=False)
+    if 'bundles_work_priority_timestamp_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.Bundles.work_priority_timestamp")
+        db.Bundles.create_index('work_priority_timestamp', name='bundles_work_priority_timestamp_index', unique=False)
     if 'bundles_uuid_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.Bundles.uuid")
         db.Bundles.create_index('uuid', name='bundles_uuid_index', unique=True)
@@ -638,6 +643,9 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     if 'transfer_requests_create_timestamp_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.TransferRequests.create_timestamp")
         db.TransferRequests.create_index('create_timestamp', name='transfer_requests_create_timestamp_index', unique=False)
+    if 'transfer_requests_work_priority_timestamp_index' not in db.Bundles.index_information():
+        logging.info(f"Creating index for {mongo_db}.TransferRequests.work_priority_timestamp")
+        db.TransferRequests.create_index('work_priority_timestamp', name='transfer_requests_work_priority_timestamp_index', unique=False)
     if 'transfer_requests_uuid_index' not in db.TransferRequests.index_information():
         logging.info(f"Creating index for {mongo_db}.TransferRequests.uuid")
         db.TransferRequests.create_index('uuid', name='transfer_requests_uuid_index', unique=True)

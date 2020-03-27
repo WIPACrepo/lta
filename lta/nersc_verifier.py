@@ -120,9 +120,11 @@ class NerscVerifier(Component):
             return True
         except Exception as e:
             bundle_id = bundle["uuid"]
+            right_now = now()
             patch_body = {
                 "status": "quarantined",
                 "reason": f"Exception during execution: {e}",
+                "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
@@ -219,9 +221,11 @@ class NerscVerifier(Component):
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             bundle_id = bundle["uuid"]
+            right_now = now()
             patch_body = {
                 "status": "quarantined",
                 "reason": "hsi hashlist Command Failed",
+                "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
@@ -238,9 +242,11 @@ class NerscVerifier(Component):
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info(f"These checksums do NOT match, and the Bundle will NOT be verified.")
+            right_now = now()
             patch_body = {
                 "status": "quarantined",
                 "reason": f"Checksum mismatch between creation and destination: {checksum_sha512}",
+                "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
@@ -263,9 +269,11 @@ class NerscVerifier(Component):
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             bundle_id = bundle["uuid"]
+            right_now = now()
             patch_body = {
                 "status": "quarantined",
                 "reason": "hsi hashverify Command Failed",
+                "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
@@ -286,9 +294,11 @@ class NerscVerifier(Component):
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             self.logger.info(f"This result does NOT match, and the Bundle will NOT be verified.")
+            right_now = now()
             patch_body = {
                 "status": "quarantined",
                 "reason": f"hashverify unable to verify checksum in HPSS: {result}",
+                "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)

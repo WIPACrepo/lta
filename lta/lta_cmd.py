@@ -57,9 +57,11 @@ def as_datetime(s: str) -> datetime:
     st = strptime(s, "%Y-%m-%dT%H:%M:%S")
     return datetime.fromtimestamp(mktime(st))
 
-def display_time(s: str) -> str:
+def display_time(s: Optional[str]) -> str:
     """Make a timestamp string look nice."""
-    return s.replace("T", " ")
+    if s:
+        return s.replace("T", " ")
+    return "Unknown"
 
 def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
     """Print the provided Dict as pretty-print JSON."""
@@ -165,6 +167,20 @@ async def bundle_overdue(args: Namespace) -> ExitCode:
     return EXIT_OK
 
 
+async def bundle_priority_reset(args: Namespace) -> ExitCode:
+    """List all of the Bundle objects in the LTA DB."""
+    response = await args.lta_rc.request("GET", "/Bundles")
+    results = response["results"]
+    for uuid in results:
+        response2 = await args.lta_rc.request("GET", f"/Bundles/{uuid}")
+        patch_body = {
+            "update_timestamp": now(),
+            "work_priority_timestamp": response2["create_timestamp"],
+        }
+        await args.lta_rc.request("PATCH", f"/Bundles/{uuid}", patch_body)
+    return EXIT_OK
+
+
 async def bundle_status(args: Namespace) -> ExitCode:
     """Query the status of a Bundle in the LTA DB."""
     response = await args.lta_rc.request("GET", f"/Bundles/{args.uuid}")
@@ -173,6 +189,7 @@ async def bundle_status(args: Namespace) -> ExitCode:
     else:
         # display information about the core fields
         print(f"Bundle {args.uuid}")
+        print(f"    Priority: {display_time(response['work_priority_timestamp'])}")
         print(f"    Status: {response['status']} ({display_time(response['update_timestamp'])})")
         if response['status'] == "quarantined":
             print(f"        Reason: {response['reason']}")
@@ -202,12 +219,15 @@ async def bundle_status(args: Namespace) -> ExitCode:
 
 async def bundle_update_status(args: Namespace) -> ExitCode:
     """Update the status of a Bundle in the LTA DB."""
+    right_now = now()
     patch_body = {}
     patch_body["status"] = args.new_status
     patch_body["reason"] = ""
-    patch_body["update_timestamp"] = now()
+    patch_body["update_timestamp"] = right_now
     if not args.keep_claim:
         patch_body["claimed"] = False
+    if not args.keep_priority:
+        patch_body["work_priority_timestamp"] = right_now
     await args.lta_rc.request("PATCH", f"/Bundles/{args.uuid}", patch_body)
     return EXIT_OK
 
@@ -386,6 +406,21 @@ async def request_new(args: Namespace) -> ExitCode:
     return EXIT_OK
 
 
+async def request_priority_reset(args: Namespace) -> ExitCode:
+    """Reset the work priority timestamp for every TransferRequest."""
+    # find every transfer request and set work_priority_timestamp to create_timestamp
+    response = await args.lta_rc.request("GET", "/TransferRequests")
+    results = response["results"]
+    for request in results:
+        uuid = request["uuid"]
+        patch_body = {
+            "update_timestamp": now(),
+            "work_priority_timestamp": request["create_timestamp"],
+        }
+        await args.lta_rc.request("PATCH", f"/TransferRequests/{uuid}", patch_body)
+    return EXIT_OK
+
+
 async def request_rm(args: Namespace) -> ExitCode:
     """Remove a TransferRequest from the LTA DB."""
     response = await args.lta_rc.request("GET", f"/TransferRequests/{args.uuid}")
@@ -415,6 +450,7 @@ async def request_status(args: Namespace) -> ExitCode:
     else:
         # display information about the core fields
         print(f"TransferRequest {args.uuid}")
+        print(f"    Priority: {display_time(response['work_priority_timestamp'])}")
         print(f"    Status: {response['status']} ({display_time(response['update_timestamp'])})")
         if response['status'] == "quarantined":
             print(f"        Reason: {response['reason']}")
@@ -439,11 +475,14 @@ async def request_status(args: Namespace) -> ExitCode:
 
 async def request_update_status(args: Namespace) -> ExitCode:
     """Update the status of a TransferRequest in the LTA DB."""
+    right_now = now()
     patch_body = {}
     patch_body["status"] = args.new_status
-    patch_body["update_timestamp"] = now()
+    patch_body["update_timestamp"] = right_now
     if not args.keep_claim:
         patch_body["claimed"] = False
+    if not args.keep_priority:
+        patch_body["work_priority_timestamp"] = right_now
     await args.lta_rc.request("PATCH", f"/TransferRequests/{args.uuid}", patch_body)
     return EXIT_OK
 
@@ -526,6 +565,14 @@ async def main() -> None:
                                        action="store_true")
     parser_bundle_overdue.set_defaults(func=bundle_overdue)
 
+    # define a subparser for the 'bundle priority' subcommand
+    parser_bundle_priority = bundle_subparser.add_parser('priority', help='modify bundle priority dates')
+    bundle_priority_subparser = parser_bundle_priority.add_subparsers(help='priority command help')
+
+    # define a subparser for the 'bundle priority reset' subcommand
+    parser_bundle_priority_reset = bundle_priority_subparser.add_parser('reset', help='reset all priority dates')
+    parser_bundle_priority_reset.set_defaults(func=bundle_priority_reset)
+
     # define a subparser for the 'bundle status' subcommand
     parser_bundle_status = bundle_subparser.add_parser('status', help='query bundle status')
     parser_bundle_status.add_argument("--uuid",
@@ -551,6 +598,10 @@ async def main() -> None:
     parser_bundle_update_status.add_argument("--keep-claim",
                                              dest="keep_claim",
                                              help="don't unclaim the bundle",
+                                             action="store_true")
+    parser_bundle_update_status.add_argument("--keep-priority",
+                                             dest="keep_priority",
+                                             help="don't change the priority date",
                                              action="store_true")
     parser_bundle_update_status.set_defaults(func=bundle_update_status)
 
@@ -626,6 +677,14 @@ async def main() -> None:
                                     action="store_true")
     parser_request_new.set_defaults(func=request_new)
 
+    # define a subparser for the 'request priority' subcommand
+    parser_request_priority = request_subparser.add_parser('priority', help='modify transfer request priority dates')
+    request_priority_subparser = parser_request_priority.add_subparsers(help='priority command help')
+
+    # define a subparser for the 'request priority reset' subcommand
+    parser_request_priority_reset = request_priority_subparser.add_parser('reset', help='reset all priority dates')
+    parser_request_priority_reset.set_defaults(func=request_priority_reset)
+
     # define a subparser for the 'request rm' subcommand
     parser_request_rm = request_subparser.add_parser('rm', help='delete a transfer request')
     parser_request_rm.add_argument("--uuid",
@@ -664,6 +723,10 @@ async def main() -> None:
     parser_request_update_status.add_argument("--keep-claim",
                                               dest="keep_claim",
                                               help="don't unclaim the transfer request",
+                                              action="store_true")
+    parser_request_update_status.add_argument("--keep-priority",
+                                              dest="keep_priority",
+                                              help="don't change the priority date",
                                               action="store_true")
     parser_request_update_status.set_defaults(func=request_update_status)
 

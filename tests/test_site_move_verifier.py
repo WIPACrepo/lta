@@ -332,6 +332,7 @@ async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
         "status": "quarantined",
         "reason": mocker.ANY,
+        "work_priority_timestamp": mocker.ANY,
     })
 
 @pytest.mark.asyncio
