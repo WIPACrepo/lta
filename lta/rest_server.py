@@ -291,25 +291,6 @@ class BundlesActionsPopHandler(BaseLTAHandler):
             logging.info(f"Bundle {bundle['uuid']} claimed by {claimant}")
         self.write({'bundle': bundle})
 
-class BundlesActionsResetWorkPriorityHandler(BaseLTAHandler):
-    """BundlesActionsResetWorkPriorityHandler handles /Bundles/actions/reset_work_priority."""
-
-    @lta_auth(roles=['admin', 'system'])
-    async def post(self) -> None:
-        """Handle POST /Bundles/actions/reset_work_priority."""
-        # find every bundle and set work_priority_timestamp to create_timestamp
-        sdb = self.db.Bundles
-        async for row in sdb.find(filter=ALL_DOCUMENTS, projection=REMOVE_ID):
-            update_filter = {"uuid": row["uuid"]}
-            update_doc = {
-                "$set": {
-                    "work_priority_timestamp": row["create_timestamp"],
-                },
-            }
-            await sdb.update_one(filter=update_filter,
-                                 update=update_doc)
-        self.set_status(200)
-
 class BundlesSingleHandler(BaseLTAHandler):
     """BundlesSingleHandler handles object level routes for Bundles."""
 
@@ -484,25 +465,6 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
         else:
             logging.info(f"TransferRequest {tr['uuid']} claimed by {claimant}")
         self.write({'transfer_request': tr})
-
-class TransferRequestActionsResetWorkPriorityHandler(BaseLTAHandler):
-    """TransferRequestsActionsResetWorkPriorityHandler handles /TransferRequests/actions/reset_work_priority."""
-
-    @lta_auth(roles=['admin', 'system'])
-    async def post(self) -> None:
-        """Handle POST /TransferRequests/actions/reset_work_priority."""
-        # find every transfer request and set work_priority_timestamp to create_timestamp
-        sdtr = self.db.TransferRequests
-        async for row in sdtr.find(filter=ALL_DOCUMENTS, projection=REMOVE_ID):
-            update_filter = {"uuid": row["uuid"]}
-            update_doc = {
-                "$set": {
-                    "work_priority_timestamp": row["create_timestamp"],
-                },
-            }
-            await sdtr.update_one(filter=update_filter,
-                                  update=update_doc)
-        self.set_status(200)
 
 # -----------------------------------------------------------------------------
 
@@ -726,12 +688,10 @@ def start(debug: bool = False) -> RestServer:
     server.add_route(r'/Bundles/actions/bulk_delete', BundlesActionsBulkDeleteHandler, args)
     server.add_route(r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler, args)
     server.add_route(r'/Bundles/actions/pop', BundlesActionsPopHandler, args)
-    server.add_route(r'/Bundles/actions/reset_work_priority', BundlesActionsResetWorkPriorityHandler, args)
     server.add_route(r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler, args)
     server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
-    server.add_route(r'/TransferRequests/actions/reset_work_priority', TransferRequestActionsResetWorkPriorityHandler, args)
     server.add_route(r'/status', StatusHandler, args)
     server.add_route(r'/status/(?P<component>\w+)', StatusComponentHandler, args)
     server.add_route(r'/status/(?P<component>\w+)/count', StatusComponentCountHandler, args)
