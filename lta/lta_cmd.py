@@ -57,9 +57,11 @@ def as_datetime(s: str) -> datetime:
     st = strptime(s, "%Y-%m-%dT%H:%M:%S")
     return datetime.fromtimestamp(mktime(st))
 
-def display_time(s: str) -> str:
+def display_time(s: Optional[str]) -> str:
     """Make a timestamp string look nice."""
-    return s.replace("T", " ")
+    if s:
+        return s.replace("T", " ")
+    return "Unknown"
 
 def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
     """Print the provided Dict as pretty-print JSON."""
@@ -187,7 +189,7 @@ async def bundle_status(args: Namespace) -> ExitCode:
     else:
         # display information about the core fields
         print(f"Bundle {args.uuid}")
-        print(f"    Priority: {response['work_priority_timestamp']}")
+        print(f"    Priority: {display_time(response['work_priority_timestamp'])}")
         print(f"    Status: {response['status']} ({display_time(response['update_timestamp'])})")
         if response['status'] == "quarantined":
             print(f"        Reason: {response['reason']}")
@@ -448,7 +450,7 @@ async def request_status(args: Namespace) -> ExitCode:
     else:
         # display information about the core fields
         print(f"TransferRequest {args.uuid}")
-        print(f"    Priority: {response['work_priority_timestamp']}")
+        print(f"    Priority: {display_time(response['work_priority_timestamp'])}")
         print(f"    Status: {response['status']} ({display_time(response['update_timestamp'])})")
         if response['status'] == "quarantined":
             print(f"        Reason: {response['reason']}")
