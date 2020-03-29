@@ -226,12 +226,19 @@ async def test_deleter_update_transfer_request_no(config, mocker):
     }
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    lta_rc_mock.request.return_value = {
-        "results": [deleted_bundle, transferring_bundle],
-    }
+    lta_rc_mock.request.side_effect = [
+        {
+            "results": [
+                "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
+                "90a664cc-e3f9-4421-973f-7bc2bc7407d0",
+            ],
+        },
+        deleted_bundle,
+        transferring_bundle,
+    ]
     p = Deleter(config, logger_mock)
     await p._update_transfer_request(lta_rc_mock, deleted_bundle)
-    lta_rc_mock.request.assert_called_with("GET", '/Bundles?request=a8758a77-2a66-46e6-b43d-b4c74d3078a6')
+    lta_rc_mock.request.assert_called_with("GET", '/Bundles/90a664cc-e3f9-4421-973f-7bc2bc7407d0')
 
 @pytest.mark.asyncio
 async def test_deleter_update_transfer_request_yes(config, mocker):
@@ -248,8 +255,9 @@ async def test_deleter_update_transfer_request_yes(config, mocker):
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     lta_rc_mock.request.side_effect = [
         {
-            "results": [deleted_bundle],
+            "results": ["8286d3ba-fb1b-4923-876d-935bdf7fc99e"],
         },
+        deleted_bundle,
         transfer_request,
         None
     ]

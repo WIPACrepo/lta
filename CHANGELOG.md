@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.6.0] - 2020-03-29
+### Fixed
+- Deleter queries the LTA DB properly to fix TransferRequests
+
 ## [0.5.0] - 2020-03-26
 ### Added
 - New work_priority_timestamp to LTA DB
@@ -239,7 +243,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/WIPACrepo/lta/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/WIPACrepo/lta/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/WIPACrepo/lta/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/WIPACrepo/lta/compare/v0.2.1...v0.3.0
