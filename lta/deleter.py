@@ -126,7 +126,8 @@ class Deleter(Component):
         results = response["results"]
         deleted_count = len(results)
         self.logger.info(f"Found {deleted_count} bundles for TransferRequest {request_uuid}")
-        for result in results:
+        for bundle_uuid in results:
+            result = await lta_rc.request('GET', f'/Bundles/{bundle_uuid}')
             self.logger.info(f"Bundle {result['uuid']} has status {result['status']}")
             if result["status"] == "deleted":
                 deleted_count = deleted_count - 1
