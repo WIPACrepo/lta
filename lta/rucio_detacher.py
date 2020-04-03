@@ -1,10 +1,11 @@
-# deleter.py
-"""Module to implement the Deleter component of the Long Term Archive."""
+# rucio_detacher.py
+"""Module to implement the RucioDetacher component of the Long Term Archive."""
 
 import asyncio
 import json
 from logging import Logger
 import logging
+import os
 import sys
 from typing import Any, Dict, Optional
 
@@ -26,29 +27,29 @@ EXPECTED_CONFIG.update({
 })
 
 
-class Deleter(Component):
+class RucioDetacher(Component):
     """
-    Deleter is a Long Term Archive component.
+    RucioDetacher is a Long Term Archive component.
 
-    A Deleter is responsible for deleteing intermediate copies of archive
-    bundles that have finished processing at their destination site(s). The
-    archive bundles are marked for deletion using the Rucio transfer service.
-    Rucio will then remove the intermediate bundle files from the
-    destination site(s).
+    A RucioDetacher is responsible for prompting Rucio to delete intermediate
+    copies of archive bundles that have finished processing at their
+    destination site(s). The archive bundles are marked for deletion using
+    the Rucio transfer service. Rucio will then remove the intermediate bundle
+    files from the source and destination site(s).
 
-    It uses the LTA DB to find verified bundles that need to be deleted.
-    It de-registers the bundles with Rucio. It updates the Bundle and the
-    corresponding TransferRequest in the LTA DB with a 'deleted' status.
+    It uses the LTA DB to find verified bundles that need to be deleted. It
+    deattaches the bundles from the datasets within Rucio. It updates the Bundle
+    and the corresponding TransferRequest in the LTA DB with a 'deleted' status.
     """
 
     def __init__(self, config: Dict[str, str], logger: Logger) -> None:
         """
-        Create a Deleter component.
+        Create a RucioDetacher component.
 
         config - A dictionary of required configuration values.
-        logger - The object the deleter should use for logging.
+        logger - The object the rucio_detacher should use for logging.
         """
-        super(Deleter, self).__init__("deleter", config, logger)
+        super(RucioDetacher, self).__init__("rucio_detacher", config, logger)
         with open(config["TRANSFER_CONFIG_PATH"]) as config_data:
             self.transfer_config = json.load(config_data)
         self.transfer_config["password"] = config["RUCIO_PASSWORD"]
@@ -56,7 +57,7 @@ class Deleter(Component):
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
     def _do_status(self) -> Dict[str, Any]:
-        """Provide additional status for the Deleter."""
+        """Provide additional status for the RucioDetacher."""
         return {}
 
     def _expected_config(self) -> Dict[str, Optional[str]]:
@@ -92,21 +93,31 @@ class Deleter(Component):
             self.logger.info("LTA DB did not provide a Bundle to delete. Going on vacation.")
             return False
         # process the Bundle that we were given
-        await self._delete_bundle(lta_rc, bundle)
+        await self._detach_bundle(lta_rc, bundle)
         # update the TransferRequest that spawned the Bundle, if necessary
         await self._update_transfer_request(lta_rc, bundle)
         return True
 
-    async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
-        """Delete the provided Bundle with the transfer service and update the LTA DB."""
+    def _calculate_xfer_reference(self, site_name: str, file_name: str) -> str:
+        """Compute the transfer reference to pass to RucioTransferService."""
+        # "transfer_reference": "NERSC-LTA|nersc-dataset|d85fa59e420811ea8c90c6259865d176.zip",
+        site = self.transfer_config["sites"][site_name]
+        return f'{site["rse"]}|{site["dataset"]}|{file_name}'
+
+    async def _detach_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
+        """Detach the provided Bundle with the transfer service and update the LTA DB."""
         bundle_id = bundle["uuid"]
         # instantiate a TransferService to delete the bundle
         xfer_service = instantiate(self.transfer_config)
         # ask the transfer service to cancel (i.e.: delete) the transfer
-        await xfer_service.cancel(bundle["transfer_reference"])
+        basename = os.path.basename(bundle["bundle_path"])
+        dest_xfer_ref = self._calculate_xfer_reference(bundle["dest"], basename)
+        await xfer_service.cancel(dest_xfer_ref)
+        source_xfer_ref = self._calculate_xfer_reference(bundle["source"], basename)
+        await xfer_service.cancel(source_xfer_ref)
         # update the Bundle in the LTA DB
         patch_body = {
-            "status": "deleted",
+            "status": "detached",
             "update_timestamp": now(),
             "claimed": False,
         }
@@ -151,12 +162,12 @@ class Deleter(Component):
 
 
 def runner() -> None:
-    """Configure a Deleter component from the environment and set it running."""
+    """Configure a RucioDetacher component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
     # configure structured logging for the application
     structured_formatter = StructuredFormatter(
-        component_type='Deleter',
+        component_type='RucioDetacher',
         component_name=config["COMPONENT_NAME"],
         ndjson=True)
     stream_handler = logging.StreamHandler(sys.stdout)
@@ -164,18 +175,18 @@ def runner() -> None:
     root_logger = logging.getLogger(None)
     root_logger.setLevel(logging.NOTSET)
     root_logger.addHandler(stream_handler)
-    logger = logging.getLogger("lta.deleter")
-    # create our Deleter service
-    deleter = Deleter(config, logger)
+    logger = logging.getLogger("lta.rucio_detacher")
+    # create our RucioDetacher service
+    rucio_detacher = RucioDetacher(config, logger)
     # let's get to work
-    deleter.logger.info("Adding tasks to asyncio loop")
+    rucio_detacher.logger.info("Adding tasks to asyncio loop")
     loop = asyncio.get_event_loop()
-    loop.create_task(status_loop(deleter))
-    loop.create_task(work_loop(deleter))
+    loop.create_task(status_loop(rucio_detacher))
+    loop.create_task(work_loop(rucio_detacher))
 
 
 def main() -> None:
-    """Configure a Deleter component from the environment and set it running."""
+    """Configure a RucioDetacher component from the environment and set it running."""
     runner()
     asyncio.get_event_loop().run_forever()
 
