@@ -392,16 +392,27 @@ async def request_new(args: Namespace) -> ExitCode:
     files_and_size = _get_files_and_size(args.path)
     disk_files = files_and_size[0]
     size = files_and_size[1]
+    # get some stuff
+    source = args.source
+    dest = args.dest
+    path = normalize_path(args.path)
     # if it doesn't meet our minimize size requirement
     if size < MINIMUM_REQUEST_SIZE:
         # and the operator has not forced the issue
         if not args.force:
             # raise an Exception to prevent the command from creating a too small request
-            raise Exception(f"TransferRequest for {args.path}\n{size:,} bytes ({hurry.filesize.size(size)}) in {len(disk_files):,} files.\nMinimum required size: {MINIMUM_REQUEST_SIZE:,} bytes.")
-    # get some stuff
-    source = args.source
-    dest = args.dest
-    path = normalize_path(args.path)
+            raise Exception(f"TransferRequest for {path}\n{size:,} bytes ({hurry.filesize.size(size)}) in {len(disk_files):,} files.\nMinimum required size: {MINIMUM_REQUEST_SIZE:,} bytes.")
+    # check to see if we've already got an open TransferRequest on that path
+    response = await args.lta_rc.request("GET", "/TransferRequests")
+    results = response["results"]
+    for request in results:
+        old_path = os.path.normpath(request['path'])
+        # if a non-complete request matches the path
+        if (old_path == path) and (request['status'] != "completed"):
+            # and the operator has not forced the issue
+            if not args.force:
+                # raise an Exception to prevent the command from creating a duplicate request
+                raise Exception(f"TransferRequest for {path}\nDuplicates TransferRequest {request['uuid']}\n    Status: {request['status']}\n    Path: {request['path']}")
     # construct the TransferRequest body
     request_body = {
         "source": source,
