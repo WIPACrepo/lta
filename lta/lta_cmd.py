@@ -48,6 +48,12 @@ MEGABYTE = KILOBYTE * KILOBYTE
 GIGABYTE = MEGABYTE * KILOBYTE
 MINIMUM_REQUEST_SIZE = 100 * GIGABYTE
 
+PATH_PREFIX_WHITELIST = [
+    "/data/ana",
+    "/data/exp",
+    "/data/sim",
+]
+
 def as_datetime(s: str) -> datetime:
     """Convert a timestamp string into a datetime object."""
     # if Python 3.7+
@@ -62,6 +68,14 @@ def display_time(s: Optional[str]) -> str:
     if s:
         return s.replace("T", " ")
     return "Unknown"
+
+def normalize_path(path: str) -> str:
+    """Validate and normalize the provided request path."""
+    path = os.path.normpath(path)
+    for prefix in PATH_PREFIX_WHITELIST:
+        if path.startswith(prefix):
+            return path
+    raise ValueError(f"{path} does not begin with a whitelisted prefix")
 
 def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
     """Print the provided Dict as pretty-print JSON."""
@@ -387,7 +401,7 @@ async def request_new(args: Namespace) -> ExitCode:
     # get some stuff
     source = args.source
     dest = args.dest
-    path = args.path
+    path = normalize_path(args.path)
     # construct the TransferRequest body
     request_body = {
         "source": source,
