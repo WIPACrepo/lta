@@ -139,7 +139,7 @@ async def test_replicator_do_work_pop_exception(config, mocker):
     p = Replicator(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=staged', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 @pytest.mark.asyncio
 async def test_replicator_do_work_no_results(config, mocker):
@@ -172,7 +172,7 @@ async def test_replicator_do_work_claim_no_result(config, mocker):
     rbtds_mock = mocker.patch("lta.replicator.Replicator._replicate_bundle_to_destination_site", new_callable=AsyncMock)
     p = Replicator(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=staged', {'claimant': f'{p.name}-{p.instance_uuid}'})
     rbtds_mock.assert_not_called()
 
 @pytest.mark.asyncio
@@ -188,7 +188,7 @@ async def test_replicator_do_work_claim_yes_result(config, mocker):
     rbtds_mock = mocker.patch("lta.replicator.Replicator._replicate_bundle_to_destination_site", new_callable=AsyncMock)
     p = Replicator(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=staged', {'claimant': f'{p.name}-{p.instance_uuid}'})
     rbtds_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio
@@ -223,7 +223,7 @@ async def test_replicator_quarantine_on_replicate_exception(config, mocker):
     qb_mock = mocker.patch("lta.replicator.Replicator._quarantine_bundle", new_callable=AsyncMock)
     p = Replicator(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=staged', {'claimant': f'{p.name}-{p.instance_uuid}'})
     qb_mock.assert_called_with(mocker.ANY, {"one": 1}, "Rucio caught fire, then we roasted marshmellows.")
 
 @pytest.mark.asyncio

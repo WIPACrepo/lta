@@ -84,7 +84,7 @@ class Replicator(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={source}&status=created', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={source}&status=staged', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
