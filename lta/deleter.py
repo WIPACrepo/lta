@@ -85,7 +85,7 @@ class Deleter(Component):
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
-            self.logger.info("LTA DB did not provide a Bundle to verify. Going on vacation.")
+            self.logger.info("LTA DB did not provide a Bundle to delete. Going on vacation.")
             return False
         # process the Bundle that we were given
         try:
