@@ -56,8 +56,8 @@ class NerscMover(Component):
         """
         super(NerscMover, self).__init__("nersc_mover", config, logger)
         self.max_count = int(config["MAX_COUNT"])
-        self.rse_bath_path = config["RSE_BASE_PATH"]
-        self.tape_bath_path = config["TAPE_BASE_PATH"]
+        self.rse_base_path = config["RSE_BASE_PATH"]
+        self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
@@ -127,10 +127,10 @@ class NerscMover(Component):
         basename = os.path.basename(bundle["bundle_path"])
         data_warehouse_path = bundle["path"]
         # determine the path where rucio copied the bundle
-        stupid_python_path = os.path.sep.join([self.rse_bath_path, basename])
+        stupid_python_path = os.path.sep.join([self.rse_base_path, basename])
         rucio_path = os.path.normpath(stupid_python_path)
         # determine the path where it should be stored on hpss
-        stupid_python_path = os.path.sep.join([self.tape_bath_path, data_warehouse_path, basename])
+        stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
         # run an hsi command to create the destination directory
         #     mkdir     -> create a directory to store the bundle on tape
