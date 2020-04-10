@@ -205,7 +205,7 @@ async def test_transfer_request_crud(mongo, rest):
     assert ret == {}
 
     with pytest.raises(Exception):
-        await r.request('PATCH', f'/TransferRequests/foo', request2)
+        await r.request('PATCH', '/TransferRequests/foo', request2)
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
@@ -678,7 +678,7 @@ async def test_patch_bundles_uuid(mongo, rest):
     # we try to patch something that doesn't exist; error
     with pytest.raises(Exception):
         request = {"key": "value"}
-        await r.request('PATCH', f'/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
+        await r.request('PATCH', '/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
 
 @pytest.mark.asyncio
 async def test_bundles_actions_pop(mongo, rest):

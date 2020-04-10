@@ -150,7 +150,7 @@ class RucioStager(Component):
             self.logger.info(f"Bundle {bundle_id} has size {bundle_size} bytes.")
             self.logger.info(f"Rucio currently holds {rucio_size} bytes.")
             self.logger.info(f"Staging Bundle to Rucio would exceed the configured quota of {self.dest_quota}.")
-            self.logger.info(f"Bundle will be unclaimed and staged at a later time.")
+            self.logger.info("Bundle will be unclaimed and staged at a later time.")
             await self._unclaim_bundle(lta_rc, bundle)
             return False
         # this bundle is ready to be staged
@@ -160,7 +160,7 @@ class RucioStager(Component):
         self.logger.info(f"Moving Bundle {src_path} -> {dst_path}")
         shutil.move(src_path, dst_path)
         # update the Bundle in the LTA DB
-        self.logger.info(f"Bundle has been staged to the local Rucio RSE.")
+        self.logger.info("Bundle has been staged to the local Rucio RSE.")
         patch_body = {
             "status": "staged",
             "update_timestamp": now(),
@@ -172,7 +172,7 @@ class RucioStager(Component):
 
     async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Return the Bundle to the LTA DB, unclaim it for processing at a later date."""
-        self.logger.info(f"Bundle is not ready to be staged; will unclaim it.")
+        self.logger.info("Bundle is not ready to be staged; will unclaim it.")
         bundle_id = bundle["uuid"]
         right_now = now()
         patch_body: Dict[str, Any] = {

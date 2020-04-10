@@ -100,9 +100,9 @@ class Picker(Component):
             await self._do_work_transfer_request(lta_rc, tr)
         except Exception as e:
             self.logger.info(f"There was an error while processing the transfer request: {e}")
-            self.logger.info(f"Will now attempt to send the transfer request to 'quarantined' status.")
+            self.logger.info("Will now attempt to send the transfer request to 'quarantined' status.")
             await self._quarantine_transfer_request(lta_rc, tr, f"{e}")
-            self.logger.info(f"Done sending the transfer request to 'quarantined' status, will end work cycle.")
+            self.logger.info("Done sending the transfer request to 'quarantined' status, will end work cycle.")
             return False
         # if we were successful at processing work, let the caller know
         return True
@@ -177,7 +177,7 @@ class Picker(Component):
     async def _create_bundle(self,
                              lta_rc: RestClient,
                              bundle: BundleType) -> Any:
-        self.logger.info(f'Creating new bundle in the LTA DB.')
+        self.logger.info('Creating new bundle in the LTA DB.')
         create_body = {
             "bundles": [bundle]
         }

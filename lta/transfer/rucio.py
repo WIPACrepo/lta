@@ -303,9 +303,9 @@ class RucioTransferService(TransferService):
         # check to see that our account authenticated properly
         r = await rc.get("/accounts/whoami")
         if r is None:
-            raise Exception(f"/accounts/whoami returned None; expected dictionary")
+            raise Exception("/accounts/whoami returned None; expected dictionary")
         if isinstance(r, list):
-            raise Exception(f"/accounts/whoami returned a list; expected dictionary")
+            raise Exception("/accounts/whoami returned a list; expected dictionary")
         if r["status"] != "ACTIVE":
             raise Exception(f"/accounts/whoami status == '{r['status']}'; expected 'ACTIVE'")
         if r["account"] != self.account:
@@ -313,9 +313,9 @@ class RucioTransferService(TransferService):
         # check to see that our expected RSEs are present
         r = await rc.get("/rses/")
         if r is None:
-            raise Exception(f"/rses/ returned None; expected a list")
+            raise Exception("/rses/ returned None; expected a list")
         if not isinstance(r, list):
-            raise Exception(f"/rses/ returned a dictionary; expected a list")
+            raise Exception("/rses/ returned a dictionary; expected a list")
         for site in self.sites:
             expected_rse = self.sites[site]["rse"]
             found_rse = False
@@ -360,7 +360,7 @@ class RucioTransferService(TransferService):
             ],
             "all_states": True,
         }
-        query_url = f"/replicas/list"
+        query_url = "/replicas/list"
         r = await rc.post(query_url, query_dict)
         if r is None:
             raise Exception(f"POST {query_url} returned None; expected a list")
@@ -396,9 +396,9 @@ class RucioTransferService(TransferService):
             "files": files,
             "ignore_availability": True,
         }
-        r = await rc.post(f"/replicas/", replicas_dict)
+        r = await rc.post("/replicas/", replicas_dict)
         if r:
-            raise Exception(f"POST /replicas/ returned something; expected None")
+            raise Exception("POST /replicas/ returned something; expected None")
         # Query Rucio to verify that the replica has been created
         replica_url = f"/replicas/{self.scope}/{name}"
         r = await rc.get(replica_url)
