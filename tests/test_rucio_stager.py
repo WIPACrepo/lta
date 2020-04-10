@@ -15,7 +15,7 @@ def config():
     return {
         "BUNDLER_OUTBOX_PATH": "/path/to/icecube/bundler/outbox",
         "COMPONENT_NAME": "testing-rucio_stager",
-        "DEST_QUOTA": 12094627905536,  # 11 TiB
+        "DEST_QUOTA": "12094627905536",  # 11 TiB
         "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
@@ -65,7 +65,7 @@ async def test_rucio_stager_logs_configuration(mocker):
     rucio_stager_config = {
         "BUNDLER_OUTBOX_PATH": "/path/to/icecube/bundler/outbox",
         "COMPONENT_NAME": "logme-testing-rucio_stager",
-        "DEST_QUOTA": 12094627905536,  # 11 TiB
+        "DEST_QUOTA": "12094627905536",  # 11 TiB
         "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",

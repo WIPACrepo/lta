@@ -94,8 +94,6 @@ class RucioDetacher(Component):
             return False
         # process the Bundle that we were given
         await self._detach_bundle(lta_rc, bundle)
-        # update the TransferRequest that spawned the Bundle, if necessary
-        await self._update_transfer_request(lta_rc, bundle)
         return True
 
     def _calculate_xfer_reference(self, site_name: str, file_name: str) -> str:
@@ -123,42 +121,6 @@ class RucioDetacher(Component):
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-
-    async def _update_transfer_request(self, lta_rc: RestClient, bundle: BundleType) -> None:
-        """
-        Update the TransferRequest that spawned the Bundle.
-
-        If all of the Bundles created by the TransferRequest are now status
-        "deleted", then mark the TransferRequest as status "completed".
-        """
-        request_uuid = bundle["request"]
-        self.logger.info(f"Querying status of all bundles for TransferRequest {request_uuid}")
-        response = await lta_rc.request('GET', f'/Bundles?request={request_uuid}')
-        results = response["results"]
-        deleted_count = len(results)
-        self.logger.info(f"Found {deleted_count} bundles for TransferRequest {request_uuid}")
-        for bundle_uuid in results:
-            result = await lta_rc.request('GET', f'/Bundles/{bundle_uuid}')
-            self.logger.info(f"Bundle {result['uuid']} has status {result['status']}")
-            if result["status"] == "deleted":
-                deleted_count = deleted_count - 1
-            else:
-                self.logger.info(f'{result["status"]} is not "deleted"; TransferRequest {request_uuid} will not be updated.')
-        if deleted_count > 0:
-            self.logger.info(f'TransferRequest {request_uuid} has {deleted_count} Bundles still waiting for status "deleted"')
-            return
-        # update the TransferRequest in the LTA DB
-        self.logger.info(f"Updating TransferRequest {request_uuid} to mark as completed.")
-        right_now = now()
-        patch_body = {
-            "status": "completed",
-            "update_timestamp": right_now,
-            "claimed": False,
-            "claimant": f"{self.name}-{self.instance_uuid}",
-            "claim_timestamp": right_now,
-        }
-        self.logger.info(f"PATCH /TransferRequest/{request_uuid} - '{patch_body}'")
-        await lta_rc.request('PATCH', f'/TransferRequest/{request_uuid}', patch_body)
 
 
 def runner() -> None:

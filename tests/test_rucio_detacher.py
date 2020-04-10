@@ -186,11 +186,9 @@ async def test_rucio_detacher_do_work_claim_yes_result(config, mocker):
         },
     }
     db_mock = mocker.patch("lta.rucio_detacher.RucioDetacher._detach_bundle", new_callable=AsyncMock)
-    utr_mock = mocker.patch("lta.rucio_detacher.RucioDetacher._update_transfer_request", new_callable=AsyncMock)
     p = RucioDetacher(config, logger_mock)
     assert await p._do_work_claim()
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=completed', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    utr_mock.assert_called_with(mocker.ANY, {"one": 1})
     db_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio
@@ -213,63 +211,3 @@ async def test_rucio_detacher_detach_bundle(config, mocker):
     inst_mock.assert_called_with(p.transfer_config)
     xfer_service_mock.cancel.assert_called_with("ICECUBE-LTA|icecube-dataset|d85fa59e420811ea8c90c6259865d176.zip")
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/d85fa59e420811ea8c90c6259865d176', mocker.ANY)
-
-@pytest.mark.asyncio
-async def test_rucio_detacher_update_transfer_request_no(config, mocker):
-    """Test that _update_transfer_request does not update an incomplete TransferRequest."""
-    deleted_bundle = {
-        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
-        "request": "a8758a77-2a66-46e6-b43d-b4c74d3078a6",
-        "status": "deleted",
-    }
-    transferring_bundle = {
-        "uuid": "90a664cc-e3f9-4421-973f-7bc2bc7407d0",
-        "request": "a8758a77-2a66-46e6-b43d-b4c74d3078a6",
-        "status": "transferring",
-    }
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    lta_rc_mock.request.side_effect = [
-        {
-            "results": [
-                "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
-                "90a664cc-e3f9-4421-973f-7bc2bc7407d0",
-            ],
-        },
-        deleted_bundle,
-        transferring_bundle,
-    ]
-    p = RucioDetacher(config, logger_mock)
-    await p._update_transfer_request(lta_rc_mock, deleted_bundle)
-    lta_rc_mock.request.assert_called_with("GET", '/Bundles/90a664cc-e3f9-4421-973f-7bc2bc7407d0')
-
-@pytest.mark.asyncio
-async def test_rucio_detacher_update_transfer_request_yes(config, mocker):
-    """Test that _update_transfer_request does update a complete TransferRequest."""
-    deleted_bundle = {
-        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
-        "request": "a8758a77-2a66-46e6-b43d-b4c74d3078a6",
-        "status": "deleted",
-    }
-    transfer_request = {
-        "uuid": "a8758a77-2a66-46e6-b43d-b4c74d3078a6",
-    }
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    lta_rc_mock.request.side_effect = [
-        {
-            "results": ["8286d3ba-fb1b-4923-876d-935bdf7fc99e"],
-        },
-        deleted_bundle,
-        transfer_request,
-        None
-    ]
-    p = RucioDetacher(config, logger_mock)
-    await p._update_transfer_request(lta_rc_mock, deleted_bundle)
-    lta_rc_mock.request.assert_called_with("PATCH", '/TransferRequest/a8758a77-2a66-46e6-b43d-b4c74d3078a6', {
-        "status": "completed",
-        "update_timestamp": mocker.ANY,
-        "claimed": False,
-        "claimant": mocker.ANY,
-        "claim_timestamp": mocker.ANY,
-    })
