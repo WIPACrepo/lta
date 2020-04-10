@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.8.0] - 2020-04-10
+### Added
+- Created new Deleter module
+- Created new RucioStager module
+- Created new TransferRequestFinisher module
+- Added scripts to bin directory to run new modules
+### Changed
+- Added check in ltacmd to prevent duplicate transfer requests
+- Added check in ltacmd to normalize transfer request path
+
 ## [0.7.0] - 2020-04-02
 ### Changed
 - Renamed Deleter module to RucioDetacher module
@@ -249,7 +259,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/WIPACrepo/lta/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/WIPACrepo/lta/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/WIPACrepo/lta/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/WIPACrepo/lta/compare/v0.4.0...v0.5.0
