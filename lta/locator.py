@@ -183,7 +183,7 @@ class Locator(Component):
                              lta_rc: RestClient,
                              bundle: BundleType) -> Any:
         """Create a new Bundle entity in the LTA DB."""
-        self.logger.info(f'Creating new bundle in the LTA DB.')
+        self.logger.info('Creating new bundle in the LTA DB.')
         create_body = {
             "bundles": [bundle]
         }

@@ -220,12 +220,12 @@ async def bundle_status(args: Namespace) -> ExitCode:
         if 'size' in response:
             print(f"    Size: {response['size']}")
         if 'checksum' in response:
-            print(f"    Checksum")
+            print("    Checksum")
             print(f"        adler32: {response['checksum']['adler32']}")
             print(f"        sha512:  {response['checksum']['sha512']}")
         # display the contents of the bundle, if requested
         if args.contents:
-            print(f"    Contents:")
+            print("    Contents:")
             for file in response["files"]:
                 print(f"        {file['logical_name']} {file['file_size']}")
     return EXIT_OK
@@ -487,7 +487,7 @@ async def request_status(args: Namespace) -> ExitCode:
         print(f"    Bundles: {len(response['bundles'])}")
         # display the contents of the transfer request, if requested
         if args.contents:
-            print(f"    Contents:")
+            print("    Contents:")
             for bundle in response["bundles"]:
                 print(f"        Bundle {bundle['uuid']}")
                 print(f"            Status: {bundle['status']} ({display_time(bundle['update_timestamp'])})")

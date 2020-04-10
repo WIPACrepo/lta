@@ -178,7 +178,7 @@ class SiteMoveVerifier(Component):
         if bundle["checksum"]["sha512"] != checksum_sha512:
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
-            self.logger.info(f"These checksums do NOT match, and the Bundle will NOT be verified.")
+            self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
             right_now = now()
             patch_body: Dict[str, Any] = {
                 "status": "quarantined",
@@ -189,7 +189,7 @@ class SiteMoveVerifier(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # update the Bundle in the LTA DB
-        self.logger.info(f"Destination checksum matches bundle creation checksum; the bundle is now verified.")
+        self.logger.info("Destination checksum matches bundle creation checksum; the bundle is now verified.")
         patch_body = {
             "status": self.next_status,
             "update_timestamp": now(),
@@ -214,7 +214,7 @@ class SiteMoveVerifier(Component):
 
     async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Run the myquota command to determine disk usage at the site."""
-        self.logger.info(f"Bundle is not ready to be verified; will unclaim it.")
+        self.logger.info("Bundle is not ready to be verified; will unclaim it.")
         bundle_id = bundle["uuid"]
         right_now = now()
         patch_body: Dict[str, Any] = {
