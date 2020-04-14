@@ -91,11 +91,11 @@ export NS_PHONE_HOME=False
 # This string controls what we want to see at all times. 
 #   2 site-move-verifier, 0 retrievers, 2 nersc-mover, 2 nersc-verifiers
 # Only the last 3 need HSI
-export NS_DESIRED="nersc-mover:2 nersc-verifier:2 nersc-retriever:0 site-move-verifier:2"
+export NS_DESIRED="nersc-mover:4 nersc-verifier:4 nersc-retriever:0 site-move-verifier:6 train:4"
 # Not all slurm jobs use the hsi facility.  site-move-verifier is one that does not, and
 #  presumably its counterpart used during retrieving will also not be.  So, make a list
 #  of those that DO.
-export HSI_MODULES="nersc-mover|nersc-verifier|nersc-retriever"
+export HSI_MODULES="nersc-mover|nersc-verifier|nersc-retriever|train"
 
 ###
 # Functions follow
@@ -226,6 +226,7 @@ if ! whatWeHave=$(getrunning)
 activeJobs=0
 for desired in ${NS_DESIRED}
   do
+    logit 0 "${desired}"
     class=$(echo "${desired}" | /usr/bin/awk '{split($1,a,":");print a[1];}')
     expectedcount=$(echo "${desired}" | /usr/bin/awk '{split($1,a,":");print a[2];}')
     count=0
@@ -241,8 +242,10 @@ for desired in ${NS_DESIRED}
     ###
     # Do we need to do anything?
     ###
+    logit 0 "${count} vs ${expectedcount} with ${desired}"
     if [[ ${count} -lt ${expectedcount} ]]
       then
+        logit 0 "to launch ${count} vs ${expectedcount} with ${desired}"
         # only launch 1 at a time
         if ! launch "${class}"
           then exit 3; fi
