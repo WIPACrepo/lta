@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/mnt/lfss/jade-lta/bundler_staging"}
+export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/mnt/lfss/jade-lta/bundler_stage"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-rucio-stager"}
 export DEST_QUOTA=${DEST_QUOTA:="12094627905536"}  # 11 TiB
 export DEST_SITE=${DEST_SITE:="NERSC"}

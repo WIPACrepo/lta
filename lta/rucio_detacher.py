@@ -109,10 +109,18 @@ class RucioDetacher(Component):
         xfer_service = instantiate(self.transfer_config)
         # ask the transfer service to cancel (i.e.: delete) the transfer
         basename = os.path.basename(bundle["bundle_path"])
+        # make a best-effort attempt to deregister with the destination
         dest_xfer_ref = self._calculate_xfer_reference(bundle["dest"], basename)
-        await xfer_service.cancel(dest_xfer_ref)
+        try:
+            await xfer_service.cancel(dest_xfer_ref)
+        except Exception as e:
+            self.logger.info(f"Unable to cancel {dest_xfer_ref}; error was {e}")
+        # make a best-effort attempt to deregister with the source
         source_xfer_ref = self._calculate_xfer_reference(bundle["source"], basename)
-        await xfer_service.cancel(source_xfer_ref)
+        try:
+            await xfer_service.cancel(source_xfer_ref)
+        except Exception as e:
+            self.logger.info(f"Unable to cancel {source_xfer_ref}; error was {e}")
         # update the Bundle in the LTA DB
         patch_body = {
             "status": "detached",

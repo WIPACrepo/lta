@@ -162,9 +162,10 @@ class RucioStager(Component):
         # update the Bundle in the LTA DB
         self.logger.info("Bundle has been staged to the local Rucio RSE.")
         patch_body = {
+            "bundle_path": dst_path,
+            "claimed": False,
             "status": "staged",
             "update_timestamp": now(),
-            "claimed": False,
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
@@ -176,8 +177,8 @@ class RucioStager(Component):
         bundle_id = bundle["uuid"]
         right_now = now()
         patch_body: Dict[str, Any] = {
-            "update_timestamp": right_now,
             "claimed": False,
+            "update_timestamp": right_now,
             "work_priority_timestamp": right_now,
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
