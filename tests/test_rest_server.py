@@ -917,3 +917,68 @@ async def test_status_component_count(mongo, rest):
     response = await r.request("GET", "/status/picker/count")
     assert response["component"] == "picker"
     assert response["count"] == 3
+
+@pytest.mark.asyncio
+async def test_status_nersc(mongo, rest, mocker):
+    """Verify that GET /status/nersc works."""
+    r = rest('system')
+
+    request = {
+        'cori1': {
+            'timestamp': datetime.utcnow().isoformat(),
+            'foo': 'bar',
+            'quota': [
+                {
+                    "FILESYSTEM": "home",
+                    "SPACE_USED": "1.90GiB",
+                    "SPACE_QUOTA": "40.00GiB",
+                    "SPACE_PCT": "4.7%",
+                    "INODE_USED": "44.00",
+                    "INODE_QUOTA": "1.00M",
+                    "INODE_PCT": "0.0%",
+                },
+                {
+                    "FILESYSTEM": "cscratch1",
+                    "SPACE_USED": "12.00KiB",
+                    "SPACE_QUOTA": "20.00TiB",
+                    "SPACE_PCT": "0.0%",
+                    "INODE_USED": "3.00",
+                    "INODE_QUOTA": "10.00M",
+                    "INODE_PCT": "0.0%",
+                },
+            ],
+        }
+    }
+    await r.request('PATCH', '/status/site_move_verifier', request)
+
+    response = await r.request("GET", "/status/site_move_verifier/count")
+    assert response["component"] == "site_move_verifier"
+    assert response["count"] == 1
+
+    response = await r.request("GET", "/status/nersc")
+    assert response == {
+        'component': 'site_move_verifier',
+        'foo': 'bar',
+        'name': 'cori1',
+        'quota': [
+            {
+                "FILESYSTEM": "home",
+                "SPACE_USED": "1.90GiB",
+                "SPACE_QUOTA": "40.00GiB",
+                "SPACE_PCT": "4.7%",
+                "INODE_USED": "44.00",
+                "INODE_QUOTA": "1.00M",
+                "INODE_PCT": "0.0%",
+            },
+            {
+                "FILESYSTEM": "cscratch1",
+                "SPACE_USED": "12.00KiB",
+                "SPACE_QUOTA": "20.00TiB",
+                "SPACE_PCT": "0.0%",
+                "INODE_USED": "3.00",
+                "INODE_QUOTA": "10.00M",
+                "INODE_PCT": "0.0%",
+            },
+        ],
+        'timestamp': mocker.ANY,
+    }

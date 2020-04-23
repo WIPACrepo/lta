@@ -39,6 +39,7 @@ EXPECTED_CONFIG = {
 AFTER = pymongo.ReturnDocument.AFTER
 ALL_DOCUMENTS: Dict[str, str] = {}
 FIRST_IN_FIRST_OUT = [("work_priority_timestamp", pymongo.ASCENDING)]
+MOST_RECENT_FIRST = [("create_timestamp", pymongo.DESCENDING)]
 REMOVE_ID = {"_id": False}
 TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
@@ -496,6 +497,28 @@ class StatusHandler(BaseLTAHandler):
         self.write(ret)
 
 
+class StatusNerscHandler(BaseLTAHandler):
+    """StatusNerscHandler is a quick hack to return NERSC scratch disk metrics from MongoDB."""
+
+    @lta_auth(roles=['admin', 'system', 'user'])
+    async def get(self) -> None:
+        """Return the most recent status update with a quota field."""
+        # NOTE: This is a really hackish way to handle '/status/nersc'
+        #       and will totally break if we start monitoring other sites
+        #       but it's easy and convienent for now; hopefully future me
+        #       doesn't hate past me for doing this...
+        ret = {}
+        filter = {"quota": {"$exists": True}}
+        sds = self.db.Status
+        async for row in sds.find(filter=filter,
+                                  sort=MOST_RECENT_FIRST,
+                                  limit=1,
+                                  projection=REMOVE_ID):
+            ret = row
+            break
+        self.write(ret)
+
+
 class StatusComponentHandler(BaseLTAHandler):
     """StatusComponentHandler is a BaseLTAHandler that handles component status routes."""
 
@@ -639,6 +662,9 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     if 'status_name_index' not in db.Status.index_information():
         logging.info(f"Creating index for {mongo_db}.Status.name")
         db.Status.create_index('name', name='status_name_index', unique=False)
+    if 'status_quota_index' not in db.Status.index_information():
+        logging.info(f"Creating index for {mongo_db}.Status.quota")
+        db.Status.create_index('quota', name='status_quota_index', unique=False)
     # TransferRequests.uuid
     if 'transfer_requests_create_timestamp_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.TransferRequests.create_timestamp")
@@ -693,6 +719,7 @@ def start(debug: bool = False) -> RestServer:
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
     server.add_route(r'/status', StatusHandler, args)
+    server.add_route(r'/status/nersc', StatusNerscHandler, args)
     server.add_route(r'/status/(?P<component>\w+)', StatusComponentHandler, args)
     server.add_route(r'/status/(?P<component>\w+)/count', StatusComponentCountHandler, args)
 
