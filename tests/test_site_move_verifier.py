@@ -88,7 +88,7 @@ def test_constructor_config(config, mocker):
     assert p.logger == logger_mock
 
 def test_do_status(config, mocker):
-    """Verify that the SiteMoveVerifier has no additional state to offer."""
+    """Verify that the SiteMoveVerifier has additional state to offer."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.site_move_verifier.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
