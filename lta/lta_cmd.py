@@ -550,6 +550,13 @@ async def status(args: Namespace) -> ExitCode:
 
     return EXIT_OK
 
+
+async def status_nersc(args: Namespace) -> ExitCode:
+    """Query the status of the quota at NERSC."""
+    response = await args.lta_rc.request("GET", "/status/nersc")
+    print_dict_as_pretty_json(response)
+    return EXIT_OK
+
 # -----------------------------------------------------------------------------
 
 async def main() -> None:
@@ -757,6 +764,7 @@ async def main() -> None:
 
     # define a subparser for the 'status' subcommand
     parser_status = subparser.add_parser('status', help='perform a status query')
+    status_subparser = parser_status.add_subparsers(help='status command help')
     parser_status.add_argument("component",
                                choices=COMPONENT_NAMES,
                                help="optional LTA component",
@@ -769,6 +777,10 @@ async def main() -> None:
                                help="display output in JSON",
                                action="store_true")
     parser_status.set_defaults(func=status)
+
+    # define a subparser for the 'request update-status' subcommand
+    parser_status_nersc = status_subparser.add_parser('nersc', help='get latest quota at NERSC')
+    parser_status_nersc.set_defaults(func=status_nersc)
 
     # parse the provided command line arguments and call the function
     args = parser.parse_args()

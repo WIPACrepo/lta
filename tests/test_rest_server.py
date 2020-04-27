@@ -924,29 +924,32 @@ async def test_status_nersc(mongo, rest, mocker):
     r = rest('system')
 
     request = {
-        'cori1': {
+        'cori08-site-move-verifier': {
             'timestamp': datetime.utcnow().isoformat(),
-            'foo': 'bar',
+            'last_work_begin_timestamp': '2020-04-24T19:30:04.170470',
+            'last_work_end_timestamp': '2020-04-24T19:30:04.170470',
+            'name': 'cori08-site-move-verifier',
+            'component': 'site_move_verifier',
             'quota': [
                 {
-                    "FILESYSTEM": "home",
-                    "SPACE_USED": "1.90GiB",
-                    "SPACE_QUOTA": "40.00GiB",
-                    "SPACE_PCT": "4.7%",
-                    "INODE_USED": "44.00",
-                    "INODE_QUOTA": "1.00M",
-                    "INODE_PCT": "0.0%",
+                    'FILESYSTEM': 'home',
+                    'SPACE_USED': '2.87GiB',
+                    'SPACE_QUOTA': '40.00GiB',
+                    'SPACE_PCT': '7.2%',
+                    'INODE_USED': '0.00G',
+                    'INODE_QUOTA': '0.00G',
+                    'INODE_PCT': '3.1%'
                 },
                 {
-                    "FILESYSTEM": "cscratch1",
-                    "SPACE_USED": "12.00KiB",
-                    "SPACE_QUOTA": "20.00TiB",
-                    "SPACE_PCT": "0.0%",
-                    "INODE_USED": "3.00",
-                    "INODE_QUOTA": "10.00M",
-                    "INODE_PCT": "0.0%",
-                },
-            ],
+                    'FILESYSTEM': 'cscratch1',
+                    'SPACE_USED': '1400.55GiB',
+                    'SPACE_QUOTA': '20480.00GiB',
+                    'SPACE_PCT': '6.8%',
+                    'INODE_USED': '0.00G',
+                    'INODE_QUOTA': '0.01G',
+                    'INODE_PCT': '0.1%'
+                }
+            ]
         }
     }
     await r.request('PATCH', '/status/site_move_verifier', request)
@@ -958,27 +961,28 @@ async def test_status_nersc(mongo, rest, mocker):
     response = await r.request("GET", "/status/nersc")
     assert response == {
         'component': 'site_move_verifier',
-        'foo': 'bar',
-        'name': 'cori1',
+        'last_work_begin_timestamp': '2020-04-24T19:30:04.170470',
+        'last_work_end_timestamp': '2020-04-24T19:30:04.170470',
+        'name': 'cori08-site-move-verifier',
         'quota': [
             {
-                "FILESYSTEM": "home",
-                "SPACE_USED": "1.90GiB",
-                "SPACE_QUOTA": "40.00GiB",
-                "SPACE_PCT": "4.7%",
-                "INODE_USED": "44.00",
-                "INODE_QUOTA": "1.00M",
-                "INODE_PCT": "0.0%",
+                'FILESYSTEM': 'home',
+                'SPACE_USED': '2.87GiB',
+                'SPACE_QUOTA': '40.00GiB',
+                'SPACE_PCT': '7.2%',
+                'INODE_USED': '0.00G',
+                'INODE_QUOTA': '0.00G',
+                'INODE_PCT': '3.1%'
             },
             {
-                "FILESYSTEM": "cscratch1",
-                "SPACE_USED": "12.00KiB",
-                "SPACE_QUOTA": "20.00TiB",
-                "SPACE_PCT": "0.0%",
-                "INODE_USED": "3.00",
-                "INODE_QUOTA": "10.00M",
-                "INODE_PCT": "0.0%",
-            },
+                'FILESYSTEM': 'cscratch1',
+                'SPACE_USED': '1400.55GiB',
+                'SPACE_QUOTA': '20480.00GiB',
+                'SPACE_PCT': '6.8%',
+                'INODE_USED': '0.00G',
+                'INODE_QUOTA': '0.01G',
+                'INODE_PCT': '0.1%'
+            }
         ],
         'timestamp': mocker.ANY,
     }

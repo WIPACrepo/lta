@@ -155,7 +155,7 @@ async def patch_status_heartbeat(component: Component) -> bool:
     }
     # ask the base class to annotate the status body
     status_update = component._do_status()
-    status_body.update(status_update)
+    status_body[component.name].update(status_update)
     # attempt to PATCH the status resource
     component.logger.info(f"PATCH {status_url} - {status_body}")
     try:
