@@ -277,11 +277,38 @@ async def test_site_move_verifier_do_work_claim_yes_result(config, mocker):
     vb_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio
+async def test_site_move_verifier_verify_bundle_not_present(config, mocker):
+    """Test that _delete_bundle deletes a completed bundle transfer."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    isfile_mock = mocker.patch("os.path.isfile")
+    isfile_mock.return_value = False
+    bundle_obj = {
+        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
+        "dest": "nersc",
+        "path": "/data/exp/IceCube/2014/unbiased/PFRaw/1109",
+        "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "bundle_path": "/mnt/lfss/lta/scratch/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "checksum": {
+            "sha512": "12345",
+        },
+    }
+    p = SiteMoveVerifier(config, logger_mock)
+    await p._verify_bundle(lta_rc_mock, bundle_obj)
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
+
+@pytest.mark.asyncio
 async def test_site_move_verifier_verify_bundle_not_finished(config, mocker):
     """Test that _delete_bundle deletes a completed bundle transfer."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     inst_mock = mocker.patch("lta.site_move_verifier.instantiate")
+    isfile_mock = mocker.patch("os.path.isfile")
+    isfile_mock.return_value = True
+    time_mock = mocker.patch("time.time")
+    time_mock.return_value = 1588042614
+    getmtime_mock = mocker.patch("os.path.getmtime")
+    getmtime_mock.return_value = 1588042614 - 60
     xfer_service_mock = AsyncMock()
     inst_mock.return_value = xfer_service_mock
     xfer_service_mock.status.return_value = {
@@ -291,7 +318,13 @@ async def test_site_move_verifier_verify_bundle_not_finished(config, mocker):
     }
     bundle_obj = {
         "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
+        "dest": "nersc",
+        "path": "/data/exp/IceCube/2014/unbiased/PFRaw/1109",
         "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "bundle_path": "/mnt/lfss/lta/scratch/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
+        "checksum": {
+            "sha512": "12345",
+        },
     }
     p = SiteMoveVerifier(config, logger_mock)
     await p._verify_bundle(lta_rc_mock, bundle_obj)
@@ -305,6 +338,12 @@ async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     inst_mock = mocker.patch("lta.site_move_verifier.instantiate")
+    isfile_mock = mocker.patch("os.path.isfile")
+    isfile_mock.return_value = True
+    time_mock = mocker.patch("time.time")
+    time_mock.return_value = 1588042614
+    getmtime_mock = mocker.patch("os.path.getmtime")
+    getmtime_mock.return_value = 1588042614 - 120
     xfer_service_mock = AsyncMock()
     inst_mock.return_value = xfer_service_mock
     xfer_service_mock.status.return_value = {
@@ -341,6 +380,12 @@ async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     inst_mock = mocker.patch("lta.site_move_verifier.instantiate")
+    isfile_mock = mocker.patch("os.path.isfile")
+    isfile_mock.return_value = True
+    time_mock = mocker.patch("time.time")
+    time_mock.return_value = 1588042614
+    getmtime_mock = mocker.patch("os.path.getmtime")
+    getmtime_mock.return_value = 1588042614 - 120
     xfer_service_mock = AsyncMock()
     inst_mock.return_value = xfer_service_mock
     xfer_service_mock.status.return_value = {
