@@ -138,8 +138,8 @@ def _get_files_and_size(path: str) -> Tuple[List[str], int]:
 
 def _get_status_bar(status_list: List[str],
                     status: str,
-                    module_map: Dict[str, str] = None,
-                    claimant: str = None) -> str:
+                    module_map: Optional[Dict[str, str]] = None,
+                    claimant: Optional[str] = None) -> str:
     """Create a colorful status bar."""
     # this is our status bar string
     sb = ""
