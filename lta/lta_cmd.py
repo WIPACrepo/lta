@@ -10,11 +10,14 @@ import asyncio
 from datetime import datetime, timedelta
 import json
 import logging
+from operator import itemgetter
 import os
 import sys
 from time import mktime, strptime
 from typing import Any, Dict, List, Optional, Tuple
 
+import colorama  # type: ignore
+from colorama import Fore, Style  # Back
 import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
@@ -116,7 +119,7 @@ async def _get_bundles_status(rc: RestClient, bundle_uuids: List[str]) -> List[D
     bundles = []
     for uuid in bundle_uuids:
         response = await rc.request('GET', f"/Bundles/{uuid}")
-        KEYS = ['claimant', 'claimed', 'path', 'request', 'status', 'type', 'update_timestamp', 'uuid']
+        KEYS = ['claim_timestamp', 'claimant', 'claimed', 'create_timestamp', 'path', 'request', 'status', 'type', 'update_timestamp', 'uuid']
         bundle = {k: response[k] for k in KEYS}
         bundle["file_count"] = len(response["files"])
         bundles.append(bundle)
@@ -132,6 +135,75 @@ def _get_files_and_size(path: str) -> Tuple[List[str], int]:
         # determine the size of the file
         size += os.path.getsize(disk_file)
     return (disk_files, size)
+
+def _get_status_bar(status_list: List[str],
+                    status: str,
+                    module_map: Optional[Dict[str, str]] = None,
+                    claimant: Optional[str] = None) -> str:
+    """Create a colorful status bar."""
+    # this is our status bar string
+    sb = ""
+    # flag: is this a regular or error state?
+    error_state = False
+    # how long is the list of statuses?
+    list_len = len(status_list)
+    # what is the widest status we'll see?
+    status_width = len(status)
+    for listed in status_list:
+        status_width = max(status_width, len(listed))
+    # where on the status list are we?
+    status_index = -1
+    try:
+        status_index = status_list.index(status)
+    except ValueError:
+        # okay, where on the status list should we be?
+        error_state = True
+        if module_map and claimant:
+            for key in module_map.keys():
+                if key in claimant:
+                    status_index = status_list.index(module_map[key])
+    # start building the status bar
+    sb += Style.NORMAL
+    sb += Fore.WHITE
+    sb += "["
+    sb += Style.BRIGHT
+    # if we've got no idea where we go on the status list
+    if status_index < 0:
+        sb += Fore.RED
+        for i in range(0, list_len):
+            sb += "?"
+    # or if we've reached the final status
+    elif (list_len-status_index) == 1:
+        sb += Fore.GREEN
+        for i in range(0, list_len):
+            sb += "#"
+    # otherwise we need to render something in progress
+    else:
+        sb += Fore.GREEN
+        for i in range(0, status_index):
+            sb += "#"
+        if error_state:
+            sb += Fore.RED
+            sb += "X"
+        else:
+            sb += Fore.YELLOW
+            sb += ">"
+        sb += Fore.BLUE
+        for i in range(1, list_len-status_index):
+            sb += "_"
+    # finish building the status bar
+    sb += Style.NORMAL
+    sb += Fore.WHITE
+    sb += "]:"
+    sb += Style.BRIGHT
+    if error_state:
+        sb += Fore.RED
+    else:
+        sb += Fore.CYAN
+    sb += f"{status:<{status_width}} "
+    # return the status bar to the caller
+    return sb
+
 
 # -----------------------------------------------------------------------------
 
@@ -343,6 +415,96 @@ async def catalog_display(args: Namespace) -> ExitCode:
     return EXIT_OK
 
 
+async def dashboard(args: Namespace) -> ExitCode:
+    """Display a Dashboard of on-going transfers."""
+    # define the list of TransferRequest statuses
+    REQUEST_STATUS = [
+        "unclaimed",
+        "processing",
+        "finished",
+    ]
+    # define the list of Bundle statuses
+    BUNDLE_STATUS = [
+        "specified",
+        "created",
+        "staged",
+        "transferring",
+        "taping",
+        "verifying",
+        "completed",
+        "detached",
+        "source-deleted",
+        "deleted",
+        "finished",
+    ]
+    # define a mapping between LTA module and Bundle status
+    MODULE_MAP = {
+        "bundler": "specified",
+        "rucio-stager": "created",
+        "replicator": "staged",
+        "site-move-verifier": "transferring",
+        "nersc-mover": "taping",
+        "nersc-verifier": "verifying",
+        "rucio-detacher": "completed",
+        "deleter": "detached",
+        "transfer-request-finisher": "deleted",
+    }
+    # get a list of all requests in the system
+    response = await args.lta_rc.request("GET", "/TransferRequests")
+    results = response["results"]
+    requests = []
+    for result in results:
+        if args.uuid:
+            if result['uuid'] == args.uuid:
+                requests.append(result)
+        elif not args.active_only:
+            requests.append(result)
+        elif result["status"] != "finished":
+            requests.append(result)
+    # sort the list by create time
+    requests = sorted(requests, key=itemgetter('create_timestamp'))
+    # limit the size of the list if necessary
+    requests = requests[:args.limit]
+    num_requests = len(requests)
+    req_width = len(f"{num_requests}")
+    # for each request
+    request_count = 1
+    for request in requests:
+        print(f"{request_count:>{req_width}}/{num_requests:>{req_width}}", end="\r")
+        # obtain the bundles associated with the request
+        res2 = await args.lta_rc.request("GET", f"/Bundles?request={request['uuid']}")
+        # print(f"res2: {res2}")
+        request["bundles"] = await _get_bundles_status(args.lta_rc, res2["results"])
+        # print(f"request['bundles']: {request['bundles']}")
+        # sort the bundles by create time
+        request["bundles"] = sorted(request["bundles"], key=itemgetter('create_timestamp'))
+        # print(f"request['bundles']: {request['bundles']}")
+        request_count += 1
+    # now let's make a colorful dashboard display
+    try:
+        # Fore: BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, RESET.
+        # Back: BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, RESET.
+        # Style: DIM, NORMAL, BRIGHT, RESET_ALL.
+        colorama.init(autoreset=True)
+        # for each transfer request
+        for request in requests:
+            sb = _get_status_bar(REQUEST_STATUS, request["status"])
+            print(Style.BRIGHT + Fore.CYAN + "Request " + Fore.YELLOW + f"{request['uuid']} " + sb + Fore.YELLOW + f"{request['path']}")
+            # for each bundle in the request
+            for bundle in request["bundles"]:
+                sb = _get_status_bar(BUNDLE_STATUS, bundle["status"], MODULE_MAP, bundle["claimant"])
+                print(Style.BRIGHT + Fore.CYAN + "      Bundle " + Fore.YELLOW + f"{bundle['uuid']} " + sb)
+            # blank line between requests
+            print("")
+    except Exception as e:
+        print(f"Error while rendering dashboard: {e}")
+        colorama.deinit()
+        return EXIT_ERROR
+    # tell the caller we rendered the dashboard successfully
+    colorama.deinit()
+    return EXIT_OK
+
+
 async def display_config(args: Namespace) -> ExitCode:
     """Display the configuration provided to the application."""
     if args.json:
@@ -493,7 +655,7 @@ async def request_status(args: Namespace) -> ExitCode:
                 print(f"            Status: {bundle['status']} ({display_time(bundle['update_timestamp'])})")
                 print(f"            Claimed: {bundle['claimed']}")
                 if bundle['claimed']:
-                    print(f"                Claimant: {response['claimant']} ({display_time(response['claim_timestamp'])})")
+                    print(f"                Claimant: {bundle['claimant']} ({display_time(bundle['claim_timestamp'])})")
                 print(f"            Files: {bundle['file_count']}")
     return EXIT_OK
 
@@ -661,6 +823,20 @@ async def main() -> None:
     parser_catalog_display.add_argument("--uuid",
                                         help="Catalog UUID to be displayed")
     parser_catalog_display.set_defaults(func=catalog_display)
+
+    # define a subparser for the 'dashboard' subcommand
+    parser_dashboard_config = subparser.add_parser('dashboard', help='dashboard system dashboard')
+    parser_dashboard_config.add_argument("--active-only",
+                                         dest="active_only",
+                                         help="hide finished items",
+                                         action="store_true")
+    parser_dashboard_config.add_argument("--limit",
+                                         help="limit the number dashboarded",
+                                         type=int,
+                                         default=10000)
+    parser_dashboard_config.add_argument("--uuid",
+                                         help="display request uuid")
+    parser_dashboard_config.set_defaults(func=dashboard)
 
     # define a subparser for the 'display-config' subcommand
     parser_display_config = subparser.add_parser('display-config', help='display environment configuration')
