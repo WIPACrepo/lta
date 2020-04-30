@@ -219,6 +219,7 @@ async def test_transfer_request_finisher_update_transfer_request_no(config, mock
     p = TransferRequestFinisher(config, logger_mock)
     await p._update_transfer_request(lta_rc_mock, deleted_bundle)
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
+        'claimed': False,
         'update_timestamp': mocker.ANY,
         'work_priority_timestamp': mocker.ANY,
     })
@@ -257,7 +258,9 @@ async def test_transfer_request_finisher_update_transfer_request_yes(config, moc
     p = TransferRequestFinisher(config, logger_mock)
     await p._update_transfer_request(lta_rc_mock, deleted_bundle)
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/90a664cc-e3f9-4421-973f-7bc2bc7407d0', {
-        'claimed': False,
-        'status': 'finished',
-        'update_timestamp': mocker.ANY,
+        "claimant": mocker.ANY,
+        "claimed": False,
+        "claim_timestamp": mocker.ANY,
+        "status": "finished",
+        "update_timestamp": mocker.ANY,
     })

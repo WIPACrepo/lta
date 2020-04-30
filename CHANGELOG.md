@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.10.1] - 2020-04-30
+### Fixed
+- TransferRequestFinisher will actually finish Bundles and TransferRequests
+
 ## [0.10.0] - 2020-04-27
 ### Changed
 - SiteMoveVerifier will ignore Rucio and run checksums on its own in some cases

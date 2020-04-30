@@ -421,7 +421,7 @@ async def dashboard(args: Namespace) -> ExitCode:
     REQUEST_STATUS = [
         "unclaimed",
         "processing",
-        "finished",
+        "completed",
     ]
     # define the list of Bundle statuses
     BUNDLE_STATUS = [

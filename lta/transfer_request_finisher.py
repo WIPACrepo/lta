@@ -115,6 +115,7 @@ class TransferRequestFinisher(Component):
             bundle_id = bundle["uuid"]
             right_now = now()
             patch_body: Dict[str, Union[bool, str]] = {
+                "claimed": False,
                 "update_timestamp": right_now,
                 "work_priority_timestamp": right_now,
             }
@@ -125,20 +126,22 @@ class TransferRequestFinisher(Component):
         self.logger.info(f"Updating TransferRequest {request_uuid} to mark as completed.")
         right_now = now()
         patch_body = {
+            "claimant": f"{self.name}-{self.instance_uuid}",
+            "claimed": False,
+            "claim_timestamp": right_now,
             "status": "completed",
             "update_timestamp": right_now,
-            "claimed": False,
-            "claimant": f"{self.name}-{self.instance_uuid}",
-            "claim_timestamp": right_now,
         }
-        self.logger.info(f"PATCH /TransferRequest/{request_uuid} - '{patch_body}'")
-        await lta_rc.request('PATCH', f'/TransferRequest/{request_uuid}', patch_body)
+        self.logger.info(f"PATCH /TransferRequests/{request_uuid} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/TransferRequests/{request_uuid}', patch_body)
         # update each of the constituent bundles to status "finished"
         for bundle_id in results:
             patch_body = {
+                "claimant": f"{self.name}-{self.instance_uuid}",
                 "claimed": False,
+                "claim_timestamp": right_now,
                 "status": "finished",
-                "update_timestamp": now(),
+                "update_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
