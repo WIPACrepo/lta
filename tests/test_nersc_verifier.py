@@ -482,6 +482,49 @@ async def test_nersc_verifier_add_bundle_to_file_catalog(config, mocker):
     fc_rc_mock.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
 
 @pytest.mark.asyncio
+async def test_nersc_verifier_add_bundle_to_file_catalog_patch_after_post_error(config, mocker):
+    """Test that _add_bundle_to_file_catalog patches the record for the bundle already in the file catalog."""
+    logger_mock = mocker.MagicMock()
+    bundle = {
+        "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
+        "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+        "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
+        "checksum": {
+            "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
+        },
+        "size": 12345,
+        "files": [
+            {"uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
+            {"uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
+            {"uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
+        ]
+    }
+    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    fc_rc_mock.side_effect = [
+        Exception("409 conflict"),  # POST /api/files - bundle record already exists!!
+        True,  # PATCH /api/files/UUID - bundle record gets updated
+        {  # GET /api/files/UUID - get the file record
+            "uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e",
+            "logical_name": "/data/exp/IceCube/2019/filtered/PFFilt/1109/file1.tar.gz",
+        },
+        True,  # POST /api/files/UUID/locations - add the location
+        {  # GET /api/files/UUID - get the file record
+            "uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4",
+            "logical_name": "/data/exp/IceCube/2019/filtered/PFFilt/1109/file2.tar.gz",
+        },
+        True,  # POST /api/files/UUID/locations - add the location
+        {  # GET /api/files/UUID - get the file record
+            "uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4",
+            "logical_name": "/data/exp/IceCube/2019/filtered/PFFilt/1109/file3.tar.gz",
+        },
+        True,  # POST /api/files/UUID/locations - add the location
+    ]
+    p = NerscVerifier(config, logger_mock)
+    assert await p._add_bundle_to_file_catalog(bundle)
+    assert fc_rc_mock.call_count == 8
+    fc_rc_mock.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
+
+@pytest.mark.asyncio
 async def test_nersc_verifier_update_bundle_in_lta_db(config, mocker):
     """Test that _update_bundle_in_lta_db updates the bundle as verified in the LTA DB."""
     logger_mock = mocker.MagicMock()

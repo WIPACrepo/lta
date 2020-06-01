@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.11.0] - 2020-06-01
+### Added
+- NerscVerifier will now PATCH a file catalog record that already exists for the bundle
+
 ## [0.10.1] - 2020-04-30
 ### Fixed
 - TransferRequestFinisher will actually finish Bundles and TransferRequests
