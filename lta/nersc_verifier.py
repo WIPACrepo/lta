@@ -160,8 +160,15 @@ class NerscVerifier(Component):
             "lta": bundle,
         }
         # add the bundle file to the File Catalog
-        self.logger.info(f"POST /api/files - {hpss_path}")
-        await fc_rc.request("POST", "/api/files", file_record)
+        try:
+            self.logger.info(f"POST /api/files - {hpss_path}")
+            await fc_rc.request("POST", "/api/files", file_record)
+        except Exception as e:
+            self.logger.error(f"Error: POST /api/files - {hpss_path}")
+            self.logger.error(f"Message: {e}")
+            uuid = bundle["uuid"]
+            self.logger.info(f"PATCH /api/files/{uuid}")
+            await fc_rc.request("PATCH", f"/api/files/{uuid}", file_record)
         # for each file contained in the bundle
         for fc_file in bundle["files"]:
             fc_file_uuid = fc_file["uuid"]
@@ -179,6 +186,7 @@ class NerscVerifier(Component):
                 ]
             }
             self.logger.info(f"POST /api/files/{fc_file_uuid}/locations - {new_location}")
+            # POST /api/files/{uuid}/locations will de-dupe locations for us
             await fc_rc.request("POST", f"/api/files/{fc_file_uuid}/locations", new_location)
         # indicate that our file catalog updates were successful
         return True
