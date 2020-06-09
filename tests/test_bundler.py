@@ -201,8 +201,6 @@ async def test_bundler_run_exception(config, mocker):
 @pytest.mark.asyncio
 async def test_bundler_do_work_pop_exception(config, mocker):
     """Test that _do_work raises when the RestClient can't pop."""
-    check_mysql_mock = mocker.patch("lta.bundler.Bundler._check_mysql")
-    check_mysql_mock.return_value = True
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
@@ -215,8 +213,6 @@ async def test_bundler_do_work_pop_exception(config, mocker):
 @pytest.mark.asyncio
 async def test_bundler_do_work_no_results(config, mocker):
     """Test that _do_work goes on vacation when the LTA DB has no work."""
-    check_mysql_mock = mocker.patch("lta.bundler.Bundler._check_mysql")
-    check_mysql_mock.return_value = True
     logger_mock = mocker.MagicMock()
     claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
     claim_mock.return_value = False
@@ -258,7 +254,6 @@ async def test_bundler_do_work_yes_results(config, mocker):
 @pytest.mark.asyncio
 async def test_bundler_do_work_dest_results(config, mocker):
     """Test that _do_work_bundle does the work of preparing an archive."""
-    insert_jade_row_mock = mocker.patch("lta.bundler.Bundler._insert_jade_row")
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
@@ -286,7 +281,6 @@ async def test_bundler_do_work_dest_results(config, mocker):
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
         await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
         metadata_mock.assert_called_with(mocker.ANY, mode="w")
-    insert_jade_row_mock.assert_called_with(mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -294,8 +288,6 @@ async def test_bundler_do_work_bundle_once_and_die(config, mocker):
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     once = config.copy()
     once["RUN_ONCE_AND_DIE"] = "True"
-    check_mysql_mock = mocker.patch("lta.bundler.Bundler._check_mysql")
-    check_mysql_mock.return_value = True
     logger_mock = mocker.MagicMock()
     claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
     claim_mock.return_value = False

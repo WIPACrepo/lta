@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.12.0] - 2020-06-09
+### Changed
+- Coverage report no longer includes lta_cmd or transfer service implementations
+### Removed
+- Bundler no longer adds a row to the deprecated JADE LTA database
+
 ## [0.11.0] - 2020-06-01
 ### Added
 - NerscVerifier will now PATCH a file catalog record that already exists for the bundle
