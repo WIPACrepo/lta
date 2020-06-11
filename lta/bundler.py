@@ -2,7 +2,6 @@
 """Module to implement the Bundler component of the Long Term Archive."""
 
 import asyncio
-from datetime import datetime
 import json
 from logging import Logger
 import logging
@@ -10,12 +9,10 @@ import os
 import shutil
 import sys
 from typing import Any, Dict, Optional
-from uuid import uuid4
 from zipfile import ZIP_STORED, ZipFile
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
-import pymysql
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .crypto import lta_checksums
