@@ -144,16 +144,27 @@ class Locator(Component):
             },
         }
         query_json = json.dumps(query_dict)
-        fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}')
+        page_start = 0
+        catalog_files = []
+        fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&keys=uuid&limit=9000&start={page_start}')
         num_files = len(fc_response["files"])
         self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
+        catalog_files.extend(fc_response["files"])
+        while num_files == 9000:
+            self.logger.info(f'Paging File Catalog. start={page_start}')
+            page_start += num_files
+            fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&limit=9000&start={page_start}')
+            num_files = len(fc_response["files"])
+            self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
+            catalog_files.extend(fc_response["files"])
+
         # if we didn't get any files, this is bad mojo
-        if num_files < 1:
+        if not catalog_files:
             await self._quarantine_transfer_request(lta_rc, tr, "File Catalog returned zero files for the TransferRequest")
             return
         # query the file catalog for the full records
         catalog_records = []
-        for catalog_file in fc_response["files"]:
+        for catalog_file in catalog_files:
             catalog_record = await fc_rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
             catalog_records.append(catalog_record)
         # filter to unique bundle uuids
