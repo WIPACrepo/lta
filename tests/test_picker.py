@@ -1,13 +1,15 @@
 # test_picker.py
 """Unit tests for lta/picker.py."""
 
+from secrets import token_hex
+from typing import Dict, List, Union
 from unittest.mock import call, MagicMock
 from uuid import uuid1
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
-from lta.picker import as_bundle_record, main, Picker
+from lta.picker import as_bundle_record, FILE_CATALOG_LIMIT, main, Picker
 from .test_util import AsyncMock
 
 @pytest.fixture
@@ -270,7 +272,9 @@ async def test_picker_do_work_transfer_request_fc_exception(config, mocker):
     fc_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     with pytest.raises(HTTPError):
         await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}, "logical_name": {"$regex": "^/tmp/this/is/just/a/test"}}')
+    fc_rc_mock.assert_called()
+    assert fc_rc_mock.call_args[0][0] == "GET"
+    assert fc_rc_mock.call_args[0][1].startswith('/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}, "logical_name": {"$regex": "^/tmp/this/is/just/a/test"}}')
 
 
 @pytest.mark.asyncio
@@ -294,7 +298,9 @@ async def test_picker_do_work_transfer_request_fc_no_results(config, mocker):
         "files": []
     }
     await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}, "logical_name": {"$regex": "^/tmp/this/is/just/a/test"}}')
+    fc_rc_mock.assert_called()
+    assert fc_rc_mock.call_args[0][0] == "GET"
+    assert fc_rc_mock.call_args[0][1].startswith('/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}, "logical_name": {"$regex": "^/tmp/this/is/just/a/test"}}')
     lta_rc_mock.request.assert_called_with("PATCH", f'/TransferRequests/{tr_uuid}', QUARANTINE)
 
 
@@ -382,6 +388,91 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
     p = Picker(config, logger_mock)
     await p._do_work_transfer_request(lta_rc_mock, tr)
     fc_rc_mock.assert_called_with("GET", '/api/files/1e4a88c6-247e-4e59-9c89-1a4edafafb1e')
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/bulk_create', mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_picker_do_work_transfer_request_fc_its_over_9000(config, mocker):
+    """Test that _do_work_transfer_request can handle paginated File Catalog results."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.MagicMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
+        "bundles": [uuid1().hex, uuid1().hex, uuid1().hex],
+        "count": 3
+    }
+    tr_uuid = uuid1().hex
+    tr = {
+        "uuid": tr_uuid,
+        "source": "wipac",
+        "dest": "nersc",
+        "path": "/tmp/this/is/just/a/test",
+    }
+
+    def gen_file(i: int) -> Dict[str, str]:
+        return {
+            "logical_name": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
+            "uuid": uuid1().hex,
+        }
+
+    def gen_record(i: int) -> Dict[str, Union[int, str, Dict[str, str], List[Dict[str, str]]]]:
+        return {
+            "logical_name": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
+            "uuid": uuid1().hex,
+            "checksum": {
+                "sha512": token_hex(128),
+            },
+            "locations": [
+                {
+                    "path": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
+                    "site": "wipac"
+                }],
+            "file_size": 103166718,
+            "meta_modify_date": "2019-07-26 01:53:20.857303"
+        }
+
+    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    side_effects = [
+        {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
+            },
+            "files": [gen_file(i) for i in range(FILE_CATALOG_LIMIT)],
+        },
+        {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
+            },
+            "files": [gen_file(i) for i in range(FILE_CATALOG_LIMIT)],
+        },
+        {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
+            },
+            "files": [gen_file(i) for i in range(1000)],
+        },
+    ]
+    records = [gen_record(i) for i in range(FILE_CATALOG_LIMIT*2 + 1000)]
+    side_effects.extend(records)
+    fc_rc_mock.side_effect = side_effects
+    p = Picker(config, logger_mock)
+    await p._do_work_transfer_request(lta_rc_mock, tr)
+    fc_rc_mock.assert_called_with("GET", mocker.ANY)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/bulk_create', mocker.ANY)
 
 

@@ -1,13 +1,15 @@
 # test_locator.py
 """Unit tests for lta/locator.py."""
 
+from secrets import token_hex
+from typing import Dict, List, Union
 from unittest.mock import call, MagicMock
 from uuid import uuid1
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
-from lta.locator import as_lta_record, main, Locator
+from lta.locator import as_lta_record, FILE_CATALOG_LIMIT, main, Locator
 from .test_util import AsyncMock
 
 @pytest.fixture
@@ -291,7 +293,9 @@ async def test_locator_do_work_transfer_request_fc_exception(config, mocker):
     fc_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     with pytest.raises(HTTPError):
         await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.archive": {"$eq": true}, "locations.site": {"$eq": "wipac"}, "logical_name": {"$regex": "^/tmp/this/is/just/a/test"}}')
+    fc_rc_mock.assert_called()
+    assert fc_rc_mock.call_args[0][0] == "GET"
+    assert fc_rc_mock.call_args[0][1].startswith('/api/files?query={"locations.archive": {"$eq": true}, "locations.site": {"$eq": "wipac"}, "logical_name": {"$regex": "^/tmp/this/is/just/a/test"}}')
 
 
 @pytest.mark.asyncio
@@ -315,7 +319,9 @@ async def test_locator_do_work_transfer_request_fc_no_results(config, mocker):
         "files": []
     }
     await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", '/api/files?query={"locations.archive": {"$eq": true}, "locations.site": {"$eq": "wipac"}, "logical_name": {"$regex": "^/tmp/this/is/just/a/test"}}')
+    fc_rc_mock.assert_called()
+    assert fc_rc_mock.call_args[0][0] == "GET"
+    assert fc_rc_mock.call_args[0][1].startswith('/api/files?query={"locations.archive": {"$eq": true}, "locations.site": {"$eq": "wipac"}, "logical_name": {"$regex": "^/tmp/this/is/just/a/test"}}')
     lta_rc_mock.request.assert_called_with("PATCH", f'/TransferRequests/{tr_uuid}', QUARANTINE)
 
 
@@ -420,6 +426,126 @@ async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
             "lta": {},
         }
     ]
+    p = Locator(config, logger_mock)
+    await p._do_work_transfer_request(lta_rc_mock, tr)
+    fc_rc_mock.assert_called_with("GET", '/api/files/8abe369e59a111ea81bb534d1a62b1fe')
+    cb_mock.assert_called_with(lta_rc_mock, {
+        'type': 'Bundle',
+        'status': 'located',
+        'request': tr_uuid,
+        'source': 'nersc',
+        'dest': 'wipac',
+        'path': '/tmp/this/is/just/a/test',
+        'catalog': {
+            'checksum': {
+                'adler32': 'c14e315e',
+                'sha512': 'e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a',
+            },
+            'file_size': 1048576,
+            'logical_name': '/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip',
+            'meta_modify_date': '2019-07-26 01:53:22.591198',
+            'uuid': '8abe369e59a111ea81bb534d1a62b1fe'
+        }
+    })
+
+
+@pytest.mark.asyncio
+async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker):
+    """Test that _do_work_transfer_request processes each file it gets back from the File Catalog."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.MagicMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {}
+    cb_mock = mocker.patch("lta.locator.Locator._create_bundle", new_callable=AsyncMock)
+    tr_uuid = uuid1().hex
+    tr = {
+        "uuid": tr_uuid,
+        "source": "nersc",
+        "dest": "wipac",
+        "path": "/tmp/this/is/just/a/test",
+    }
+
+    def gen_file(i: int) -> Dict[str, str]:
+        return {
+            "logical_name": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
+            "uuid": uuid1().hex,
+        }
+
+    def gen_record(i: int) -> Dict[str, Union[int, str, Dict[str, str], List[Dict[str, Union[bool, str]]]]]:
+        return {
+            "logical_name": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
+            "uuid": uuid1().hex,
+            "checksum": {
+                "sha512": token_hex(128),
+            },
+            "locations": [
+                {
+                    "path": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+                    "site": "nersc",
+                    "archive": True,
+                }],
+            "file_size": 103166718,
+            "meta_modify_date": "2019-07-26 01:53:20.857303"
+        }
+
+    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    side_effects = [
+        {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
+            },
+            "files": [gen_file(i) for i in range(FILE_CATALOG_LIMIT)],
+        },
+        {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
+            },
+            "files": [gen_file(i) for i in range(FILE_CATALOG_LIMIT)],
+        },
+        {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
+            },
+            "files": [gen_file(i) for i in range(1000)],
+        },
+    ]
+    records = [gen_record(i) for i in range(FILE_CATALOG_LIMIT*2 + 1000)]
+    side_effects.extend(records)
+    side_effects.extend([{
+        "uuid": "8abe369e59a111ea81bb534d1a62b1fe",
+        "logical_name": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+        "checksum": {
+            "adler32": "c14e315e",
+            "sha512": "e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a",
+        },
+        "locations": [
+            {
+                "site": "NERSC",
+                "path": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+                "hpss": True,
+                "online": False,
+            }
+        ],
+        "file_size": 1048576,
+        "meta_modify_date": "2019-07-26 01:53:22.591198",
+        "lta": {},
+    }])
+    fc_rc_mock.side_effect = side_effects
     p = Locator(config, logger_mock)
     await p._do_work_transfer_request(lta_rc_mock, tr)
     fc_rc_mock.assert_called_with("GET", '/api/files/8abe369e59a111ea81bb534d1a62b1fe')

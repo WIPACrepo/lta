@@ -100,7 +100,7 @@ async def _catalog_get(rc: RestClient, path: str) -> Optional[Any]:
         },
     }
     query_json = json.dumps(query_dict)
-    fc_response = await rc.request('GET', f'/api/files?query={query_json}')
+    fc_response = await rc.request('GET', f'/api/files?query={query_json}&limit=1')
     num_files = len(fc_response["files"])
     if num_files < 1:
         return None

@@ -26,6 +26,7 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
+FILE_CATALOG_LIMIT = 9000  # What?! 9000?! There's no way that can be right!
 
 def as_bundle_record(catalog_record: Dict[str, Any]) -> Dict[str, Any]:
     """Cherry pick keys from a File Catalog record to include in Bundle metadata."""
@@ -134,16 +135,29 @@ class Picker(Component):
             },
         }
         query_json = json.dumps(query_dict)
-        fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}')
+        page_start = 0
+        catalog_files = []
+        fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&keys=uuid&limit={FILE_CATALOG_LIMIT}&start={page_start}')
         num_files = len(fc_response["files"])
         self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
+        catalog_files.extend(fc_response["files"])
+        while num_files == FILE_CATALOG_LIMIT:
+            self.logger.info(f'Paging File Catalog. start={page_start}')
+            page_start += num_files
+            fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&limit={FILE_CATALOG_LIMIT}&start={page_start}')
+            num_files = len(fc_response["files"])
+            self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
+            catalog_files.extend(fc_response["files"])
+
         # if we didn't get any files, this is bad mojo
-        if num_files < 1:
+        if not catalog_files:
             await self._quarantine_transfer_request(lta_rc, tr, "File Catalog returned zero files for the TransferRequest")
             return
         # query the file catalog for the full records
+        num_catalog_files = len(catalog_files)
+        self.logger.info(f'Processing {num_catalog_files} IDs returned by the File Catalog.')
         catalog_records = []
-        for catalog_file in fc_response["files"]:
+        for catalog_file in catalog_files:
             catalog_record = await fc_rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
             catalog_records.append(catalog_record)
         # add up the sizes of everything returned by the catalog
