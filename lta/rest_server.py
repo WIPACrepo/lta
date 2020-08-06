@@ -24,6 +24,7 @@ EXPECTED_CONFIG = {
     'LTA_AUTH_ALGORITHM': 'RS256',
     'LTA_AUTH_ISSUER': 'lta',
     'LTA_AUTH_SECRET': 'secret',
+    'LTA_MAX_BODY_SIZE': '16777216',  # 16 MB is the limit of MongoDB documents
     'LTA_MAX_CLAIM_AGE_HOURS': '12',
     'LTA_MONGODB_AUTH_USER': '',  # None means required to specify
     'LTA_MONGODB_AUTH_PASS': '',  # empty means no authentication required
@@ -710,7 +711,9 @@ def start(debug: bool = False) -> RestServer:
     motor_client = MotorClient(lta_mongodb_url)
     args['db'] = motor_client[mongo_db]
 
-    server = RestServer(debug=debug)
+    # See: https://github.com/WIPACrepo/rest-tools/issues/2
+    max_body_size = int(config["LTA_MAX_BODY_SIZE"])
+    server = RestServer(debug=debug, max_body_size=max_body_size)
     server.add_route(r'/', MainHandler, args)
     server.add_route(r'/Bundles', BundlesHandler, args)
     server.add_route(r'/Bundles/actions/bulk_create', BundlesActionsBulkCreateHandler, args)
