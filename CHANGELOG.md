@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.14.0] - 2020-08-06
+### Added
+- New LTA_MAX_BODY_SIZE configuration; not yet functional in underlying library
+### Changed
+- Updated requirements including new rest-tools with 503 backoff
+
 ## [0.13.0] - 2020-07-30
 ### Changed
 - Modified Picker and Locator to use File Catalog pagination for large record sets
@@ -291,7 +297,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/WIPACrepo/lta/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/WIPACrepo/lta/compare/v0.12.0...v0.13.0
 [0.10.0]: https://github.com/WIPACrepo/lta/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/WIPACrepo/lta/compare/v0.9.0...v0.9.1
