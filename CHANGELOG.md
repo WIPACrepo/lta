@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.15.0] - 2020-08-10
+### Added
+- Added DEBUG logging for MongoDB queries in the REST server
+
 ## [0.14.0] - 2020-08-06
 ### Added
 - New LTA_MAX_BODY_SIZE configuration; not yet functional in underlying library
