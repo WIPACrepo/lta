@@ -151,7 +151,9 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             xfer_bundle["work_priority_timestamp"] = right_now
             xfer_bundle["claimed"] = False
 
+        logging.debug(f"MONGO-START: db.Bundles.insert_many(documents={req['bundles']})")
         ret = await self.db.Bundles.insert_many(documents=req["bundles"])
+        logging.debug("MONGO-END:   db.Bundles.insert_many(documents)")
         create_count = len(ret.inserted_ids)
 
         uuids = []
@@ -180,7 +182,9 @@ class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
         results = []
         for uuid in req["bundles"]:
             query = {"uuid": uuid}
+            logging.debug(f"MONGO-START: db.Bundles.delete_one(filter={query})")
             ret = await self.db.Bundles.delete_one(filter=query)
+            logging.debug("MONGO-END:   db.Bundles.delete_one(filter)")
             if ret.deleted_count > 0:
                 logging.info(f"deleted Bundle {uuid}")
                 results.append(uuid)
@@ -209,7 +213,9 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
         for uuid in req["bundles"]:
             query = {"uuid": uuid}
             update_doc = {"$set": req["update"]}
+            logging.debug(f"MONGO-START: db.Bundles.update_one(filter={query}, update={update_doc})")
             ret = await self.db.Bundles.update_one(filter=query, update=update_doc)
+            logging.debug("MONGO-END:   db.Bundles.update_one(filter, update)")
             if ret.modified_count > 0:
                 logging.info(f"updated Bundle {uuid}")
                 results.append(uuid)
@@ -238,9 +244,11 @@ class BundlesHandler(BaseLTAHandler):
             query["verified"] = boolify(verified)
 
         results = []
+        logging.debug(f"MONGO-START: db.Bundles.find(filter={query}, projection={REMOVE_ID})")
         async for row in self.db.Bundles.find(filter=query,
                                               projection=REMOVE_ID):
             results.append(row["uuid"])
+        logging.debug("MONGO-END*:   db.Bundles.find(filter, projection)")
 
         ret = {
             'results': results,
@@ -281,11 +289,13 @@ class BundlesActionsPopHandler(BaseLTAHandler):
                 "claim_timestamp": right_now,
             }
         }
+        logging.debug(f"MONGO-START: db.Bundles.find_one_and_update(filter={find_query}, update={update_doc}, projection={REMOVE_ID}, sort={FIRST_IN_FIRST_OUT}, return_document={AFTER})")
         bundle = await sdb.find_one_and_update(filter=find_query,
                                                update=update_doc,
                                                projection=REMOVE_ID,
                                                sort=FIRST_IN_FIRST_OUT,
                                                return_document=AFTER)
+        logging.debug("MONGO-END:   db.Bundles.find_one_and_update(filter, update, projection, sort, return_document)")
         # return what we found to the caller
         if not bundle:
             logging.info(f"Unclaimed Bundle with source {source} and status {status} does not exist.")
@@ -300,7 +310,9 @@ class BundlesSingleHandler(BaseLTAHandler):
     async def get(self, bundle_id: str) -> None:
         """Handle GET /Bundles/{uuid}."""
         query = {"uuid": bundle_id}
+        logging.debug(f"MONGO-START: db.Bundles.find_one(filter={query}, projection={REMOVE_ID})")
         ret = await self.db.Bundles.find_one(filter=query, projection=REMOVE_ID)
+        logging.debug("MONGO-END:   db.Bundles.find_one(filter, projection)")
         if not ret:
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
@@ -313,10 +325,12 @@ class BundlesSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(400, reason="bad request")
         query = {"uuid": bundle_id}
         update_doc = {"$set": req}
+        logging.debug(f"MONGO-START: db.Bundles.find_one_and_update(filter={query}, update={update_doc}, projection={REMOVE_ID}, return_document={AFTER})")
         ret = await self.db.Bundles.find_one_and_update(filter=query,
                                                         update=update_doc,
                                                         projection=REMOVE_ID,
                                                         return_document=AFTER)
+        logging.debug("MONGO-END:   db.Bundles.find_one_and_update(filter, update, projection, return_document)")
         if not ret:
             raise tornado.web.HTTPError(404, reason="not found")
         logging.info(f"patched Bundle {bundle_id} with {req}")
@@ -326,7 +340,9 @@ class BundlesSingleHandler(BaseLTAHandler):
     async def delete(self, bundle_id: str) -> None:
         """Handle DELETE /Bundles/{uuid}."""
         query = {"uuid": bundle_id}
+        logging.debug(f"MONGO-START: db.Bundles.delete_one(filter={query})")
         await self.db.Bundles.delete_one(filter=query)
+        logging.debug("MONGO-END:   db.Bundles.delete_one(filter)")
         logging.info(f"deleted Bundle {bundle_id}")
         self.set_status(204)
 
@@ -348,9 +364,11 @@ class TransferRequestsHandler(BaseLTAHandler):
     async def get(self) -> None:
         """Handle GET /TransferRequests."""
         ret = []
+        logging.debug(f"MONGO-START: db.TransferRequests.find(filter={ALL_DOCUMENTS}, projection={REMOVE_ID})")
         async for row in self.db.TransferRequests.find(filter=ALL_DOCUMENTS,
                                                        projection=REMOVE_ID):
             ret.append(row)
+        logging.debug("MONGO-END*:  db.TransferRequests.find(filter, projection)")
         self.write({'results': ret})
 
     @lta_auth(roles=['admin', 'system', 'user'])
@@ -385,7 +403,9 @@ class TransferRequestsHandler(BaseLTAHandler):
         req['update_timestamp'] = right_now
         req['work_priority_timestamp'] = right_now
         req['claimed'] = False
+        logging.debug(f"MONGO-START: db.TransferRequests.insert_one(document={req}")
         await self.db.TransferRequests.insert_one(document=req)
+        logging.debug("MONGO-END:   db.TransferRequests.insert_one(document)")
         logging.info(f"created TransferRequest {req['uuid']}")
         self.set_status(201)
         self.write({'TransferRequest': req['uuid']})
@@ -397,7 +417,9 @@ class TransferRequestSingleHandler(BaseLTAHandler):
     async def get(self, request_id: str) -> None:
         """Handle GET /TransferRequests/{uuid}."""
         query = {'uuid': request_id}
+        logging.debug(f"MONGO-START: db.TransferRequests.find_one(filter={query}, projection={REMOVE_ID}")
         ret = await self.db.TransferRequests.find_one(filter=query, projection=REMOVE_ID)
+        logging.debug("MONGO-END:   db.TransferRequests.find_one(filter, projection)")
         if not ret:
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
@@ -411,10 +433,12 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         sbtr = self.db.TransferRequests
         query = {"uuid": request_id}
         update = {"$set": req}
+        logging.debug(f"MONGO-START: db.TransferRequests.find_one_and_update(filter={query}, update={update}, projection={REMOVE_ID}, return_document={AFTER}")
         ret = await sbtr.find_one_and_update(filter=query,
                                              update=update,
                                              projection=REMOVE_ID,
                                              return_document=AFTER)
+        logging.debug("MONGO-END:   db.TransferRequests.find_one_and_update(filter, update, projection, return_document")
         if not ret:
             raise tornado.web.HTTPError(404, reason="not found")
         logging.info(f"patched TransferRequest {request_id} with {req}")
@@ -424,7 +448,9 @@ class TransferRequestSingleHandler(BaseLTAHandler):
     async def delete(self, request_id: str) -> None:
         """Handle DELETE /TransferRequests/{uuid}."""
         query = {"uuid": request_id}
+        logging.debug(f"MONGO-START: db.TransferRequests.delete_one(filter={query})")
         await self.db.TransferRequests.delete_one(filter=query)
+        logging.debug("MONGO-END:   db.TransferRequests.delete_one(filter)")
         logging.info(f"deleted TransferRequest {request_id}")
         self.set_status(204)
 
@@ -456,11 +482,13 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
                 "claim_timestamp": right_now,
             }
         }
+        logging.debug(f"MONGO-START: db.TransferRequests.find_one_and_update(filter={find_query}, update={update_doc}, projection={REMOVE_ID}, sort={FIRST_IN_FIRST_OUT}, return_document={AFTER})")
         tr = await sdtr.find_one_and_update(filter=find_query,
                                             update=update_doc,
                                             projection=REMOVE_ID,
                                             sort=FIRST_IN_FIRST_OUT,
                                             return_document=AFTER)
+        logging.debug("MONGO-END:   db.TransferRequests.find_one_and_update(filter, update, projection, sort, return_document)")
         # return what we found to the caller
         if not tr:
             logging.info(f"Unclaimed TransferRequest with source {source} does not exist.")
@@ -484,6 +512,7 @@ class StatusHandler(BaseLTAHandler):
             return d > old_data
 
         sds = self.db.Status
+        logging.debug(f"MONGO-START: db.Status.find(filter={ALL_DOCUMENTS}, projection={REMOVE_ID})")
         async for row in sds.find(filter=ALL_DOCUMENTS,
                                   projection=REMOVE_ID):
             # each component defaults to OK
@@ -494,6 +523,7 @@ class StatusHandler(BaseLTAHandler):
             if not date_ok(row["timestamp"]):
                 ret[component] = 'WARN'
                 health = 'WARN'
+        logging.debug("MONGO-END*:  db.Status.find(filter, projection)")
         ret["health"] = health
         self.write(ret)
 
@@ -511,12 +541,14 @@ class StatusNerscHandler(BaseLTAHandler):
         ret = {}
         filter = {"quota": {"$exists": True}}
         sds = self.db.Status
+        logging.debug(f"MONGO-START: db.Status.find(filter={filter}, sort={MOST_RECENT_FIRST}, limit=1, projection={REMOVE_ID})")
         async for row in sds.find(filter=filter,
                                   sort=MOST_RECENT_FIRST,
                                   limit=1,
                                   projection=REMOVE_ID):
             ret = row
             break
+        logging.debug("MONGO-END*:  db.Status.find(filter, sort, limit, projection)")
         self.write(ret)
 
 
@@ -555,6 +587,7 @@ class StatusComponentHandler(BaseLTAHandler):
         # obtain all the records of the specified component type
         sds = self.db.Status
         query = {"component": component}
+        logging.debug(f"MONGO-START: db.Status.find(filter={query}, projection={REMOVE_ID})")
         async for row in sds.find(filter=query,
                                   projection=REMOVE_ID):
             # get the proper name of the component
@@ -565,6 +598,7 @@ class StatusComponentHandler(BaseLTAHandler):
             # pour into the master record, our cruelty, malice, and will to dominate all life
             update_dict = {name: row}
             ret.update(update_dict)
+        logging.debug("MONGO-END*:  db.Status.find(filter, projection)")
         # if there was no cruelty or malice, return a not found error
         if len(list(ret.keys())) < 1:
             raise tornado.web.HTTPError(404, reason="not found")
@@ -581,9 +615,11 @@ class StatusComponentHandler(BaseLTAHandler):
         status_doc["name"] = name
         status_doc["component"] = component
         update_doc = {"$set": status_doc}
+        logging.debug(f"MONGO-START: db.Status.update_one(filter={query}, update={update_doc}, upsert=True)")
         ret = await sds.update_one(filter=query,
                                    update=update_doc,
                                    upsert=True)
+        logging.debug("MONGO-END:   db.Status.update_one(filter, update, upsert)")
         if (ret.modified_count) or (ret.upserted_id):
             logging.info(f"PATCH /status/{component} with {req}")
         else:
@@ -616,10 +652,12 @@ class StatusComponentCountHandler(BaseLTAHandler):
         # obtain all the records of the specified component type
         sds = self.db.Status
         query = {"component": component}
+        logging.debug(f"MONGO-START: db.Status.find(filter={query}, projection={REMOVE_ID})")
         async for row in sds.find(filter=query,
                                   projection=REMOVE_ID):
             if row["timestamp"] > recent_timestamp:
                 count = count + 1
+        logging.debug("MONGO-END*:  db.Status.find(filter, projection)")
         # tell the caller how many of that component we found
         self.write({
             "component": component,
@@ -735,7 +773,10 @@ def start(debug: bool = False) -> RestServer:
 
 def main() -> None:
     """Configure logging and start a LTA DB service."""
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(
+        datefmt='%Y-%m-%d %H:%M:%S',
+        format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
+        level=logging.DEBUG)
     start(debug=True)
     loop = asyncio.get_event_loop()
     loop.run_forever()
