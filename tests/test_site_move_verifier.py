@@ -412,6 +412,7 @@ async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
     hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
         "status": "taping",
+        "reason": "",
         "update_timestamp": mocker.ANY,
         "claimed": False,
     })

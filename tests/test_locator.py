@@ -301,7 +301,7 @@ async def test_locator_do_work_transfer_request_fc_exception(config, mocker):
 @pytest.mark.asyncio
 async def test_locator_do_work_transfer_request_fc_no_results(config, mocker):
     """Test that _do_work_transfer_request raises an exception when the LTA DB refuses to create an empty list."""
-    QUARANTINE = {'status': 'quarantined', 'reason': 'File Catalog returned zero files for the TransferRequest', 'work_priority_timestamp': mocker.ANY}
+    QUARANTINE = {'status': 'quarantined', 'reason': mocker.ANY, 'work_priority_timestamp': mocker.ANY}
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
     lta_rc_mock = mocker.MagicMock()
@@ -432,6 +432,7 @@ async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
     cb_mock.assert_called_with(lta_rc_mock, {
         'type': 'Bundle',
         'status': 'located',
+        'reason': '',
         'request': tr_uuid,
         'source': 'nersc',
         'dest': 'wipac',
@@ -552,6 +553,7 @@ async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker)
     cb_mock.assert_called_with(lta_rc_mock, {
         'type': 'Bundle',
         'status': 'located',
+        'reason': '',
         'request': tr_uuid,
         'source': 'nersc',
         'dest': 'wipac',

@@ -145,7 +145,7 @@ class SiteMoveVerifier(Component):
         right_now = now()
         patch_body = {
             "status": "quarantined",
-            "reason": reason,
+            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
             "work_priority_timestamp": right_now,
         }
         try:
@@ -198,7 +198,7 @@ class SiteMoveVerifier(Component):
             right_now = now()
             patch_body: Dict[str, Any] = {
                 "status": "quarantined",
-                "reason": f"Checksum mismatch between creation and destination: {checksum_sha512}",
+                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Checksum mismatch between creation and destination: {checksum_sha512}",
                 "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
@@ -208,6 +208,7 @@ class SiteMoveVerifier(Component):
         self.logger.info("Destination checksum matches bundle creation checksum; the bundle is now verified.")
         patch_body = {
             "status": self.next_status,
+            "reason": "",
             "update_timestamp": now(),
             "claimed": False,
         }

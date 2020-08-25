@@ -126,7 +126,7 @@ class RucioStager(Component):
         right_now = now()
         patch_body = {
             "status": "quarantined",
-            "reason": reason,
+            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
             "work_priority_timestamp": right_now,
         }
         try:
@@ -165,6 +165,7 @@ class RucioStager(Component):
             "bundle_path": dst_path,
             "claimed": False,
             "status": "staged",
+            "reason": "",
             "update_timestamp": now(),
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
