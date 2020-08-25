@@ -113,7 +113,7 @@ class NerscRetriever(Component):
             right_now = now()
             patch_body = {
                 "status": "quarantined",
-                "reason": f"Exception during execution: {e}",
+                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Exception during execution: {e}",
                 "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
@@ -142,6 +142,7 @@ class NerscRetriever(Component):
         # update the Bundle in the LTA DB
         patch_body = {
             "status": "staged",
+            "reason": "",
             "update_timestamp": now(),
             "claimed": False,
         }
@@ -161,7 +162,7 @@ class NerscRetriever(Component):
             right_now = now()
             patch_body = {
                 "status": "quarantined",
-                "reason": "hsi Command Failed",
+                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hsi Command Failed - {completed_process.args} - {completed_process.returncode} - {str(completed_process.stdout)} - {str(completed_process.stderr)}",
                 "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")

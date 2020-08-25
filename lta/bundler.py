@@ -97,7 +97,12 @@ class Bundler(Component):
             self.logger.info("LTA DB did not provide a Bundle to build. Going on vacation.")
             return False
         # process the Bundle that we were given
-        await self._do_work_bundle(lta_rc, bundle)
+        try:
+            await self._do_work_bundle(lta_rc, bundle)
+        except Exception as e:
+            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            raise e
+        # signal the work was processed successfully
         return True
 
     async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
@@ -153,6 +158,7 @@ class Bundler(Component):
         self.logger.info(f"Finished archive bundle will be located at: '{final_bundle_path}'")
         # 7. Update the bundle record we have with all the information we collected
         bundle["status"] = "created"
+        bundle["reason"] = ""
         bundle["update_timestamp"] = now()
         bundle["bundle_path"] = final_bundle_path
         bundle["size"] = bundle_size
@@ -167,6 +173,23 @@ class Bundler(Component):
         # 9. Update the Bundle record in the LTA DB
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+
+    async def _quarantine_bundle(self,
+                                 lta_rc: RestClient,
+                                 bundle: BundleType,
+                                 reason: str) -> None:
+        """Quarantine the supplied bundle using the supplied reason."""
+        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
+        right_now = now()
+        patch_body = {
+            "status": "quarantined",
+            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
+            "work_priority_timestamp": right_now,
+        }
+        try:
+            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
+        except Exception as e:
+            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
 def runner() -> None:
     """Configure a Bundler component from the environment and set it running."""

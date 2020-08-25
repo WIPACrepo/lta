@@ -93,7 +93,12 @@ class RucioDetacher(Component):
             self.logger.info("LTA DB did not provide a Bundle to delete. Going on vacation.")
             return False
         # process the Bundle that we were given
-        await self._detach_bundle(lta_rc, bundle)
+        try:
+            await self._detach_bundle(lta_rc, bundle)
+        except Exception as e:
+            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            raise e
+        # if we were successful at processing work, let the caller know
         return True
 
     def _calculate_xfer_reference(self, site_name: str, file_name: str) -> str:
@@ -124,12 +129,29 @@ class RucioDetacher(Component):
         # update the Bundle in the LTA DB
         patch_body = {
             "status": "detached",
+            "reason": "",
             "update_timestamp": now(),
             "claimed": False,
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
+    async def _quarantine_bundle(self,
+                                 lta_rc: RestClient,
+                                 bundle: BundleType,
+                                 reason: str) -> None:
+        """Quarantine the supplied bundle using the supplied reason."""
+        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
+        right_now = now()
+        patch_body = {
+            "status": "quarantined",
+            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
+            "work_priority_timestamp": right_now,
+        }
+        try:
+            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
+        except Exception as e:
+            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
 def runner() -> None:
     """Configure a RucioDetacher component from the environment and set it running."""

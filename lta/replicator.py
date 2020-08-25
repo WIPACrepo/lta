@@ -108,7 +108,7 @@ class Replicator(Component):
         right_now = now()
         patch_body = {
             "status": "quarantined",
-            "reason": reason,
+            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
             "work_priority_timestamp": right_now,
         }
         try:
@@ -126,6 +126,7 @@ class Replicator(Component):
         # update the Bundle in the LTA DB
         patch_body = {
             "status": "transferring",
+            "reason": "",
             "update_timestamp": now(),
             "claimed": False,
             "transfer_reference": xfer_ref,

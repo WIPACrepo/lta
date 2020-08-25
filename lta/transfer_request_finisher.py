@@ -130,6 +130,7 @@ class TransferRequestFinisher(Component):
             "claimed": False,
             "claim_timestamp": right_now,
             "status": "completed",
+            "reason": "",
             "update_timestamp": right_now,
         }
         self.logger.info(f"PATCH /TransferRequests/{request_uuid} - '{patch_body}'")
@@ -141,6 +142,7 @@ class TransferRequestFinisher(Component):
                 "claimed": False,
                 "claim_timestamp": right_now,
                 "status": "finished",
+                "reason": "",
                 "update_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
