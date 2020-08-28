@@ -23,11 +23,6 @@ EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "BUNDLER_OUTBOX_PATH": None,
     "BUNDLER_WORKBOX_PATH": None,
-    "MYSQL_DB": None,
-    "MYSQL_HOST": None,
-    "MYSQL_PASSWORD": None,
-    "MYSQL_PORT": "3306",
-    "MYSQL_USER": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -51,12 +46,7 @@ class Bundler(Component):
         logger - The object the bundler should use for logging.
         """
         super(Bundler, self).__init__("bundler", config, logger)
-        self.db = config["MYSQL_DB"]
-        self.host = config["MYSQL_HOST"]
         self.outbox_path = config["BUNDLER_OUTBOX_PATH"]
-        self.password = config["MYSQL_PASSWORD"]
-        self.port = int(config["MYSQL_PORT"])
-        self.user = config["MYSQL_USER"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.workbox_path = config["BUNDLER_WORKBOX_PATH"]
