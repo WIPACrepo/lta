@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.17.0] - 2020-08-25
+### Changed
+- Format of quarantine reason messages for Bundles
+
 ## [0.16.0] - 2020-08-18
 ### Added
 - Added NerscRetriever component for reading bundle files from HPSS at NERSC

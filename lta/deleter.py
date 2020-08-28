@@ -109,6 +109,7 @@ class Deleter(Component):
         self.logger.info(f"File {bundle_path} was deleted from the disk.")
         patch_body = {
             "status": self.output_status,
+            "reason": "",
             "update_timestamp": now(),
             "claimed": False,
         }
@@ -125,7 +126,7 @@ class Deleter(Component):
         right_now = now()
         patch_body = {
             "status": "quarantined",
-            "reason": reason,
+            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
             "work_priority_timestamp": right_now,
         }
         try:

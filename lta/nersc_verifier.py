@@ -123,7 +123,7 @@ class NerscVerifier(Component):
             right_now = now()
             patch_body = {
                 "status": "quarantined",
-                "reason": f"Exception during execution: {e}",
+                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Exception during execution: {e}",
                 "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
@@ -196,6 +196,7 @@ class NerscVerifier(Component):
         bundle_id = bundle["uuid"]
         patch_body = {
             "status": "completed",
+            "reason": "",
             "update_timestamp": now(),
             "claimed": False,
         }
@@ -232,7 +233,7 @@ class NerscVerifier(Component):
             right_now = now()
             patch_body = {
                 "status": "quarantined",
-                "reason": "hsi hashlist Command Failed",
+                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hsi hashlist Command Failed",
                 "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
@@ -253,7 +254,7 @@ class NerscVerifier(Component):
             right_now = now()
             patch_body = {
                 "status": "quarantined",
-                "reason": f"Checksum mismatch between creation and destination: {checksum_sha512}",
+                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Checksum mismatch between creation and destination: {checksum_sha512}",
                 "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
@@ -280,7 +281,7 @@ class NerscVerifier(Component):
             right_now = now()
             patch_body = {
                 "status": "quarantined",
-                "reason": "hsi hashverify Command Failed",
+                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hsi hashverify Command Failed",
                 "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
@@ -305,7 +306,7 @@ class NerscVerifier(Component):
             right_now = now()
             patch_body = {
                 "status": "quarantined",
-                "reason": f"hashverify unable to verify checksum in HPSS: {result}",
+                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hashverify unable to verify checksum in HPSS: {result}",
                 "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")

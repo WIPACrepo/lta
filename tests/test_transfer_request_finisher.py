@@ -262,5 +262,6 @@ async def test_transfer_request_finisher_update_transfer_request_yes(config, moc
         "claimed": False,
         "claim_timestamp": mocker.ANY,
         "status": "finished",
+        "reason": "",
         "update_timestamp": mocker.ANY,
     })

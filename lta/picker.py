@@ -179,6 +179,7 @@ class Picker(Component):
                 "type": "Bundle",
                 # "uuid": unique_id(),  # provided by LTA DB
                 "status": "specified",
+                "reason": "",
                 # "create_timestamp": right_now,  # provided by LTA DB
                 # "update_timestamp": right_now,  # provided by LTA DB
                 "request": tr["uuid"],
@@ -207,7 +208,7 @@ class Picker(Component):
         right_now = now()
         patch_body = {
             "status": "quarantined",
-            "reason": reason,
+            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
             "work_priority_timestamp": right_now,
         }
         try:
