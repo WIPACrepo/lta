@@ -1,0 +1,465 @@
+# test_unpacker.py
+"""Unit tests for lta/unpacker.py."""
+
+from unittest.mock import call, mock_open, patch
+
+import pytest  # type: ignore
+from tornado.web import HTTPError  # type: ignore
+
+from lta.unpacker import Unpacker, main
+from .test_util import AsyncMock
+
+
+@pytest.fixture
+def config():
+    """Supply a stock Unpacker component configuration."""
+    return {
+        "COMPONENT_NAME": "testing-unpacker",
+        "DEST_SITE": "WIPAC",
+        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-token",
+        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
+        "HEARTBEAT_PATCH_RETRIES": "3",
+        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
+        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "LTA_REST_TOKEN": "fake-lta-rest-token",
+        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "RUN_ONCE_AND_DIE": "False",
+        "SOURCE_SITE": "NERSC",
+        "UNPACKER_OUTBOX_PATH": "/tmp/lta/testing/unpacker/outbox",
+        "UNPACKER_WORKBOX_PATH": "/tmp/lta/testing/unpacker/workbox",
+        "WORK_RETRIES": "3",
+        "WORK_SLEEP_DURATION_SECONDS": "60",
+        "WORK_TIMEOUT_SECONDS": "30",
+    }
+
+
+def test_constructor_missing_config():
+    """Fail with a TypeError if a configuration object isn't provided."""
+    with pytest.raises(TypeError):
+        Unpacker()
+
+
+def test_constructor_missing_logging():
+    """Fail with a TypeError if a logging object isn't provided."""
+    with pytest.raises(TypeError):
+        config = {
+            "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
+        }
+        Unpacker(config)
+
+
+def test_constructor_config_missing_values(mocker):
+    """Fail with a ValueError if the configuration object is missing required configuration variables."""
+    config = {
+        "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
+    }
+    logger_mock = mocker.MagicMock()
+    with pytest.raises(ValueError):
+        Unpacker(config, logger_mock)
+
+
+def test_constructor_config_poison_values(config, mocker):
+    """Fail with a ValueError if the configuration object is missing required configuration variables."""
+    unpacker_config = config.copy()
+    unpacker_config["LTA_REST_URL"] = None
+    logger_mock = mocker.MagicMock()
+    with pytest.raises(ValueError):
+        Unpacker(unpacker_config, logger_mock)
+
+
+def test_constructor_config(config, mocker):
+    """Test that a Unpacker can be constructed with a configuration object and a logging object."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    assert p.heartbeat_sleep_duration_seconds == 60
+    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.name == "testing-unpacker"
+    assert p.work_sleep_duration_seconds == 60
+    assert p.logger == logger_mock
+
+
+def test_constructor_config_sleep_type_int(config, mocker):
+    """Ensure that sleep seconds can also be provided as an integer."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    assert p.heartbeat_sleep_duration_seconds == 60
+    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.name == "testing-unpacker"
+    assert p.work_sleep_duration_seconds == 60
+    assert p.logger == logger_mock
+
+
+def test_constructor_state(config, mocker):
+    """Verify that the Unpacker has a reasonable state when it is first constructed."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    assert p.last_work_begin_timestamp is p.last_work_end_timestamp
+
+
+def test_do_status(config, mocker):
+    """Verify that the Unpacker has no additional state to offer."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    assert p._do_status() == {}
+
+
+@pytest.mark.asyncio
+async def test_script_main(config, mocker, monkeypatch):
+    """
+    Verify Unpacker component behavior when run as a script.
+
+    Test to make sure running the Unpacker as a script does the setup work
+    that we expect and then launches the unpacker service.
+    """
+    for key in config.keys():
+        monkeypatch.setenv(key, config[key])
+    mock_event_loop = mocker.patch("asyncio.get_event_loop")
+    mock_root_logger = mocker.patch("logging.getLogger")
+    mock_status_loop = mocker.patch("lta.unpacker.status_loop")
+    mock_work_loop = mocker.patch("lta.unpacker.work_loop")
+    main()
+    mock_event_loop.assert_called()
+    mock_root_logger.assert_called()
+    mock_status_loop.assert_called()
+    mock_work_loop.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_unpacker_logs_configuration(mocker):
+    """Test to make sure the Unpacker logs its configuration."""
+    logger_mock = mocker.MagicMock()
+    unpacker_config = {
+        "COMPONENT_NAME": "logme-testing-unpacker",
+        "DEST_SITE": "WIPAC",
+        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-token",
+        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
+        "HEARTBEAT_PATCH_RETRIES": "1",
+        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
+        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
+        "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "RUN_ONCE_AND_DIE": "False",
+        "SOURCE_SITE": "NERSC",
+        "UNPACKER_OUTBOX_PATH": "logme/tmp/lta/testing/unpacker/outbox",
+        "UNPACKER_WORKBOX_PATH": "logme/tmp/lta/testing/unpacker/workbox",
+        "WORK_RETRIES": "5",
+        "WORK_SLEEP_DURATION_SECONDS": "70",
+        "WORK_TIMEOUT_SECONDS": "90",
+    }
+    Unpacker(unpacker_config, logger_mock)
+    EXPECTED_LOGGER_CALLS = [
+        call("unpacker 'logme-testing-unpacker' is configured:"),
+        call('COMPONENT_NAME = logme-testing-unpacker'),
+        call('DEST_SITE = WIPAC'),
+        call('FILE_CATALOG_REST_TOKEN = fake-file-catalog-token'),
+        call('FILE_CATALOG_REST_URL = http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
+        call('HEARTBEAT_PATCH_RETRIES = 1'),
+        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
+        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
+        call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
+        call('RUN_ONCE_AND_DIE = False'),
+        call('SOURCE_SITE = NERSC'),
+        call('UNPACKER_OUTBOX_PATH = logme/tmp/lta/testing/unpacker/outbox'),
+        call('UNPACKER_WORKBOX_PATH = logme/tmp/lta/testing/unpacker/workbox'),
+        call('WORK_RETRIES = 5'),
+        call('WORK_SLEEP_DURATION_SECONDS = 70'),
+        call('WORK_TIMEOUT_SECONDS = 90'),
+    ]
+    logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_run(config, mocker):
+    """Test the Unpacker does the work the unpacker should do."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    p._do_work = AsyncMock()
+    await p.run()
+    p._do_work.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_unpacker_run_exception(config, mocker):
+    """Test an error doesn't kill the Unpacker."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    p.last_work_end_timestamp = None
+    p._do_work = AsyncMock()
+    p._do_work.side_effect = [Exception("bad thing happen!")]
+    await p.run()
+    p._do_work.assert_called()
+    assert p.last_work_end_timestamp
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_pop_exception(config, mocker):
+    """Test that _do_work raises when the RestClient can't pop."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
+    p = Unpacker(config, logger_mock)
+    with pytest.raises(HTTPError):
+        await p._do_work()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=unpacking', mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_no_results(config, mocker):
+    """Test that _do_work goes on vacation when the LTA DB has no work."""
+    logger_mock = mocker.MagicMock()
+    claim_mock = mocker.patch("lta.unpacker.Unpacker._do_work_claim", new_callable=AsyncMock)
+    claim_mock.return_value = False
+    p = Unpacker(config, logger_mock)
+    await p._do_work()
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_claim_no_results(config, mocker):
+    """Test that _do_work_claim returns False when the LTA DB has no work."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "bundle": None
+    }
+    p = Unpacker(config, logger_mock)
+    assert not await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=unpacking', mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_yes_results(config, mocker):
+    """Test that _do_work_claim processes each Bundle that it gets from the LTA DB."""
+    BUNDLE_OBJ = {
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
+    }
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "bundle": BUNDLE_OBJ,
+    }
+    dwb_mock = mocker.patch("lta.unpacker.Unpacker._do_work_bundle", new_callable=AsyncMock)
+    p = Unpacker(config, logger_mock)
+    assert await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=unpacking', mocker.ANY)
+    dwb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_raise_exception(config, mocker):
+    """Test that _do_work_claim processes each Bundle that it gets from the LTA DB."""
+    BUNDLE_OBJ = {
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
+    }
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "bundle": BUNDLE_OBJ,
+    }
+    dwb_mock = mocker.patch("lta.unpacker.Unpacker._do_work_bundle", new_callable=AsyncMock)
+    dwb_mock.side_effect = Exception("LTA DB started on fire again")
+    qb_mock = mocker.patch("lta.unpacker.Unpacker._quarantine_bundle", new_callable=AsyncMock)
+    p = Unpacker(config, logger_mock)
+    with pytest.raises(Exception):
+        await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=unpacking', mocker.ANY)
+    dwb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ)
+    qb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ, "LTA DB started on fire again")
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_bundle_once_and_die(config, mocker):
+    """Test that _do_work goes on vacation when the LTA DB has no work."""
+    once = config.copy()
+    once["RUN_ONCE_AND_DIE"] = "True"
+    logger_mock = mocker.MagicMock()
+    claim_mock = mocker.patch("lta.unpacker.Unpacker._do_work_claim", new_callable=AsyncMock)
+    claim_mock.return_value = False
+    sys_exit_mock = mocker.patch("sys.exit")
+    p = Unpacker(once, logger_mock)
+    assert not await p._do_work()
+    sys_exit_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_unpacker_quarantine_bundle_with_reason(config, mocker):
+    """Test that _do_work_claim attempts to quarantine a Bundle that fails to get unpacked."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    p = Unpacker(config, logger_mock)
+    await p._quarantine_bundle(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"}, "Rucio caught fire, then we roasted marshmellows.")
+    lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_quarantine_bundle_with_reason_raises(config, mocker):
+    """Test that _do_work_claim attempts to quarantine a Bundle that fails to get unpacked."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    lta_rc_mock.request.side_effect = Exception("Marshmellows were poisoned")
+    p = Unpacker(config, logger_mock)
+    await p._quarantine_bundle(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"}, "Rucio caught fire, then we roasted marshmellows.")
+    lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_update_bundle_in_lta_db(config, mocker):
+    """Test that _update_bundle_in_lta_db updates the status of the bundle in the LTA DB."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    p = Unpacker(config, logger_mock)
+    assert await p._update_bundle_in_lta_db(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"})
+    lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_add_location_to_file_catalog(config, mocker):
+    """Test that _add_location_to_file_catalog adds a location in the File Catalog."""
+    logger_mock = mocker.MagicMock()
+    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    p = Unpacker(config, logger_mock)
+    assert await p._add_location_to_file_catalog("c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", "/path/in/the/data/warehouse.tar.bz2")
+    fc_rc_mock.assert_called_with("POST", "/api/files/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003/locations", mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_bundle(config, mocker):
+    """Test that _do_work_bundle does the work of preparing an archive."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
+    mock_zipfile_init.return_value = None
+    mock_zipfile_write = mocker.patch("zipfile.ZipFile.extractall")
+    mock_zipfile_write.return_value = None
+    mock_json_load = mocker.patch("json.load")
+    mock_json_load.return_value = {
+        "files": [
+            {
+                "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
+                "file_size": 1234567890,
+                "checksum": {
+                    "adler32": "89d5efeb",
+                    "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+                },
+            }
+        ]
+    }
+    mock_shutil_move = mocker.patch("shutil.move")
+    mock_shutil_move.return_value = None
+    mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
+    mock_lta_checksums.return_value = {
+        "adler32": "89d5efeb",
+        "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+    }
+    mock_os_path_getsize = mocker.patch("os.path.getsize")
+    mock_os_path_getsize.return_value = 1234567890
+    mock_os_remove = mocker.patch("os.remove")
+    mock_os_remove.return_value = None
+    altfc_mock = mocker.patch("lta.unpacker.Unpacker._add_location_to_file_catalog", new_callable=AsyncMock)
+    altfc_mock.return_value = False
+    p = Unpacker(config, logger_mock)
+    BUNDLE_OBJ = {
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+        "source": "NERSC",
+        "dest": "WIPAC",
+        "files": [{"logical_name": "/path/to/a/data/file", }],
+    }
+    with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
+        await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
+        metadata_mock.assert_called_with(mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_bundle_mismatch_size(config, mocker):
+    """Test that _do_work_bundle does the work of preparing an archive."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
+    mock_zipfile_init.return_value = None
+    mock_zipfile_write = mocker.patch("zipfile.ZipFile.extractall")
+    mock_zipfile_write.return_value = None
+    mock_json_load = mocker.patch("json.load")
+    mock_json_load.return_value = {
+        "files": [
+            {
+                "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
+                "file_size": 1234567890,
+                "checksum": {
+                    "adler32": "89d5efeb",
+                    "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+                },
+            }
+        ]
+    }
+    mock_shutil_move = mocker.patch("shutil.move")
+    mock_shutil_move.return_value = None
+    mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
+    mock_lta_checksums.return_value = {
+        "adler32": "89d5efeb",
+        "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+    }
+    mock_os_path_getsize = mocker.patch("os.path.getsize")
+    mock_os_path_getsize.return_value = 234567890
+    mock_os_remove = mocker.patch("os.remove")
+    mock_os_remove.return_value = None
+    altfc_mock = mocker.patch("lta.unpacker.Unpacker._add_location_to_file_catalog", new_callable=AsyncMock)
+    altfc_mock.return_value = False
+    p = Unpacker(config, logger_mock)
+    BUNDLE_OBJ = {
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+        "source": "NERSC",
+        "dest": "WIPAC",
+        "files": [{"logical_name": "/path/to/a/data/file", }],
+    }
+    with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
+        with pytest.raises(Exception):
+            await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
+        metadata_mock.assert_called_with(mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_bundle_mismatch_checksum(config, mocker):
+    """Test that _do_work_bundle does the work of preparing an archive."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
+    mock_zipfile_init.return_value = None
+    mock_zipfile_write = mocker.patch("zipfile.ZipFile.extractall")
+    mock_zipfile_write.return_value = None
+    mock_json_load = mocker.patch("json.load")
+    mock_json_load.return_value = {
+        "files": [
+            {
+                "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
+                "file_size": 1234567890,
+                "checksum": {
+                    "adler32": "89d5efeb",
+                    "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+                },
+            }
+        ]
+    }
+    mock_shutil_move = mocker.patch("shutil.move")
+    mock_shutil_move.return_value = None
+    mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
+    mock_lta_checksums.return_value = {
+        "adler32": "89d5efeb",
+        "sha512": "919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570c",
+    }
+    mock_os_path_getsize = mocker.patch("os.path.getsize")
+    mock_os_path_getsize.return_value = 1234567890
+    mock_os_remove = mocker.patch("os.remove")
+    mock_os_remove.return_value = None
+    altfc_mock = mocker.patch("lta.unpacker.Unpacker._add_location_to_file_catalog", new_callable=AsyncMock)
+    altfc_mock.return_value = False
+    p = Unpacker(config, logger_mock)
+    BUNDLE_OBJ = {
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+        "source": "NERSC",
+        "dest": "WIPAC",
+        "files": [{"logical_name": "/path/to/a/data/file", }],
+    }
+    with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
+        with pytest.raises(Exception):
+            await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
+        metadata_mock.assert_called_with(mocker.ANY)
