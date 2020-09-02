@@ -17,6 +17,7 @@ def config():
     """Supply a stock Locator component configuration."""
     return {
         "COMPONENT_NAME": "testing-locator",
+        "DEST_SITE": "wipac",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "3",
@@ -26,7 +27,7 @@ def config():
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "examples/site.json",
         "RUN_ONCE_AND_DIE": "False",
-        "SOURCE_SITE": "wipac",
+        "SOURCE_SITE": "nersc",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -132,6 +133,7 @@ async def test_locator_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     locator_config = {
         "COMPONENT_NAME": "logme-testing-locator",
+        "DEST_SITE": "wipac",
         "FILE_CATALOG_REST_TOKEN": "logme-fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
@@ -141,7 +143,7 @@ async def test_locator_logs_configuration(mocker):
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "examples/site.json",
         "RUN_ONCE_AND_DIE": "False",
-        "SOURCE_SITE": "wipac",
+        "SOURCE_SITE": "nersc",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
@@ -150,6 +152,7 @@ async def test_locator_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("locator 'logme-testing-locator' is configured:"),
         call('COMPONENT_NAME = logme-testing-locator'),
+        call('DEST_SITE = wipac'),
         call('FILE_CATALOG_REST_TOKEN = logme-fake-file-catalog-rest-token'),
         call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
@@ -159,7 +162,7 @@ async def test_locator_logs_configuration(mocker):
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('LTA_SITE_CONFIG = examples/site.json'),
         call('RUN_ONCE_AND_DIE = False'),
-        call('SOURCE_SITE = wipac'),
+        call('SOURCE_SITE = nersc'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
         call('WORK_TIMEOUT_SECONDS = 90')
@@ -199,7 +202,7 @@ async def test_locator_do_work_pop_exception(config, mocker):
     p = Locator(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?dest=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?dest=wipac&source=nersc', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -235,7 +238,7 @@ async def test_locator_do_work_claim_no_result(config, mocker):
     dwtr_mock = mocker.patch("lta.locator.Locator._do_work_transfer_request", new_callable=AsyncMock)
     p = Locator(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?dest=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?dest=wipac&source=nersc', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_not_called()
 
 
@@ -252,7 +255,7 @@ async def test_locator_do_work_claim_yes_result(config, mocker):
     dwtr_mock = mocker.patch("lta.locator.Locator._do_work_transfer_request", new_callable=AsyncMock)
     p = Locator(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?dest=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?dest=wipac&source=nersc', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
@@ -272,7 +275,7 @@ async def test_locator_do_work_claim_exception_when_processing(config, mocker):
     p = Locator(config, logger_mock)
     with pytest.raises(Exception):
         await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?dest=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?dest=wipac&source=nersc', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
     qtr_mock.assert_called_with(mocker.ANY, {"one": 1}, "lta db crashed like launchpad mcquack")
 
