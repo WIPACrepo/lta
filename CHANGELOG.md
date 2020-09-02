@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.18.0] - 2020-09-01
+### Fixed
+- Fixed locator to properly query LTA REST server for TransferRequests
+
 ## [0.17.0] - 2020-08-25
 ### Changed
 - Format of quarantine reason messages for Bundles
