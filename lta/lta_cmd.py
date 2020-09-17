@@ -57,6 +57,8 @@ PATH_PREFIX_WHITELIST = [
     "/data/sim",
 ]
 
+# -----------------------------------------------------------------------------
+
 def as_datetime(s: str) -> datetime:
     """Convert a timestamp string into a datetime object."""
     # if Python 3.7+
@@ -209,7 +211,7 @@ def _get_status_bar(status_list: List[str],
 
 async def bundle_ls(args: Namespace) -> ExitCode:
     """List all of the Bundle objects in the LTA DB."""
-    response = await args.lta_rc.request("GET", "/Bundles")
+    response = await args.di["lta_rc"].request("GET", "/Bundles")
     if args.json:
         print_dict_as_pretty_json(response)
     else:
@@ -217,7 +219,7 @@ async def bundle_ls(args: Namespace) -> ExitCode:
         print(f"total {len(results)}")
         for uuid in results:
             if args.show_status:
-                bundle = await args.lta_rc.request("GET", f"/Bundles/{uuid}")
+                bundle = await args.di["lta_rc"].request("GET", f"/Bundles/{uuid}")
                 print(f"Bundle {uuid} {bundle['status']}")
             else:
                 print(f"Bundle {uuid}")
@@ -229,12 +231,12 @@ async def bundle_overdue(args: Namespace) -> ExitCode:
     # calculate our cutoff time for bundles not making progress
     cutoff_time = datetime.utcnow() - timedelta(days=args.days)
     # query the LTA DB to get a list of bundles to check
-    response = await args.lta_rc.request("GET", "/Bundles")
+    response = await args.di["lta_rc"].request("GET", "/Bundles")
     results = response["results"]
     # for each bundle, query the LTA DB and check it
     problem_bundles = []
     for uuid in results:
-        bundle = await args.lta_rc.request("GET", f"/Bundles/{uuid}")
+        bundle = await args.di["lta_rc"].request("GET", f"/Bundles/{uuid}")
         del bundle["files"]
         if bundle["status"] == "quarantined":
             problem_bundles.append(bundle)
@@ -255,21 +257,21 @@ async def bundle_overdue(args: Namespace) -> ExitCode:
 
 async def bundle_priority_reset(args: Namespace) -> ExitCode:
     """List all of the Bundle objects in the LTA DB."""
-    response = await args.lta_rc.request("GET", "/Bundles")
+    response = await args.di["lta_rc"].request("GET", "/Bundles")
     results = response["results"]
     for uuid in results:
-        response2 = await args.lta_rc.request("GET", f"/Bundles/{uuid}")
+        response2 = await args.di["lta_rc"].request("GET", f"/Bundles/{uuid}")
         patch_body = {
             "update_timestamp": now(),
             "work_priority_timestamp": response2["create_timestamp"],
         }
-        await args.lta_rc.request("PATCH", f"/Bundles/{uuid}", patch_body)
+        await args.di["lta_rc"].request("PATCH", f"/Bundles/{uuid}", patch_body)
     return EXIT_OK
 
 
 async def bundle_status(args: Namespace) -> ExitCode:
     """Query the status of a Bundle in the LTA DB."""
-    response = await args.lta_rc.request("GET", f"/Bundles/{args.uuid}")
+    response = await args.di["lta_rc"].request("GET", f"/Bundles/{args.uuid}")
     if args.json:
         print_dict_as_pretty_json(response)
     else:
@@ -314,7 +316,7 @@ async def bundle_update_status(args: Namespace) -> ExitCode:
         patch_body["claimed"] = False
     if not args.keep_priority:
         patch_body["work_priority_timestamp"] = right_now
-    await args.lta_rc.request("PATCH", f"/Bundles/{args.uuid}", patch_body)
+    await args.di["lta_rc"].request("PATCH", f"/Bundles/{args.uuid}", patch_body)
     return EXIT_OK
 
 
@@ -336,7 +338,7 @@ async def catalog_check(args: Namespace) -> ExitCode:
         if args.checksums:
             checksum = sha512sum(disk_file)
         # ask the file catalog to retrieve the record of the file
-        catalog_record = await _catalog_get(args.fc_rc, disk_file)
+        catalog_record = await _catalog_get(args.di["fc_rc"], disk_file)
         if not catalog_record:
             exit_code = EXIT_ERROR
             if not args.json:
@@ -371,7 +373,7 @@ async def catalog_check(args: Namespace) -> ExitCode:
         }
     }
     query_json = json.dumps(query_dict)
-    fc_response = await args.fc_rc.request('GET', f'/api/files?query={query_json}')
+    fc_response = await args.di["fc_rc"].request('GET', f'/api/files?query={query_json}')
     for catalog_file in fc_response["files"]:
         if catalog_file["logical_name"] not in disk_files:
             exit_code = EXIT_ERROR
@@ -397,12 +399,12 @@ async def catalog_display(args: Namespace) -> ExitCode:
     # if the user specified a path
     if args.path:
         # ask the file catalog to retrieve the record of the file
-        catalog_record = await _catalog_get(args.fc_rc, args.path)
+        catalog_record = await _catalog_get(args.di["fc_rc"], args.path)
 
     # if the user specified a uuid
     if args.uuid:
         try:
-            catalog_record = await args.fc_rc.request("GET", f"/api/files/{args.uuid}")
+            catalog_record = await args.di["fc_rc"].request("GET", f"/api/files/{args.uuid}")
         except Exception:
             catalog_record = None
 
@@ -450,7 +452,7 @@ async def dashboard(args: Namespace) -> ExitCode:
         "transfer-request-finisher": "deleted",
     }
     # get a list of all requests in the system
-    response = await args.lta_rc.request("GET", "/TransferRequests")
+    response = await args.di["lta_rc"].request("GET", "/TransferRequests")
     results = response["results"]
     requests = []
     for result in results:
@@ -472,9 +474,9 @@ async def dashboard(args: Namespace) -> ExitCode:
     for request in requests:
         print(f"{request_count:>{req_width}}/{num_requests:>{req_width}}", end="\r")
         # obtain the bundles associated with the request
-        res2 = await args.lta_rc.request("GET", f"/Bundles?request={request['uuid']}")
+        res2 = await args.di["lta_rc"].request("GET", f"/Bundles?request={request['uuid']}")
         # print(f"res2: {res2}")
-        request["bundles"] = await _get_bundles_status(args.lta_rc, res2["results"])
+        request["bundles"] = await _get_bundles_status(args.di["lta_rc"], res2["results"])
         # print(f"request['bundles']: {request['bundles']}")
         # sort the bundles by create time
         request["bundles"] = sorted(request["bundles"], key=itemgetter('create_timestamp'))
@@ -508,10 +510,10 @@ async def dashboard(args: Namespace) -> ExitCode:
 async def display_config(args: Namespace) -> ExitCode:
     """Display the configuration provided to the application."""
     if args.json:
-        print_dict_as_pretty_json(args.config)
+        print_dict_as_pretty_json(args.di["config"])
     else:
-        for key in args.config:
-            print(f"{key}:\t\t{args.config[key]}")
+        for key in args.di["config"]:
+            print(f"{key}:\t\t{args.di['config'][key]}")
     return EXIT_OK
 
 
@@ -537,7 +539,7 @@ async def request_estimate(args: Namespace) -> ExitCode:
 
 async def request_ls(args: Namespace) -> ExitCode:
     """List all of the TransferRequest objects in the LTA DB."""
-    response = await args.lta_rc.request("GET", "/TransferRequests")
+    response = await args.di["lta_rc"].request("GET", "/TransferRequests")
     if args.json:
         print_dict_as_pretty_json(response)
     else:
@@ -565,7 +567,7 @@ async def request_new(args: Namespace) -> ExitCode:
             # raise an Exception to prevent the command from creating a too small request
             raise Exception(f"TransferRequest for {path}\n{size:,} bytes ({hurry.filesize.size(size)}) in {len(disk_files):,} files.\nMinimum required size: {MINIMUM_REQUEST_SIZE:,} bytes.")
     # check to see if we've already got an open TransferRequest on that path
-    response = await args.lta_rc.request("GET", "/TransferRequests")
+    response = await args.di["lta_rc"].request("GET", "/TransferRequests")
     results = response["results"]
     for request in results:
         old_path = os.path.normpath(request['path'])
@@ -581,9 +583,9 @@ async def request_new(args: Namespace) -> ExitCode:
         "dest": dest,
         "path": path,
     }
-    response = await args.lta_rc.request("POST", "/TransferRequests", request_body)
+    response = await args.di["lta_rc"].request("POST", "/TransferRequests", request_body)
     uuid = response["TransferRequest"]
-    tr = await args.lta_rc.request("GET", f"/TransferRequests/{uuid}")
+    tr = await args.di["lta_rc"].request("GET", f"/TransferRequests/{uuid}")
     if args.json:
         print_dict_as_pretty_json(tr)
     else:
@@ -596,7 +598,7 @@ async def request_new(args: Namespace) -> ExitCode:
 async def request_priority_reset(args: Namespace) -> ExitCode:
     """Reset the work priority timestamp for every TransferRequest."""
     # find every transfer request and set work_priority_timestamp to create_timestamp
-    response = await args.lta_rc.request("GET", "/TransferRequests")
+    response = await args.di["lta_rc"].request("GET", "/TransferRequests")
     results = response["results"]
     for request in results:
         uuid = request["uuid"]
@@ -604,24 +606,24 @@ async def request_priority_reset(args: Namespace) -> ExitCode:
             "update_timestamp": now(),
             "work_priority_timestamp": request["create_timestamp"],
         }
-        await args.lta_rc.request("PATCH", f"/TransferRequests/{uuid}", patch_body)
+        await args.di["lta_rc"].request("PATCH", f"/TransferRequests/{uuid}", patch_body)
     return EXIT_OK
 
 
 async def request_rm(args: Namespace) -> ExitCode:
     """Remove a TransferRequest from the LTA DB."""
-    response = await args.lta_rc.request("GET", f"/TransferRequests/{args.uuid}")
+    response = await args.di["lta_rc"].request("GET", f"/TransferRequests/{args.uuid}")
     path = response["path"]
     if args.confirm != path:
         print(f"request rm: cannot remove TransferRequest {args.uuid}: path is not --confirm {args.confirm}")
         return EXIT_ERROR
-    await args.lta_rc.request("DELETE", f"/TransferRequests/{args.uuid}")
+    await args.di["lta_rc"].request("DELETE", f"/TransferRequests/{args.uuid}")
     if args.verbose:
         print(f"removed TransferRequest {args.uuid}")
-    res3 = await args.lta_rc.request("GET", f"/Bundles?request={args.uuid}")
-    bundles = await _get_bundles_status(args.lta_rc, res3["results"])
+    res3 = await args.di["lta_rc"].request("GET", f"/Bundles?request={args.uuid}")
+    bundles = await _get_bundles_status(args.di["lta_rc"], res3["results"])
     for bundle in bundles:
-        await args.lta_rc.request("DELETE", f"/Bundles/{bundle['uuid']}")
+        await args.di["lta_rc"].request("DELETE", f"/Bundles/{bundle['uuid']}")
         if args.verbose:
             print(f"removed Bundle {bundle['uuid']}")
     return EXIT_OK
@@ -629,9 +631,9 @@ async def request_rm(args: Namespace) -> ExitCode:
 
 async def request_status(args: Namespace) -> ExitCode:
     """Query the status of a TransferRequest in the LTA DB."""
-    response = await args.lta_rc.request("GET", f"/TransferRequests/{args.uuid}")
-    res2 = await args.lta_rc.request("GET", f"/Bundles?request={args.uuid}")
-    response["bundles"] = await _get_bundles_status(args.lta_rc, res2["results"])
+    response = await args.di["lta_rc"].request("GET", f"/TransferRequests/{args.uuid}")
+    res2 = await args.di["lta_rc"].request("GET", f"/Bundles?request={args.uuid}")
+    response["bundles"] = await _get_bundles_status(args.di["lta_rc"], res2["results"])
     if args.json:
         print_dict_as_pretty_json(response)
     else:
@@ -670,7 +672,7 @@ async def request_update_status(args: Namespace) -> ExitCode:
         patch_body["claimed"] = False
     if not args.keep_priority:
         patch_body["work_priority_timestamp"] = right_now
-    await args.lta_rc.request("PATCH", f"/TransferRequests/{args.uuid}", patch_body)
+    await args.di["lta_rc"].request("PATCH", f"/TransferRequests/{args.uuid}", patch_body)
     return EXIT_OK
 
 
@@ -683,7 +685,7 @@ async def status(args: Namespace) -> ExitCode:
 
     # if we want the status of a particular component type
     if args.component:
-        response = await args.lta_rc.request("GET", f"/status/{args.component}")
+        response = await args.di["lta_rc"].request("GET", f"/status/{args.component}")
         if args.json:
             r = response.copy()
             for key in response:
@@ -701,7 +703,7 @@ async def status(args: Namespace) -> ExitCode:
 
     # otherwise we want the status of the whole system
     else:
-        response = await args.lta_rc.request("GET", "/status")
+        response = await args.di["lta_rc"].request("GET", "/status")
         if args.json:
             print_dict_as_pretty_json(response)
         else:
@@ -715,7 +717,7 @@ async def status(args: Namespace) -> ExitCode:
 
 async def status_nersc(args: Namespace) -> ExitCode:
     """Query the status of the quota at NERSC."""
-    response = await args.lta_rc.request("GET", "/status/nersc")
+    response = await args.di["lta_rc"].request("GET", "/status/nersc")
     print_dict_as_pretty_json(response)
     return EXIT_OK
 
@@ -723,14 +725,12 @@ async def status_nersc(args: Namespace) -> ExitCode:
 
 async def main() -> None:
     """Process a request from the Command Line."""
-    # configure the application from the environment
-    config = from_environment(EXPECTED_CONFIG)
-    fc_rc = RestClient(config["FILE_CATALOG_REST_URL"], token=config["FILE_CATALOG_REST_TOKEN"])
-    lta_rc = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
+    # create a dictionary that we can inject dependencies into later if necessary
+    di: Dict[str, Any] = {}
 
     # define our top-level argument parsing
     parser = argparse.ArgumentParser(prog="ltacmd")
-    parser.set_defaults(config=config, fc_rc=fc_rc, lta_rc=lta_rc)
+    parser.set_defaults(di=di)
     subparser = parser.add_subparsers(help='command help')
 
     # define a subparser for the 'bundle' subcommand
@@ -962,6 +962,12 @@ async def main() -> None:
     args = parser.parse_args()
     if hasattr(args, "func"):
         try:
+            # load and inject the dependencies needed by the command
+            config = from_environment(EXPECTED_CONFIG)
+            di["config"] = config
+            di["fc_rc"] = RestClient(config["FILE_CATALOG_REST_URL"], token=config["FILE_CATALOG_REST_TOKEN"])
+            di["lta_rc"] = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
+            # execute the command indicated by the user
             exit_code = await args.func(args)
             sys.exit(exit_code)
         except Exception as e:
