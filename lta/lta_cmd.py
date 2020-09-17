@@ -59,17 +59,6 @@ PATH_PREFIX_WHITELIST = [
 
 # -----------------------------------------------------------------------------
 
-di: Dict[str, Any] = {}
-
-def inject_dependencies() -> None:
-    """Configure the application from the environment."""
-    config = from_environment(EXPECTED_CONFIG)
-    di["config"] = config
-    di["fc_rc"] = RestClient(config["FILE_CATALOG_REST_URL"], token=config["FILE_CATALOG_REST_TOKEN"])
-    di["lta_rc"] = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
-
-# -----------------------------------------------------------------------------
-
 def as_datetime(s: str) -> datetime:
     """Convert a timestamp string into a datetime object."""
     # if Python 3.7+
@@ -736,6 +725,9 @@ async def status_nersc(args: Namespace) -> ExitCode:
 
 async def main() -> None:
     """Process a request from the Command Line."""
+    # create a dictionary that we can inject dependencies into later if necessary
+    di: Dict[str, Any] = {}
+
     # define our top-level argument parsing
     parser = argparse.ArgumentParser(prog="ltacmd")
     parser.set_defaults(di=di)
@@ -970,7 +962,12 @@ async def main() -> None:
     args = parser.parse_args()
     if hasattr(args, "func"):
         try:
-            inject_dependencies()
+            # load and inject the dependencies needed by the command
+            config = from_environment(EXPECTED_CONFIG)
+            di["config"] = config
+            di["fc_rc"] = RestClient(config["FILE_CATALOG_REST_URL"], token=config["FILE_CATALOG_REST_TOKEN"])
+            di["lta_rc"] = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
+            # execute the command indicated by the user
             exit_code = await args.func(args)
             sys.exit(exit_code)
         except Exception as e:
