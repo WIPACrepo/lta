@@ -222,7 +222,6 @@ def _get_status_bar(status_list: List[str],
 
 async def bundle_ls(args: Namespace) -> ExitCode:
     """List all of the Bundle objects in the LTA DB."""
-    inject_dependencies()
     response = await args.di["lta_rc"].request("GET", "/Bundles")
     if args.json:
         print_dict_as_pretty_json(response)
@@ -240,7 +239,6 @@ async def bundle_ls(args: Namespace) -> ExitCode:
 
 async def bundle_overdue(args: Namespace) -> ExitCode:
     """List of the problematic Bundle objects in the LTA DB."""
-    inject_dependencies()
     # calculate our cutoff time for bundles not making progress
     cutoff_time = datetime.utcnow() - timedelta(days=args.days)
     # query the LTA DB to get a list of bundles to check
@@ -270,7 +268,6 @@ async def bundle_overdue(args: Namespace) -> ExitCode:
 
 async def bundle_priority_reset(args: Namespace) -> ExitCode:
     """List all of the Bundle objects in the LTA DB."""
-    inject_dependencies()
     response = await args.di["lta_rc"].request("GET", "/Bundles")
     results = response["results"]
     for uuid in results:
@@ -285,7 +282,6 @@ async def bundle_priority_reset(args: Namespace) -> ExitCode:
 
 async def bundle_status(args: Namespace) -> ExitCode:
     """Query the status of a Bundle in the LTA DB."""
-    inject_dependencies()
     response = await args.di["lta_rc"].request("GET", f"/Bundles/{args.uuid}")
     if args.json:
         print_dict_as_pretty_json(response)
@@ -322,7 +318,6 @@ async def bundle_status(args: Namespace) -> ExitCode:
 
 async def bundle_update_status(args: Namespace) -> ExitCode:
     """Update the status of a Bundle in the LTA DB."""
-    inject_dependencies()
     right_now = now()
     patch_body = {}
     patch_body["status"] = args.new_status
@@ -338,7 +333,6 @@ async def bundle_update_status(args: Namespace) -> ExitCode:
 
 async def catalog_check(args: Namespace) -> ExitCode:
     """Check the files on disk vs. the file catalog and vice versa."""
-    inject_dependencies()
     exit_code = EXIT_OK
     # something to hold our results
     catalog_missing = []
@@ -413,7 +407,6 @@ async def catalog_check(args: Namespace) -> ExitCode:
 
 async def catalog_display(args: Namespace) -> ExitCode:
     """Display a record from the File Catalog."""
-    inject_dependencies()
     # if the user specified a path
     if args.path:
         # ask the file catalog to retrieve the record of the file
@@ -437,7 +430,6 @@ async def catalog_display(args: Namespace) -> ExitCode:
 
 async def dashboard(args: Namespace) -> ExitCode:
     """Display a Dashboard of on-going transfers."""
-    inject_dependencies()
     # define the list of TransferRequest statuses
     REQUEST_STATUS = [
         "unclaimed",
@@ -528,7 +520,6 @@ async def dashboard(args: Namespace) -> ExitCode:
 
 async def display_config(args: Namespace) -> ExitCode:
     """Display the configuration provided to the application."""
-    inject_dependencies()
     if args.json:
         print_dict_as_pretty_json(args.di["config"])
     else:
@@ -539,7 +530,6 @@ async def display_config(args: Namespace) -> ExitCode:
 
 async def request_estimate(args: Namespace) -> ExitCode:
     """Estimate the count and size of a new TransferRequest."""
-    inject_dependencies()
     files_and_size = _get_files_and_size(args.path)
     disk_files = files_and_size[0]
     size = files_and_size[1]
@@ -560,7 +550,6 @@ async def request_estimate(args: Namespace) -> ExitCode:
 
 async def request_ls(args: Namespace) -> ExitCode:
     """List all of the TransferRequest objects in the LTA DB."""
-    inject_dependencies()
     response = await args.di["lta_rc"].request("GET", "/TransferRequests")
     if args.json:
         print_dict_as_pretty_json(response)
@@ -574,7 +563,6 @@ async def request_ls(args: Namespace) -> ExitCode:
 
 async def request_new(args: Namespace) -> ExitCode:
     """Create a new TransferRequest and add it to the LTA DB."""
-    inject_dependencies()
     # determine how big the transfer request is going to be
     files_and_size = _get_files_and_size(args.path)
     disk_files = files_and_size[0]
@@ -620,7 +608,6 @@ async def request_new(args: Namespace) -> ExitCode:
 
 async def request_priority_reset(args: Namespace) -> ExitCode:
     """Reset the work priority timestamp for every TransferRequest."""
-    inject_dependencies()
     # find every transfer request and set work_priority_timestamp to create_timestamp
     response = await args.di["lta_rc"].request("GET", "/TransferRequests")
     results = response["results"]
@@ -636,7 +623,6 @@ async def request_priority_reset(args: Namespace) -> ExitCode:
 
 async def request_rm(args: Namespace) -> ExitCode:
     """Remove a TransferRequest from the LTA DB."""
-    inject_dependencies()
     response = await args.di["lta_rc"].request("GET", f"/TransferRequests/{args.uuid}")
     path = response["path"]
     if args.confirm != path:
@@ -656,7 +642,6 @@ async def request_rm(args: Namespace) -> ExitCode:
 
 async def request_status(args: Namespace) -> ExitCode:
     """Query the status of a TransferRequest in the LTA DB."""
-    inject_dependencies()
     response = await args.di["lta_rc"].request("GET", f"/TransferRequests/{args.uuid}")
     res2 = await args.di["lta_rc"].request("GET", f"/Bundles?request={args.uuid}")
     response["bundles"] = await _get_bundles_status(args.di["lta_rc"], res2["results"])
@@ -690,7 +675,6 @@ async def request_status(args: Namespace) -> ExitCode:
 
 async def request_update_status(args: Namespace) -> ExitCode:
     """Update the status of a TransferRequest in the LTA DB."""
-    inject_dependencies()
     right_now = now()
     patch_body = {}
     patch_body["status"] = args.new_status
@@ -705,7 +689,6 @@ async def request_update_status(args: Namespace) -> ExitCode:
 
 async def status(args: Namespace) -> ExitCode:
     """Query the status of the LTA DB or a component of LTA."""
-    inject_dependencies()
     old_data = (datetime.utcnow() - timedelta(days=args.days)).isoformat()
 
     def date_ok(d: str) -> bool:
@@ -745,7 +728,6 @@ async def status(args: Namespace) -> ExitCode:
 
 async def status_nersc(args: Namespace) -> ExitCode:
     """Query the status of the quota at NERSC."""
-    inject_dependencies()
     response = await args.di["lta_rc"].request("GET", "/status/nersc")
     print_dict_as_pretty_json(response)
     return EXIT_OK
@@ -988,6 +970,7 @@ async def main() -> None:
     args = parser.parse_args()
     if hasattr(args, "func"):
         try:
+            inject_dependencies()
             exit_code = await args.func(args)
             sys.exit(exit_code)
         except Exception as e:
