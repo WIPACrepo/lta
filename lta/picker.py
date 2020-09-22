@@ -8,7 +8,7 @@ from logging import Logger
 import sys
 from typing import Any, Dict, Optional
 
-from binpacking import to_constant_bin_number  # type: ignore
+from binpacking import to_constant_volume  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
 
@@ -22,6 +22,7 @@ EXPECTED_CONFIG.update({
     "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
     "LTA_SITE_CONFIG": "etc/site.json",
+    "MAX_FILE_COUNT": "25000",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -55,6 +56,7 @@ class Picker(Component):
         super(Picker, self).__init__("picker", config, logger)
         self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
+        self.max_file_count = int(config["MAX_FILE_COUNT"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         with open(config["LTA_SITE_CONFIG"]) as site_data:
@@ -162,16 +164,20 @@ class Picker(Component):
             catalog_records.append(catalog_record)
         # add up the sizes of everything returned by the catalog
         packing_list = []
-        total_size = 0
         for catalog_record in catalog_records:
             file_size = catalog_record["file_size"]
             #                    0: size    1: full record
             packing_list.append((file_size, catalog_record))
-            total_size += file_size
         # divide that by the size requested at the destination
         bundle_size = self.sites[dest]["bundle_size"]
-        num_bundles = max(round(total_size / bundle_size), 1)
-        packing_spec = to_constant_bin_number(packing_list, num_bundles, 0)  # 0: size
+        packing_spec = to_constant_volume(packing_list, bundle_size, 0)  # 0: size
+        # check that the bundle packing list does not exceed the allowed maximum file count
+        self.logger.info(f"Checking {len(packing_spec)} bundle packing lists.")
+        for spec in packing_spec:
+            self.logger.info(f"Packing list contains {len(spec)} files.")
+            if len(spec) > self.max_file_count:
+                await self._quarantine_transfer_request(lta_rc, tr, f"Bundle packing list contains {len(spec)} files; MAX_FILE_COUNT is configured at {self.max_file_count}")
+                return
         # for each packing list, we create a bundle in the LTA DB
         self.logger.info(f"Creating {len(packing_spec)} new Bundles in the LTA DB.")
         for spec in packing_spec:
