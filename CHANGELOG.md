@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.19.0] - 2020-10-09
+### Fixed
+- NerscVerifier now uses full path when adding locations to File Catalog records
+
 ## [0.18.0] - 2020-09-01
 ### Fixed
 - Fixed locator to properly query LTA REST server for TransferRequests
