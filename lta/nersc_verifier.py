@@ -174,13 +174,13 @@ class NerscVerifier(Component):
             fc_file_uuid = fc_file["uuid"]
             # read the current file entry in the File Catalog
             fc_record = await fc_rc.request("GET", f"/api/files/{fc_file_uuid}")
-            fc_filename = os.path.basename(fc_record["logical_name"])
+            logical_name = fc_record["logical_name"]
             # add a location indicating the bundle archive
             new_location = {
                 "locations": [
                     {
                         "site": "NERSC",
-                        "path": f"{hpss_path}:{fc_filename}",
+                        "path": f"{hpss_path}:{logical_name}",
                         "archive": True,
                     }
                 ]
