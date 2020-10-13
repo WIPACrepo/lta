@@ -217,6 +217,9 @@ class Locator(Component):
         for record in records:
             # for each location in that record
             for location in record["locations"]:
+                # if this location is not an archive, just skip it
+                if "archive" not in location:
+                    continue
                 # if the file is contained in a bundle at the source
                 if (location["archive"] is True) and (location["site"] == source):
                     # add the path to our list of bundle paths
@@ -224,14 +227,20 @@ class Locator(Component):
         # for each bundle path we collected
         bundle_uuids: List[str] = []
         for bundle_path in bundle_paths:
+            # extract the archive portion of the path
+            # bundle_path: /home/projects/icecube/data/exp/IceCube/2018/internal-system/pDAQ-2ndBld/0803/9a1cab0a395211eab1cbce3a3da73f88.zip:ukey_5667ab7c-919d-40d6-b3bb-31deecf39e3a_SPS-pDAQ-2ndBld-000_20180803_231701_000000.tar.gz
+            # split(":"):  |                                                                                                                | |                                                                                         |
+            # [0]:         |                                                                                                                |
+            keep_path = bundle_path.split(":")[0]
             # extract the uuid portion of the bundle
             # /some/path/to/an/archive/8abe369e59a111ea81bb534d1a62b1fe.zip
             # basename:                |                                  |
             # split("."):              |                              | | |
             # [0]:                     |                              |
-            uuid = os.path.basename(bundle_path).split(".")[0]
+            uuid = os.path.basename(keep_path).split(".")[0]
             # and if we don't already have it, add it to the list
             if uuid not in bundle_uuids:
+                self.logger.info(f"Found unique bundle UUID: {uuid}")
                 bundle_uuids.append(uuid)
         # return the unique list of bundle UUIDs that we collected
         return bundle_uuids
