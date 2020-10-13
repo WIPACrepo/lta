@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.21.0] - 2020-10-13
+### Added
+- Script to drive NerscRetriever at NERSC
+
 ## [0.20.0] - 2020-10-13
 ### Fixed
 - Locator properly parses File Catalog locations when choosing bundles

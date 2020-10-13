@@ -19,7 +19,6 @@ from .lta_types import BundleType
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "MAX_COUNT": None,
     "RSE_BASE_PATH": None,
     "TAPE_BASE_PATH": None,
     "WORK_RETRIES": "3",
@@ -55,7 +54,6 @@ class NerscRetriever(Component):
         logger - The object the nersc_retriever should use for logging.
         """
         super(NerscRetriever, self).__init__("nersc_retriever", config, logger)
-        self.max_count = int(config["MAX_COUNT"])
         self.rse_base_path = config["RSE_BASE_PATH"]
         self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
