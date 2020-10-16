@@ -134,7 +134,7 @@ class NerscRetriever(Component):
         #     get       -> read the source path from the hpss system to the dest path
         #     -c on     -> turn on the verification of checksums by the hpss system
         #     :         -> HPSS ... ¯\_(ツ)_/¯
-        args = ["/usr/common/mss/bin/hsi", "get", "-c", "on", hpss_path, ":", rucio_path]
+        args = ["/usr/common/mss/bin/hsi", "get", "-c", "on", rucio_path, ":", hpss_path]
         if not await self._execute_hsi_command(lta_rc, bundle, args):
             return False
         # update the Bundle in the LTA DB
