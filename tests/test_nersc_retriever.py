@@ -348,7 +348,7 @@ async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config, mocker):
     ehc_mock.side_effect = [True, False]
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'get', '-c', 'on', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
@@ -380,7 +380,7 @@ async def test_nersc_retriever_read_bundle_from_hpss(config, mocker):
     ehc_mock.side_effect = [True, True]
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'get', '-c', 'on', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 

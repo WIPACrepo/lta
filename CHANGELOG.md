@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.24.0] - 2020-10-16
+### Fixed
+- NerscRetriever now uses the correct ordering for arguments to hsi get
+
 ## [0.23.0] - 2020-10-16
 ### Fixed
 - Locator now populates bundle_path, checksum, size, and verified fields
