@@ -435,11 +435,13 @@ async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
     cb_mock.assert_called_with(lta_rc_mock, {
         'type': 'Bundle',
         'status': 'located',
+        'claimed': False,
         'reason': '',
         'request': tr_uuid,
         'source': 'nersc',
         'dest': 'wipac',
         'path': '/tmp/this/is/just/a/test',
+        'files': [],
         'catalog': {
             'checksum': {
                 'adler32': 'c14e315e',
@@ -556,11 +558,13 @@ async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker)
     cb_mock.assert_called_with(lta_rc_mock, {
         'type': 'Bundle',
         'status': 'located',
+        'claimed': False,
         'reason': '',
         'request': tr_uuid,
         'source': 'nersc',
         'dest': 'wipac',
         'path': '/tmp/this/is/just/a/test',
+        'files': [],
         'catalog': {
             'checksum': {
                 'adler32': 'c14e315e',

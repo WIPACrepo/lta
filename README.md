@@ -22,10 +22,9 @@ Follow these steps to get a development environment for LTA:
     cd ~/projects
     git clone git@github.com:WIPACrepo/lta.git
     cd lta
-    python3.7 -m venv ./env
+    python3.8 -m venv ./env
     source env/bin/activate
     pip install --upgrade pip
-    pip install git+https://github.com/WIPACrepo/rest-tools
     pip install -r requirements.txt
 
 ### Updating requirements.txt after a pip install

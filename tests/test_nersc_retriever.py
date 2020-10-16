@@ -239,7 +239,7 @@ async def test_nersc_retriever_do_work_pop_exception(config, mocker):
     p = NerscRetriever(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=specified', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -262,7 +262,7 @@ async def test_nersc_retriever_do_work_claim_no_result(config, mocker):
     wbth_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._read_bundle_from_hpss", new_callable=AsyncMock)
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=specified', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
     wbth_mock.assert_not_called()
 
 
@@ -288,7 +288,7 @@ async def test_nersc_retriever_do_work_claim_yes_result(config, mocker):
     wbth_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._read_bundle_from_hpss", new_callable=AsyncMock)
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=specified', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
     wbth_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 

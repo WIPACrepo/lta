@@ -186,6 +186,7 @@ class Locator(Component):
                 "type": "Bundle",
                 # "uuid": unique_id(),  # provided by LTA DB
                 "status": "located",
+                "claimed": False,
                 "reason": "",
                 # "create_timestamp": right_now,  # provided by LTA DB
                 # "update_timestamp": right_now,  # provided by LTA DB
@@ -193,6 +194,7 @@ class Locator(Component):
                 "source": source,
                 "dest": dest,
                 "path": path,
+                "files": [],  # don't worry about return files
                 "catalog": as_lta_record(bundle_record),
             })
 
