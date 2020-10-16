@@ -122,8 +122,13 @@ async def _get_bundles_status(rc: RestClient, bundle_uuids: List[str]) -> List[D
     for uuid in bundle_uuids:
         response = await rc.request('GET', f"/Bundles/{uuid}")
         KEYS = ['claim_timestamp', 'claimant', 'claimed', 'create_timestamp', 'path', 'request', 'status', 'type', 'update_timestamp', 'uuid']
-        bundle = {k: response[k] for k in KEYS}
-        bundle["file_count"] = len(response["files"])
+        bundle = {}
+        for k in KEYS:
+            if k in response:
+                bundle[k] = response[k]
+        bundle["file_count"] = 0
+        if 'files' in response:
+            bundle["file_count"] = len(response["files"])
         bundles.append(bundle)
     return bundles
 
@@ -287,7 +292,10 @@ async def bundle_status(args: Namespace) -> ExitCode:
         print(f"    TransferRequest: {response['request']}")
         print(f"    Source: {response['source']} -> Dest: {response['dest']}")
         print(f"    Path: {response['path']}")
-        print(f"    Files: {len(response['files'])}")
+        if 'files' in response:
+            print(f"    Files: {len(response['files'])}")
+        else:
+            print("    Files: Not Listed")
         # display additional information if available
         if 'bundle_path' in response:
             print(f"    Bundle File: {response['bundle_path']}")
@@ -299,9 +307,12 @@ async def bundle_status(args: Namespace) -> ExitCode:
             print(f"        sha512:  {response['checksum']['sha512']}")
         # display the contents of the bundle, if requested
         if args.contents:
-            print("    Contents:")
-            for file in response["files"]:
-                print(f"        {file['logical_name']} {file['file_size']}")
+            if 'files' in response:
+                print("    Contents:")
+                for file in response["files"]:
+                    print(f"        {file['logical_name']} {file['file_size']}")
+            else:
+                print("    Contents: Not Listed")
     return EXIT_OK
 
 

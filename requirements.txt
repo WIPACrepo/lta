@@ -22,6 +22,7 @@ hurry.filesize==0.9
 idna==2.10
 imagesize==1.2.0
 importlib-metadata==2.0.0
+iniconfig==1.1.1
 ipython==7.18.1
 ipython-genutils==0.2.0
 jedi==0.17.2
@@ -63,7 +64,7 @@ requests-futures==1.0.0
 requests-mock==1.8.0
 requests-toolbelt==0.9.1
 -e git+https://github.com/WIPACrepo/rest-tools@d07c78c0978f6f581e50db89a156a3103a2f2fb9#egg=rest_tools
-setuptools==50.3.0
+setuptools==50.3.1
 six==1.15.0
 snowballstemmer==2.0.0
 Sphinx==3.2.1
@@ -74,11 +75,12 @@ sphinxcontrib-jsmath==1.0.1
 sphinxcontrib-qthelp==1.0.3
 sphinxcontrib-serializinghtml==1.1.4
 sphinxcontrib-websupport==1.2.4
+toml==0.10.1
 tornado==6.0.4
-traitlets==5.0.4
+traitlets==5.0.5
 typed-ast==1.4.1
 typing-extensions==3.7.4.3
 urllib3==1.25.10
 wcwidth==0.2.5
 wheel==0.35.1
-zipp==3.3.0
+zipp==3.3.1
