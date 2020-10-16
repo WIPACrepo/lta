@@ -187,6 +187,7 @@ class Locator(Component):
                 # "uuid": unique_id(),  # provided by LTA DB
                 "status": "located",
                 "claimed": False,
+                "verified": False,
                 "reason": "",
                 # "create_timestamp": right_now,  # provided by LTA DB
                 # "update_timestamp": right_now,  # provided by LTA DB
@@ -194,6 +195,9 @@ class Locator(Component):
                 "source": source,
                 "dest": dest,
                 "path": path,
+                "size": bundle_record["file_size"],
+                "bundle_path": bundle_record["lta"]["bundle_path"],
+                "checksum": bundle_record["lta"]["checksum"],
                 "files": [],  # don't worry about return files
                 "catalog": as_lta_record(bundle_record),
             })

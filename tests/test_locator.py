@@ -426,7 +426,13 @@ async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
             ],
             "file_size": 1048576,
             "meta_modify_date": "2019-07-26 01:53:22.591198",
-            "lta": {},
+            "lta": {
+                "bundle_path": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+                "checksum": {
+                    "adler32": "c14e315e",
+                    "sha512": "e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a",
+                },
+            },
         }
     ]
     p = Locator(config, logger_mock)
@@ -436,11 +442,18 @@ async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
         'type': 'Bundle',
         'status': 'located',
         'claimed': False,
+        'verified': False,
         'reason': '',
         'request': tr_uuid,
         'source': 'nersc',
         'dest': 'wipac',
         'path': '/tmp/this/is/just/a/test',
+        'size': 1048576,
+        'bundle_path': "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+        'checksum': {
+            "adler32": "c14e315e",
+            "sha512": "e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a",
+        },
         'files': [],
         'catalog': {
             'checksum': {
@@ -549,7 +562,13 @@ async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker)
         ],
         "file_size": 1048576,
         "meta_modify_date": "2019-07-26 01:53:22.591198",
-        "lta": {},
+        "lta": {
+            "bundle_path": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+            "checksum": {
+                "adler32": "c14e315e",
+                "sha512": "e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a",
+            },
+        },
     }])
     fc_rc_mock.side_effect = side_effects
     p = Locator(config, logger_mock)
@@ -559,11 +578,18 @@ async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker)
         'type': 'Bundle',
         'status': 'located',
         'claimed': False,
+        'verified': False,
         'reason': '',
         'request': tr_uuid,
         'source': 'nersc',
         'dest': 'wipac',
         'path': '/tmp/this/is/just/a/test',
+        'size': 1048576,
+        'bundle_path': "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
+        'checksum': {
+            "adler32": "c14e315e",
+            "sha512": "e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a",
+        },
         'files': [],
         'catalog': {
             'checksum': {
