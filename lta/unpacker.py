@@ -106,8 +106,9 @@ class Unpacker(Component):
     async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""
         # 0. Get our ducks in a row about what we're doing here
-        bundle_id = bundle["uuid"]
-        bundle_file_path = os.path.join(self.workbox_path, f"{bundle_id}.zip")
+        bundle_file = os.path.basename(bundle["bundle_path"])
+        bundle_uuid = bundle_file.split(".")[0]
+        bundle_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.zip")
         # 1. Unpack the archive from our workbox to our outbox
         self.logger.info(f"Unpacking bundle {bundle_file_path} to {self.outbox_path}")
         with ZipFile(bundle_file_path, mode="r", allowZip64=True) as bundle_zip:
@@ -130,7 +131,7 @@ class Unpacker(Component):
         #         }
         #     ],
         # }
-        metadata_file_path = os.path.join(self.outbox_path, f"{bundle_id}.metadata.json")
+        metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.json")
         with open(metadata_file_path) as metadata_file:
             metadata_dict = json.load(metadata_file)
         # 3. Move and verify each file described within the bundle's manifest metadata
@@ -161,7 +162,7 @@ class Unpacker(Component):
                 self.logger.error(f"Error: File '{file_basename}' has sha512 checksum '{disk_checksum['sha512']}' but the bundle metadata supplied checksum '{manifest_checksum}'")
                 raise ValueError(f"File:{file_basename} sha512 Calculated:{disk_checksum['sha512']} sha512 Expected:{manifest_checksum}")
             # add the new location to the file catalog
-            await self._add_location_to_file_catalog(bundle_id, dest_path)
+            await self._add_location_to_file_catalog(bundle_uuid, dest_path)
         # 4. Clean up the metadata file
         self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
         os.remove(metadata_file_path)
