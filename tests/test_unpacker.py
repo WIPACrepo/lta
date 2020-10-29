@@ -359,6 +359,7 @@ async def test_unpacker_do_work_bundle(config, mocker):
     altfc_mock.return_value = False
     p = Unpacker(config, logger_mock)
     BUNDLE_OBJ = {
+        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
         "source": "NERSC",
         "dest": "WIPAC",
@@ -406,6 +407,7 @@ async def test_unpacker_do_work_bundle_mismatch_size(config, mocker):
     altfc_mock.return_value = False
     p = Unpacker(config, logger_mock)
     BUNDLE_OBJ = {
+        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
         "source": "NERSC",
         "dest": "WIPAC",
@@ -454,6 +456,7 @@ async def test_unpacker_do_work_bundle_mismatch_checksum(config, mocker):
     altfc_mock.return_value = False
     p = Unpacker(config, logger_mock)
     BUNDLE_OBJ = {
+        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
         "source": "NERSC",
         "dest": "WIPAC",
