@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.26.0] - 2020-10-30
+### Fixed
+- Unpacker specifies the correct file and path to update in the File Catalog
+
 ## [0.25.0] - 2020-10-29
 ### Fixed
 - Unpacker uses the correct field in the bundle to compute paths
