@@ -162,7 +162,7 @@ class Unpacker(Component):
                 self.logger.error(f"Error: File '{file_basename}' has sha512 checksum '{disk_checksum['sha512']}' but the bundle metadata supplied checksum '{manifest_checksum}'")
                 raise ValueError(f"File:{file_basename} sha512 Calculated:{disk_checksum['sha512']} sha512 Expected:{manifest_checksum}")
             # add the new location to the file catalog
-            await self._add_location_to_file_catalog(bundle_uuid, dest_path)
+            await self._add_location_to_file_catalog(bundle_file)
         # 4. Clean up the metadata file
         self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
         os.remove(metadata_file_path)
@@ -170,13 +170,16 @@ class Unpacker(Component):
         # 5. Update the bundle record in the LTA DB
         await self._update_bundle_in_lta_db(lta_rc, bundle)
 
-    async def _add_location_to_file_catalog(self, fc_uuid: str, fc_path: str) -> bool:
+    async def _add_location_to_file_catalog(self, bundle_file: Dict[str, Any]) -> bool:
         """Update File Catalog record with new Data Warehouse location."""
         # configure a RestClient to talk to the File Catalog
         fc_rc = RestClient(self.file_catalog_rest_url,
                            token=self.file_catalog_rest_token,
                            timeout=self.work_timeout_seconds,
                            retries=self.work_retries)
+        # extract the right variables from the metadata structure
+        fc_path = bundle_file["logical_name"]
+        fc_uuid = bundle_file["uuid"]
         # add the new location to the File Catalog
         new_location = {
             "locations": [

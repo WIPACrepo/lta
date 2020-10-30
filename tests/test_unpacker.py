@@ -318,9 +318,24 @@ async def test_unpacker_add_location_to_file_catalog(config, mocker):
     logger_mock = mocker.MagicMock()
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
-    assert await p._add_location_to_file_catalog("c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", "/path/in/the/data/warehouse.tar.bz2")
-    fc_rc_mock.assert_called_with("POST", "/api/files/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003/locations", mocker.ANY)
-
+    bundle_file = {
+        "checksum": {
+            "sha512": "09de7c539b724dee9543669309f978b172f6c7449d0269fecbb57d0c9cf7db51713fed3a94573c669fe0aa08fa122b41f84a0ea107c62f514b1525efbd08846b",
+        },
+        "file_size": 105311728,
+        "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000066.tar.bz2",
+        "meta_modify_date": "2020-02-20 22:47:25.180303",
+        "uuid": "2f0cb3c8-6cba-49b1-8eeb-13e13fed41dd",
+    }
+    assert await p._add_location_to_file_catalog(bundle_file)
+    fc_rc_mock.assert_called_with("POST", "/api/files/2f0cb3c8-6cba-49b1-8eeb-13e13fed41dd/locations", {
+        "locations": [
+            {
+                "site": "WIPAC",
+                "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000066.tar.bz2",
+            }
+        ]
+    })
 
 @pytest.mark.asyncio
 async def test_unpacker_do_work_bundle(config, mocker):
