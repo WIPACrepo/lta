@@ -91,7 +91,7 @@ export NS_PHONE_HOME=False
 # This string controls what we want to see at all times. 
 #   2 site-move-verifier, 0 retrievers, 2 nersc-mover, 2 nersc-verifiers
 # Only the last 3 need HSI
-export NS_DESIRED="nersc-mover:4 nersc-verifier:4 nersc-retriever:0 site-move-verifier:6 train:4"
+export NS_DESIRED="nersc-mover:4 nersc-verifier:4 nersc-retriever:1 site-move-verifier:6 train:4 deleter:4 deleter-nersc-return:1"
 # Not all slurm jobs use the hsi facility.  site-move-verifier is one that does not, and
 #  presumably its counterpart used during retrieving will also not be.  So, make a list
 #  of those that DO.
