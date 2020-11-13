@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.27.0] - 2020-11-12
+### Added
+- DesyMoveVerifier verifies Rucio completion for bundles moved to DESY
+
 ## [0.26.0] - 2020-10-30
 ### Fixed
 - Unpacker specifies the correct file and path to update in the File Catalog
