@@ -25,8 +25,6 @@ EXPECTED_CONFIG.update({
     "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
     "TAPE_BASE_PATH": None,
-    "WIPAC_CRED_PATH": None,
-    "WIPAC_GSIFTP": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
     "WORKBOX_PATH": None,
@@ -68,8 +66,6 @@ class DesyVerifier(Component):
         self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.tape_base_path = config["TAPE_BASE_PATH"]
-        self.wipac_cred_path = config["WIPAC_CRED_PATH"]
-        self.wipac_gsiftp = config["WIPAC_GSIFTP"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.workbox_path = config["WORKBOX_PATH"]
@@ -208,20 +204,17 @@ class DesyVerifier(Component):
         desy_tape_path = os.path.normpath(stupid_python_path)
         stupid_python_path = os.path.sep.join([self.workbox_path, basename])
         workbox_bundle_path = os.path.normpath(stupid_python_path)
-        stupid_python_path = os.path.sep.join([self.wipac_gsiftp, workbox_bundle_path])
-        src_url = os.path.normpath(stupid_python_path)
         stupid_python_path = os.path.sep.join([self.desy_gsiftp, desy_tape_path])
-        dst_url = os.path.normpath(stupid_python_path)
+        src_url = os.path.normpath(stupid_python_path)
         # use globus-url-copy to copy the file to our workbox directory
         #     -fast                  Recommended when using GridFTP servers. Use MODE E
         #                            for all data transfers, including reusing data channels
         #                            between list and transfer operations.
         #     -gridftp2              Use GridFTP v2 protocol enhancements when possible.
         #     -src-cred CRED-FILE    Set the credentials to use for source ftp connections.
-        #     -dst-cred CRED-FILE    Set the credentials to use for destination ftp connections.
         #     SOURCE-URL
         #     DESTINATION-URL
-        args = ["globus-url-copy", "-fast", "-gridftp2", "-src-cred", self.wipac_cred_path, "-dst-cred", self.desy_cred_path, src_url, dst_url]
+        args = ["globus-url-copy", "-fast", "-gridftp2", "-src-cred", self.desy_cred_path, src_url, workbox_bundle_path]
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
@@ -230,7 +223,7 @@ class DesyVerifier(Component):
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            raise Exception(f"globus-url-copy {src_url} {dst_url} Command Failed")
+            raise Exception(f"globus-url-copy {src_url} {workbox_bundle_path} Command Failed")
         # otherwise, we succeeded; verify that the file is in our workbox directory
         if not os.path.isfile(workbox_bundle_path):
             self.logger.error(f"Bundle file {workbox_bundle_path} does not exist after copying from DESY. Bad thing happen.")
