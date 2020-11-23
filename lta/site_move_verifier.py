@@ -8,7 +8,6 @@ import logging
 import os
 from subprocess import PIPE, run
 import sys
-import time
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -168,24 +167,19 @@ class SiteMoveVerifier(Component):
             self.logger.info(f"Bundle file {bundle_path} does not exist and cannot be verified at this time.")
             await self._unclaim_bundle(lta_rc, bundle)
             return False
-        # if it's been long enough since the file was last modified
-        epoch_now = int(time.time())
-        epoch_mtime = round(os.path.getmtime(bundle_path))
-        if (epoch_now - epoch_mtime) < OLD_MTIME_EPOCH_SEC:
-            self.logger.info(f"Bundle file {bundle_path} was modified {epoch_now - epoch_mtime} seconds ago. Will ask Rucio for the current status.")
-            # we'll check to see what Rucio thinks about the file
-            # instantiate a TransferService to query about the bundle
-            xfer_service = instantiate(self.transfer_config)
-            # ask the transfer service about the status of the transfer
-            xfer_status = await xfer_service.status(bundle["transfer_reference"])
-            self.logger.info(f"Bundle transfer status is: {xfer_status}")
-            # if it's not completed, we're still waiting to verify it
-            if not xfer_status["completed"]:
-                self.logger.info(f"Transfer of Bundle {bundle_id} is incomplete and will not be verified at this time.")
-                await self._unclaim_bundle(lta_rc, bundle)
-                return False
         # either the file hasn't been modified in a long time, or Rucio thinks it is done...
-        self.logger.info(f"Bundle file {bundle_path} was modified {epoch_now - epoch_mtime} seconds ago. Will compute SHA512 checksum.")
+        self.logger.info(f"Asking Rucio about the status of Bundle file {bundle_path}")
+        # we'll check to see what Rucio thinks about the file
+        # instantiate a TransferService to query about the bundle
+        xfer_service = instantiate(self.transfer_config)
+        # ask the transfer service about the status of the transfer
+        xfer_status = await xfer_service.status(bundle["transfer_reference"])
+        self.logger.info(f"Bundle transfer status is: {xfer_status}")
+        # if it's not completed, we're still waiting to verify it
+        if not xfer_status["completed"]:
+            self.logger.info(f"Transfer of Bundle {bundle_id} is incomplete and will not be verified at this time.")
+            await self._unclaim_bundle(lta_rc, bundle)
+            return False
         # we'll compute the bundle's checksum
         self.logger.info(f"Computing SHA512 checksum for bundle: '{bundle_path}'")
         checksum_sha512 = sha512sum(bundle_path)
