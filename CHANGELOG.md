@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.29.0] - 2020-11-23
+### Changed
+- SiteMoveVerifier now waits for Rucio to indicate a file is complete
+
 ## [0.28.0] - 2020-11-20
 ### Added
 - DesyVerifier verifies files were properly copied to DESY
