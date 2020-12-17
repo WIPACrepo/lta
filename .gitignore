@@ -108,4 +108,4 @@ venv.bak/
 /dump
 /etc
 /local-secret
-/service-token
+/service-token*

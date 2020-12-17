@@ -55,10 +55,10 @@ class RucioClient:
         """Authenticate with Rucio and acquire a token."""
         headers = {
             # https://rucio.readthedocs.io/en/latest/restapi/authentication.html#get--auth-userpass
-            "X-Rucio-Account": account,  # Account identifier as a string.
-            "X-Rucio-Username": username,  # – Username as a string.
+            "X-Rucio-Account": account,    # Account identifier as a string.
+            "X-Rucio-Username": username,  # Username as a string.
             "X-Rucio-Password": password,  # SHA1 hash of the password as a string.
-            "X-Rucio-AppID": app_id,  # Application identifier as a string.
+            "X-Rucio-AppID": app_id,       # Application identifier as a string.
             # because the data of the response comes back in the 'X-Rucio-Auth-Token' header
             "Accept": None,
         }
@@ -235,8 +235,13 @@ class RucioTransferService(TransferService):
         scope = self.scope
         dest = spec['dest']
         dataset_name = self.sites[dest]["dataset"]  # type: str
+        dest_path = self.sites[dest]["dest_path"]  # type: bool
         bundle_path = spec['bundle_path']
         name = os.path.basename(bundle_path)
+        if dest_path:
+            data_warehouse_path = spec["path"]
+            stupid_python_path = os.path.sep.join([data_warehouse_path, name])
+            name = os.path.normpath(stupid_python_path)
         did_dict = {
             "dids": [
                 {
