@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.31.0] - 2020-12-28
+### Changed
+- LTA DB routes for GET /Bundles and GET /Bundles/{uuid} are more efficient
+- Modified ltacmd script to take advantage of GET efficiencies in LTA DB
+
 ## [0.30.0] - 2020-12-17
 ### Changed
 - Replicator can now register files at the Rucio destination with the Data Warehouse path.

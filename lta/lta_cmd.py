@@ -224,7 +224,7 @@ async def bundle_ls(args: Namespace) -> ExitCode:
         print(f"total {len(results)}")
         for uuid in results:
             if args.show_status:
-                bundle = await args.di["lta_rc"].request("GET", f"/Bundles/{uuid}")
+                bundle = await args.di["lta_rc"].request("GET", f"/Bundles/{uuid}?contents=0")
                 print(f"Bundle {uuid} {bundle['status']}")
             else:
                 print(f"Bundle {uuid}")
@@ -241,8 +241,7 @@ async def bundle_overdue(args: Namespace) -> ExitCode:
     # for each bundle, query the LTA DB and check it
     problem_bundles = []
     for uuid in results:
-        bundle = await args.di["lta_rc"].request("GET", f"/Bundles/{uuid}")
-        del bundle["files"]
+        bundle = await args.di["lta_rc"].request("GET", f"/Bundles/{uuid}?contents=0")
         if bundle["status"] == "quarantined":
             problem_bundles.append(bundle)
         elif as_datetime(bundle["update_timestamp"]) < cutoff_time:
@@ -265,7 +264,7 @@ async def bundle_priority_reset(args: Namespace) -> ExitCode:
     response = await args.di["lta_rc"].request("GET", "/Bundles")
     results = response["results"]
     for uuid in results:
-        response2 = await args.di["lta_rc"].request("GET", f"/Bundles/{uuid}")
+        response2 = await args.di["lta_rc"].request("GET", f"/Bundles/{uuid}?contents=0")
         patch_body = {
             "update_timestamp": now(),
             "work_priority_timestamp": response2["create_timestamp"],
