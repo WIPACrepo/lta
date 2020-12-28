@@ -233,7 +233,9 @@ class BundlesHandler(BaseLTAHandler):
         status = self.get_query_argument("status", default=None)
         verified = self.get_query_argument("verified", default=None)
 
-        query: Dict[str, Any] = {}
+        query: Dict[str, Any] = {
+            "uuid": {"$exists": True},
+        }
         if location:
             query["source"] = {"$regex": f"^{location}"}
         if request:
@@ -243,10 +245,15 @@ class BundlesHandler(BaseLTAHandler):
         if verified:
             query["verified"] = boolify(verified)
 
+        projection: Dict[str, bool] = {
+            "_id": False,
+            "uuid": True,
+        }
+
         results = []
-        logging.debug(f"MONGO-START: db.Bundles.find(filter={query}, projection={REMOVE_ID})")
+        logging.debug(f"MONGO-START: db.Bundles.find(filter={query}, projection={projection})")
         async for row in self.db.Bundles.find(filter=query,
-                                              projection=REMOVE_ID):
+                                              projection=projection):
             results.append(row["uuid"])
         logging.debug("MONGO-END*:   db.Bundles.find(filter, projection)")
 
@@ -310,8 +317,14 @@ class BundlesSingleHandler(BaseLTAHandler):
     async def get(self, bundle_id: str) -> None:
         """Handle GET /Bundles/{uuid}."""
         query = {"uuid": bundle_id}
-        logging.debug(f"MONGO-START: db.Bundles.find_one(filter={query}, projection={REMOVE_ID})")
-        ret = await self.db.Bundles.find_one(filter=query, projection=REMOVE_ID)
+        projection = {
+            "_id": False,
+        }
+        contents = boolify(self.get_query_argument("contents", default="True"))
+        if not contents:
+            projection["files"] = False
+        logging.debug(f"MONGO-START: db.Bundles.find_one(filter={query}, projection={projection})")
+        ret = await self.db.Bundles.find_one(filter=query, projection=projection)
         logging.debug("MONGO-END:   db.Bundles.find_one(filter, projection)")
         if not ret:
             raise tornado.web.HTTPError(404, reason="not found")
