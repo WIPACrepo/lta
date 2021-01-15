@@ -109,3 +109,10 @@ venv.bak/
 /etc
 /local-secret
 /service-token*
+
+# don't add to the PR
+/workbench
+/cert.pem*
+/chain.pem*
+/key.pem*
+/x509.json
