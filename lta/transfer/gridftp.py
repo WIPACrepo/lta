@@ -9,15 +9,15 @@ import os
 import shutil
 import subprocess
 import tempfile
+from typing import Any, List, Optional, Tuple, Union
 
-from .transfer.gridftp import GridFTP  # type: ignore
-
+File = namedtuple('File', ['directory', 'perms', 'subfiles', 'owner', 'group', 'size', 'date', 'name'])
 logger = logging.getLogger('gridftp')
 
-def _cmd(cmd, timeout=1200):
+def _cmd(cmd: List[str], timeout: int = 1200) -> None:
     subprocess.run(cmd, timeout=timeout, check=True)
 
-def _cmd_output(cmd, timeout=1200):
+def _cmd_output(cmd: List[str], timeout: int = 1200) -> Tuple[int, str]:
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
         output = p.communicate(timeout=timeout)[0].decode('utf-8')
@@ -26,7 +26,7 @@ def _cmd_output(cmd, timeout=1200):
         p.kill()
         raise Exception('Request timed out')
 
-def cksm(filename, type, buffersize=16384, file=True):
+def cksm(filename: str, type: str, buffersize: int = 16384, file: bool = True) -> Any:
     """Return checksum of file using algorithm specified."""
     if type not in ('md5', 'sha1', 'sha256', 'sha512'):
         raise Exception('cannot get checksum for type %r', type)
@@ -48,13 +48,10 @@ def cksm(filename, type, buffersize=16384, file=True):
         digest.update(filename)
     return digest.hexdigest()
 
-def listify(lines, details=False, dotfiles=False):
+def listify(lines: str, details: bool = False, dotfiles: bool = False) -> List[Union[File, str]]:
     """Turn ls output into a list of NamedTuples."""
-    out = []
+    out: List[Union[File, str]] = []
     if details:
-        File = namedtuple('File', ['directory', 'perms', 'subfiles',
-                                   'owner', 'group', 'size', 'date',
-                                   'name'])
         months = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
                   'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12}
         for x in lines.split('\n'):
@@ -98,7 +95,7 @@ class GridFTP(object):
     _timeout = 1200  # 20 min default timeout
 
     @classmethod
-    def supported_address(cls, address):
+    def supported_address(cls, address: str) -> bool:
         """Return False for address types that are not supported."""
         if '://' not in address:
             return False
@@ -108,7 +105,7 @@ class GridFTP(object):
         return True
 
     @classmethod
-    def address_split(cls, address):
+    def address_split(cls, address: str) -> Tuple[str, str]:
         """Split an address into server/path parts."""
         pieces = address.split('://', 1)
         if '/' in pieces[1]:
@@ -118,7 +115,7 @@ class GridFTP(object):
             return (address, '/')
 
     @classmethod
-    def get(cls, address, filename=None, request_timeout=None):
+    def get(cls, address: str, filename: Optional[str] = None, request_timeout: Optional[int] = None) -> Optional[str]:
         """
         Do a GridFTP get request.
 
@@ -160,9 +157,10 @@ class GridFTP(object):
         finally:
             if tmpdir:
                 shutil.rmtree(tmpdir, ignore_errors=True)
+        return None
 
     @classmethod
-    def put(cls, address, data=None, filename=None, request_timeout=None):
+    def put(cls, address: str, data: Optional[str] = None, filename: Optional[str] = None, request_timeout: Optional[int] = None) -> None:
         """
         Do a GridFTP put request.
 
@@ -205,7 +203,7 @@ class GridFTP(object):
                 shutil.rmtree(tmpdir, ignore_errors=True)
 
     @classmethod
-    def list(cls, address, request_timeout=None, details=False, dotfiles=False):
+    def list(cls, address: str, request_timeout: Optional[int] = None, details: bool = False, dotfiles: bool = False) -> List[Union[File, str]]:
         """
         Do a GridFTP list request.
 
@@ -237,7 +235,7 @@ class GridFTP(object):
         return listify(ret[1], details=details, dotfiles=dotfiles)
 
     @classmethod
-    def mkdir(cls, address, request_timeout=None, parents=False):
+    def mkdir(cls, address: str, request_timeout: Optional[int] = None, parents: bool = False) -> None:
         """
         Make a directory on the ftp server.
 
@@ -270,7 +268,7 @@ class GridFTP(object):
         _cmd(cmd, timeout=timeout)
 
     @classmethod
-    def rmdir(cls, address, request_timeout=None):
+    def rmdir(cls, address: str, request_timeout: Optional[int] = None) -> None:
         """
         Remove a directory on the ftp server.
 
@@ -299,7 +297,7 @@ class GridFTP(object):
             raise Exception('Error removing dir')
 
     @classmethod
-    def delete(cls, address, request_timeout=None):
+    def delete(cls, address: str, request_timeout: Optional[int] = None) -> None:
         """
         Delete a file on the ftp server.
 
@@ -325,7 +323,7 @@ class GridFTP(object):
             raise Exception('Error removing dir')
 
     @classmethod
-    def rmtree(cls, address, request_timeout=None):
+    def rmtree(cls, address: str, request_timeout: Optional[int] = None) -> None:
         """
         Delete a file or directory on the ftp server.
 
@@ -353,7 +351,7 @@ class GridFTP(object):
             raise Exception('Error removing dir')
 
     @classmethod
-    def move(cls, src, dest, request_timeout=None):
+    def move(cls, src: str, dest: str, request_timeout: Optional[int] = None) -> None:
         """
         Move a file on the ftp server.
 
@@ -380,13 +378,16 @@ class GridFTP(object):
         _cmd(cmd, timeout=timeout)
 
     @classmethod
-    def exists(cls, address, request_timeout=None):
+    def exists(cls, address: str, request_timeout: Optional[int] = None) -> bool:
         """
         Check if a file exists on the ftp server.
 
         Args:
             address (str): url to file
             request_timeout (float): timeout in seconds
+
+        Returns:
+           bool: True, if the file exists on the ftp server, otherwise False
 
         Raises:
             Exception on error
@@ -405,7 +406,7 @@ class GridFTP(object):
         return (not ret[0])
 
     @classmethod
-    def chmod(cls, address, mode, request_timeout=None):
+    def chmod(cls, address: str, mode: str, request_timeout: Optional[int] = None) -> None:
         """
         Chmod a file on the ftp server.
 
@@ -430,7 +431,7 @@ class GridFTP(object):
         _cmd(cmd, timeout=timeout)
 
     @classmethod
-    def size(cls, address, request_timeout=None):
+    def size(cls, address: str, request_timeout: Optional[int] = None) -> int:
         """
         Get the size of a file on the ftp server.
 
@@ -460,7 +461,7 @@ class GridFTP(object):
         return int(ret[1])
 
     @classmethod
-    def _chksum(cls, type, address, request_timeout=None):
+    def _chksum(cls, type: str, address: str, request_timeout: Optional[int] = None) -> Any:
         """Chksum is faked by redownloading the file and checksumming that."""
         if not cls.supported_address(address):
             raise Exception('address type not supported for address %s' % str(address))
@@ -486,7 +487,7 @@ class GridFTP(object):
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     @classmethod
-    def md5sum(cls, address, request_timeout=None):
+    def md5sum(cls, address: str, request_timeout: Optional[int] = None) -> Any:
         """
         Get the md5sum of a file on an ftp server.
 
@@ -503,7 +504,7 @@ class GridFTP(object):
         return cls._chksum('md5sum', address, request_timeout=request_timeout)
 
     @classmethod
-    def sha1sum(cls, address, request_timeout=None):
+    def sha1sum(cls, address: str, request_timeout: Optional[int] = None) -> Any:
         """
         Get the sha1sum of a file on an ftp server.
 
@@ -520,7 +521,7 @@ class GridFTP(object):
         return cls._chksum('sha1sum', address, request_timeout=request_timeout)
 
     @classmethod
-    def sha256sum(cls, address, request_timeout=None):
+    def sha256sum(cls, address: str, request_timeout: Optional[int] = None) -> Any:
         """
         Get the sha256sum of a file on an ftp server.
 
@@ -537,7 +538,7 @@ class GridFTP(object):
         return cls._chksum('sha256sum', address, request_timeout=request_timeout)
 
     @classmethod
-    def sha512sum(cls, address, request_timeout=None):
+    def sha512sum(cls, address: str, request_timeout: Optional[int] = None) -> Any:
         """
         Get the sha512sum of a file on an ftp server.
 

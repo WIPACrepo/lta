@@ -4,7 +4,7 @@
 import os
 import subprocess
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from rest_tools.server import from_environment  # type: ignore
 
@@ -31,23 +31,23 @@ class SiteGlobusProxy(object):
         if duration:
             self.cfg['GLOBUS_PROXY_DURATION'] = duration
 
-    def set_duration(self, d):
+    def set_duration(self, d: str) -> None:
         """Set the duration."""
         self.cfg['GLOBUS_PROXY_DURATION'] = d
 
-    def set_passphrase(self, p):
+    def set_passphrase(self, p: str) -> None:
         """Set the passphrase."""
         self.cfg['GLOBUS_PROXY_PASSPHRASE'] = p
 
-    def set_voms_role(self, r):
+    def set_voms_role(self, r: str) -> None:
         """Set the voms role."""
         self.cfg['GLOBUS_PROXY_VOMS_ROLE'] = r
 
-    def set_voms_vo(self, vo):
+    def set_voms_vo(self, vo: str) -> None:
         """Set the voms VO."""
         self.cfg['GLOBUS_PROXY_VOMS_VO'] = vo
 
-    def update_proxy(self):
+    def update_proxy(self) -> None:
         """Update the proxy."""
         logger.info('duration: %r', self.cfg['GLOBUS_PROXY_DURATION'])
         if subprocess.call(['grid-proxy-info', '-e', '-valid', f'{self.cfg["GLOBUS_PROXY_DURATION"]}:0'],
@@ -81,7 +81,7 @@ class SiteGlobusProxy(object):
             elif p.returncode > 0:
                 raise Exception('grid-proxy-init failed')
 
-    def get_proxy(self):
+    def get_proxy(self) -> Any:
         """Get the proxy location."""
         if 'GLOBUS_PROXY_OUTPUT' in self.cfg and self.cfg['GLOBUS_PROXY_OUTPUT']:
             return self.cfg['GLOBUS_PROXY_OUTPUT']

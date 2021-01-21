@@ -14,8 +14,9 @@ from rest_tools.server import from_environment  # type: ignore
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
-from .transfer.service import instantiate
 from .transfer.globus import SiteGlobusProxy
+from .transfer.gridftp import GridFTP
+from .transfer.service import instantiate
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
@@ -121,7 +122,11 @@ class Replicator(Component):
 
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""
+        # make sure our proxy credentials are all in order
         sgp = SiteGlobusProxy()
+        sgp.update_proxy()
+        # TODO: this is the command to make GridFTP copy the file
+        GridFTP.put(filename="", address="")
 
         bundle_id = bundle["uuid"]
         # instantiate a TransferService to replicate the bundle
