@@ -4,6 +4,7 @@
 import asyncio
 from logging import Logger
 import logging
+import os
 import sys
 from typing import Any, Dict, Optional
 
@@ -131,8 +132,10 @@ class GridFTPReplicator(Component):
         sgp = SiteGlobusProxy()
         sgp.update_proxy()
         # tell GridFTP to 'put' our file to the destination
-        self.logger.info(f'Sending {bundle_path} to {self.gridftp_dest_url}')
-        GridFTP.put(self.gridftp_dest_url,
+        basename = os.path.basename(bundle["bundle_path"])
+        dest_url = f"{self.gridftp_dest_url}/{basename}"
+        self.logger.info(f'Sending {bundle_path} to {dest_url}')
+        GridFTP.put(dest_url,
                     filename=bundle_path,
                     request_timeout=self.gridftp_timeout)
         # update the Bundle in the LTA DB
