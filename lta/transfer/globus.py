@@ -32,7 +32,8 @@ class SiteGlobusProxy(object):
         # load what we can from the environment
         self.cfg = from_environment(PROXY_CONFIG)
         # remove anything optional that wasn't specified
-        for key in self.cfg.keys():
+        cfg_keys = list(self.cfg.keys())
+        for key in cfg_keys:
             if self.cfg[key] is EMPTY_STRING_SENTINEL_VALUE:
                 del self.cfg[key]
         # ensure we have at least an empty string for passphrase

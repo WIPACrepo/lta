@@ -151,7 +151,8 @@ def runner() -> None:
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
     # remove anything optional that wasn't specified
-    for key in config.keys():
+    config_keys = list(config.keys())
+    for key in config_keys:
         if config[key] is EMPTY_STRING_SENTINEL_VALUE:
             del config[key]
     # configure structured logging for the application
