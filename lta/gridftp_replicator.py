@@ -20,11 +20,11 @@ EMPTY_STRING_SENTINEL_VALUE = "48be4069-8423-45b1-b7db-57e0ee8761a9"
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "GLOBUS_PROXY_DURATION": "72",
-    "GLOBUS_PROXY_PASSPHRASE": EMPTY_STRING_SENTINEL_VALUE,
-    "GLOBUS_PROXY_VOMS_ROLE": EMPTY_STRING_SENTINEL_VALUE,
-    "GLOBUS_PROXY_VOMS_VO": EMPTY_STRING_SENTINEL_VALUE,
-    "GLOBUS_PROXY_OUTPUT": EMPTY_STRING_SENTINEL_VALUE,
+    # "GLOBUS_PROXY_DURATION": "72",
+    # "GLOBUS_PROXY_PASSPHRASE": EMPTY_STRING_SENTINEL_VALUE,
+    # "GLOBUS_PROXY_VOMS_ROLE": EMPTY_STRING_SENTINEL_VALUE,
+    # "GLOBUS_PROXY_VOMS_VO": EMPTY_STRING_SENTINEL_VALUE,
+    # "GLOBUS_PROXY_OUTPUT": EMPTY_STRING_SENTINEL_VALUE,
     "GRIDFTP_DEST_URL": None,
     "GRIDFTP_TIMEOUT": "1200",
     "WORK_RETRIES": "3",
@@ -153,7 +153,7 @@ def runner() -> None:
     # remove anything optional that wasn't specified
     config_keys = list(config.keys())
     for key in config_keys:
-        if config[key] is EMPTY_STRING_SENTINEL_VALUE:
+        if config[key] == EMPTY_STRING_SENTINEL_VALUE:
             del config[key]
     # configure structured logging for the application
     structured_formatter = StructuredFormatter(
