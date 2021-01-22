@@ -37,7 +37,7 @@ class SiteGlobusProxy(object):
             if self.cfg[key] == EMPTY_STRING_SENTINEL_VALUE:
                 del self.cfg[key]
         # ensure we have at least an empty string for passphrase
-        if not self.cfg["GLOBUS_PROXY_PASSPHRASE"]:
+        if "GLOBUS_PROXY_PASSPHRASE" not in self.cfg:
             self.cfg["GLOBUS_PROXY_PASSPHRASE"] = ""
         # override the duration if specified during construction
         if duration:
