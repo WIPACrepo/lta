@@ -8,12 +8,14 @@ from typing import Any, Dict, Optional
 
 from rest_tools.server import from_environment  # type: ignore
 
+EMPTY_STRING_SENTINEL_VALUE = "517c094b-739a-4a01-9d61-8d29eee99fda"
+
 PROXY_CONFIG: Dict[str, Optional[str]] = {
     "GLOBUS_PROXY_DURATION": "72",
-    "GLOBUS_PROXY_PASSPHRASE": None,
-    "GLOBUS_PROXY_VOMS_ROLE": "",
-    "GLOBUS_PROXY_VOMS_VO": "",
-    "GLOBUS_PROXY_OUTPUT": "",
+    "GLOBUS_PROXY_PASSPHRASE": EMPTY_STRING_SENTINEL_VALUE,
+    "GLOBUS_PROXY_VOMS_ROLE": EMPTY_STRING_SENTINEL_VALUE,
+    "GLOBUS_PROXY_VOMS_VO": EMPTY_STRING_SENTINEL_VALUE,
+    "GLOBUS_PROXY_OUTPUT": EMPTY_STRING_SENTINEL_VALUE,
 }
 
 logger = logging.getLogger('globus')
@@ -27,7 +29,16 @@ class SiteGlobusProxy(object):
 
     def __init__(self, duration: Optional[int] = None):
         """Create a SiteGlobusProxy object."""
+        # load what we can from the environment
         self.cfg = from_environment(PROXY_CONFIG)
+        # remove anything optional that wasn't specified
+        for key in self.cfg.keys():
+            if self.cfg[key] is EMPTY_STRING_SENTINEL_VALUE:
+                del self.cfg[key]
+        # ensure we have at least an empty string for passphrase
+        if not self.cfg["GLOBUS_PROXY_PASSPHRASE"]:
+            self.cfg["GLOBUS_PROXY_PASSPHRASE"] = ""
+        # override the duration if specified during construction
         if duration:
             self.cfg['GLOBUS_PROXY_DURATION'] = duration
 
