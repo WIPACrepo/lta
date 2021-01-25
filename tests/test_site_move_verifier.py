@@ -15,6 +15,7 @@ def config():
     """Supply a stock SiteMoveVerifier component configuration."""
     return {
         "COMPONENT_NAME": "testing-site_move_verifier",
+        "DEST_ROOT_PATH": "/path/to/rse",
         "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
@@ -24,7 +25,6 @@ def config():
         "NEXT_STATUS": "taping",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
-        "TRANSFER_CONFIG_PATH": "examples/rucio.json",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -73,6 +73,7 @@ def test_constructor_config(config, mocker):
     logger_mock = mocker.MagicMock()
     p = SiteMoveVerifier(config, logger_mock)
     assert p.name == "testing-site_move_verifier"
+    assert p.dest_root_path == "/path/to/rse"
     assert p.dest_site == "NERSC"
     assert p.heartbeat_patch_retries == 3
     assert p.heartbeat_patch_timeout_seconds == 30
@@ -81,7 +82,6 @@ def test_constructor_config(config, mocker):
     assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
     assert p.next_status == "taping"
     assert p.source_site == "WIPAC"
-    assert p.transfer_config
     assert p.work_retries == 3
     assert p.work_sleep_duration_seconds == 60
     assert p.work_timeout_seconds == 30
@@ -140,6 +140,7 @@ async def test_site_move_verifier_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     site_move_verifier_config = {
         "COMPONENT_NAME": "logme-testing-site_move_verifier",
+        "DEST_ROOT_PATH": "/path/to/some/archive/destination",
         "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
@@ -149,7 +150,6 @@ async def test_site_move_verifier_logs_configuration(mocker):
         "NEXT_STATUS": "prognosticating",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
-        "TRANSFER_CONFIG_PATH": "examples/rucio.json",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
@@ -158,6 +158,7 @@ async def test_site_move_verifier_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("site_move_verifier 'logme-testing-site_move_verifier' is configured:"),
         call('COMPONENT_NAME = logme-testing-site_move_verifier'),
+        call('DEST_ROOT_PATH = /path/to/some/archive/destination'),
         call('DEST_SITE = NERSC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
@@ -167,7 +168,6 @@ async def test_site_move_verifier_logs_configuration(mocker):
         call('NEXT_STATUS = prognosticating'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
-        call('TRANSFER_CONFIG_PATH = examples/rucio.json'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
         call('WORK_TIMEOUT_SECONDS = 90')
@@ -277,80 +277,16 @@ async def test_site_move_verifier_do_work_claim_yes_result(config, mocker):
     vb_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio
-async def test_site_move_verifier_verify_bundle_not_present(config, mocker):
-    """Test that _delete_bundle deletes a completed bundle transfer."""
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    isfile_mock = mocker.patch("os.path.isfile")
-    isfile_mock.return_value = False
-    bundle_obj = {
-        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
-        "dest": "nersc",
-        "path": "/data/exp/IceCube/2014/unbiased/PFRaw/1109",
-        "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "bundle_path": "/mnt/lfss/lta/scratch/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "checksum": {
-            "sha512": "12345",
-        },
-    }
-    p = SiteMoveVerifier(config, logger_mock)
-    await p._verify_bundle(lta_rc_mock, bundle_obj)
-    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
-
-@pytest.mark.asyncio
-async def test_site_move_verifier_verify_bundle_not_finished(config, mocker):
-    """Test that _delete_bundle deletes a completed bundle transfer."""
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    inst_mock = mocker.patch("lta.site_move_verifier.instantiate")
-    isfile_mock = mocker.patch("os.path.isfile")
-    isfile_mock.return_value = True
-    time_mock = mocker.patch("time.time")
-    time_mock.return_value = 1588042614
-    getmtime_mock = mocker.patch("os.path.getmtime")
-    getmtime_mock.return_value = 1588042614 - 60
-    xfer_service_mock = AsyncMock()
-    inst_mock.return_value = xfer_service_mock
-    xfer_service_mock.status.return_value = {
-        "ref": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "completed": False,
-        "status": "PROCESSING",
-    }
-    bundle_obj = {
-        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
-        "dest": "nersc",
-        "path": "/data/exp/IceCube/2014/unbiased/PFRaw/1109",
-        "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "bundle_path": "/mnt/lfss/lta/scratch/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "checksum": {
-            "sha512": "12345",
-        },
-    }
-    p = SiteMoveVerifier(config, logger_mock)
-    await p._verify_bundle(lta_rc_mock, bundle_obj)
-    inst_mock.assert_called_with(p.transfer_config)
-    xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
-    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
-
-@pytest.mark.asyncio
 async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
     """Test that _delete_bundle deletes a completed bundle transfer."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    inst_mock = mocker.patch("lta.site_move_verifier.instantiate")
     isfile_mock = mocker.patch("os.path.isfile")
     isfile_mock.return_value = True
     time_mock = mocker.patch("time.time")
     time_mock.return_value = 1588042614
     getmtime_mock = mocker.patch("os.path.getmtime")
     getmtime_mock.return_value = 1588042614 - 120
-    xfer_service_mock = AsyncMock()
-    inst_mock.return_value = xfer_service_mock
-    xfer_service_mock.status.return_value = {
-        "ref": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "completed": True,
-        "status": "COMPLETED",
-    }
     hash_mock = mocker.patch("lta.site_move_verifier.sha512sum")
     hash_mock.return_value = "54321"
     bundle_obj = {
@@ -365,8 +301,6 @@ async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
     }
     p = SiteMoveVerifier(config, logger_mock)
     await p._verify_bundle(lta_rc_mock, bundle_obj)
-    inst_mock.assert_called_with(p.transfer_config)
-    xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
         "status": "quarantined",
@@ -379,20 +313,12 @@ async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
     """Test that _delete_bundle deletes a completed bundle transfer."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    inst_mock = mocker.patch("lta.site_move_verifier.instantiate")
     isfile_mock = mocker.patch("os.path.isfile")
     isfile_mock.return_value = True
     time_mock = mocker.patch("time.time")
     time_mock.return_value = 1588042614
     getmtime_mock = mocker.patch("os.path.getmtime")
     getmtime_mock.return_value = 1588042614 - 120
-    xfer_service_mock = AsyncMock()
-    inst_mock.return_value = xfer_service_mock
-    xfer_service_mock.status.return_value = {
-        "ref": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "completed": True,
-        "status": "COMPLETED",
-    }
     hash_mock = mocker.patch("lta.site_move_verifier.sha512sum")
     hash_mock.return_value = "12345"
     bundle_obj = {
@@ -407,8 +333,6 @@ async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
     }
     p = SiteMoveVerifier(config, logger_mock)
     await p._verify_bundle(lta_rc_mock, bundle_obj)
-    inst_mock.assert_called_with(p.transfer_config)
-    xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
         "status": "taping",

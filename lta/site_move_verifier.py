@@ -2,14 +2,12 @@
 """Module to implement the SiteMoveVerifier component of the Long Term Archive."""
 
 import asyncio
-import json
 from logging import Logger
 import logging
 import os
 from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
@@ -18,13 +16,12 @@ from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .crypto import sha512sum
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
-from .transfer.service import instantiate
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "DEST_ROOT_PATH": None,
     "DEST_SITE": None,
     "NEXT_STATUS": None,
-    "TRANSFER_CONFIG_PATH": "etc/rucio.json",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -79,10 +76,9 @@ class SiteMoveVerifier(Component):
         logger - The object the site_move_verifier should use for logging.
         """
         super(SiteMoveVerifier, self).__init__("site_move_verifier", config, logger)
+        self.dest_root_path = config["DEST_ROOT_PATH"]
         self.dest_site = config["DEST_SITE"]
         self.next_status = config["NEXT_STATUS"]
-        with open(config["TRANSFER_CONFIG_PATH"]) as config_data:
-            self.transfer_config = json.load(config_data)
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         pass
@@ -154,32 +150,10 @@ class SiteMoveVerifier(Component):
 
     async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the provided Bundle with the transfer service and update the LTA DB."""
+        # get our ducks in a row
         bundle_id = bundle["uuid"]
-        # when we verify bundles, we do so at the destination site
-        dest = bundle["dest"]
-        pfn_prefix = self.transfer_config["sites"][dest]["pfn"]  # UGLY: hard-coded RucioTransferService dependency
-        parsed_url = urlparse(pfn_prefix)
-        rucio_path = parsed_url.path
         bundle_name = os.path.basename(bundle["bundle_path"])
-        bundle_path = os.path.join(rucio_path, bundle_name)
-        # if the file hasn't appeared at the destination site yet
-        if not os.path.isfile(bundle_path):
-            self.logger.info(f"Bundle file {bundle_path} does not exist and cannot be verified at this time.")
-            await self._unclaim_bundle(lta_rc, bundle)
-            return False
-        # either the file hasn't been modified in a long time, or Rucio thinks it is done...
-        self.logger.info(f"Asking Rucio about the status of Bundle file {bundle_path}")
-        # we'll check to see what Rucio thinks about the file
-        # instantiate a TransferService to query about the bundle
-        xfer_service = instantiate(self.transfer_config)
-        # ask the transfer service about the status of the transfer
-        xfer_status = await xfer_service.status(bundle["transfer_reference"])
-        self.logger.info(f"Bundle transfer status is: {xfer_status}")
-        # if it's not completed, we're still waiting to verify it
-        if not xfer_status["completed"]:
-            self.logger.info(f"Transfer of Bundle {bundle_id} is incomplete and will not be verified at this time.")
-            await self._unclaim_bundle(lta_rc, bundle)
-            return False
+        bundle_path = os.path.join(self.dest_root_path, bundle_name)
         # we'll compute the bundle's checksum
         self.logger.info(f"Computing SHA512 checksum for bundle: '{bundle_path}'")
         checksum_sha512 = sha512sum(bundle_path)
