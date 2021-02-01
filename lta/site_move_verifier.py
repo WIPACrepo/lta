@@ -16,12 +16,14 @@ from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .crypto import sha512sum
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
+from .rest_server import boolify
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "DEST_ROOT_PATH": None,
     "DEST_SITE": None,
     "NEXT_STATUS": None,
+    "USE_FULL_BUNDLE_PATH": "FALSE",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -79,6 +81,7 @@ class SiteMoveVerifier(Component):
         self.dest_root_path = config["DEST_ROOT_PATH"]
         self.dest_site = config["DEST_SITE"]
         self.next_status = config["NEXT_STATUS"]
+        self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         pass
@@ -152,8 +155,12 @@ class SiteMoveVerifier(Component):
         """Verify the provided Bundle with the transfer service and update the LTA DB."""
         # get our ducks in a row
         bundle_id = bundle["uuid"]
-        bundle_name = os.path.basename(bundle["bundle_path"])
-        bundle_path = os.path.join(self.dest_root_path, bundle_name)
+        if self.use_full_bundle_path:
+            bundle_name = bundle["bundle_path"]
+            bundle_path = f"{self.dest_root_path}{bundle_name}"
+        else:
+            bundle_name = os.path.basename(bundle["bundle_path"])
+            bundle_path = os.path.join(self.dest_root_path, bundle_name)
         # we'll compute the bundle's checksum
         self.logger.info(f"Computing SHA512 checksum for bundle: '{bundle_path}'")
         checksum_sha512 = sha512sum(bundle_path)
