@@ -25,6 +25,7 @@ def config():
         "NEXT_STATUS": "taping",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
+        "USE_FULL_BUNDLE_PATH": "FALSE",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -150,6 +151,7 @@ async def test_site_move_verifier_logs_configuration(mocker):
         "NEXT_STATUS": "prognosticating",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
+        "USE_FULL_BUNDLE_PATH": "FALSE",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
@@ -168,6 +170,7 @@ async def test_site_move_verifier_logs_configuration(mocker):
         call('NEXT_STATUS = prognosticating'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
+        call('USE_FULL_BUNDLE_PATH = FALSE'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
         call('WORK_TIMEOUT_SECONDS = 90')
