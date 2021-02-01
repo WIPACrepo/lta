@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.32.0] - 2021-02-01
+### Added
+- GridFTP Replicator module for replicating files using GridFTP
+- USE_FULL_BUNDLE_PATH option for GridFTP Replicator and SiteMoveVerifier
+
 ## [0.31.0] - 2020-12-28
 ### Changed
 - LTA DB routes for GET /Bundles and GET /Bundles/{uuid} are more efficient
