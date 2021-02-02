@@ -14,6 +14,7 @@ from rest_tools.server import from_environment  # type: ignore
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .crypto import sha512sum
+from .joiner import join_smart
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
 from .rest_server import boolify
@@ -157,10 +158,9 @@ class SiteMoveVerifier(Component):
         bundle_id = bundle["uuid"]
         if self.use_full_bundle_path:
             bundle_name = bundle["bundle_path"]
-            bundle_path = f"{self.dest_root_path}{bundle_name}"
         else:
             bundle_name = os.path.basename(bundle["bundle_path"])
-            bundle_path = os.path.join(self.dest_root_path, bundle_name)
+        bundle_path = join_smart([self.dest_root_path, bundle_name])
         # we'll compute the bundle's checksum
         self.logger.info(f"Computing SHA512 checksum for bundle: '{bundle_path}'")
         checksum_sha512 = sha512sum(bundle_path)

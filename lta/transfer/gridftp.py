@@ -15,7 +15,13 @@ File = namedtuple('File', ['directory', 'perms', 'subfiles', 'owner', 'group', '
 logger = logging.getLogger('gridftp')
 
 def _cmd(cmd: List[str], timeout: int = 1200) -> None:
-    subprocess.run(cmd, timeout=timeout, check=True)
+    completed_process = subprocess.run(cmd, timeout=timeout, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # if our command failed
+    if completed_process.returncode != 0:
+        logger.info(f"GridFTP._cmd Command failed: {completed_process.args}")
+        logger.info(f"returncode: {completed_process.returncode}")
+        logger.info(f"stdout: {str(completed_process.stdout)}")
+        logger.info(f"stderr: {str(completed_process.stderr)}")
 
 def _cmd_output(cmd: List[str], timeout: int = 1200) -> Tuple[int, str]:
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

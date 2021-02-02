@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-gridftp-replicator"}
+export DEST_SITE=${SOURCE_SITE:="NERSC"}
 export GLOBUS_PROXY_DURATION=${GLOBUS_PROXY_DURATION:="72"}
 #export GLOBUS_PROXY_OUTPUT=${GLOBUS_PROXY_OUTPUT:=""}
 #export GLOBUS_PROXY_PASSPHRASE=${GLOBUS_PROXY_PASSPHRASE:="hunter2"}  # http://bash.org/?244321

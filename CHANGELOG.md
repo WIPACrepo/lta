@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.33.0] - 2021-02-02
+### Changed
+- Modified the way GridFTP Replicator builds paths to use GridFTP
+### Fixed
+- Changed the way errors in globus-url-copy are handled due to spurious returncode
+- Added DEST_SITE to GridFTP Replicator so instances can discriminate by destination
+
 ## [0.32.0] - 2021-02-01
 ### Added
 - GridFTP Replicator module for replicating files using GridFTP
