@@ -12,6 +12,7 @@ from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
+from .joiner import join_smart_url
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
 from .rest_server import boolify
@@ -22,6 +23,7 @@ EMPTY_STRING_SENTINEL_VALUE = "48be4069-8423-45b1-b7db-57e0ee8761a9"
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "DEST_SITE": None,
     # "GLOBUS_PROXY_DURATION": "72",
     # "GLOBUS_PROXY_OUTPUT": EMPTY_STRING_SENTINEL_VALUE,
     # "GLOBUS_PROXY_PASSPHRASE": EMPTY_STRING_SENTINEL_VALUE,
@@ -57,6 +59,7 @@ class GridFTPReplicator(Component):
         logger - The object the replicator should use for logging.
         """
         super(GridFTPReplicator, self).__init__("replicator", config, logger)
+        self.dest_site = config["DEST_SITE"]
         self.gridftp_dest_url = config["GRIDFTP_DEST_URL"]
         self.gridftp_timeout = int(config["GRIDFTP_TIMEOUT"])
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
@@ -90,10 +93,11 @@ class GridFTPReplicator(Component):
                             retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to transfer.")
         source = self.source_site
+        dest = self.dest_site
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={source}&status=staged', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={source}&dest={dest}&status=staged', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -136,14 +140,17 @@ class GridFTPReplicator(Component):
         sgp.update_proxy()
         # tell GridFTP to 'put' our file to the destination
         if self.use_full_bundle_path:
-            dest_url = f"{self.gridftp_dest_url}{bundle_path}"
+            dest_url = join_smart_url([self.gridftp_dest_url, bundle_path])
         else:
             basename = os.path.basename(bundle_path)
-            dest_url = f"{self.gridftp_dest_url}/{basename}"
+            dest_url = join_smart_url([self.gridftp_dest_url, basename])
         self.logger.info(f'Sending {bundle_path} to {dest_url}')
-        GridFTP.put(dest_url,
-                    filename=bundle_path,
-                    request_timeout=self.gridftp_timeout)
+        try:
+            GridFTP.put(dest_url,
+                        filename=bundle_path,
+                        request_timeout=self.gridftp_timeout)
+        except Exception as e:
+            self.logger.error(f'GridFTP threw an error: {e}')
         # update the Bundle in the LTA DB
         patch_body = {
             "status": "transferring",
