@@ -7,7 +7,7 @@ import logging
 import os
 import shutil
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
@@ -24,27 +24,6 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
-
-
-def _enumerate_path(path: str) -> List[str]:
-    """Recursively walk the file system to enumerate files at provided path."""
-    # enumerate all of the files on disk to be checked
-    disk_files = []
-    for root, dirs, files in os.walk(path):
-        disk_files.extend([os.path.join(root, file) for file in files])
-    return disk_files
-
-def _get_files_and_size(path: str) -> Tuple[List[str], int]:
-    """Recursively walk and add the files of files in the file system."""
-    # enumerate all of the files on disk to be checked
-    disk_files = _enumerate_path(path)
-    # for all of the files we want to check
-    size = 0
-    for disk_file in disk_files:
-        # determine the size of the file
-        size += os.path.getsize(disk_file)
-    return (disk_files, size)
-
 
 class DesyStager(Component):
     """
