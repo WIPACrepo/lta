@@ -198,3 +198,9 @@ register in our Kubernetes cluster:
     kubectl -n kube-system port-forward $(kubectl get pods --namespace kube-system -l "app=docker-registry,release=docker-registry" -o jsonpath="{.items[0].metadata.name}") 5000:5000 &
     docker tag wipac/lta:0.0.5 localhost:5000/wipac/lta:0.0.5
     docker push localhost:5000/wipac/lta:0.0.5
+
+### Obtaining an authentication token
+Use the IceCube Token Service to obtain a token with the `file-catalog`
+and `lta` scopes:
+
+    https://tokens.icecube.wisc.edu/service_token?scope=file-catalog%20lta

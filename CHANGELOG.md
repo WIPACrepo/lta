@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.35.0] - 2021-02-05
+### Fixed
+- GridFTP Replicator now computes the correct path for USE_FULL_BUNDLE_PATH
+
 ## [0.34.0] - 2021-02-05
 ### Added
 - Added DesyStager component to stage files for transfer to DESY
