@@ -133,16 +133,17 @@ class GridFTPReplicator(Component):
         """Replicate the supplied bundle using the configured transfer service."""
         # get our ducks in a row
         bundle_id = bundle["uuid"]
-        bundle_path = bundle["bundle_path"]
+        bundle_path = bundle["bundle_path"]  # /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
         # make sure our proxy credentials are all in order
         self.logger.info('Updating proxy credentials')
         sgp = SiteGlobusProxy()
         sgp.update_proxy()
         # tell GridFTP to 'put' our file to the destination
+        basename = os.path.basename(bundle_path)
         if self.use_full_bundle_path:
-            dest_url = join_smart_url([self.gridftp_dest_url, bundle_path])
+            dest_path = bundle["path"]  # /data/exp/IceCube/2015/filtered/level2/0320
+            dest_url = join_smart_url([self.gridftp_dest_url, dest_path, basename])
         else:
-            basename = os.path.basename(bundle_path)
             dest_url = join_smart_url([self.gridftp_dest_url, basename])
         self.logger.info(f'Sending {bundle_path} to {dest_url}')
         try:

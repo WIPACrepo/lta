@@ -24,3 +24,10 @@ def test_join_smart_url():
     CORRECT = "gsiftp://gridftp.zeuthen.desy.de:2811/pnfs/ifh.de/acs/icecube/archive/mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip"
     assert join_smart_url(["gsiftp://gridftp.zeuthen.desy.de:2811/pnfs/ifh.de/acs/icecube/archive/",
                            "/mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip"]) == CORRECT
+
+def test_join_smart_url_with_path_and_basename():
+    """Test join_smart functionality."""
+    CORRECT = "gsiftp://gridftp.zeuthen.desy.de:2811/pnfs/ifh.de/acs/icecube/archive/data/exp/IceCube/2015/filtered/level2/0320/fdd3c3865d1011eb97bb6224ddddaab7.zip"
+    assert join_smart_url(["gsiftp://gridftp.zeuthen.desy.de:2811/pnfs/ifh.de/acs/icecube/archive/",
+                           "/data/exp/IceCube/2015/filtered/level2/0320",
+                           "fdd3c3865d1011eb97bb6224ddddaab7.zip"]) == CORRECT
