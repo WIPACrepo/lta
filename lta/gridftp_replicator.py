@@ -19,16 +19,14 @@ from .rest_server import boolify
 from .transfer.globus import SiteGlobusProxy
 from .transfer.gridftp import GridFTP
 
-EMPTY_STRING_SENTINEL_VALUE = "48be4069-8423-45b1-b7db-57e0ee8761a9"
-
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "DEST_SITE": None,
     # "GLOBUS_PROXY_DURATION": "72",
-    # "GLOBUS_PROXY_OUTPUT": EMPTY_STRING_SENTINEL_VALUE,
-    # "GLOBUS_PROXY_PASSPHRASE": EMPTY_STRING_SENTINEL_VALUE,
-    # "GLOBUS_PROXY_VOMS_ROLE": EMPTY_STRING_SENTINEL_VALUE,
-    # "GLOBUS_PROXY_VOMS_VO": EMPTY_STRING_SENTINEL_VALUE,
+    # "GLOBUS_PROXY_OUTPUT": None,
+    # "GLOBUS_PROXY_PASSPHRASE": None,
+    # "GLOBUS_PROXY_VOMS_ROLE": None,
+    # "GLOBUS_PROXY_VOMS_VO": None,
     "GRIDFTP_DEST_URL": None,
     "GRIDFTP_TIMEOUT": "1200",
     "USE_FULL_BUNDLE_PATH": "FALSE",
@@ -167,11 +165,6 @@ def runner() -> None:
     """Configure a GridFTPReplicator component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
-    # remove anything optional that wasn't specified
-    config_keys = list(config.keys())
-    for key in config_keys:
-        if config[key] == EMPTY_STRING_SENTINEL_VALUE:
-            del config[key]
     # configure structured logging for the application
     structured_formatter = StructuredFormatter(
         component_type='GridFTPReplicator',

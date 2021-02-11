@@ -15,6 +15,8 @@ def config():
     return {
         "COMPONENT_NAME": "testing-desy_move_verifier",
         "DEST_SITE": "DESY",
+        "GRIDFTP_DEST_URL": "gsiftp://icecube.wisc.edu:7654/path/to/nowhere",
+        "GRIDFTP_TIMEOUT": "1200",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
@@ -27,6 +29,7 @@ def config():
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
+        "WORKBOX_PATH": "/path/to/some/temp/directory",
     }
 
 def test_constructor_config(config, mocker):
@@ -35,6 +38,8 @@ def test_constructor_config(config, mocker):
     p = DesyMoveVerifier(config, logger_mock)
     assert p.name == "testing-desy_move_verifier"
     assert p.dest_site == "DESY"
+    assert p.gridftp_dest_url == "gsiftp://icecube.wisc.edu:7654/path/to/nowhere"
+    assert p.gridftp_timeout == 1200
     assert p.heartbeat_patch_retries == 3
     assert p.heartbeat_patch_timeout_seconds == 30
     assert p.heartbeat_sleep_duration_seconds == 60
@@ -42,11 +47,11 @@ def test_constructor_config(config, mocker):
     assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
     assert p.next_status == "taping"
     assert p.source_site == "WIPAC"
-    assert p.transfer_config
     assert p.work_retries == 3
     assert p.work_sleep_duration_seconds == 60
     assert p.work_timeout_seconds == 30
     assert p.logger == logger_mock
+    assert p.workbox_path == "/path/to/some/temp/directory"
 
 def test_do_status(config, mocker):
     """Verify that the DesyMoveVerifier has additional state to offer."""
@@ -61,6 +66,8 @@ async def test_desy_move_verifier_logs_configuration(mocker):
     desy_move_verifier_config = {
         "COMPONENT_NAME": "logme-testing-desy_move_verifier",
         "DEST_SITE": "DESY",
+        "GRIDFTP_DEST_URL": "gsiftp://icecube.wisc.edu:7654/path/to/nowhere",
+        "GRIDFTP_TIMEOUT": "1200",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
@@ -69,16 +76,18 @@ async def test_desy_move_verifier_logs_configuration(mocker):
         "NEXT_STATUS": "prognosticating",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
-        "TRANSFER_CONFIG_PATH": "examples/rucio.json",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
+        "WORKBOX_PATH": "/path/to/some/temp/directory",
     }
     DesyMoveVerifier(desy_move_verifier_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("desy_move_verifier 'logme-testing-desy_move_verifier' is configured:"),
         call('COMPONENT_NAME = logme-testing-desy_move_verifier'),
         call('DEST_SITE = DESY'),
+        call('GRIDFTP_DEST_URL = gsiftp://icecube.wisc.edu:7654/path/to/nowhere'),
+        call('GRIDFTP_TIMEOUT = 1200'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
@@ -87,10 +96,10 @@ async def test_desy_move_verifier_logs_configuration(mocker):
         call('NEXT_STATUS = prognosticating'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
-        call('TRANSFER_CONFIG_PATH = examples/rucio.json'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
-        call('WORK_TIMEOUT_SECONDS = 90')
+        call('WORK_TIMEOUT_SECONDS = 90'),
+        call('WORKBOX_PATH = /path/to/some/temp/directory'),
     ]
     logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
 
@@ -144,7 +153,7 @@ async def test_desy_move_verifier_do_work_pop_exception(config, mocker):
     p = DesyMoveVerifier(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 @pytest.mark.asyncio
 async def test_desy_move_verifier_do_work_no_results(config, mocker):
@@ -177,7 +186,7 @@ async def test_desy_move_verifier_do_work_claim_no_result(config, mocker):
     vb_mock = mocker.patch("lta.desy_move_verifier.DesyMoveVerifier._verify_bundle", new_callable=AsyncMock)
     p = DesyMoveVerifier(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_not_called()
 
 @pytest.mark.asyncio
@@ -193,51 +202,20 @@ async def test_desy_move_verifier_do_work_claim_yes_result(config, mocker):
     vb_mock = mocker.patch("lta.desy_move_verifier.DesyMoveVerifier._verify_bundle", new_callable=AsyncMock)
     p = DesyMoveVerifier(config, logger_mock)
     assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_called_with(mocker.ANY, {"one": 1})
-
-@pytest.mark.asyncio
-async def test_desy_move_verifier_verify_bundle_not_finished(config, mocker):
-    """Test that _delete_bundle deletes a completed bundle transfer."""
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    inst_mock = mocker.patch("lta.desy_move_verifier.instantiate")
-    xfer_service_mock = AsyncMock()
-    inst_mock.return_value = xfer_service_mock
-    xfer_service_mock.status.return_value = {
-        "ref": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "completed": False,
-        "status": "PROCESSING",
-    }
-    bundle_obj = {
-        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
-        "dest": "nersc",
-        "path": "/data/exp/IceCube/2014/unbiased/PFRaw/1109",
-        "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "bundle_path": "/mnt/lfss/lta/scratch/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "checksum": {
-            "sha512": "12345",
-        },
-    }
-    p = DesyMoveVerifier(config, logger_mock)
-    await p._verify_bundle(lta_rc_mock, bundle_obj)
-    inst_mock.assert_called_with(p.transfer_config)
-    xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
-    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
 
 @pytest.mark.asyncio
 async def test_desy_move_verifier_verify_bundle_finished(config, mocker):
     """Test that _delete_bundle deletes a completed bundle transfer."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    inst_mock = mocker.patch("lta.desy_move_verifier.instantiate")
-    xfer_service_mock = AsyncMock()
-    inst_mock.return_value = xfer_service_mock
-    xfer_service_mock.status.return_value = {
-        "ref": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-        "completed": True,
-        "status": "COMPLETED",
-    }
+    sgp_mock = mocker.patch("lta.desy_move_verifier.SiteGlobusProxy")
+    update_mock = mocker.patch("lta.desy_move_verifier.SiteGlobusProxy.update_proxy")
+    grid_mock = mocker.patch("lta.desy_move_verifier.GridFTP.get")
+    hash_mock = mocker.patch("lta.desy_move_verifier.sha512sum")
+    hash_mock.return_value = "12345"
+    remove_mock = mocker.patch("os.remove")
     bundle_obj = {
         "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
         "dest": "nersc",
@@ -250,8 +228,10 @@ async def test_desy_move_verifier_verify_bundle_finished(config, mocker):
     }
     p = DesyMoveVerifier(config, logger_mock)
     await p._verify_bundle(lta_rc_mock, bundle_obj)
-    inst_mock.assert_called_with(p.transfer_config)
-    xfer_service_mock.status.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
+    remove_mock.assert_called()
+    grid_mock.assert_called()
+    update_mock.assert_not_called()
+    sgp_mock.assert_called()
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
         "status": "taping",
         "reason": "",
