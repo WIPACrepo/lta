@@ -2,33 +2,33 @@
 """Module to implement the DesyMoveVerifier component of the Long Term Archive."""
 
 import asyncio
-import json
 from logging import Logger
 import logging
 import os
 import sys
 from typing import Any, Dict, Optional
-from urllib.parse import urlparse
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
+from .crypto import sha512sum
+from .joiner import join_smart, join_smart_url
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
-from .transfer.service import instantiate
+from .transfer.globus import SiteGlobusProxy
+from .transfer.gridftp import GridFTP
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "DEST_SITE": None,
+    "DEST_SITE": "DESY",
+    "GRIDFTP_DEST_URL": None,
+    "GRIDFTP_TIMEOUT": "1200",
     "NEXT_STATUS": None,
-    "TRANSFER_CONFIG_PATH": "etc/rucio.json",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
+    "WORKBOX_PATH": None,
 })
-
-OLD_MTIME_EPOCH_SEC = 30 * 60  # 30 MINUTES * 60 SEC_PER_MIN
-
 
 class DesyMoveVerifier(Component):
     """
@@ -48,11 +48,12 @@ class DesyMoveVerifier(Component):
         """
         super(DesyMoveVerifier, self).__init__("desy_move_verifier", config, logger)
         self.dest_site = config["DEST_SITE"]
+        self.gridftp_dest_url = config["GRIDFTP_DEST_URL"]
+        self.gridftp_timeout = int(config["GRIDFTP_TIMEOUT"])
         self.next_status = config["NEXT_STATUS"]
-        with open(config["TRANSFER_CONFIG_PATH"]) as config_data:
-            self.transfer_config = json.load(config_data)
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
+        self.workbox_path = config["WORKBOX_PATH"]
         pass
 
     def _do_status(self) -> Dict[str, Any]:
@@ -81,10 +82,12 @@ class DesyMoveVerifier(Component):
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to verify.")
+        source = self.source_site
+        dest = self.dest_site
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?dest={self.dest_site}&status=transferring', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={source}&dest={dest}&status=transferring', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -118,28 +121,47 @@ class DesyMoveVerifier(Component):
 
     async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the provided Bundle with the transfer service and update the LTA DB."""
+        # get our ducks in a row
         bundle_id = bundle["uuid"]
-        # we're going to ask Rucio, "Are you done yet?"
-        dest = bundle["dest"]
-        pfn_prefix = self.transfer_config["sites"][dest]["pfn"]  # UGLY: hard-coded RucioTransferService dependency
-        parsed_url = urlparse(pfn_prefix)
-        rucio_path = parsed_url.path
-        bundle_name = os.path.basename(bundle["bundle_path"])
-        bundle_path = os.path.join(rucio_path, bundle_name)
-        # we'll check to see what Rucio thinks about the file
-        self.logger.info(f"Querying Rucio about Bundle file {bundle_path}")
-        # instantiate a TransferService to query about the bundle
-        xfer_service = instantiate(self.transfer_config)
-        # ask the transfer service about the status of the transfer
-        xfer_status = await xfer_service.status(bundle["transfer_reference"])
-        self.logger.info(f"Bundle transfer status is: {xfer_status}")
-        # if it's not completed, we're still waiting to verify it
-        if not xfer_status["completed"]:
-            self.logger.info(f"Transfer of Bundle {bundle_id} is incomplete and will not be verified at this time.")
-            await self._unclaim_bundle(lta_rc, bundle)
+        bundle_path = bundle["bundle_path"]  # /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
+        # make sure our proxy credentials are all in order
+        self.logger.info('Updating proxy credentials')
+        sgp = SiteGlobusProxy()
+        sgp.update_proxy()
+        # tell GridFTP to 'get' our file back from the destination
+        basename = os.path.basename(bundle_path)
+        dest_path = bundle["path"]  # /data/exp/IceCube/2015/filtered/level2/0320
+        dest_url = join_smart_url([self.gridftp_dest_url, dest_path, basename])
+        work_path = join_smart([self.workbox_path, basename])
+        self.logger.info(f'Copying {dest_url} to {work_path}')
+        try:
+            GridFTP.get(dest_url,
+                        filename=work_path,
+                        request_timeout=self.gridftp_timeout)
+        except Exception as e:
+            self.logger.error(f'GridFTP threw an error: {e}')
+        # we'll compute the bundle's checksum
+        self.logger.info(f"Computing SHA512 checksum for bundle: '{work_path}'")
+        checksum_sha512 = sha512sum(work_path)
+        self.logger.info(f"Checksum complete, removing file: '{work_path}'")
+        os.remove(work_path)
+        self.logger.info(f"Bundle '{work_path}' has SHA512 checksum '{checksum_sha512}'")
+        # now we'll compare the bundle's checksum
+        if bundle["checksum"]["sha512"] != checksum_sha512:
+            self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
+            self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
+            self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
+            right_now = now()
+            patch_body: Dict[str, Any] = {
+                "status": "quarantined",
+                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Checksum mismatch between creation and destination: {checksum_sha512}",
+                "work_priority_timestamp": right_now,
+            }
+            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # update the Bundle in the LTA DB
-        self.logger.info(f"Rucio says Bundle file {bundle_path} has finished transferring.")
+        self.logger.info("Destination checksum matches bundle creation checksum; the bundle is now verified.")
         patch_body = {
             "status": self.next_status,
             "reason": "",
@@ -149,21 +171,6 @@ class DesyMoveVerifier(Component):
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
-
-    async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
-        """Run the myquota command to determine disk usage at the site."""
-        self.logger.info("Bundle is not ready to be verified; will unclaim it.")
-        bundle_id = bundle["uuid"]
-        right_now = now()
-        patch_body: Dict[str, Any] = {
-            "update_timestamp": right_now,
-            "claimed": False,
-            "work_priority_timestamp": right_now,
-        }
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-        return True
-
 
 def runner() -> None:
     """Configure a DesyMoveVerifier component from the environment and set it running."""
