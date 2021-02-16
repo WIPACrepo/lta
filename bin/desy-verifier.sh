@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-desy-stager"}
+
+# TODO: See if these variables make sense for this component
+export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-desy-verifier"}
 export DEST_SITE=${DEST_SITE:="DESY"}
 export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
 export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="5"}
