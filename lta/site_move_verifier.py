@@ -22,8 +22,6 @@ from .rest_server import boolify
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "DEST_ROOT_PATH": None,
-    "DEST_SITE": None,
-    "NEXT_STATUS": None,
     "USE_FULL_BUNDLE_PATH": "FALSE",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
@@ -80,8 +78,6 @@ class SiteMoveVerifier(Component):
         """
         super(SiteMoveVerifier, self).__init__("site_move_verifier", config, logger)
         self.dest_root_path = config["DEST_ROOT_PATH"]
-        self.dest_site = config["DEST_SITE"]
-        self.next_status = config["NEXT_STATUS"]
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
@@ -120,7 +116,7 @@ class SiteMoveVerifier(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?dest={self.dest_site}&status=transferring', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -182,7 +178,7 @@ class SiteMoveVerifier(Component):
         # update the Bundle in the LTA DB
         self.logger.info("Destination checksum matches bundle creation checksum; the bundle is now verified.")
         patch_body = {
-            "status": self.next_status,
+            "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
             "claimed": False,

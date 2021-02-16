@@ -92,7 +92,7 @@ class Picker(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/TransferRequests/actions/pop?source={self.source_site}', pop_body)
+        response = await lta_rc.request('POST', f'/TransferRequests/actions/pop?source={self.source_site}&dest={self.dest_site}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         tr = response["transfer_request"]
         if not tr:
@@ -184,7 +184,7 @@ class Picker(Component):
             await self._create_bundle(lta_rc, {
                 "type": "Bundle",
                 # "uuid": unique_id(),  # provided by LTA DB
-                "status": "specified",
+                "status": self.output_status,
                 "reason": "",
                 # "create_timestamp": right_now,  # provided by LTA DB
                 # "update_timestamp": right_now,  # provided by LTA DB

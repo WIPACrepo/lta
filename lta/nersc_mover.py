@@ -98,7 +98,7 @@ class NerscMover(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', '/Bundles/actions/pop?dest=NERSC&status=taping', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -149,7 +149,7 @@ class NerscMover(Component):
             return False
         # otherwise, update the Bundle in the LTA DB
         patch_body = {
-            "status": "verifying",
+            "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
             "claimed": False,

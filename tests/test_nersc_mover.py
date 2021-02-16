@@ -14,11 +14,14 @@ def config():
     """Supply a stock NerscMover component configuration."""
     return {
         "COMPONENT_NAME": "testing-nersc-mover",
+        "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "taping",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "OUTPUT_STATUS": "verifying",
         "MAX_COUNT": "5",
         "RSE_BASE_PATH": "/path/to/rse",
         "RUN_ONCE_AND_DIE": "False",
@@ -126,15 +129,18 @@ async def test_nersc_mover_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     nersc_mover_config = {
         "COMPONENT_NAME": "logme-testing-nersc-mover",
+        "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "taping",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "MAX_COUNT": "9001",
+        "OUTPUT_STATUS": "verifying",
         "RSE_BASE_PATH": "/log/me/path/to/rse",
         "RUN_ONCE_AND_DIE": "False",
-        "SOURCE_SITE": "NERSC",
+        "SOURCE_SITE": "WIPAC",
         "TAPE_BASE_PATH": "/log/me/path/to/hpss",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
@@ -144,15 +150,18 @@ async def test_nersc_mover_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("nersc_mover 'logme-testing-nersc-mover' is configured:"),
         call('COMPONENT_NAME = logme-testing-nersc-mover'),
+        call('DEST_SITE = NERSC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = taping'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('MAX_COUNT = 9001'),
+        call('OUTPUT_STATUS = verifying'),
         call('RSE_BASE_PATH = /log/me/path/to/rse'),
         call('RUN_ONCE_AND_DIE = False'),
-        call('SOURCE_SITE = NERSC'),
+        call('SOURCE_SITE = WIPAC'),
         call('TAPE_BASE_PATH = /log/me/path/to/hpss'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
@@ -239,7 +248,7 @@ async def test_nersc_mover_do_work_pop_exception(config, mocker):
     p = NerscMover(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -262,7 +271,7 @@ async def test_nersc_mover_do_work_claim_no_result(config, mocker):
     wbth_mock = mocker.patch("lta.nersc_mover.NerscMover._write_bundle_to_hpss", new_callable=AsyncMock)
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
     wbth_mock.assert_not_called()
 
 
@@ -288,7 +297,7 @@ async def test_nersc_mover_do_work_claim_yes_result(config, mocker):
     wbth_mock = mocker.patch("lta.nersc_mover.NerscMover._write_bundle_to_hpss", new_callable=AsyncMock)
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
     wbth_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
@@ -346,7 +355,7 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config, mocker):
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
     ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'])
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -375,7 +384,7 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config, mocker):
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
     ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio

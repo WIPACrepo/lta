@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.37.0] - 2021-02-15
+### Changed
+- Modified modules to use standardized configuration for interconnection
+
 ## [0.36.0] - 2021-02-11
 ### Fixed
 - DesyMoveVerifier verifies bundles at the final destination at DESY

@@ -14,11 +14,14 @@ def config():
     """Supply a stock TransferRequestFinisher component configuration."""
     return {
         "COMPONENT_NAME": "testing-transfer_request_finisher",
+        "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "deleted",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "OUTPUT_STATUS": "finished",
         "RUCIO_PASSWORD": "hunter2",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
@@ -56,11 +59,14 @@ async def test_transfer_request_finisher_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     transfer_request_finisher_config = {
         "COMPONENT_NAME": "logme-testing-transfer_request_finisher",
+        "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "deleted",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
+        "OUTPUT_STATUS": "finished",
         "RUCIO_PASSWORD": "hunter3-electric-boogaloo",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
@@ -73,11 +79,14 @@ async def test_transfer_request_finisher_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("transfer_request_finisher 'logme-testing-transfer_request_finisher' is configured:"),
         call('COMPONENT_NAME = logme-testing-transfer_request_finisher'),
+        call('DEST_SITE = NERSC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = deleted'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
+        call('OUTPUT_STATUS = finished'),
         call('RUCIO_PASSWORD = hunter3-electric-boogaloo'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
@@ -138,7 +147,7 @@ async def test_transfer_request_finisher_do_work_pop_exception(config, mocker):
     p = TransferRequestFinisher(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 @pytest.mark.asyncio
 async def test_transfer_request_finisher_do_work_no_results(config, mocker):
@@ -171,7 +180,7 @@ async def test_transfer_request_finisher_do_work_claim_no_result(config, mocker)
     utr_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._update_transfer_request", new_callable=AsyncMock)
     p = TransferRequestFinisher(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
     utr_mock.assert_not_called()
 
 @pytest.mark.asyncio
@@ -187,7 +196,7 @@ async def test_transfer_request_finisher_do_work_claim_yes_result(config, mocker
     utr_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._update_transfer_request", new_callable=AsyncMock)
     p = TransferRequestFinisher(config, logger_mock)
     assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
     utr_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio

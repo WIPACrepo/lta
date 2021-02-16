@@ -21,7 +21,6 @@ from .transfer.gridftp import GridFTP
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "DEST_SITE": None,
     # "GLOBUS_PROXY_DURATION": "72",
     # "GLOBUS_PROXY_OUTPUT": None,
     # "GLOBUS_PROXY_PASSPHRASE": None,
@@ -57,7 +56,6 @@ class GridFTPReplicator(Component):
         logger - The object the replicator should use for logging.
         """
         super(GridFTPReplicator, self).__init__("replicator", config, logger)
-        self.dest_site = config["DEST_SITE"]
         self.gridftp_dest_url = config["GRIDFTP_DEST_URL"]
         self.gridftp_timeout = int(config["GRIDFTP_TIMEOUT"])
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
@@ -90,12 +88,10 @@ class GridFTPReplicator(Component):
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to transfer.")
-        source = self.source_site
-        dest = self.dest_site
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={source}&dest={dest}&status=staged', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -152,7 +148,7 @@ class GridFTPReplicator(Component):
             self.logger.error(f'GridFTP threw an error: {e}')
         # update the Bundle in the LTA DB
         patch_body = {
-            "status": "transferring",
+            "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
             "claimed": False,

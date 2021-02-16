@@ -80,7 +80,7 @@ class Bundler(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&status=specified', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -147,7 +147,7 @@ class Bundler(Component):
             final_bundle_path = os.path.join(self.outbox_path, f"{bundle_id}.zip")
         self.logger.info(f"Finished archive bundle will be located at: '{final_bundle_path}'")
         # 7. Update the bundle record we have with all the information we collected
-        bundle["status"] = "created"
+        bundle["status"] = self.output_status
         bundle["reason"] = ""
         bundle["update_timestamp"] = now()
         bundle["bundle_path"] = final_bundle_path

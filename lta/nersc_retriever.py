@@ -96,7 +96,7 @@ class NerscRetriever(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', '/Bundles/actions/pop?dest=WIPAC&status=located', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -139,7 +139,7 @@ class NerscRetriever(Component):
             return False
         # update the Bundle in the LTA DB
         patch_body = {
-            "status": "staged",
+            "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
             "claimed": False,

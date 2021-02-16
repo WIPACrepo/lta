@@ -20,7 +20,6 @@ EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "BUNDLER_OUTBOX_PATH": None,
     "DEST_QUOTA": None,
-    "DEST_SITE": None,
     "RUCIO_INBOX_PATH": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
@@ -67,7 +66,6 @@ class RucioStager(Component):
         super(RucioStager, self).__init__("rucio_stager", config, logger)
         self.bundler_outbox_path = config["BUNDLER_OUTBOX_PATH"]
         self.dest_quota = int(config["DEST_QUOTA"])
-        self.dest_site = config["DEST_SITE"]
         self.rucio_inbox_path = config["RUCIO_INBOX_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
@@ -102,7 +100,7 @@ class RucioStager(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?dest={self.dest_site}&status=created', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -164,7 +162,7 @@ class RucioStager(Component):
         patch_body = {
             "bundle_path": dst_path,
             "claimed": False,
-            "status": "staged",
+            "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
         }

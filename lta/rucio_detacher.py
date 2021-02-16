@@ -82,11 +82,10 @@ class RucioDetacher(Component):
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to delete.")
-        source = self.source_site
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={source}&status=completed', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -128,7 +127,7 @@ class RucioDetacher(Component):
             self.logger.info(f"Unable to cancel {source_xfer_ref}; error was {e}")
         # update the Bundle in the LTA DB
         patch_body = {
-            "status": "detached",
+            "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
             "claimed": False,

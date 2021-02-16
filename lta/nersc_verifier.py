@@ -106,7 +106,7 @@ class NerscVerifier(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', '/Bundles/actions/pop?dest=NERSC&status=verifying', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -195,7 +195,7 @@ class NerscVerifier(Component):
         """Update the LTA DB to indicate the Bundle is verified."""
         bundle_id = bundle["uuid"]
         patch_body = {
-            "status": "completed",
+            "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
             "claimed": False,

@@ -17,9 +17,11 @@ def config():
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "testing-bundler",
+        "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "specified",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "MYSQL_DB": "testing-db",
@@ -27,6 +29,7 @@ def config():
         "MYSQL_PASSWORD": "hunter2",  # http://bash.org/?244321
         "MYSQL_PORT": "23306",
         "MYSQL_USER": "jade-user",
+        "OUTPUT_STATUS": "created",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
@@ -134,9 +137,11 @@ async def test_bundler_logs_configuration(mocker):
         "BUNDLER_OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "logme-testing-bundler",
+        "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "specified",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "MYSQL_DB": "logme-testing-db",
@@ -144,6 +149,7 @@ async def test_bundler_logs_configuration(mocker):
         "MYSQL_PASSWORD": "logme-hunter2",
         "MYSQL_PORT": "23306",
         "MYSQL_USER": "logme-jade-user",
+        "OUTPUT_STATUS": "created",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "5",
@@ -156,9 +162,11 @@ async def test_bundler_logs_configuration(mocker):
         call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
         call('COMPONENT_NAME = logme-testing-bundler'),
+        call('DEST_SITE = NERSC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = specified'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('MYSQL_DB = logme-testing-db'),
@@ -166,6 +174,7 @@ async def test_bundler_logs_configuration(mocker):
         call('MYSQL_PASSWORD = logme-hunter2'),
         call('MYSQL_PORT = 23306'),
         call('MYSQL_USER = logme-jade-user'),
+        call('OUTPUT_STATUS = created'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
         call('WORK_RETRIES = 5'),
@@ -207,7 +216,7 @@ async def test_bundler_do_work_pop_exception(config, mocker):
     p = Bundler(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=specified', mocker.ANY)
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -230,7 +239,7 @@ async def test_bundler_do_work_claim_no_results(config, mocker):
     }
     p = Bundler(config, logger_mock)
     assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=specified', mocker.ANY)
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -247,7 +256,7 @@ async def test_bundler_do_work_yes_results(config, mocker):
     dwb_mock = mocker.patch("lta.bundler.Bundler._do_work_bundle", new_callable=AsyncMock)
     p = Bundler(config, logger_mock)
     assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=specified', mocker.ANY)
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
     dwb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ)
 
 

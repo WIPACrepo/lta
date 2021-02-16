@@ -14,16 +14,19 @@ def config():
     """Supply a stock NerscVerifier component configuration."""
     return {
         "COMPONENT_NAME": "testing-nersc_verifier",
+        "DEST_SITE": "NERSC",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-token",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "verifying",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "TAPE_BASE_PATH": "/path/to/hpss",
+        "OUTPUT_STATUS": "completed",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
+        "TAPE_BASE_PATH": "/path/to/hpss",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -171,13 +174,16 @@ async def test_nersc_verifier_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     nersc_verifier_config = {
         "COMPONENT_NAME": "logme-testing-nersc_verifier",
+        "DEST_SITE": "NERSC",
         "FILE_CATALOG_REST_TOKEN": "logme-fake-file-catalog-token",
         "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "verifying",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "OUTPUT_STATUS": "completed",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "TAPE_BASE_PATH": "/logme/path/to/hpss",
@@ -189,13 +195,16 @@ async def test_nersc_verifier_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("nersc_verifier 'logme-testing-nersc_verifier' is configured:"),
         call('COMPONENT_NAME = logme-testing-nersc_verifier'),
+        call('DEST_SITE = NERSC'),
         call('FILE_CATALOG_REST_TOKEN = logme-fake-file-catalog-token'),
         call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = verifying'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
+        call('OUTPUT_STATUS = completed'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
         call('TAPE_BASE_PATH = /logme/path/to/hpss'),
@@ -284,7 +293,7 @@ async def test_nersc_verifier_do_work_pop_exception(config, mocker):
     p = NerscVerifier(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 @pytest.mark.asyncio
 async def test_nersc_verifier_do_work_no_results(config, mocker):
@@ -332,7 +341,7 @@ async def test_nersc_verifier_do_work_claim_no_result(config, mocker):
     vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=AsyncMock)
     p = NerscVerifier(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_not_called()
 
 @pytest.mark.asyncio
@@ -364,7 +373,7 @@ async def test_nersc_verifier_do_work_claim_yes_result(config, mocker):
     vbih_mock.return_value = False
     p = NerscVerifier(config, logger_mock)
     assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio
@@ -398,7 +407,7 @@ async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config,
     ubild_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._update_bundle_in_lta_db", new_callable=AsyncMock)
     p = NerscVerifier(config, logger_mock)
     assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
     abtfc_mock.assert_called_with({"one": 1})
     ubild_mock.assert_called_with(mocker.ANY, {"one": 1})

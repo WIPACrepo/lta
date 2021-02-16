@@ -17,10 +17,7 @@ from .lta_types import BundleType
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "DEST_SITE": None,
     "DISK_BASE_PATH": None,
-    "INPUT_STATUS": None,
-    "OUTPUT_STATUS": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -44,10 +41,7 @@ class Deleter(Component):
         logger - The object the deleter should use for logging.
         """
         super(Deleter, self).__init__("deleter", config, logger)
-        self.dest_site = config["DEST_SITE"]
         self.disk_base_path = config["DISK_BASE_PATH"]
-        self.input_status = config["INPUT_STATUS"]
-        self.output_status = config["OUTPUT_STATUS"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         pass
@@ -81,7 +75,7 @@ class Deleter(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?dest={self.dest_site}&status={self.input_status}', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:

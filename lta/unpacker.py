@@ -21,7 +21,6 @@ from .lta_types import BundleType
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "DEST_SITE": None,
     "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
     "UNPACKER_OUTBOX_PATH": None,
@@ -51,7 +50,6 @@ class Unpacker(Component):
         logger - The object the unpacker should use for logging.
         """
         super(Unpacker, self).__init__("unpacker", config, logger)
-        self.dest_site = config["DEST_SITE"]
         self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.outbox_path = config["UNPACKER_OUTBOX_PATH"]
@@ -88,7 +86,7 @@ class Unpacker(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?dest={self.dest_site}&status=unpacking', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -216,7 +214,7 @@ class Unpacker(Component):
         """Update the LTA DB to indicate the Bundle is unpacked."""
         bundle_id = bundle["uuid"]
         patch_body = {
-            "status": "completed",
+            "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
             "claimed": False,

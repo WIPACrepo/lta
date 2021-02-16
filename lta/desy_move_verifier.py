@@ -21,10 +21,8 @@ from .transfer.gridftp import GridFTP
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "DEST_SITE": "DESY",
     "GRIDFTP_DEST_URL": None,
     "GRIDFTP_TIMEOUT": "1200",
-    "NEXT_STATUS": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
     "WORKBOX_PATH": None,
@@ -47,10 +45,8 @@ class DesyMoveVerifier(Component):
         logger - The object the desy_move_verifier should use for logging.
         """
         super(DesyMoveVerifier, self).__init__("desy_move_verifier", config, logger)
-        self.dest_site = config["DEST_SITE"]
         self.gridftp_dest_url = config["GRIDFTP_DEST_URL"]
         self.gridftp_timeout = int(config["GRIDFTP_TIMEOUT"])
-        self.next_status = config["NEXT_STATUS"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.workbox_path = config["WORKBOX_PATH"]
@@ -82,12 +78,10 @@ class DesyMoveVerifier(Component):
                             timeout=self.work_timeout_seconds,
                             retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to verify.")
-        source = self.source_site
-        dest = self.dest_site
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={source}&dest={dest}&status=transferring', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -163,7 +157,7 @@ class DesyMoveVerifier(Component):
         # update the Bundle in the LTA DB
         self.logger.info("Destination checksum matches bundle creation checksum; the bundle is now verified.")
         patch_body = {
-            "status": self.next_status,
+            "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
             "claimed": False,
