@@ -17,17 +17,20 @@ def config():
     """Supply a stock Picker component configuration."""
     return {
         "COMPONENT_NAME": "testing-picker",
+        "DEST_SITE": "NERSC",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "ethereal",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "examples/site.json",
+        "OUTPUT_STATUS": "specified",
         "MAX_FILE_COUNT": "25000",
         "RUN_ONCE_AND_DIE": "False",
-        "SOURCE_SITE": "wipac",
+        "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -133,17 +136,20 @@ async def test_picker_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     picker_config = {
         "COMPONENT_NAME": "logme-testing-picker",
+        "DEST_SITE": "NERSC",
         "FILE_CATALOG_REST_TOKEN": "logme-fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "ethereal",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "examples/site.json",
         "MAX_FILE_COUNT": "25000",
+        "OUTPUT_STATUS": "specified",
         "RUN_ONCE_AND_DIE": "False",
-        "SOURCE_SITE": "wipac",
+        "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
@@ -152,17 +158,20 @@ async def test_picker_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("picker 'logme-testing-picker' is configured:"),
         call('COMPONENT_NAME = logme-testing-picker'),
+        call('DEST_SITE = NERSC'),
         call('FILE_CATALOG_REST_TOKEN = logme-fake-file-catalog-rest-token'),
         call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = ethereal'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('LTA_SITE_CONFIG = examples/site.json'),
         call('MAX_FILE_COUNT = 25000'),
+        call('OUTPUT_STATUS = specified'),
         call('RUN_ONCE_AND_DIE = False'),
-        call('SOURCE_SITE = wipac'),
+        call('SOURCE_SITE = WIPAC'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
         call('WORK_TIMEOUT_SECONDS = 90')
@@ -202,7 +211,7 @@ async def test_picker_do_work_pop_exception(config, mocker):
     p = Picker(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC&dest=NERSC', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -238,7 +247,7 @@ async def test_picker_do_work_claim_no_result(config, mocker):
     dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
     p = Picker(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC&dest=NERSC', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_not_called()
 
 
@@ -255,7 +264,7 @@ async def test_picker_do_work_claim_yes_result(config, mocker):
     dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
     p = Picker(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=wipac', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC&dest=NERSC', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 

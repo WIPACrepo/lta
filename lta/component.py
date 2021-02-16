@@ -18,11 +18,14 @@ from .rest_server import boolify
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "COMPONENT_NAME": None,
+    "DEST_SITE": None,
     "HEARTBEAT_PATCH_RETRIES": "3",
     "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
     "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+    "INPUT_STATUS": None,
     "LTA_REST_TOKEN": None,
     "LTA_REST_URL": None,
+    "OUTPUT_STATUS": None,
     "RUN_ONCE_AND_DIE": "False",
     "SOURCE_SITE": None,
     "WORK_SLEEP_DURATION_SECONDS": "60",
@@ -66,11 +69,14 @@ class Component:
         self.config = config
         self.logger = logger
         # validate and assimilate the configuration
+        self.dest_site = config["DEST_SITE"]
         self.heartbeat_patch_retries = int(config["HEARTBEAT_PATCH_RETRIES"])
         self.heartbeat_patch_timeout_seconds = float(config["HEARTBEAT_PATCH_TIMEOUT_SECONDS"])
         self.heartbeat_sleep_duration_seconds = float(config["HEARTBEAT_SLEEP_DURATION_SECONDS"])
+        self.input_status = config["INPUT_STATUS"]
         self.lta_rest_token = config["LTA_REST_TOKEN"]
         self.lta_rest_url = config["LTA_REST_URL"]
+        self.output_status = config["OUTPUT_STATUS"]
         self.run_once_and_die = boolify(config["RUN_ONCE_AND_DIE"])
         self.source_site = config["SOURCE_SITE"]
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])

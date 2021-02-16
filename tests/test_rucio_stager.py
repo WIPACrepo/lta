@@ -20,8 +20,10 @@ def config():
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "created",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "OUTPUT_STATUS": "staged",
         "RUCIO_INBOX_PATH": "/path/to/icecube/rucio/inbox",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
@@ -70,8 +72,10 @@ async def test_rucio_stager_logs_configuration(mocker):
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "created",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
+        "OUTPUT_STATUS": "staged",
         "RUCIO_INBOX_PATH": "/path/to/icecube/rucio/inbox",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
@@ -89,8 +93,10 @@ async def test_rucio_stager_logs_configuration(mocker):
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = created'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
+        call('OUTPUT_STATUS = staged'),
         call('RUCIO_INBOX_PATH = /path/to/icecube/rucio/inbox'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
@@ -150,7 +156,7 @@ async def test_rucio_stager_do_work_pop_exception(config, mocker):
     p = RucioStager(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 @pytest.mark.asyncio
 async def test_rucio_stager_do_work_no_results(config, mocker):
@@ -183,7 +189,7 @@ async def test_rucio_stager_do_work_claim_no_result(config, mocker):
     sb_mock = mocker.patch("lta.rucio_stager.RucioStager._stage_bundle", new_callable=AsyncMock)
     p = RucioStager(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_not_called()
 
 @pytest.mark.asyncio
@@ -199,7 +205,7 @@ async def test_rucio_stager_do_work_claim_yes_result(config, mocker):
     sb_mock = mocker.patch("lta.rucio_stager.RucioStager._stage_bundle", new_callable=AsyncMock)
     p = RucioStager(config, logger_mock)
     assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio
@@ -218,7 +224,7 @@ async def test_rucio_stager_stage_bundle_raises(config, mocker):
     p = RucioStager(config, logger_mock)
     with pytest.raises(Exception):
         await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
     qb_mock.assert_called_with(mocker.ANY, {"one": 1}, "LTA DB unavailable; currently safer at home")
 

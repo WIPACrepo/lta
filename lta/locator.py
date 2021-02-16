@@ -20,7 +20,6 @@ from .lta_types import BundleType, TransferRequestType
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "DEST_SITE": None,
     "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
     "WORK_RETRIES": "3",
@@ -70,7 +69,6 @@ class Locator(Component):
         logger - The object the locator should use for logging.
         """
         super(Locator, self).__init__("locator", config, logger)
-        self.dest_site = config["DEST_SITE"]
         self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.work_retries = int(config["WORK_RETRIES"])
@@ -105,7 +103,7 @@ class Locator(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/TransferRequests/actions/pop?dest={self.dest_site}&source={self.source_site}', pop_body)
+        response = await lta_rc.request('POST', f'/TransferRequests/actions/pop?source={self.source_site}&dest={self.dest_site}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         tr = response["transfer_request"]
         if not tr:
@@ -185,7 +183,7 @@ class Locator(Component):
             await self._create_bundle(lta_rc, {
                 "type": "Bundle",
                 # "uuid": unique_id(),  # provided by LTA DB
-                "status": "located",
+                "status": self.output_status,
                 "claimed": False,
                 "verified": False,
                 "reason": "",

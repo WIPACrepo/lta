@@ -14,6 +14,7 @@ def config():
     """Supply a stock DesyVerifier component configuration."""
     return {
         "COMPONENT_NAME": "testing-desy_verifier",
+        "DEST_SITE": "DESY",
         "DESY_CRED_PATH": "/path/to/my/gridftp/cert",
         "DESY_GSIFTP": "gsiftp://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com:2811/path/to/files/at/desy",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-token",
@@ -21,11 +22,13 @@ def config():
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "verifying",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "TAPE_BASE_PATH": "/path/to/hpss",
+        "OUTPUT_STATUS": "completed",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
+        "TAPE_BASE_PATH": "/path/to/hpss",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -174,6 +177,7 @@ async def test_desy_verifier_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     desy_verifier_config = {
         "COMPONENT_NAME": "logme-testing-desy_verifier",
+        "DEST_SITE": "DESY",
         "DESY_CRED_PATH": "/path/to/my/gridftp/cert",
         "DESY_GSIFTP": "gsiftp://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com:2811/path/to/files/at/desy",
         "FILE_CATALOG_REST_TOKEN": "logme-fake-file-catalog-token",
@@ -181,8 +185,10 @@ async def test_desy_verifier_logs_configuration(mocker):
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "verifying",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "OUTPUT_STATUS": "completed",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "TAPE_BASE_PATH": "/logme/path/to/hpss",
@@ -195,6 +201,7 @@ async def test_desy_verifier_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("desy_verifier 'logme-testing-desy_verifier' is configured:"),
         call('COMPONENT_NAME = logme-testing-desy_verifier'),
+        call('DEST_SITE = DESY'),
         call('DESY_CRED_PATH = /path/to/my/gridftp/cert'),
         call('DESY_GSIFTP = gsiftp://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com:2811/path/to/files/at/desy'),
         call('FILE_CATALOG_REST_TOKEN = logme-fake-file-catalog-token'),
@@ -202,8 +209,10 @@ async def test_desy_verifier_logs_configuration(mocker):
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = verifying'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
+        call('OUTPUT_STATUS = completed'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
         call('TAPE_BASE_PATH = /logme/path/to/hpss'),
@@ -264,7 +273,7 @@ async def test_desy_verifier_do_work_pop_exception(config, mocker):
     p = DesyVerifier(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 @pytest.mark.asyncio
 async def test_desy_verifier_do_work_no_results(config, mocker):
@@ -297,7 +306,7 @@ async def test_desy_verifier_do_work_claim_no_result(config, mocker):
     vbih_mock = mocker.patch("lta.desy_verifier.DesyVerifier._verify_bundle_at_desy", new_callable=AsyncMock)
     p = DesyVerifier(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_not_called()
 
 @pytest.mark.asyncio
@@ -314,7 +323,7 @@ async def test_desy_verifier_do_work_claim_yes_result(config, mocker):
     vbih_mock.return_value = False
     p = DesyVerifier(config, logger_mock)
     assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio
@@ -333,7 +342,7 @@ async def test_desy_verifier_do_work_claim_yes_result_update_fc_and_lta(config, 
     ubild_mock = mocker.patch("lta.desy_verifier.DesyVerifier._update_bundle_in_lta_db", new_callable=AsyncMock)
     p = DesyVerifier(config, logger_mock)
     assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
     abtfc_mock.assert_called_with({"one": 1})
     ubild_mock.assert_called_with(mocker.ANY, {"one": 1})
@@ -593,166 +602,3 @@ async def test_desy_verifier_verify_bundle_at_desy_fail_checksum_mismatch(config
     assert run_mock.call_count == 1
     lta_rc_mock.assert_not_called()
     remove_mock.assert_not_called()
-
-# @pytest.mark.asyncio
-# async def test_desy_verifier_verify_bundle_in_hpss_hsi_failure_quarantine(config, mocker):
-#     """Test that _verify_bundle_in_hpss quarantines a bundle if the HSI command fails."""
-#     logger_mock = mocker.MagicMock()
-#     bundle = {
-#         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
-#         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
-#         "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
-#         "checksum": {
-#             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
-#         },
-#     }
-#     run_mock = mocker.patch("lta.desy_verifier.run", new_callable=MagicMock)
-#     run_mock.side_effect = [
-#         ObjectLiteral(
-#             returncode=1,
-#             args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
-#             stdout=b"",
-#             stderr=b"",
-#         ),
-#     ]
-#     lta_mock = mocker.MagicMock()
-#     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-#     lta_mock.request = lta_rc_mock
-#     p = DesyVerifier(config, logger_mock)
-#     assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
-#     assert run_mock.call_count == 1
-#     lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
-#
-# @pytest.mark.asyncio
-# async def test_desy_verifier_verify_bundle_in_hpss_mismatch_checksum_quarantine(config, mocker):
-#     """Test that _verify_bundle_in_hpss quarantines a bundle if the checksums do not match."""
-#     logger_mock = mocker.MagicMock()
-#     bundle = {
-#         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
-#         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
-#         "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
-#         "checksum": {
-#             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
-#         },
-#     }
-#     run_mock = mocker.patch("lta.desy_verifier.run", new_callable=MagicMock)
-#     run_mock.side_effect = [
-#         ObjectLiteral(
-#             returncode=0,
-#             args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
-#             stdout=b"1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]\n",
-#             stderr=b"",
-#         ),
-#     ]
-#     lta_mock = mocker.MagicMock()
-#     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-#     lta_mock.request = lta_rc_mock
-#     p = DesyVerifier(config, logger_mock)
-#     assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
-#     assert run_mock.call_count == 1
-#     lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
-#
-# @pytest.mark.asyncio
-# async def test_desy_verifier_verify_bundle_in_hpss_failure_hashverify_quarantine(config, mocker):
-#     """Test that _verify_bundle_in_hpss does not quarantine a bundle if the HSI command succeeds."""
-#     logger_mock = mocker.MagicMock()
-#     bundle = {
-#         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
-#         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
-#         "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
-#         "checksum": {
-#             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
-#         },
-#     }
-#     run_mock = mocker.patch("lta.desy_verifier.run", new_callable=MagicMock)
-#     run_mock.side_effect = [
-#         ObjectLiteral(
-#             returncode=0,
-#             args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
-#             stdout=b"97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
-#             stderr=b"",
-#         ),
-#         ObjectLiteral(
-#             returncode=1,
-#             args=["hsi", "-q", "hashverify", "-A", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
-#             stdout=b"",
-#             stderr=b"",
-#         ),
-#     ]
-#     lta_mock = mocker.MagicMock()
-#     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-#     lta_mock.request = lta_rc_mock
-#     p = DesyVerifier(config, logger_mock)
-#     assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
-#     assert run_mock.call_count == 2
-#     lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
-#
-# @pytest.mark.asyncio
-# async def test_desy_verifier_verify_bundle_in_hpss_hashverify_bad_type_quarantine(config, mocker):
-#     """Test that _verify_bundle_in_hpss does not quarantine a bundle if the HSI command succeeds."""
-#     logger_mock = mocker.MagicMock()
-#     bundle = {
-#         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
-#         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
-#         "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
-#         "checksum": {
-#             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
-#         },
-#     }
-#     run_mock = mocker.patch("lta.desy_verifier.run", new_callable=MagicMock)
-#     run_mock.side_effect = [
-#         ObjectLiteral(
-#             returncode=0,
-#             args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
-#             stdout=b"97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
-#             stderr=b"",
-#         ),
-#         ObjectLiteral(
-#             returncode=0,
-#             args=["hsi", "-q", "hashverify", "-A", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
-#             stdout=b"/home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha256) OK\n",
-#             stderr=b"",
-#         ),
-#     ]
-#     lta_mock = mocker.MagicMock()
-#     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-#     lta_mock.request = lta_rc_mock
-#     p = DesyVerifier(config, logger_mock)
-#     assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
-#     assert run_mock.call_count == 2
-#     lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
-#
-# @pytest.mark.asyncio
-# async def test_desy_verifier_verify_bundle_in_hpss_hashverify_bad_result_quarantine(config, mocker):
-#     """Test that _verify_bundle_in_hpss does not quarantine a bundle if the HSI command succeeds."""
-#     logger_mock = mocker.MagicMock()
-#     bundle = {
-#         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
-#         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
-#         "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
-#         "checksum": {
-#             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
-#         },
-#     }
-#     run_mock = mocker.patch("lta.desy_verifier.run", new_callable=MagicMock)
-#     run_mock.side_effect = [
-#         ObjectLiteral(
-#             returncode=0,
-#             args=["hsi", "-q", "hashlist", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
-#             stdout=b"97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2 sha512 /home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip [hsi]\n",
-#             stderr=b"",
-#         ),
-#         ObjectLiteral(
-#             returncode=0,
-#             args=["hsi", "-q", "hashverify", "-A", "/home/projects/icecube/data/exp/IceCube/2019/filtered/PFFilt/1109/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip"],
-#             stdout=b"/home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha256) OK\n",
-#             stderr=b"",
-#         ),
-#     ]
-#     lta_mock = mocker.MagicMock()
-#     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-#     lta_mock.request = lta_rc_mock
-#     p = DesyVerifier(config, logger_mock)
-#     assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
-#     assert run_mock.call_count == 2
-#     lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)

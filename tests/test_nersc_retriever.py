@@ -14,15 +14,18 @@ def config():
     """Supply a stock NerscRetriever component configuration."""
     return {
         "COMPONENT_NAME": "testing-nersc-mover",
+        "DEST_SITE": "WIPAC",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "located",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "MAX_COUNT": "5",
+        "OUTPUT_STATUS": "staged",
         "RSE_BASE_PATH": "/path/to/rse",
         "RUN_ONCE_AND_DIE": "False",
-        "SOURCE_SITE": "WIPAC",
+        "SOURCE_SITE": "NERSC",
         "TAPE_BASE_PATH": "/path/to/hpss",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
@@ -126,12 +129,15 @@ async def test_nersc_retriever_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     nersc_retriever_config = {
         "COMPONENT_NAME": "logme-testing-nersc-mover",
+        "DEST_SITE": "WIPAC",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "located",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "MAX_COUNT": "9001",
+        "OUTPUT_STATUS": "staged",
         "RSE_BASE_PATH": "/log/me/path/to/rse",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "NERSC",
@@ -144,12 +150,15 @@ async def test_nersc_retriever_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("nersc_retriever 'logme-testing-nersc-mover' is configured:"),
         call('COMPONENT_NAME = logme-testing-nersc-mover'),
+        call('DEST_SITE = WIPAC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = located'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('MAX_COUNT = 9001'),
+        call('OUTPUT_STATUS = staged'),
         call('RSE_BASE_PATH = /log/me/path/to/rse'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = NERSC'),
@@ -239,7 +248,7 @@ async def test_nersc_retriever_do_work_pop_exception(config, mocker):
     p = NerscRetriever(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -262,7 +271,7 @@ async def test_nersc_retriever_do_work_claim_no_result(config, mocker):
     wbth_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._read_bundle_from_hpss", new_callable=AsyncMock)
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
     wbth_mock.assert_not_called()
 
 
@@ -288,7 +297,7 @@ async def test_nersc_retriever_do_work_claim_yes_result(config, mocker):
     wbth_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._read_bundle_from_hpss", new_callable=AsyncMock)
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
     wbth_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 

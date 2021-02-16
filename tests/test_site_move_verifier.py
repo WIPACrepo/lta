@@ -20,9 +20,10 @@ def config():
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "transferring",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "NEXT_STATUS": "taping",
+        "OUTPUT_STATUS": "taping",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "USE_FULL_BUNDLE_PATH": "FALSE",
@@ -81,7 +82,7 @@ def test_constructor_config(config, mocker):
     assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_rest_token == "fake-lta-rest-token"
     assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
-    assert p.next_status == "taping"
+    assert p.output_status == "taping"
     assert p.source_site == "WIPAC"
     assert p.work_retries == 3
     assert p.work_sleep_duration_seconds == 60
@@ -146,9 +147,10 @@ async def test_site_move_verifier_logs_configuration(mocker):
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "transferring",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
-        "NEXT_STATUS": "prognosticating",
+        "OUTPUT_STATUS": "taping",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "USE_FULL_BUNDLE_PATH": "FALSE",
@@ -165,9 +167,10 @@ async def test_site_move_verifier_logs_configuration(mocker):
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = transferring'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
-        call('NEXT_STATUS = prognosticating'),
+        call('OUTPUT_STATUS = taping'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
         call('USE_FULL_BUNDLE_PATH = FALSE'),
@@ -227,7 +230,7 @@ async def test_site_move_verifier_do_work_pop_exception(config, mocker):
     p = SiteMoveVerifier(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 @pytest.mark.asyncio
 async def test_site_move_verifier_do_work_no_results(config, mocker):
@@ -260,7 +263,7 @@ async def test_site_move_verifier_do_work_claim_no_result(config, mocker):
     vb_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._verify_bundle", new_callable=AsyncMock)
     p = SiteMoveVerifier(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_not_called()
 
 @pytest.mark.asyncio
@@ -276,7 +279,7 @@ async def test_site_move_verifier_do_work_claim_yes_result(config, mocker):
     vb_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._verify_bundle", new_callable=AsyncMock)
     p = SiteMoveVerifier(config, logger_mock)
     assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio

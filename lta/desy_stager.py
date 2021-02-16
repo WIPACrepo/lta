@@ -20,7 +20,6 @@ EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "BUNDLE_DEST_PATH": None,
     "BUNDLE_SOURCE_PATH": None,
-    "DEST_SITE": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -43,7 +42,6 @@ class DesyStager(Component):
         super(DesyStager, self).__init__("desy_stager", config, logger)
         self.bundle_dest_path = config["BUNDLE_DEST_PATH"]
         self.bundle_source_path = config["BUNDLE_SOURCE_PATH"]
-        self.dest_site = config["DEST_SITE"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
@@ -76,7 +74,7 @@ class DesyStager(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status=created', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
@@ -122,7 +120,7 @@ class DesyStager(Component):
         patch_body = {
             "bundle_path": dst_path,
             "claimed": False,
-            "status": "staged",
+            "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
         }

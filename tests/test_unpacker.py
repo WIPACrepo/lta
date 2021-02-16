@@ -21,8 +21,10 @@ def config():
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "unpacking",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "OUTPUT_STATUS": "completed",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "NERSC",
         "UNPACKER_OUTBOX_PATH": "/tmp/lta/testing/unpacker/outbox",
@@ -136,8 +138,10 @@ async def test_unpacker_logs_configuration(mocker):
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "unpacking",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "OUTPUT_STATUS": "completed",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "NERSC",
         "UNPACKER_OUTBOX_PATH": "logme/tmp/lta/testing/unpacker/outbox",
@@ -156,8 +160,10 @@ async def test_unpacker_logs_configuration(mocker):
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = unpacking'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
+        call('OUTPUT_STATUS = completed'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = NERSC'),
         call('UNPACKER_OUTBOX_PATH = logme/tmp/lta/testing/unpacker/outbox'),
@@ -201,7 +207,7 @@ async def test_unpacker_do_work_pop_exception(config, mocker):
     p = Unpacker(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=unpacking', mocker.ANY)
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -224,7 +230,7 @@ async def test_unpacker_do_work_claim_no_results(config, mocker):
     }
     p = Unpacker(config, logger_mock)
     assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=unpacking', mocker.ANY)
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -241,7 +247,7 @@ async def test_unpacker_do_work_yes_results(config, mocker):
     dwb_mock = mocker.patch("lta.unpacker.Unpacker._do_work_bundle", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
     assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=unpacking', mocker.ANY)
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
     dwb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ)
 
 
@@ -262,7 +268,7 @@ async def test_unpacker_do_work_raise_exception(config, mocker):
     p = Unpacker(config, logger_mock)
     with pytest.raises(Exception):
         await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?dest=WIPAC&status=unpacking', mocker.ANY)
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
     dwb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ)
     qb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ, "LTA DB started on fire again")
 
