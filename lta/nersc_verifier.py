@@ -30,8 +30,7 @@ EXPECTED_CONFIG.update({
 def as_catalog_record(bundle_record: BundleType) -> Dict[str, Any]:
     """Cherry pick keys from a File Catalog record to include in Bundle metadata."""
     catalog_record = bundle_record.copy()
-    uuids = [x["uuid"] for x in bundle_record["files"]]
-    catalog_record["files"] = uuids
+    del catalog_record["files"]
     return catalog_record
 
 
@@ -157,7 +156,7 @@ class NerscVerifier(Component):
             ],
             "file_size": bundle["size"],
             # note: 'lta' is an application-private metadata field
-            "lta": bundle,
+            "lta": as_catalog_record(bundle),
         }
         # add the bundle file to the File Catalog
         try:

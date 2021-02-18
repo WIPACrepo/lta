@@ -1,13 +1,13 @@
 # test_desy_verifier.py
 """Unit tests for lta/desy_verifier.py."""
 
-from unittest.mock import call, MagicMock
+from unittest.mock import call
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.desy_verifier import as_catalog_record, main, DesyVerifier
-from .test_util import AsyncMock, ObjectLiteral
+from .test_util import AsyncMock
 
 @pytest.fixture
 def config():
@@ -126,14 +126,6 @@ def test_as_catalog_record():
         "claimed": False,
         "create_timestamp": "2020-01-28T10:19:42",
         "dest": "NERSC",
-        "files": [
-            "1a1e9648-41b7-11ea-85e1-666154400f62",
-            "df4bf342-41b6-11ea-9608-666154400f62",
-            "d087dff6-41b6-11ea-b2e4-666154400f62",
-            "2c6139f8-41b7-11ea-bd61-666154400f62",
-            "f1114e3a-41b6-11ea-bee2-666154400f62",
-            "0459dd3a-41b7-11ea-9bd9-666154400f62",
-        ],
         "path": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012",
         "reason": "",
         "request": "945e546841b711eaaf1bc6259865d176",
@@ -296,37 +288,6 @@ async def test_desy_verifier_do_work_yes_results(config, mocker):
     assert dwc_mock.call_count == 3
 
 @pytest.mark.asyncio
-async def test_desy_verifier_do_work_claim_no_result(config, mocker):
-    """Test that _do_work_claim does not work when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
-        "bundle": None
-    }
-    vbih_mock = mocker.patch("lta.desy_verifier.DesyVerifier._verify_bundle_at_desy", new_callable=AsyncMock)
-    p = DesyVerifier(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    vbih_mock.assert_not_called()
-
-@pytest.mark.asyncio
-async def test_desy_verifier_do_work_claim_yes_result(config, mocker):
-    """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
-        "bundle": {
-            "one": 1,
-        },
-    }
-    vbih_mock = mocker.patch("lta.desy_verifier.DesyVerifier._verify_bundle_at_desy", new_callable=AsyncMock)
-    vbih_mock.return_value = False
-    p = DesyVerifier(config, logger_mock)
-    assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
-
-@pytest.mark.asyncio
 async def test_desy_verifier_do_work_claim_yes_result_update_fc_and_lta(config, mocker):
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
@@ -336,37 +297,13 @@ async def test_desy_verifier_do_work_claim_yes_result_update_fc_and_lta(config, 
             "one": 1,
         },
     }
-    vbih_mock = mocker.patch("lta.desy_verifier.DesyVerifier._verify_bundle_at_desy", new_callable=AsyncMock)
-    vbih_mock.return_value = True
     abtfc_mock = mocker.patch("lta.desy_verifier.DesyVerifier._add_bundle_to_file_catalog", new_callable=AsyncMock)
     ubild_mock = mocker.patch("lta.desy_verifier.DesyVerifier._update_bundle_in_lta_db", new_callable=AsyncMock)
     p = DesyVerifier(config, logger_mock)
     assert await p._do_work_claim()
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
     abtfc_mock.assert_called_with({"one": 1})
     ubild_mock.assert_called_with(mocker.ANY, {"one": 1})
-
-@pytest.mark.asyncio
-async def test_desy_verifier_do_work_claim_exception_caught(config, mocker):
-    """Test that _do_work_claim quarantines a Bundle if it catches an Exception."""
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
-        {
-            "bundle": {
-                "uuid": "45ae2ad39c664fda86e5981be0976d9c",
-                "one": 1,
-            },
-        },
-        {}
-    ]
-    vbih_mock = mocker.patch("lta.desy_verifier.DesyVerifier._verify_bundle_at_desy", new_callable=AsyncMock)
-    vbih_mock.side_effect = Exception("Database totally on fire, guys")
-    p = DesyVerifier(config, logger_mock)
-    assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("PATCH", '/Bundles/45ae2ad39c664fda86e5981be0976d9c', mocker.ANY)
-    vbih_mock.assert_called_with(mocker.ANY, {"uuid": "45ae2ad39c664fda86e5981be0976d9c", "one": 1})
 
 @pytest.mark.asyncio
 async def test_desy_verifier_add_bundle_to_file_catalog(config, mocker):
@@ -465,140 +402,3 @@ async def test_desy_verifier_update_bundle_in_lta_db(config, mocker):
     p = DesyVerifier(config, logger_mock)
     assert await p._update_bundle_in_lta_db(lta_mock, bundle)
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
-
-@pytest.mark.asyncio
-async def test_desy_verifier_verify_bundle_at_desy_success_no_quarantine(config, mocker):
-    """Test that _verify_bundle_at_desy does not quarantine a bundle if the checksum command succeeds."""
-    logger_mock = mocker.MagicMock()
-    bundle = {
-        "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
-        "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
-        "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
-        "checksum": {
-            "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
-        },
-    }
-    run_mock = mocker.patch("lta.desy_verifier.run", new_callable=MagicMock)
-    run_mock.side_effect = [
-        ObjectLiteral(
-            returncode=0,
-            args=["globus-url-copy", "-fast", "-gridftp2", "-src-cred", "self.desy_cred_path", "src_url", "workbox_bundle_path"],
-            stdout=b"",
-            stderr=b"",
-        ),
-    ]
-    opi_mock = mocker.patch("os.path.isfile", new_callable=MagicMock)
-    opi_mock.return_value = True
-    hash_mock = mocker.patch("lta.desy_verifier.sha512sum")
-    hash_mock.return_value = "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2"
-    remove_mock = mocker.patch("os.remove", new_callable=MagicMock)
-    lta_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_mock.request = lta_rc_mock
-    p = DesyVerifier(config, logger_mock)
-    assert await p._verify_bundle_at_desy(lta_mock, bundle)
-    assert run_mock.call_count == 1
-    lta_rc_mock.assert_not_called()
-    remove_mock.assert_called()
-
-@pytest.mark.asyncio
-async def test_desy_verifier_verify_bundle_at_desy_fail_globus_url_copy(config, mocker):
-    """Test that _verify_bundle_at_desy does not quarantine a bundle if the checksum command succeeds."""
-    logger_mock = mocker.MagicMock()
-    bundle = {
-        "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
-        "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
-        "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
-        "checksum": {
-            "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
-        },
-    }
-    run_mock = mocker.patch("lta.desy_verifier.run", new_callable=MagicMock)
-    run_mock.side_effect = [
-        ObjectLiteral(
-            returncode=1,
-            args=["globus-url-copy", "-fast", "-gridftp2", "-src-cred", "self.desy_cred_path", "src_url", "workbox_bundle_path"],
-            stdout=b"bad thing happen",
-            stderr=b"database on fire",
-        ),
-    ]
-    remove_mock = mocker.patch("os.remove", new_callable=MagicMock)
-    lta_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_mock.request = lta_rc_mock
-    p = DesyVerifier(config, logger_mock)
-    with pytest.raises(Exception):
-        await p._verify_bundle_at_desy(lta_mock, bundle)
-    assert run_mock.call_count == 1
-    lta_rc_mock.assert_not_called()
-    remove_mock.assert_not_called()
-
-@pytest.mark.asyncio
-async def test_desy_verifier_verify_bundle_at_desy_fail_no_file(config, mocker):
-    """Test that _verify_bundle_at_desy does not quarantine a bundle if the checksum command succeeds."""
-    logger_mock = mocker.MagicMock()
-    bundle = {
-        "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
-        "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
-        "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
-        "checksum": {
-            "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
-        },
-    }
-    run_mock = mocker.patch("lta.desy_verifier.run", new_callable=MagicMock)
-    run_mock.side_effect = [
-        ObjectLiteral(
-            returncode=0,
-            args=["globus-url-copy", "-fast", "-gridftp2", "-src-cred", "self.desy_cred_path", "src_url", "workbox_bundle_path"],
-            stdout=b"",
-            stderr=b"",
-        ),
-    ]
-    opi_mock = mocker.patch("os.path.isfile", new_callable=MagicMock)
-    opi_mock.return_value = False
-    remove_mock = mocker.patch("os.remove", new_callable=MagicMock)
-    lta_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_mock.request = lta_rc_mock
-    p = DesyVerifier(config, logger_mock)
-    with pytest.raises(Exception):
-        await p._verify_bundle_at_desy(lta_mock, bundle)
-    assert run_mock.call_count == 1
-    lta_rc_mock.assert_not_called()
-    remove_mock.assert_not_called()
-
-@pytest.mark.asyncio
-async def test_desy_verifier_verify_bundle_at_desy_fail_checksum_mismatch(config, mocker):
-    """Test that _verify_bundle_at_desy does not quarantine a bundle if the checksum command succeeds."""
-    logger_mock = mocker.MagicMock()
-    bundle = {
-        "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
-        "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
-        "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
-        "checksum": {
-            "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
-        },
-    }
-    run_mock = mocker.patch("lta.desy_verifier.run", new_callable=MagicMock)
-    run_mock.side_effect = [
-        ObjectLiteral(
-            returncode=0,
-            args=["globus-url-copy", "-fast", "-gridftp2", "-src-cred", "self.desy_cred_path", "src_url", "workbox_bundle_path"],
-            stdout=b"",
-            stderr=b"",
-        ),
-    ]
-    opi_mock = mocker.patch("os.path.isfile", new_callable=MagicMock)
-    opi_mock.return_value = True
-    hash_mock = mocker.patch("lta.desy_verifier.sha512sum")
-    hash_mock.return_value = "bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad297de2a6ad728f50a381eb1be6ecf015019887fac27e8"
-    remove_mock = mocker.patch("os.remove", new_callable=MagicMock)
-    lta_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_mock.request = lta_rc_mock
-    p = DesyVerifier(config, logger_mock)
-    with pytest.raises(Exception):
-        await p._verify_bundle_at_desy(lta_mock, bundle)
-    assert run_mock.call_count == 1
-    lta_rc_mock.assert_not_called()
-    remove_mock.assert_not_called()

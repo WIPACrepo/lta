@@ -41,7 +41,7 @@ Create bundle archives from bundle specifications
 `INPUT_STATUS`: `specified`
 `OUTPUT_STATUS`: `created`
 
-### rucio-stager
+### rucio-stager (TODO: Rename as rate-limiter)
 Move bundle archives from creation directory to staging directory according to rate limit
 `INPUT_STATUS`: `created`
 `OUTPUT_STATUS`: `staged`
@@ -155,7 +155,7 @@ Create bundle archives from bundle specifications
 `INPUT_STATUS`: `specified`
 `OUTPUT_STATUS`: `created`
 
-### rucio-stager (DEPRECATED?)
+### rucio-stager (TODO: Rename as rate-limiter)
 Move bundle archives from creation directory to staging directory according to rate limit
 `INPUT_STATUS`: `created`
 `OUTPUT_STATUS`: `staged`
