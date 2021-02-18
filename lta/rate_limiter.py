@@ -1,5 +1,5 @@
-# rucio_stager.py
-"""Module to implement the RucioStager component of the Long Term Archive."""
+# rate_limiter.py
+"""Module to implement the RateLimiter component of the Long Term Archive."""
 
 import asyncio
 from logging import Logger
@@ -18,9 +18,9 @@ from .lta_types import BundleType
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "BUNDLER_OUTBOX_PATH": None,
-    "DEST_QUOTA": None,
-    "RUCIO_INBOX_PATH": None,
+    "INPUT_PATH": None,
+    "OUTPUT_PATH": None,
+    "OUTPUT_QUOTA": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -45,28 +45,28 @@ def _get_files_and_size(path: str) -> Tuple[List[str], int]:
     return (disk_files, size)
 
 
-class RucioStager(Component):
+class RateLimiter(Component):
     """
-    RucioStager is a Long Term Archive component.
+    RateLimiter is a Long Term Archive component.
 
-    A RucioStager is responsible for moving files from the Bundler staging
-    area to the local Rucio RSE. This allows the bundle to be registered
-    with Rucio and scheduled for transfer. This RucioStager component acts
-    mostly to limit Rucio, so that it does not exceed the quota at the
-    destination due to Rucio misconfiguration.
+    A RateLimiter moves bundle archives from an input directory to an output
+    directory, according to a configured output quota. If the total size of
+    the files in the output directory exceed the configured output quota, the
+    bundle archive will not be moved. This component limits the rate of bundles
+    that are "in-flight" to the destination site at any given time.
     """
 
     def __init__(self, config: Dict[str, str], logger: Logger) -> None:
         """
-        Create a RucioStager component.
+        Create a RateLimiter component.
 
         config - A dictionary of required configuration values.
-        logger - The object the rucio_stager should use for logging.
+        logger - The object the rate_limiter should use for logging.
         """
-        super(RucioStager, self).__init__("rucio_stager", config, logger)
-        self.bundler_outbox_path = config["BUNDLER_OUTBOX_PATH"]
-        self.dest_quota = int(config["DEST_QUOTA"])
-        self.rucio_inbox_path = config["RUCIO_INBOX_PATH"]
+        super(RateLimiter, self).__init__("rate_limiter", config, logger)
+        self.input_path = config["INPUT_PATH"]
+        self.output_path = config["OUTPUT_PATH"]
+        self.output_quota = int(config["OUTPUT_QUOTA"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         pass
@@ -133,32 +133,32 @@ class RucioStager(Component):
             self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
-        """Stage the Bundle to Rucio for transfer."""
+        """Stage the Bundle to the output directory for transfer."""
         bundle_id = bundle["uuid"]
-        # measure rucio's inbox, our bundle, and the quota
-        rucio_size = _get_files_and_size(self.rucio_inbox_path)[1]
+        # measure output directory size, our bundle's size, and the quota
+        output_size = _get_files_and_size(self.output_path)[1]
         bundle_size = bundle["size"]
-        total_size = rucio_size + bundle_size
+        total_size = output_size + bundle_size
         # if we would exceed our destination quota
-        print(f"rucio_size: {rucio_size}")
-        print(f"bundle_size: {bundle_size}")
-        print(f"total_size: {total_size}")
-        print(f"dest_quota: {self.dest_quota}")
-        if total_size > self.dest_quota:
+        self.logger.debug(f'output_size: {output_size}')
+        self.logger.debug(f'bundle_size: {bundle_size}')
+        self.logger.debug(f'total_size: {total_size}')
+        self.logger.debug(f'output_quota: {self.output_quota}')
+        if total_size > self.output_quota:
             self.logger.info(f"Bundle {bundle_id} has size {bundle_size} bytes.")
-            self.logger.info(f"Rucio currently holds {rucio_size} bytes.")
-            self.logger.info(f"Staging Bundle to Rucio would exceed the configured quota of {self.dest_quota}.")
+            self.logger.info(f"Output directory currently holds {output_size} bytes.")
+            self.logger.info(f"Staging Bundle to output directory would exceed the configured quota of {self.output_quota}.")
             self.logger.info("Bundle will be unclaimed and staged at a later time.")
             await self._unclaim_bundle(lta_rc, bundle)
             return False
         # this bundle is ready to be staged
         bundle_name = os.path.basename(bundle["bundle_path"])
-        src_path = os.path.join(self.bundler_outbox_path, bundle_name)
-        dst_path = os.path.join(self.rucio_inbox_path, bundle_name)
+        src_path = os.path.join(self.input_path, bundle_name)
+        dst_path = os.path.join(self.output_path, bundle_name)
         self.logger.info(f"Moving Bundle {src_path} -> {dst_path}")
         shutil.move(src_path, dst_path)
         # update the Bundle in the LTA DB
-        self.logger.info("Bundle has been staged to the local Rucio RSE.")
+        self.logger.info("Bundle has been staged to the output directory.")
         patch_body = {
             "bundle_path": dst_path,
             "claimed": False,
@@ -186,12 +186,12 @@ class RucioStager(Component):
 
 
 def runner() -> None:
-    """Configure a RucioStager component from the environment and set it running."""
+    """Configure a RateLimiter component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
     # configure structured logging for the application
     structured_formatter = StructuredFormatter(
-        component_type='RucioStager',
+        component_type='RateLimiter',
         component_name=config["COMPONENT_NAME"],
         ndjson=True)
     stream_handler = logging.StreamHandler(sys.stdout)
@@ -199,18 +199,18 @@ def runner() -> None:
     root_logger = logging.getLogger(None)
     root_logger.setLevel(logging.NOTSET)
     root_logger.addHandler(stream_handler)
-    logger = logging.getLogger("lta.rucio_stager")
-    # create our RucioStager service
-    rucio_stager = RucioStager(config, logger)
+    logger = logging.getLogger("lta.rate_limiter")
+    # create our RateLimiter service
+    rate_limiter = RateLimiter(config, logger)
     # let's get to work
-    rucio_stager.logger.info("Adding tasks to asyncio loop")
+    rate_limiter.logger.info("Adding tasks to asyncio loop")
     loop = asyncio.get_event_loop()
-    loop.create_task(status_loop(rucio_stager))
-    loop.create_task(work_loop(rucio_stager))
+    loop.create_task(status_loop(rate_limiter))
+    loop.create_task(work_loop(rate_limiter))
 
 
 def main() -> None:
-    """Configure a RucioStager component from the environment and set it running."""
+    """Configure a RateLimiter component from the environment and set it running."""
     runner()
     asyncio.get_event_loop().run_forever()
 

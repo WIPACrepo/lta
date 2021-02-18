@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
-export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/mnt/lfss/jade-lta/bundler_stage"}
-export DEST_SITE=${DEST_SITE:="NERSC"}
-export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-rucio-stager"}
-export DEST_QUOTA=${DEST_QUOTA:="12094627905536"}  # 11 TiB
+export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-rate-limiter"}
 export DEST_SITE=${DEST_SITE:="NERSC"}
 export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
 export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="5"}
 export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"}
+export INPUT_PATH=${INPUT_PATH:="/mnt/lfss/jade-lta/bundler_stage"}
 export INPUT_STATUS=${INPUT_STATUS:="created"}
 export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(resources/solicit-token.sh)"}
 export LTA_REST_URL=${LTA_REST_URL:="http://127.0.0.1:8080"}
+export OUTPUT_PATH=${OUTPUT_PATH:="/mnt/lfss/jade-lta/bundler_out"}
+export OUTPUT_QUOTA=${OUTPUT_QUOTA:="12094627905536"}  # 11 TiB
 export OUTPUT_STATUS=${OUTPUT_STATUS:="staged"}
-export RUCIO_INBOX_PATH=${RUCIO_INBOX_PATH:="/mnt/lfss/jade-lta/bundler_out"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="False"}
 export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
 export WORK_RETRIES=${WORK_RETRIES:="3"}
-export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="30"}
+export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="60"}
 export WORK_TIMEOUT_SECONDS=${WORK_TIMEOUT_SECONDS:="5"}
-python -m lta.rucio_stager
+python -m lta.rate_limiter

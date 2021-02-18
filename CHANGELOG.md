@@ -18,7 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
-## [0.38.0] - 2021-02-16
+## [0.39.0] - 2021-02-18
+### Changed
+- RucioStager has been renamed RateLimiter
+
+## [0.38.0] - 2021-02-18
 ### Fixed
 - DesyVerifier component now populates the File Catalog from verified bundles
 - DesyVerifier and NerscVerifier stop recording constituent files in the File Catalog record of the bundle
