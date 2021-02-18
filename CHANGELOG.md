@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.38.0] - 2021-02-16
+### Fixed
+- DesyVerifier component now populates the File Catalog from verified bundles
+- DesyVerifier and NerscVerifier stop recording constituent files in the File Catalog record of the bundle
+
 ## [0.37.0] - 2021-02-15
 ### Changed
 - Modified modules to use standardized configuration for interconnection
