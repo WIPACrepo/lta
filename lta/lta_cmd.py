@@ -444,7 +444,6 @@ async def dashboard(args: Namespace) -> ExitCode:
         "taping",
         "verifying",
         "completed",
-        "detached",
         "source-deleted",
         "deleted",
         "finished",
@@ -452,13 +451,12 @@ async def dashboard(args: Namespace) -> ExitCode:
     # define a mapping between LTA module and Bundle status
     MODULE_MAP = {
         "bundler": "specified",
-        "rucio-stager": "created",
+        "rate-limiter": "created",
         "replicator": "staged",
         "site-move-verifier": "transferring",
         "nersc-mover": "taping",
         "nersc-verifier": "verifying",
-        "rucio-detacher": "completed",
-        "deleter": "detached",
+        "deleter": "completed",
         "transfer-request-finisher": "deleted",
     }
     # get a list of all requests in the system
