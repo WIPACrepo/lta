@@ -319,10 +319,8 @@ class BundlesSingleHandler(BaseLTAHandler):
         query = {"uuid": bundle_id}
         projection = {
             "_id": False,
+            "files": False,
         }
-        contents = boolify(self.get_query_argument("contents", default="True"))
-        if not contents:
-            projection["files"] = False
         logging.debug(f"MONGO-START: db.Bundles.find_one(filter={query}, projection={projection})")
         ret = await self.db.Bundles.find_one(filter=query, projection=projection)
         logging.debug("MONGO-END:   db.Bundles.find_one(filter, projection)")
