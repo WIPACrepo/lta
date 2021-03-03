@@ -986,3 +986,86 @@ async def test_status_nersc(mongo, rest, mocker):
         ],
         'timestamp': mocker.ANY,
     }
+
+@pytest.mark.asyncio
+async def test_metadata_bulk_crud(mongo, rest):
+    """Check CRUD semantics for metadata."""
+    r = rest('system')
+    bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    #
+    # Create - POST /Metadata/actions/bulk_create
+    #
+    request = {
+        'bundle_uuid': bundle_uuid,
+        'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
+    }
+    ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert len(ret["metadata"]) == 3
+    assert ret["count"] == 3
+
+    #
+    # Read - GET /Metadata
+    #
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}')
+    results = ret["results"]
+    assert len(results) == 3
+
+    #
+    # Delete - POST /Metadata/actions/bulk_delete
+    #
+    uuids = []
+    for result in results:
+        uuids.append(result["uuid"])
+    request2 = {'metadata': uuids + [unique_id()]}
+    ret = await r.request('POST', '/Metadata/actions/bulk_delete', request2)
+    assert ret["count"] == 3
+    assert ret["metadata"] == uuids
+
+    #
+    # Read - GET /Metadata
+    #
+    ret = await r.request('GET', '/Metadata')
+    results = ret["results"]
+    assert len(results) == 0
+
+@pytest.mark.asyncio
+async def test_metadata_actions_bulk_create_errors(rest):
+    """Check error conditions for bulk_create."""
+    r = rest('system')
+
+    request = {}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Metadata/actions/bulk_create', request)
+
+    request = {'bundle_uuid': []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Metadata/actions/bulk_create', request)
+
+    request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27"}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Metadata/actions/bulk_create', request)
+
+    request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": {}}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Metadata/actions/bulk_create', request)
+
+    request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Metadata/actions/bulk_create', request)
+
+@pytest.mark.asyncio
+async def test_metadata_actions_bulk_delete_errors(rest):
+    """Check error conditions for bulk_delete."""
+    r = rest('system')
+
+    request = {}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Metadata/actions/bulk_delete', request)
+
+    request = {'metadata': ''}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Metadata/actions/bulk_delete', request)
+
+    request = {'metadata': []}
+    with pytest.raises(Exception):
+        await r.request('POST', '/Metadata/actions/bulk_delete', request)
