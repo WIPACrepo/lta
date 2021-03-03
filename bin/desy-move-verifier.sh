@@ -5,7 +5,7 @@ export DEST_SITE=${DEST_SITE:="NERSC"}
 #export GLOBUS_PROXY_PASSPHRASE=${GLOBUS_PROXY_PASSPHRASE:="hunter2"}  # http://bash.org/?244321
 #export GLOBUS_PROXY_VOMS_ROLE=${GLOBUS_PROXY_VOMS_ROLE:=""}
 #export GLOBUS_PROXY_VOMS_VO=${GLOBUS_PROXY_VOMS_VO:=""}
-export GRIDFTP_DEST_URL=${GRIDFTP_DEST_URL:="gsiftp://dtn05.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta"}
+export GRIDFTP_DEST_URL=${GRIDFTP_DEST_URL:="gsiftp://gridftp.zeuthen.desy.de:2811/pnfs/ifh.de/acs/icecube/archive"}
 export GRIDFTP_TIMEOUT=${GRIDFTP_TIMEOUT:="43200"}  # 43200 sec = 12 hours
 export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
 export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="5"}
@@ -15,7 +15,7 @@ export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(resources/solicit-token.sh)"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="taping"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="True"}
-export SOURCE_SITE=${SOURCE_SITE:="ICECUBE"}
+export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
 export WORK_RETRIES=${WORK_RETRIES:="3"}
 export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="30"}
 export WORK_TIMEOUT_SECONDS=${WORK_TIMEOUT_SECONDS:="5"}
