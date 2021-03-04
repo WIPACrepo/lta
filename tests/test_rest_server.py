@@ -13,6 +13,7 @@ from pymongo.database import Database  # type: ignore
 import pytest  # type: ignore
 import requests  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
+from requests.exceptions import HTTPError
 
 from lta.rest_server import boolify, CheckClaims, main, start, unique_id
 
@@ -1034,24 +1035,34 @@ async def test_metadata_actions_bulk_create_errors(rest):
     r = rest('system')
 
     request = {}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "missing bundle_uuid field"
 
     request = {'bundle_uuid': []}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "bundle_uuid field is not a string"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27"}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "missing files field"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": {}}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "files field is not a list"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": []}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "files field is empty"
 
 @pytest.mark.asyncio
 async def test_metadata_actions_bulk_delete_errors(rest):
@@ -1059,13 +1070,19 @@ async def test_metadata_actions_bulk_delete_errors(rest):
     r = rest('system')
 
     request = {}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "missing metadata field"
 
     request = {'metadata': ''}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "metadata field is not a list"
 
     request = {'metadata': []}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "metadata field is empty"
