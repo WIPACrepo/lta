@@ -377,9 +377,7 @@ class MetadataActionsBulkCreateHandler(BaseLTAHandler):
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_create."""
         bundle_uuid = self.get_argument("bundle_uuid", type=str)
-        files = self.get_argument("files", type=list, forbiddens=[])
-        if not len(files):
-            raise tornado.web.HTTPError(400, reason="files.forbiddens did not raise on empty list")
+        files = self.get_argument("files", type=list, forbiddens=[[]])
 
         documents = []
         for file_catalog_uuid in files:
@@ -409,9 +407,7 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_delete."""
-        metadata = self.get_argument("metadata", type=list, forbiddens=[])
-        if not len(metadata):
-            raise tornado.web.HTTPError(400, reason="metadata.forbiddens did not raise on empty list")
+        metadata = self.get_argument("metadata", type=list, forbiddens=[[]])
 
         count = 0
         slice_index = 0

@@ -1062,7 +1062,7 @@ async def test_metadata_actions_bulk_create_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "files.forbiddens did not raise on empty list"
+    assert e.value.response.json()["error"] == "`files`: (ValueError) [] is forbidden ([[]])"
 
 @pytest.mark.asyncio
 async def test_metadata_actions_bulk_delete_errors(rest):
@@ -1085,4 +1085,4 @@ async def test_metadata_actions_bulk_delete_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "metadata.forbiddens did not raise on empty list"
+    assert e.value.response.json()["error"] == "`metadata`: (ValueError) [] is forbidden ([[]])"
