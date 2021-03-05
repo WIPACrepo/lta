@@ -430,8 +430,8 @@ class MetadataHandler(BaseLTAHandler):
     async def get(self) -> None:
         """Handle GET /Metadata."""
         bundle_uuid = self.get_query_argument("bundle_uuid", default=None)
-        limit = self.get_query_argument("limit", default=1000)
-        skip = self.get_query_argument("skip", default=0)
+        limit = int(self.get_query_argument("limit", default=1000))
+        skip = int(self.get_query_argument("skip", default=0))
 
         query: Dict[str, Any] = {
             "uuid": {"$exists": True},
