@@ -376,21 +376,13 @@ class MetadataActionsBulkCreateHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_create."""
-        req = json_decode(self.request.body)
-        if 'bundle_uuid' not in req:
-            raise tornado.web.HTTPError(400, reason="missing bundle_uuid field")
-        if not isinstance(req['bundle_uuid'], str):
-            raise tornado.web.HTTPError(400, reason="bundle_uuid field is not a string")
-        if 'files' not in req:
-            raise tornado.web.HTTPError(400, reason="missing files field")
-        if not isinstance(req['files'], list):
-            raise tornado.web.HTTPError(400, reason="files field is not a list")
-        if not req['files']:
-            raise tornado.web.HTTPError(400, reason="files field is empty")
+        bundle_uuid = self.get_argument("bundle_uuid", type=str)
+        files = self.get_argument("files", type=list, forbiddens=[])
+        if not len(files):
+            raise tornado.web.HTTPError(400, reason="files.forbiddens did not raise on empty list")
 
         documents = []
-        bundle_uuid = req['bundle_uuid']
-        for file_catalog_uuid in req['files']:
+        for file_catalog_uuid in files:
             documents.append({
                 "uuid": unique_id(),
                 "bundle_uuid": bundle_uuid,
@@ -417,27 +409,23 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_delete."""
-        req = json_decode(self.request.body)
-        if 'metadata' not in req:
-            raise tornado.web.HTTPError(400, reason="missing metadata field")
-        if not isinstance(req['metadata'], list):
-            raise tornado.web.HTTPError(400, reason="metadata field is not a list")
-        if not req['metadata']:
-            raise tornado.web.HTTPError(400, reason="metadata field is empty")
+        metadata = self.get_argument("metadata", type=list, forbiddens=[])
+        if not len(metadata):
+            raise tornado.web.HTTPError(400, reason="metadata.forbiddens did not raise on empty list")
 
         count = 0
         slice_index = 0
-        NUM_UUIDS = len(req["metadata"])
+        NUM_UUIDS = len(metadata)
         for i in range(slice_index, NUM_UUIDS, DELETE_CHUNK_SIZE):
             slice_index = i
-            delete_slice = req["metadata"][slice_index:slice_index+DELETE_CHUNK_SIZE]
+            delete_slice = metadata[slice_index:slice_index+DELETE_CHUNK_SIZE]
             query = {"uuid": {"$in": delete_slice}}
             logging.debug(f"MONGO-START: db.Metadata.delete_many(filter={len(delete_slice)} UUIDs)")
             ret = await self.db.Metadata.delete_many(filter=query)
             logging.debug("MONGO-END:   db.Metadata.delete_many(filter)")
             count = count + ret.deleted_count
 
-        self.write({'metadata': req["metadata"], 'count': count})
+        self.write({'metadata': metadata, 'count': count})
 
 class MetadataHandler(BaseLTAHandler):
     """MetadataHandler handles collection level routes for Metadata."""

@@ -1038,31 +1038,31 @@ async def test_metadata_actions_bulk_create_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "missing bundle_uuid field"
+    assert e.value.response.json()["error"] == "Bad Request"
 
     request = {'bundle_uuid': []}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "bundle_uuid field is not a string"
+    assert e.value.response.json()["error"] == "`bundle_uuid`: (TypeError) [] (<class 'list'>) is not <class 'str'>"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27"}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "missing files field"
+    assert e.value.response.json()["error"] == "Bad Request"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": {}}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "files field is not a list"
+    assert e.value.response.json()["error"] == "`files`: (TypeError) {} (<class 'dict'>) is not <class 'list'>"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": []}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "files field is empty"
+    assert e.value.response.json()["error"] == "files.forbiddens did not raise on empty list"
 
 @pytest.mark.asyncio
 async def test_metadata_actions_bulk_delete_errors(rest):
@@ -1073,16 +1073,16 @@ async def test_metadata_actions_bulk_delete_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "missing metadata field"
+    assert e.value.response.json()["error"] == "Bad Request"
 
     request = {'metadata': ''}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "metadata field is not a list"
+    assert e.value.response.json()["error"] == "`metadata`: (TypeError)  (<class 'str'>) is not <class 'list'>"
 
     request = {'metadata': []}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "metadata field is empty"
+    assert e.value.response.json()["error"] == "metadata.forbiddens did not raise on empty list"
