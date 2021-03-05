@@ -15,10 +15,12 @@ from uuid import uuid1
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
 import pymongo  # type: ignore
 from pymongo import MongoClient
-from rest_tools.client import json_decode  # type: ignore
+from rest_tools.utils.json_util import json_decode  # type: ignore
 from rest_tools.server import authenticated, catch_error, from_environment, RestHandler, RestHandlerSetup, RestServer  # type: ignore
 import tornado.web
 
+# maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
+DELETE_CHUNK_SIZE = 100
 
 EXPECTED_CONFIG = {
     'LTA_AUTH_ALGORITHM': 'RS256',
@@ -368,6 +370,92 @@ class MainHandler(BaseLTAHandler):
 
 # -----------------------------------------------------------------------------
 
+class MetadataActionsBulkCreateHandler(BaseLTAHandler):
+    """Handler for /Metadata/actions/bulk_create."""
+
+    @lta_auth(roles=['admin', 'system'])
+    async def post(self) -> None:
+        """Handle POST /Metadata/actions/bulk_create."""
+        bundle_uuid = self.get_argument("bundle_uuid", type=str)
+        files = self.get_argument("files", type=list, forbiddens=[[]])
+
+        documents = []
+        for file_catalog_uuid in files:
+            documents.append({
+                "uuid": unique_id(),
+                "bundle_uuid": bundle_uuid,
+                "file_catalog_uuid": file_catalog_uuid,
+            })
+
+        logging.debug(f"MONGO-START: db.Metadata.insert_many(documents=[{len(documents)} documents])")
+        ret = await self.db.Metadata.insert_many(documents=documents)
+        logging.debug("MONGO-END:   db.Metadata.insert_many(documents)")
+        create_count = len(ret.inserted_ids)
+
+        uuids = []
+        for x in documents:
+            uuid = x["uuid"]
+            uuids.append(uuid)
+            logging.info(f"created Metadata {uuid}")
+
+        self.set_status(201)
+        self.write({'metadata': uuids, 'count': create_count})
+
+class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
+    """Handler for /Metadata/actions/bulk_delete."""
+
+    @lta_auth(roles=['admin', 'system'])
+    async def post(self) -> None:
+        """Handle POST /Metadata/actions/bulk_delete."""
+        metadata = self.get_argument("metadata", type=list, forbiddens=[[]])
+
+        count = 0
+        slice_index = 0
+        NUM_UUIDS = len(metadata)
+        for i in range(slice_index, NUM_UUIDS, DELETE_CHUNK_SIZE):
+            slice_index = i
+            delete_slice = metadata[slice_index:slice_index+DELETE_CHUNK_SIZE]
+            query = {"uuid": {"$in": delete_slice}}
+            logging.debug(f"MONGO-START: db.Metadata.delete_many(filter={len(delete_slice)} UUIDs)")
+            ret = await self.db.Metadata.delete_many(filter=query)
+            logging.debug("MONGO-END:   db.Metadata.delete_many(filter)")
+            count = count + ret.deleted_count
+
+        self.write({'metadata': metadata, 'count': count})
+
+class MetadataHandler(BaseLTAHandler):
+    """MetadataHandler handles collection level routes for Metadata."""
+
+    @lta_auth(roles=['admin', 'system', 'user'])
+    async def get(self) -> None:
+        """Handle GET /Metadata."""
+        bundle_uuid = self.get_query_argument("bundle_uuid", default=None)
+        limit = int(self.get_query_argument("limit", default=1000))
+        skip = int(self.get_query_argument("skip", default=0))
+
+        query: Dict[str, Any] = {
+            "uuid": {"$exists": True},
+            "bundle_uuid": bundle_uuid,
+        }
+
+        projection: Dict[str, bool] = {"_id": False}
+
+        results = []
+        logging.debug(f"MONGO-START: db.Metadata.find(filter={query}, projection={projection}, limit={limit}, skip={skip})")
+        async for row in self.db.Metadata.find(filter=query,
+                                               projection=projection,
+                                               limit=limit,
+                                               skip=skip):
+            results.append(row)
+        logging.debug("MONGO-END*:   db.Metadata.find(filter, projection, limit, skip)")
+
+        ret = {
+            'results': results,
+        }
+        self.write(ret)
+
+# -----------------------------------------------------------------------------
+
 class TransferRequestsHandler(BaseLTAHandler):
     """TransferRequestsHandler is a BaseLTAHandler that handles TransferRequests routes."""
 
@@ -705,6 +793,14 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     if 'bundles_verified_index' not in db.Bundles.index_information():
         logging.info(f"Creating index for {mongo_db}.Bundles.verified")
         db.Bundles.create_index('verified', name='bundles_verified_index')
+    # Metadata.bundle_uuid - Looking up metadata records by bundle's UUID
+    if 'metadata_bundle_uuid_index' not in db.Metadata.index_information():
+        logging.info(f"Creating index for {mongo_db}.Metadata.bundle_uuid")
+        db.Metadata.create_index('bundle_uuid', name='metadata_bundle_uuid_index')
+    # Metadata.uuid - Deleting metadata records by their UUIDs
+    if 'metadata_uuid_index' not in db.Metadata.index_information():
+        logging.info(f"Creating index for {mongo_db}.Metadata.uuid")
+        db.Metadata.create_index('uuid', name='metadata_uuid_index', unique=True)
     # Status.{component, name}
     if 'status_component_index' not in db.Status.index_information():
         logging.info(f"Creating index for {mongo_db}.Status.component")
@@ -719,10 +815,10 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
         logging.info(f"Creating index for {mongo_db}.Status.timestamp")
         db.Status.create_index('timestamp', name='status_timestamp_index', unique=False)
     # TransferRequests.uuid
-    if 'transfer_requests_create_timestamp_index' not in db.Bundles.index_information():
+    if 'transfer_requests_create_timestamp_index' not in db.TransferRequests.index_information():
         logging.info(f"Creating index for {mongo_db}.TransferRequests.create_timestamp")
         db.TransferRequests.create_index('create_timestamp', name='transfer_requests_create_timestamp_index', unique=False)
-    if 'transfer_requests_work_priority_timestamp_index' not in db.Bundles.index_information():
+    if 'transfer_requests_work_priority_timestamp_index' not in db.TransferRequests.index_information():
         logging.info(f"Creating index for {mongo_db}.TransferRequests.work_priority_timestamp")
         db.TransferRequests.create_index('work_priority_timestamp', name='transfer_requests_work_priority_timestamp_index', unique=False)
     if 'transfer_requests_uuid_index' not in db.TransferRequests.index_information():
@@ -770,6 +866,9 @@ def start(debug: bool = False) -> RestServer:
     server.add_route(r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler, args)
     server.add_route(r'/Bundles/actions/pop', BundlesActionsPopHandler, args)
     server.add_route(r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler, args)
+    server.add_route(r'/Metadata', MetadataHandler, args)
+    server.add_route(r'/Metadata/actions/bulk_create', MetadataActionsBulkCreateHandler, args)
+    server.add_route(r'/Metadata/actions/bulk_delete', MetadataActionsBulkDeleteHandler, args)
     server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
