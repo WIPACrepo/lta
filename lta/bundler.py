@@ -178,6 +178,7 @@ class Bundler(Component):
             # until we've finished processing all the Metadata records
             while not done:
                 # ask the LTA DB for the next chunk of Metadata records
+                self.logger.info(f"GET /Metadata?bundle_uuid={bundle_uuid}&limit={limit}&skip={skip}")
                 lta_response = await lta_rc.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}&limit={limit}&skip={skip}')
                 num_files = len(lta_response["results"])
                 done = (num_files == 0)

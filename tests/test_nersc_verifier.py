@@ -2,11 +2,12 @@
 """Unit tests for lta/nersc_verifier.py."""
 
 from unittest.mock import call, MagicMock
+from uuid import uuid1
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
-from lta.nersc_verifier import as_catalog_record, main, NerscVerifier
+from lta.nersc_verifier import main, NerscVerifier
 from .test_util import AsyncMock, ObjectLiteral
 
 @pytest.fixture
@@ -30,109 +31,6 @@ def config():
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
-    }
-
-def test_as_catalog_record():
-    """Check that as_catalog_record trims down metadata appropriately."""
-    bundle_record = {
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/b33686fe41b711ea85fbc6259865d176.zip",
-        "checksum": {
-            "adler32": "5d69e3ca",
-            "sha512": "e7ea63cf36d5b793c9c372d815b7781943cd9c2e2f664d0000de4595779036174902428cedcc32c9542260df620ff5a4cbee91fe124502bc9c71837233169606"
-        },
-        "claim_timestamp": "2020-02-11T04:05:04",
-        "claimant": "cori05-nersc-verifier-5568d5d5-81a5-44a0-ac97-6f067e8d11a3",
-        "claimed": False,
-        "create_timestamp": "2020-01-28T10:19:42",
-        "dest": "NERSC",
-        "files": [
-            {
-                "checksum": {
-                    "sha512": "b098ec20b12ee795dff25158873f86df1090f66479e3604b40dbce096a67f52f79f8decd2d1834a3b1e45dc42b703673b0ba194b93c5b705534d1a2422ce1cb8"
-                },
-                "file_size": 1188095831,
-                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_246d4979-e8b7-4fcf-96e5-4afa15a91d44_PFRaw_PhysicsFiltering_Run00131614_Subrun00000000_00000202.tar.gz",
-                "meta_modify_date": "2020-01-28 10:15:26.125535",
-                "uuid": "1a1e9648-41b7-11ea-85e1-666154400f62"
-            },
-            {
-                "checksum": {
-                    "sha512": "29532b62b8dcc0bdf0937ae7dc891be3ab57ded69913d27ab552051fc36d9fe04573ef8a705e6c81c344c0888af0c0de1664c6e6a8fa830d72362b87c5c60ec6"
-                },
-                "file_size": 1186829262,
-                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_4ba6dab2-eacb-4bec-a80b-27eb5c54893d_PFRaw_PhysicsFiltering_Run00131613_Subrun00000000_00000185.tar.gz",
-                "meta_modify_date": "2020-01-28 10:13:47.437259",
-                "uuid": "df4bf342-41b6-11ea-9608-666154400f62"
-            },
-            {
-                "checksum": {
-                    "sha512": "78dd0c99dd413ce234b689b0752cf01134a798c4971da59321b34cffb0be58b01099f97a3e8cba714183d3f4aa50a3559541975bc8c4e05141ff131b12d3cd08"
-                },
-                "file_size": 1186640189,
-                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_44c00140-770f-4655-8d60-fb75997e8ef9_PFRaw_PhysicsFiltering_Run00131613_Subrun00000000_00000204.tar.gz",
-                "meta_modify_date": "2020-01-28 10:13:22.664175",
-                "uuid": "d087dff6-41b6-11ea-b2e4-666154400f62"
-            },
-            {
-                "checksum": {
-                    "sha512": "33ace6b9b780f97bcf18382464fe08c96bcdb3a4aef5d6ac7656cdbbe05e75a73e95fd8b64207604484c04173ac566b96051d853749a67da26693b85ddd5bc09"
-                },
-                "file_size": 1186616485,
-                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_b2a04d2b-904d-4271-98cf-1ceff5947318_PFRaw_PhysicsFiltering_Run00131613_Subrun00000000_00000148.tar.gz",
-                "meta_modify_date": "2020-01-28 10:15:56.761259",
-                "uuid": "2c6139f8-41b7-11ea-bd61-666154400f62"
-            },
-            {
-                "checksum": {
-                    "sha512": "34c3ea6508cb2123c2cdbe70a64fd37f983bef13a32a00afc92a4df808ebeea5b8176ba2232fe7da48fb1c4986c3263dc4df6e00c5c51c3f44821e0018cb99b3"
-                },
-                "file_size": 1186547342,
-                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_6d48effb-ce8e-48ce-8c17-3e05029eee09_PFRaw_PhysicsFiltering_Run00131615_Subrun00000000_00000034.tar.gz",
-                "meta_modify_date": "2020-01-28 10:14:17.251869",
-                "uuid": "f1114e3a-41b6-11ea-bee2-666154400f62"
-            },
-            {
-                "checksum": {
-                    "sha512": "af834a9d03ee6390610d8bf8ddc46219369a505d0a42b9035eecbf92c3f34db966736392b8b02d1932ddf12ca2828cb5e43de9903af9945bf686d8de135f9c0d"
-                },
-                "file_size": 1186445818,
-                "logical_name": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012/ukey_2f6786cd-245b-4e8d-815b-7f7f3ae9b313_PFRaw_PhysicsFiltering_Run00131612_Subrun00000000_00000050.tar.gz",
-                "meta_modify_date": "2020-01-28 10:14:49.604150",
-                "uuid": "0459dd3a-41b7-11ea-9bd9-666154400f62"
-            }
-        ],
-        "path": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012",
-        "reason": "",
-        "request": "945e546841b711eaaf1bc6259865d176",
-        "size": 7121179847,
-        "source": "WIPAC",
-        "status": "completed",
-        "type": "Bundle",
-        "update_timestamp": "2020-02-11T04:06:03",
-        "uuid": "b33686fe41b711ea85fbc6259865d176",
-        "verified": False
-    }
-    assert as_catalog_record(bundle_record) == {
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/b33686fe41b711ea85fbc6259865d176.zip",
-        "checksum": {
-            "adler32": "5d69e3ca",
-            "sha512": "e7ea63cf36d5b793c9c372d815b7781943cd9c2e2f664d0000de4595779036174902428cedcc32c9542260df620ff5a4cbee91fe124502bc9c71837233169606"
-        },
-        "claim_timestamp": "2020-02-11T04:05:04",
-        "claimant": "cori05-nersc-verifier-5568d5d5-81a5-44a0-ac97-6f067e8d11a3",
-        "claimed": False,
-        "create_timestamp": "2020-01-28T10:19:42",
-        "dest": "NERSC",
-        "path": "/mnt/lfs7/exp/IceCube/2018/unbiased/PFRaw/1012",
-        "reason": "",
-        "request": "945e546841b711eaaf1bc6259865d176",
-        "size": 7121179847,
-        "source": "WIPAC",
-        "status": "completed",
-        "type": "Bundle",
-        "update_timestamp": "2020-02-11T04:06:03",
-        "uuid": "b33686fe41b711ea85fbc6259865d176",
-        "verified": False
     }
 
 def test_constructor_config(config, mocker):
@@ -401,7 +299,7 @@ async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config,
     assert await p._do_work_claim()
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
-    abtfc_mock.assert_called_with({"one": 1})
+    abtfc_mock.assert_called_with(mocker.ANY, {"one": 1})
     ubild_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio
@@ -452,11 +350,11 @@ async def test_nersc_verifier_add_bundle_to_file_catalog(config, mocker):
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
         "size": 12345,
-        "files": [
-            {"uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
-            {"uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
-            {"uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
-        ]
+        # "files": [
+        #     {"uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
+        #     {"uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
+        #     {"uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
+        # ]
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     fc_rc_mock.side_effect = [
@@ -477,8 +375,27 @@ async def test_nersc_verifier_add_bundle_to_file_catalog(config, mocker):
         },
         True,  # POST /api/files/UUID/locations - add the location
     ]
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    lta_rc_mock.request.side_effect = [
+        {
+            "results": [
+                {"file_catalog_uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
+                {"file_catalog_uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
+                {"file_catalog_uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
+            ]
+        },
+        {
+            "metadata": [uuid1().hex, uuid1().hex, uuid1().hex],
+            "count": 3,
+        },
+        {
+            "results": []
+        },
+    ]
     p = NerscVerifier(config, logger_mock)
-    assert await p._add_bundle_to_file_catalog(bundle)
+    assert await p._add_bundle_to_file_catalog(lta_rc_mock, bundle)
+    assert lta_rc_mock.request.call_count == 3
+    lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=100')
     assert fc_rc_mock.call_count == 7
     fc_rc_mock.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
 
@@ -494,11 +411,11 @@ async def test_nersc_verifier_add_bundle_to_file_catalog_patch_after_post_error(
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
         "size": 12345,
-        "files": [
-            {"uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
-            {"uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
-            {"uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
-        ]
+        # "files": [
+        #     {"uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
+        #     {"uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
+        #     {"uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
+        # ]
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     fc_rc_mock.side_effect = [
@@ -520,8 +437,27 @@ async def test_nersc_verifier_add_bundle_to_file_catalog_patch_after_post_error(
         },
         True,  # POST /api/files/UUID/locations - add the location
     ]
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    lta_rc_mock.request.side_effect = [
+        {
+            "results": [
+                {"file_catalog_uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
+                {"file_catalog_uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
+                {"file_catalog_uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
+            ]
+        },
+        {
+            "metadata": [uuid1().hex, uuid1().hex, uuid1().hex],
+            "count": 3,
+        },
+        {
+            "results": []
+        },
+    ]
     p = NerscVerifier(config, logger_mock)
-    assert await p._add_bundle_to_file_catalog(bundle)
+    assert await p._add_bundle_to_file_catalog(lta_rc_mock, bundle)
+    assert lta_rc_mock.request.call_count == 3
+    lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=100')
     assert fc_rc_mock.call_count == 8
     fc_rc_mock.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
 
