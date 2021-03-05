@@ -19,6 +19,8 @@ from rest_tools.utils.json_util import json_decode  # type: ignore
 from rest_tools.server import authenticated, catch_error, from_environment, RestHandler, RestHandlerSetup, RestServer  # type: ignore
 import tornado.web
 
+# maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
+DELETE_CHUNK_SIZE = 100
 
 EXPECTED_CONFIG = {
     'LTA_AUTH_ALGORITHM': 'RS256',
@@ -423,17 +425,19 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
         if not req['metadata']:
             raise tornado.web.HTTPError(400, reason="metadata field is empty")
 
-        results = []
-        for uuid in req["metadata"]:
-            query = {"uuid": uuid}
-            logging.debug(f"MONGO-START: db.Metadata.delete_one(filter={query})")
-            ret = await self.db.Metadata.delete_one(filter=query)
-            logging.debug("MONGO-END:   db.Metadata.delete_one(filter)")
-            if ret.deleted_count > 0:
-                logging.info(f"deleted Bundle {uuid}")
-                results.append(uuid)
+        count = 0
+        slice_index = 0
+        NUM_UUIDS = len(req["metadata"])
+        for i in range(slice_index, NUM_UUIDS, DELETE_CHUNK_SIZE):
+            slice_index = i
+            delete_slice = req["metadata"][slice_index:slice_index+DELETE_CHUNK_SIZE]
+            query = {"uuid": {"$in": delete_slice}}
+            logging.debug(f"MONGO-START: db.Metadata.delete_many(filter={len(delete_slice)} UUIDs)")
+            ret = await self.db.Metadata.delete_many(filter=query)
+            logging.debug("MONGO-END:   db.Metadata.delete_many(filter)")
+            count = count + ret.deleted_count
 
-        self.write({'metadata': results, 'count': len(results)})
+        self.write({'metadata': req["metadata"], 'count': count})
 
 class MetadataHandler(BaseLTAHandler):
     """MetadataHandler handles collection level routes for Metadata."""
@@ -443,6 +447,7 @@ class MetadataHandler(BaseLTAHandler):
         """Handle GET /Metadata."""
         bundle_uuid = self.get_query_argument("bundle_uuid", default=None)
         limit = self.get_query_argument("limit", default=1000)
+        skip = self.get_query_argument("skip", default=0)
 
         query: Dict[str, Any] = {
             "uuid": {"$exists": True},
@@ -452,12 +457,13 @@ class MetadataHandler(BaseLTAHandler):
         projection: Dict[str, bool] = {"_id": False}
 
         results = []
-        logging.debug(f"MONGO-START: db.Metadata.find(filter={query}, projection={projection}, limit={limit})")
+        logging.debug(f"MONGO-START: db.Metadata.find(filter={query}, projection={projection}, limit={limit}, skip={skip})")
         async for row in self.db.Metadata.find(filter=query,
                                                projection=projection,
-                                               limit=limit):
+                                               limit=limit,
+                                               skip=skip):
             results.append(row)
-        logging.debug("MONGO-END*:   db.Metadata.find(filter, projection, limit)")
+        logging.debug("MONGO-END*:   db.Metadata.find(filter, projection, limit, skip)")
 
         ret = {
             'results': results,

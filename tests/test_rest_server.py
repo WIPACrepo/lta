@@ -1014,10 +1014,10 @@ async def test_metadata_bulk_crud(mongo, rest):
     #
     # Delete - POST /Metadata/actions/bulk_delete
     #
-    uuids = []
+    uuids = [unique_id()]
     for result in results:
         uuids.append(result["uuid"])
-    request2 = {'metadata': uuids + [unique_id()]}
+    request2 = {'metadata': uuids}
     ret = await r.request('POST', '/Metadata/actions/bulk_delete', request2)
     assert ret["count"] == 3
     assert ret["metadata"] == uuids
