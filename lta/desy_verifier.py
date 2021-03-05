@@ -26,13 +26,8 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
-
-def as_catalog_record(bundle_record: BundleType) -> Dict[str, Any]:
-    """Cherry pick keys from a File Catalog record to include in Bundle metadata."""
-    catalog_record = bundle_record.copy()
-    del catalog_record["files"]
-    return catalog_record
-
+# maximum number of Metadata UUIDs to work with at a time
+UPDATE_CHUNK_SIZE = 100
 
 class DesyVerifier(Component):
     """
@@ -95,7 +90,7 @@ class DesyVerifier(Component):
             return False
         # process the Bundle that we were given
         try:
-            await self._add_bundle_to_file_catalog(bundle)
+            await self._add_bundle_to_file_catalog(lta_rc, bundle)
             await self._update_bundle_in_lta_db(lta_rc, bundle)
             return True
         except Exception as e:
@@ -110,7 +105,7 @@ class DesyVerifier(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return False
 
-    async def _add_bundle_to_file_catalog(self, bundle: BundleType) -> bool:
+    async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records."""
         # configure a RestClient to talk to the File Catalog
         fc_rc = RestClient(self.file_catalog_rest_url,
@@ -134,8 +129,6 @@ class DesyVerifier(Component):
                 }
             ],
             "file_size": bundle["size"],
-            # note: 'lta' is an application-private metadata field
-            "lta": as_catalog_record(bundle)
         }
         # add the bundle file to the File Catalog
         try:
@@ -147,25 +140,8 @@ class DesyVerifier(Component):
             uuid = bundle["uuid"]
             self.logger.info(f"PATCH /api/files/{uuid}")
             await fc_rc.request("PATCH", f"/api/files/{uuid}", file_record)
-        # for each file contained in the bundle
-        for fc_file in bundle["files"]:
-            fc_file_uuid = fc_file["uuid"]
-            # read the current file entry in the File Catalog
-            fc_record = await fc_rc.request("GET", f"/api/files/{fc_file_uuid}")
-            logical_name = fc_record["logical_name"]
-            # add a location indicating the bundle archive
-            new_location = {
-                "locations": [
-                    {
-                        "site": "DESY",
-                        "path": f"{desy_tape_path}:{logical_name}",
-                        "archive": True,
-                    }
-                ]
-            }
-            self.logger.info(f"POST /api/files/{fc_file_uuid}/locations - {new_location}")
-            # POST /api/files/{uuid}/locations will de-dupe locations for us
-            await fc_rc.request("POST", f"/api/files/{fc_file_uuid}/locations", new_location)
+        # update the File Catalog for each file contained in the bundle
+        await self._update_files_in_file_catalog(fc_rc, lta_rc, bundle, desy_tape_path)
         # indicate that our file catalog updates were successful
         return True
 
@@ -183,6 +159,57 @@ class DesyVerifier(Component):
         # the morning sun has vanquished the horrible night
         return True
 
+    async def _update_files_in_file_catalog(self,
+                                            fc_rc: RestClient,
+                                            lta_rc: RestClient,
+                                            bundle: BundleType,
+                                            desy_tape_path: str) -> bool:
+        """Update the file records in the File Catalog."""
+        bundle_uuid = bundle["uuid"]
+        count = 0
+        done = False
+        limit = UPDATE_CHUNK_SIZE
+        # until we've finished processing all the Metadata records
+        while not done:
+            # ask the LTA DB for the next chunk of Metadata records
+            self.logger.info(f"GET /Metadata?bundle_uuid={bundle_uuid}&limit={limit}")
+            lta_response = await lta_rc.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}&limit={limit}')
+            num_files = len(lta_response["results"])
+            done = (num_files == 0)
+            self.logger.info(f'LTA returned {num_files} Metadata documents to process.')
+
+            # for each Metadata record returned by the LTA DB
+            for metadata_record in lta_response["results"]:
+                # load the record from the File Catalog and add the new location to the record
+                count = count + 1
+                file_catalog_uuid = metadata_record["file_catalog_uuid"]
+                fc_response = await fc_rc.request('GET', f'/api/files/{file_catalog_uuid}')
+                logical_name = fc_response["logical_name"]
+                # add a location indicating the bundle archive
+                new_location = {
+                    "locations": [
+                        {
+                            "site": self.dest_site,
+                            "path": f"{desy_tape_path}:{logical_name}",
+                            "archive": True,
+                        }
+                    ]
+                }
+                self.logger.info(f"POST /api/files/{file_catalog_uuid}/locations - {new_location}")
+                # POST /api/files/{uuid}/locations will de-dupe locations for us
+                await fc_rc.request("POST", f"/api/files/{file_catalog_uuid}/locations", new_location)
+
+            # if we processed any Metadata records, we can now delete them
+            if num_files > 0:
+                delete_query = {
+                    "metadata": lta_response["results"]
+                }
+                self.logger.info(f"POST /Metadata/actions/bulk_delete - {num_files} Metadata records")
+                bulk_response = await lta_rc.request('POST', '/Metadata/actions/bulk_delete', delete_query)
+                self.logger.info(f"LTA DB reports {bulk_response['count']} Metadata records are deleted.")
+
+        # the morning sun has vanquished the horrible night
+        return True
 
 def runner() -> None:
     """Configure a DesyVerifier component from the environment and set it running."""

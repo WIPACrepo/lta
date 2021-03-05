@@ -350,11 +350,6 @@ async def test_nersc_verifier_add_bundle_to_file_catalog(config, mocker):
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
         "size": 12345,
-        # "files": [
-        #     {"uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
-        #     {"uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
-        #     {"uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
-        # ]
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     fc_rc_mock.side_effect = [
@@ -411,11 +406,6 @@ async def test_nersc_verifier_add_bundle_to_file_catalog_patch_after_post_error(
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
         "size": 12345,
-        # "files": [
-        #     {"uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
-        #     {"uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
-        #     {"uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
-        # ]
     }
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     fc_rc_mock.side_effect = [
