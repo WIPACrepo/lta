@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-unpacker"}
-export DEST_SITE=${SOURCE_SITE:="WIPAC"}
+export DEST_SITE=${DEST_SITE:="WIPAC"}
 export FILE_CATALOG_REST_TOKEN=${FILE_CATALOG_REST_TOKEN:="$(solicit-token.sh)"}
 export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="http://127.0.0.1:8889"}
 export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}

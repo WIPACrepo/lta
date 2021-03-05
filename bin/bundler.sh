@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/data/user/lta/bundler_out"}
 export BUNDLER_WORKBOX_PATH=${BUNDLER_WORKBOX_PATH:="/data/user/lta/bundler_work"}
-export DEST_SITE=${SOURCE_SITE:="NERSC"}
+export DEST_SITE=${DEST_SITE:="NERSC"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-bundler"}
 export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
 export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="5"}
