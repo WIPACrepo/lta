@@ -16,6 +16,8 @@ from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
 from .lta_types import BundleType, TransferRequestType
 
+# maximum number of Metadata UUIDs to supply to LTA DB for bulk_create
+CREATE_CHUNK_SIZE = 1000
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
@@ -172,7 +174,7 @@ class Picker(Component):
                 "path": path,
                 "file_count": len(spec),
             })
-            await self._update_file_catalog(fc_rc, spec, bundle_uuid)
+            await self._create_metadata_mapping(lta_rc, spec, bundle_uuid)
 
     async def _create_bundle(self,
                              lta_rc: RestClient,
@@ -184,6 +186,23 @@ class Picker(Component):
         result = await lta_rc.request('POST', '/Bundles/actions/bulk_create', create_body)
         uuid = result["bundles"][0]
         return uuid
+
+    async def _create_metadata_mapping(self,
+                                       lta_rc: RestClient,
+                                       spec: List[Tuple[str, int]],
+                                       bundle_uuid: str) -> None:
+        self.logger.info(f'Creating {len(spec)} Metadata mappings between the File Catalog and pending bundle {bundle_uuid}.')
+        slice_index = 0
+        NUM_UUIDS = len(spec)
+        for i in range(slice_index, NUM_UUIDS, CREATE_CHUNK_SIZE):
+            slice_index = i
+            create_slice = spec[slice_index:slice_index+CREATE_CHUNK_SIZE]
+            create_body = {
+                "bundle_uuid": bundle_uuid,
+                "files": [x[0] for x in create_slice],  # 0: uuid
+            }
+            result = await lta_rc.request('POST', '/Metadata/actions/bulk_create', create_body)
+            self.logger.info(f'Created {result["count"]} Metadata documents linking to pending bundle {bundle_uuid}.')
 
     async def _quarantine_transfer_request(self,
                                            lta_rc: RestClient,
@@ -200,23 +219,6 @@ class Picker(Component):
             await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
         except Exception as e:
             self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
-
-    async def _update_file_catalog(self,
-                                   fc_rc: RestClient,
-                                   spec: List[Tuple[str, int]],
-                                   bundle_uuid: str) -> None:
-        self.logger.info(f'Updating {len(spec)} files in the File Catalog for pending bundle {bundle_uuid}.')
-        right_now = now()
-        for file_spec in spec:
-            file_uuid = file_spec[0]  # 0: uuid
-            patch_body = {
-                "lta": {
-                    "pending_bundle": bundle_uuid,
-                    "pending_date": right_now,
-                },
-            }
-            await fc_rc.request('PATCH', f'/api/files/{file_uuid}', patch_body)
-            self.logger.info(f'File {file_uuid} updated with pending bundle {bundle_uuid}.')
 
 def runner() -> None:
     """Configure a Picker component from the environment and set it running."""

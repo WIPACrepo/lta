@@ -19,10 +19,15 @@ from .crypto import lta_checksums
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
 
+# maximum number of Metadata UUIDs to work with at a time
+CREATE_CHUNK_SIZE = 1000
+
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "BUNDLER_OUTBOX_PATH": None,
     "BUNDLER_WORKBOX_PATH": None,
+    "FILE_CATALOG_REST_TOKEN": None,
+    "FILE_CATALOG_REST_URL": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -46,6 +51,8 @@ class Bundler(Component):
         logger - The object the bundler should use for logging.
         """
         super(Bundler, self).__init__("bundler", config, logger)
+        self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
+        self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.outbox_path = config["BUNDLER_OUTBOX_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
@@ -71,6 +78,11 @@ class Bundler(Component):
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be built
+        # configure a RestClient to talk to the File Catalog
+        fc_rc = RestClient(self.file_catalog_rest_url,
+                           token=self.file_catalog_rest_token,
+                           timeout=self.work_timeout_seconds,
+                           retries=self.work_retries)
         # configure a RestClient to talk to the LTA DB
         lta_rc = RestClient(self.lta_rest_url,
                             token=self.lta_rest_token,
@@ -88,47 +100,27 @@ class Bundler(Component):
             return False
         # process the Bundle that we were given
         try:
-            await self._do_work_bundle(lta_rc, bundle)
+            await self._do_work_bundle(fc_rc, lta_rc, bundle)
         except Exception as e:
             await self._quarantine_bundle(lta_rc, bundle, f"{e}")
             raise e
         # signal the work was processed successfully
         return True
 
-    async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
-        """Build the archive file for a bundle and update the LTA DB."""
+    async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here
-        num_files = len(bundle["files"])
-        source = bundle["source"]
+        bundle_uuid = bundle["uuid"]
         dest = bundle["dest"]
-        self.logger.info(f"There are {num_files} Files to bundle from '{source}' to '{dest}'.")
+        file_count = bundle["file_count"]
+        source = bundle["source"]
+        self.logger.info(f"There are {file_count} Files to bundle from '{source}' to '{dest}'.")
+        self.logger.info(f"Bundle archive file will be '{bundle_uuid}.zip'")
         # 1. Create a manifest of the bundle, including all metadata
-        bundle_id = bundle["uuid"]
-        self.logger.info(f"Bundle archive file will be '{bundle_id}.zip'")
-        metadata_dict = {
-            "uuid": bundle_id,
-            "component": "bundler",
-            "version": 2,
-            "create_timestamp": now(),
-            "files": bundle["files"],
-        }
-        metadata_file_path = os.path.join(self.workbox_path, f"{bundle_id}.metadata.json")
-        with open(metadata_file_path, mode="w") as metadata_file:
-            self.logger.info(f"Writing bundle metadata to '{metadata_file_path}'")
-            metadata_file.write(json.dumps(metadata_dict))
+        metadata_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.metadata.ndjson")
+        await self._create_metadata_file(fc_rc, lta_rc, bundle, metadata_file_path, file_count)
         # 2. Create a ZIP bundle by writing constituent files to it
-        bundle_file_path = os.path.join(self.workbox_path, f"{bundle_id}.zip")
-        self.logger.info(f"Creating bundle as ZIP archive: '{bundle_file_path}'")
-        with ZipFile(bundle_file_path, mode="x", compression=ZIP_STORED, allowZip64=True) as bundle_zip:
-            self.logger.info(f"Adding bundle metadata '{metadata_file_path}' to bundle '{bundle_file_path}'")
-            bundle_zip.write(metadata_file_path, os.path.basename(metadata_file_path))
-            self.logger.info(f"Writing {num_files} files to bundle '{bundle_file_path}'")
-            file_count = 1
-            for bundle_me in bundle["files"]:
-                bundle_me_path = bundle_me["logical_name"]
-                self.logger.info(f"Writing file {file_count}/{num_files}: '{bundle_me_path}' to bundle '{bundle_file_path}'")
-                bundle_zip.write(bundle_me_path, os.path.basename(bundle_me_path))
-                file_count = file_count + 1
+        bundle_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.zip")
+        await self._create_bundle_archive(fc_rc, lta_rc, bundle, bundle_file_path, metadata_file_path, file_count)
         # 3. Clean up generated JSON metadata file
         self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
         os.remove(metadata_file_path)
@@ -144,7 +136,7 @@ class Bundler(Component):
         # 6. Determine the final destination path of the bundle
         final_bundle_path = bundle_file_path
         if self.outbox_path != self.workbox_path:
-            final_bundle_path = os.path.join(self.outbox_path, f"{bundle_id}.zip")
+            final_bundle_path = os.path.join(self.outbox_path, f"{bundle_uuid}.zip")
         self.logger.info(f"Finished archive bundle will be located at: '{final_bundle_path}'")
         # 7. Update the bundle record we have with all the information we collected
         bundle["status"] = self.output_status
@@ -161,8 +153,104 @@ class Bundler(Component):
             shutil.move(bundle_file_path, final_bundle_path)
         self.logger.info(f"Finished archive bundle now located at: '{final_bundle_path}'")
         # 9. Update the Bundle record in the LTA DB
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{bundle}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', bundle)
+        self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{bundle}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', bundle)
+
+    async def _create_bundle_archive(self,
+                                     fc_rc: RestClient,
+                                     lta_rc: RestClient,
+                                     bundle: BundleType,
+                                     bundle_file_path: str,
+                                     metadata_file_path: str,
+                                     file_count: int) -> None:
+        # 2. Create a ZIP bundle by writing constituent files to it
+        bundle_uuid = bundle["uuid"]
+        count = 0
+        done = False
+        limit = CREATE_CHUNK_SIZE
+        skip = 0
+        self.logger.info(f"Creating bundle as ZIP archive at: {bundle_file_path}")
+        with ZipFile(bundle_file_path, mode="x", compression=ZIP_STORED, allowZip64=True) as bundle_zip:
+            # write the metadata file to the bundle archive
+            self.logger.info(f"Adding bundle metadata '{metadata_file_path}' to bundle '{bundle_file_path}'")
+            bundle_zip.write(metadata_file_path, os.path.basename(metadata_file_path))
+
+            # until we've finished processing all the Metadata records
+            while not done:
+                # ask the LTA DB for the next chunk of Metadata records
+                lta_response = await lta_rc.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}&limit={limit}&skip={skip}')
+                num_files = len(lta_response["results"])
+                done = (num_files == 0)
+                skip = skip + num_files
+                self.logger.info(f'LTA returned {num_files} Metadata documents to process.')
+
+                # for each Metadata record returned by the LTA DB
+                for metadata_record in lta_response["results"]:
+                    # load the record from the File Catalog and add the warehouse file to the ZIP archive
+                    count = count + 1
+                    file_catalog_uuid = metadata_record["file_catalog_uuid"]
+                    fc_response = await fc_rc.request('GET', f'/api/files/{file_catalog_uuid}')
+                    bundle_me_path = fc_response["logical_name"]
+                    self.logger.info(f"Writing file {count}/{num_files}: '{bundle_me_path}' to bundle '{bundle_file_path}'")
+                    bundle_zip.write(bundle_me_path, os.path.basename(bundle_me_path))
+
+        # do a last minute sanity check on our data
+        if count != file_count:
+            error_message = f'Bad mojo creating bundle archive file. Expected {file_count} Metadata records, but only processed {count} records.'
+            self.logger.error(error_message)
+            raise Exception(error_message)
+
+    async def _create_metadata_file(self,
+                                    fc_rc: RestClient,
+                                    lta_rc: RestClient,
+                                    bundle: BundleType,
+                                    metadata_file_path: str,
+                                    file_count: int) -> None:
+        # 1. Create a manifest of the bundle, including all metadata
+        bundle_uuid = bundle["uuid"]
+        self.logger.info(f"Bundle metadata file will be created at: {metadata_file_path}")
+        metadata_dict = {
+            "uuid": bundle_uuid,
+            "component": "bundler",
+            "version": 3,
+            "create_timestamp": now(),
+            "file_count": file_count,
+        }
+
+        # open the metadata file and write our data
+        count = 0
+        done = False
+        limit = CREATE_CHUNK_SIZE
+        skip = 0
+        with open(metadata_file_path, mode="w") as metadata_file:
+            self.logger.info(f"Writing metadata_dict to '{metadata_file_path}'")
+            metadata_file.write(json.dumps(metadata_dict))
+            metadata_file.write("\n")
+
+            # until we've finished processing all the Metadata records
+            while not done:
+                # ask the LTA DB for the next chunk of Metadata records
+                lta_response = await lta_rc.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}&limit={limit}&skip={skip}')
+                num_files = len(lta_response["results"])
+                done = (num_files == 0)
+                skip = skip + num_files
+                self.logger.info(f'LTA returned {num_files} Metadata documents to process.')
+
+                # for each Metadata record returned by the LTA DB
+                for metadata_record in lta_response["results"]:
+                    # load the record from the File Catalog and preserve it in carbonite
+                    count = count + 1
+                    file_catalog_uuid = metadata_record["file_catalog_uuid"]
+                    fc_response = await fc_rc.request('GET', f'/api/files/{file_catalog_uuid}')
+                    self.logger.info(f"Writing File Catalog record {file_catalog_uuid} to '{metadata_file_path}'")
+                    metadata_file.write(json.dumps(fc_response))
+                    metadata_file.write("\n")
+
+        # do a last minute sanity check on our data
+        if count != file_count:
+            error_message = f'Bad mojo creating metadata file. Expected {file_count} Metadata records, but only processed {count} records.'
+            self.logger.error(error_message)
+            raise Exception(error_message)
 
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,

@@ -9,7 +9,7 @@ from uuid import uuid1
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
-from lta.picker import main, Picker
+from lta.picker import CREATE_CHUNK_SIZE, main, Picker
 from .test_util import AsyncMock
 
 FILE_CATALOG_LIMIT = 9000
@@ -324,10 +324,20 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.MagicMock()
     lta_rc_mock.request = AsyncMock()
-    lta_rc_mock.request.return_value = {
-        "bundles": [uuid1().hex, uuid1().hex, uuid1().hex],
-        "count": 3
-    }
+    lta_rc_mock.request.side_effect = [
+        {
+            "bundles": [uuid1().hex],
+            "count": 1,
+        },
+        {
+            "metadata": [
+                "58a334e6-642e-475e-b642-e92bf08e96d4",
+                "89528506-9950-43dc-a910-f5108a1d25c0",
+                "1e4a88c6-247e-4e59-9c89-1a4edafafb1e",
+            ],
+            "count": 3,
+        },
+    ]
     tr_uuid = uuid1().hex
     tr = {
         "uuid": tr_uuid,
@@ -398,26 +408,20 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
             "file_size": 104136149,
             "meta_modify_date": "2019-07-26 01:53:22.591198"
         },
-        True,  # PATCH /api/files/58a334e6-642e-475e-b642-e92bf08e96d4
-        True,  # PATCH /api/files/89528506-9950-43dc-a910-f5108a1d25c0
-        True,  # PATCH /api/files/1e4a88c6-247e-4e59-9c89-1a4edafafb1e
     ]
     p = Picker(config, logger_mock)
     await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("PATCH", '/api/files/89528506-9950-43dc-a910-f5108a1d25c0', mocker.ANY)
-    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/bulk_create', mocker.ANY)
+    fc_rc_mock.assert_called_with("GET", '/api/files/1e4a88c6-247e-4e59-9c89-1a4edafafb1e')
+    lta_rc_mock.request.assert_called_with("POST", '/Metadata/actions/bulk_create', mocker.ANY)
 
 
 @pytest.mark.asyncio
 async def test_picker_do_work_transfer_request_fc_its_over_9000(config, mocker):
     """Test that _do_work_transfer_request can handle paginated File Catalog results."""
     logger_mock = mocker.MagicMock()
+    lta_rc_mock_request_side_effects = []
     lta_rc_mock = mocker.MagicMock()
     lta_rc_mock.request = AsyncMock()
-    lta_rc_mock.request.return_value = {
-        "bundles": [uuid1().hex, uuid1().hex, uuid1().hex],
-        "count": 3
-    }
     tr_uuid = uuid1().hex
     tr = {
         "uuid": tr_uuid,
@@ -488,12 +492,23 @@ async def test_picker_do_work_transfer_request_fc_its_over_9000(config, mocker):
     # then we add file record responses for each of the files we query
     records = [gen_record(i) for i in range(FILE_CATALOG_LIMIT*2 + 1000)]
     side_effects.extend(records)
-    # finally we add True for responses to patching those files with the pending bundle UUID
-    for i in range(FILE_CATALOG_LIMIT*2 + 1000):
-        side_effects.append(True)  # PATCH /api/files/{uuid}
+    # finally we add LTA DB for responses to creating Metadata entries
+    NUM_BUNDLES = 19
+    NUM_METADATA_BULK = 2
+    for i in range(NUM_BUNDLES):
+        lta_rc_mock_request_side_effects.append({
+            "bundles": [uuid1().hex, "BUNDLE 0"],
+            "count": 1,
+        })
+        for i in range(NUM_METADATA_BULK):
+            lta_rc_mock_request_side_effects.append({
+                "metadata": [uuid1().hex for i in range(CREATE_CHUNK_SIZE)],
+                "count": CREATE_CHUNK_SIZE,
+            })  # POST /Metadata/actions/bulk_create
     # now we're ready to play Dr. Mario!
     fc_rc_mock.side_effect = side_effects
+    lta_rc_mock.request.side_effect = lta_rc_mock_request_side_effects
     p = Picker(config, logger_mock)
     await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("PATCH", mocker.ANY, mocker.ANY)
-    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/bulk_create', mocker.ANY)
+    fc_rc_mock.assert_called_with("GET", mocker.ANY)
+    lta_rc_mock.request.assert_called_with("POST", '/Metadata/actions/bulk_create', mocker.ANY)

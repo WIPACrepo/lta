@@ -8,13 +8,13 @@ import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
 import logging
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List, Tuple
 from urllib.parse import quote_plus
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
 import pymongo  # type: ignore
-from pymongo import MongoClient
+from pymongo import ASCENDING, MongoClient
 from rest_tools.utils.json_util import json_decode  # type: ignore
 from rest_tools.server import authenticated, catch_error, from_environment, RestHandler, RestHandlerSetup, RestServer  # type: ignore
 import tornado.web
@@ -439,13 +439,15 @@ class MetadataHandler(BaseLTAHandler):
         }
 
         projection: Dict[str, bool] = {"_id": False}
+        sort: List[Tuple[str, Any]] = [("uuid", ASCENDING)]
 
         results = []
         logging.debug(f"MONGO-START: db.Metadata.find(filter={query}, projection={projection}, limit={limit}, skip={skip})")
         async for row in self.db.Metadata.find(filter=query,
                                                projection=projection,
+                                               skip=skip,
                                                limit=limit,
-                                               skip=skip):
+                                               sort=sort):
             results.append(row)
         logging.debug("MONGO-END*:   db.Metadata.find(filter, projection, limit, skip)")
 
