@@ -27,7 +27,7 @@ EXPECTED_CONFIG.update({
 })
 
 # maximum number of Metadata UUIDs to work with at a time
-UPDATE_CHUNK_SIZE = 100
+UPDATE_CHUNK_SIZE = 1000
 
 class DesyVerifier(Component):
     """

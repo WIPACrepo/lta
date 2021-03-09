@@ -390,7 +390,7 @@ async def test_nersc_verifier_add_bundle_to_file_catalog(config, mocker):
     p = NerscVerifier(config, logger_mock)
     assert await p._add_bundle_to_file_catalog(lta_rc_mock, bundle)
     assert lta_rc_mock.request.call_count == 3
-    lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=100')
+    lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=1000')
     assert fc_rc_mock.call_count == 7
     fc_rc_mock.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
 
@@ -447,7 +447,7 @@ async def test_nersc_verifier_add_bundle_to_file_catalog_patch_after_post_error(
     p = NerscVerifier(config, logger_mock)
     assert await p._add_bundle_to_file_catalog(lta_rc_mock, bundle)
     assert lta_rc_mock.request.call_count == 3
-    lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=100')
+    lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=1000')
     assert fc_rc_mock.call_count == 8
     fc_rc_mock.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
 

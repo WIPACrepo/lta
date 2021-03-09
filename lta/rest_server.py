@@ -20,7 +20,7 @@ from rest_tools.server import authenticated, catch_error, from_environment, Rest
 import tornado.web
 
 # maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
-DELETE_CHUNK_SIZE = 100
+DELETE_CHUNK_SIZE = 1000
 
 EXPECTED_CONFIG = {
     'LTA_AUTH_ALGORITHM': 'RS256',

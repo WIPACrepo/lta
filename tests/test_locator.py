@@ -1,6 +1,7 @@
 # test_locator.py
 """Unit tests for lta/locator.py."""
 
+from math import floor
 from secrets import token_hex
 from typing import Dict, List, Union
 from unittest.mock import call, MagicMock
@@ -416,6 +417,17 @@ async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
             "meta_modify_date": "2019-07-26 01:53:22.591198"
         },
         {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
+            },
+            "files": [],
+        },
+        {
             "uuid": "8abe369e59a111ea81bb534d1a62b1fe",
             "logical_name": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
             "checksum": {
@@ -460,7 +472,6 @@ async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
             "adler32": "c14e315e",
             "sha512": "e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a",
         },
-        'files': [],
         'catalog': {
             'checksum': {
                 'adler32': 'c14e315e',
@@ -513,44 +524,56 @@ async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker)
             "meta_modify_date": "2019-07-26 01:53:20.857303"
         }
 
+    FILE_CATALOG_LIMIT_10TH = floor(FILE_CATALOG_LIMIT/10)
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    side_effects = [
-        {
-            "_links": {
-                "parent": {
-                    "href": "/api"
-                },
-                "self": {
-                    "href": "/api/files"
-                }
+    side_effects = []
+    side_effects.append({
+        "_links": {
+            "parent": {
+                "href": "/api"
             },
-            "files": [gen_file(i) for i in range(FILE_CATALOG_LIMIT)],
+            "self": {
+                "href": "/api/files"
+            }
         },
-        {
-            "_links": {
-                "parent": {
-                    "href": "/api"
-                },
-                "self": {
-                    "href": "/api/files"
-                }
+        "files": [gen_file(i) for i in range(FILE_CATALOG_LIMIT)],
+    })
+    side_effects.extend([gen_record(i) for i in range(FILE_CATALOG_LIMIT)])
+    side_effects.append({
+        "_links": {
+            "parent": {
+                "href": "/api"
             },
-            "files": [gen_file(i) for i in range(FILE_CATALOG_LIMIT)],
+            "self": {
+                "href": "/api/files"
+            }
         },
-        {
-            "_links": {
-                "parent": {
-                    "href": "/api"
-                },
-                "self": {
-                    "href": "/api/files"
-                }
+        "files": [gen_file(i) for i in range(FILE_CATALOG_LIMIT)],
+    })
+    side_effects.extend([gen_record(i) for i in range(FILE_CATALOG_LIMIT)])
+    side_effects.append({
+        "_links": {
+            "parent": {
+                "href": "/api"
             },
-            "files": [gen_file(i) for i in range(1000)],
+            "self": {
+                "href": "/api/files"
+            }
         },
-    ]
-    records = [gen_record(i) for i in range(FILE_CATALOG_LIMIT*2 + 1000)]
-    side_effects.extend(records)
+        "files": [gen_file(i) for i in range(FILE_CATALOG_LIMIT_10TH)],
+    })
+    side_effects.extend([gen_record(i) for i in range(FILE_CATALOG_LIMIT_10TH)])
+    side_effects.append({
+        "_links": {
+            "parent": {
+                "href": "/api"
+            },
+            "self": {
+                "href": "/api/files"
+            }
+        },
+        "files": [],
+    })
     side_effects.extend([{
         "uuid": "8abe369e59a111ea81bb534d1a62b1fe",
         "logical_name": "/path/at/nersc/to/8abe369e59a111ea81bb534d1a62b1fe.zip",
@@ -596,7 +619,6 @@ async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker)
             "adler32": "c14e315e",
             "sha512": "e37aa876153180bba8978afc2f4f3dde000f0d15441856e8dce0ca481dfbb7c14e315e592a82ee0b7b6a7f083af5d7e5b557f93eb8a89780bb70060412a9ec5a",
         },
-        'files': [],
         'catalog': {
             'checksum': {
                 'adler32': 'c14e315e',
