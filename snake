@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+"""snake is a build script with homage to cake, rake, and make."""
 
 import json
 import os
@@ -14,7 +15,8 @@ def run(cmd) -> None:
     subprocess.run(cmd).check_returncode()
 
 
-def doCleanTask() -> None:
+def do_clean_task() -> None:
+    """Remove directories and files generated in the build process."""
     run(["rm", "-fr", ".mypy_cache"])
     run(["rm", "-fr", ".pytest_cache"])
     run(["rm", "-fr", "build"])
@@ -28,7 +30,8 @@ def doCleanTask() -> None:
     run(["rm", "-fr", ".coverage"])
 
 
-def doCheckTask() -> None:
+def do_check_task() -> None:
+    """Check the versions of most dependencies against the latest from PyPi."""
     current_path = os.path.dirname(os.path.realpath(__file__))
     with open(os.path.join(current_path, 'requirements.txt')) as f:
         requirements_txt = f.read()
@@ -48,24 +51,28 @@ def doCheckTask() -> None:
 
 
 def do_circleci_task() -> None:
+    """Run a CircleCI build."""
     run(["circleci", "local", "execute", "--job", "test"])
 
 
-def doCoverageTask() -> None:
-    doCleanTask()
+def do_coverage_task() -> None:
+    """Use pytest to generate a coverage report for our unit tests."""
+    do_clean_task()
     run(["pytest", "--cov=lta", "--cov-report=html", "--no-cov-on-fail", "tests"])
     webbrowser.open_new_tab("htmlcov/index.html")
 
 
-def doDistTask() -> None:
-    doCleanTask()
-    doRebuildTask()
+def do_dist_task() -> None:
+    """Build a distribution tarball and wheel for the project."""
+    do_clean_task()
+    do_rebuild_task()
     run(["python", "setup.py", "sdist", "bdist_wheel"])
 
 
-def doDockerTask() -> None:
-    doCleanTask()
-    doRebuildTask()
+def do_docker_task() -> None:
+    """Build a Docker image for the project."""
+    do_clean_task()
+    do_rebuild_task()
     current_path = os.path.dirname(os.path.realpath(__file__))
     version = 'SNAPSHOT'
     with open(os.path.join(current_path, 'lta', '__init__.py')) as f:
@@ -73,10 +80,11 @@ def doDockerTask() -> None:
             if '__version__' in line:
                 version = line.split('=')[-1].split('\'')[1]
     run(["docker", "build", "-t", f"wipac/lta:{version}", "-f", "Dockerfile", "."])
-    run(["docker", "image", "tag", f"wipac/lta:{version}", f"wipac/lta:latest"])
+    run(["docker", "image", "tag", f"wipac/lta:{version}", "wipac/lta:latest"])
 
 
-def doLintTask() -> None:
+def do_lint_task() -> None:
+    """Run static analysis tools on the project."""
     flake8_cmd = ["flake8"]
     mypy_cmd = ["mypy", "--strict", "--allow-subclassing-any"]
     run(flake8_cmd + ["tests"])
@@ -86,14 +94,16 @@ def doLintTask() -> None:
     run(mypy_cmd + ["lta"])
 
 
-def doRebuildTask() -> None:
-    doCleanTask()
+def do_rebuild_task() -> None:
+    """Remove old build caches, test, and lint the project."""
+    do_clean_task()
     run(["pytest", "tests"])
-    doLintTask()
+    do_lint_task()
 
 
-def doTestTask() -> None:
-    doCleanTask()
+def do_test_task() -> None:
+    """Remove old build caches and run unit tests on the project."""
+    do_clean_task()
     run(["pytest", "tests"])
 
 # ---------------------------------------------------------------------
@@ -102,6 +112,7 @@ TaskType = Tuple[str, str, Callable[[], None]]
 
 
 def task(taskdef: TaskType) -> None:
+    """Add a Task to the task table for this script."""
     tasks[taskdef[0]] = taskdef
 
 
@@ -109,15 +120,15 @@ tasks: Dict[str, TaskType] = {}
 
 if __name__ == "__main__":
     # define tasks
-    task(("clean", "Remove build cruft", doCleanTask))
-    task(("check", "Check dependency package versions", doCheckTask))
+    task(("clean", "Remove build cruft", do_clean_task))
+    task(("check", "Check dependency package versions", do_check_task))
     task(("circleci", "Perform CI build and test", do_circleci_task))
-    task(("coverage", "Perform coverage analysis", doCoverageTask))
-    task(("dist", "Create a distribution tarball and wheel", doDistTask))
-    task(("docker", "Create a docker container", doDockerTask))
-    task(("lint", "Run static analysis tools", doLintTask))
-    task(("rebuild", "Test and lint the module", doRebuildTask))
-    task(("test", "Test the module", doTestTask))
+    task(("coverage", "Perform coverage analysis", do_coverage_task))
+    task(("dist", "Create a distribution tarball and wheel", do_dist_task))
+    task(("docker", "Build a Docker image", do_docker_task))
+    task(("lint", "Run static analysis tools", do_lint_task))
+    task(("rebuild", "Test and lint the module", do_rebuild_task))
+    task(("test", "Test the module", do_test_task))
 
     # if the user didn't supply a task
     if len(sys.argv) < 2:

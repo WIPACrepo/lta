@@ -1038,7 +1038,7 @@ async def test_metadata_actions_bulk_create_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "Bad Request"
+    assert e.value.response.json()["error"] == "`bundle_uuid`: (MissingArgumentError) required argument is missing"
 
     request = {'bundle_uuid': []}
     with pytest.raises(HTTPError) as e:
@@ -1050,7 +1050,7 @@ async def test_metadata_actions_bulk_create_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "Bad Request"
+    assert e.value.response.json()["error"] == "`files`: (MissingArgumentError) required argument is missing"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": {}}
     with pytest.raises(HTTPError) as e:
@@ -1073,7 +1073,7 @@ async def test_metadata_actions_bulk_delete_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "Bad Request"
+    assert e.value.response.json()["error"] == "`metadata`: (MissingArgumentError) required argument is missing"
 
     request = {'metadata': ''}
     with pytest.raises(HTTPError) as e:
