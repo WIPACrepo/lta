@@ -20,13 +20,12 @@ from .lta_types import BundleType, TransferRequestType
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "FILE_CATALOG_PAGE_SIZE": "1000",
     "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
-
-FILE_CATALOG_LIMIT = 1000
 
 def as_lta_record(catalog_record: Dict[str, Any]) -> Dict[str, Any]:
     """Cherry pick keys from a File Catalog record to include in Bundle metadata."""
@@ -69,6 +68,7 @@ class Locator(Component):
         logger - The object the locator should use for logging.
         """
         super(Locator, self).__init__("locator", config, logger)
+        self.file_catalog_page_size = int(config["FILE_CATALOG_PAGE_SIZE"])
         self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.work_retries = int(config["WORK_RETRIES"])
@@ -151,8 +151,8 @@ class Locator(Component):
         # until we're finished processing file catalog records
         while not done:
             # ask the file catalog for records relevant to the path
-            self.logger.info(f"GET /api/files?query=QUERY&keys=uuid&limit={FILE_CATALOG_LIMIT}&start={page_start}")
-            fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&keys=uuid&limit={FILE_CATALOG_LIMIT}&start={page_start}')
+            self.logger.info(f"GET /api/files?query=QUERY&keys=uuid&limit={self.file_catalog_page_size}&start={page_start}")
+            fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&keys=uuid&limit={self.file_catalog_page_size}&start={page_start}')
             num_files = len(fc_response["files"])
             self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
             page_start += num_files

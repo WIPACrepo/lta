@@ -10,7 +10,7 @@ from uuid import uuid1
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
-from lta.locator import as_lta_record, FILE_CATALOG_LIMIT, main, Locator
+from lta.locator import as_lta_record, main, Locator
 from .test_util import AsyncMock
 
 @pytest.fixture
@@ -19,6 +19,7 @@ def config():
     return {
         "COMPONENT_NAME": "testing-locator",
         "DEST_SITE": "WIPAC",
+        "FILE_CATALOG_PAGE_SIZE": "1000",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "3",
@@ -137,6 +138,7 @@ async def test_locator_logs_configuration(mocker):
     locator_config = {
         "COMPONENT_NAME": "logme-testing-locator",
         "DEST_SITE": "WIPAC",
+        "FILE_CATALOG_PAGE_SIZE": "1000",
         "FILE_CATALOG_REST_TOKEN": "logme-fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
@@ -158,6 +160,7 @@ async def test_locator_logs_configuration(mocker):
         call("locator 'logme-testing-locator' is configured:"),
         call('COMPONENT_NAME = logme-testing-locator'),
         call('DEST_SITE = WIPAC'),
+        call('FILE_CATALOG_PAGE_SIZE = 1000'),
         call('FILE_CATALOG_REST_TOKEN = logme-fake-file-catalog-rest-token'),
         call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
@@ -500,6 +503,7 @@ async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker)
         "dest": "wipac",
         "path": "/tmp/this/is/just/a/test",
     }
+    FILE_CATALOG_LIMIT = int(config["FILE_CATALOG_PAGE_SIZE"])
 
     def gen_file(i: int) -> Dict[str, str]:
         return {
