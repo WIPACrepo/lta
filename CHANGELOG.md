@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [0.40.0] - 2021-02-18
+### Removed
+- Removed deprecated Rucio components and their dependencies
+
 ## [0.39.0] - 2021-02-18
 ### Changed
 - RucioStager has been renamed RateLimiter
