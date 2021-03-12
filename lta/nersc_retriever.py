@@ -124,17 +124,17 @@ class NerscRetriever(Component):
         # determine the name and path of the bundle
         basename = os.path.basename(bundle["bundle_path"])
         data_warehouse_path = bundle["path"]
-        # determine the path where it should be stored on hpss
+        # determine the input path where it should be stored on hpss
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
-        # determine the path where rucio copies the bundle
+        # determine the output path where we stage the bundle for transfer
         stupid_python_path = os.path.sep.join([self.rse_base_path, basename])
-        rucio_path = os.path.normpath(stupid_python_path)
+        output_path = os.path.normpath(stupid_python_path)
         # run an hsi command to get the file from tape
         #     get       -> read the source path from the hpss system to the dest path
         #     -c on     -> turn on the verification of checksums by the hpss system
         #     :         -> HPSS ... ¯\_(ツ)_/¯
-        args = ["/usr/common/mss/bin/hsi", "get", "-c", "on", rucio_path, ":", hpss_path]
+        args = ["/usr/common/mss/bin/hsi", "get", "-c", "on", output_path, ":", hpss_path]
         if not await self._execute_hsi_command(lta_rc, bundle, args):
             return False
         # update the Bundle in the LTA DB
