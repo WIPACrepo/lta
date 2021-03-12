@@ -1,4 +1,4 @@
-name: Semantic Release
+name: 'GitHub'
 
 on:
   push:
@@ -7,13 +7,11 @@ on:
 
 jobs:
   release:
+    name: "Semantic Release"
     runs-on: ubuntu-latest
-
     steps:
-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
+    - name: Checkout Project
+      uses: actions/checkout@v2
 
     - name: Python Semantic Release
       uses: relekang/python-semantic-release@master
