@@ -126,9 +126,6 @@ async def _get_bundles_status(rc: RestClient, bundle_uuids: List[str]) -> List[D
         for k in KEYS:
             if k in response:
                 bundle[k] = response[k]
-        bundle["file_count"] = 0
-        if 'files' in response:
-            bundle["file_count"] = len(response["files"])
         bundles.append(bundle)
     return bundles
 
@@ -306,12 +303,7 @@ async def bundle_status(args: Namespace) -> ExitCode:
             print(f"        sha512:  {response['checksum']['sha512']}")
         # display the contents of the bundle, if requested
         if args.contents:
-            if 'files' in response:
-                print("    Contents:")
-                for file in response["files"]:
-                    print(f"        {file['logical_name']} {file['file_size']}")
-            else:
-                print("    Contents: Not Listed")
+            print("    Contents: Not Listed")
     return EXIT_OK
 
 

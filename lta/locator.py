@@ -20,13 +20,12 @@ from .lta_types import BundleType, TransferRequestType
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "FILE_CATALOG_PAGE_SIZE": "1000",
     "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
-
-FILE_CATALOG_LIMIT = 9000  # What?! 9000?! There's no way that can be right!
 
 def as_lta_record(catalog_record: Dict[str, Any]) -> Dict[str, Any]:
     """Cherry pick keys from a File Catalog record to include in Bundle metadata."""
@@ -69,6 +68,7 @@ class Locator(Component):
         logger - The object the locator should use for logging.
         """
         super(Locator, self).__init__("locator", config, logger)
+        self.file_catalog_page_size = int(config["FILE_CATALOG_PAGE_SIZE"])
         self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.work_retries = int(config["WORK_RETRIES"])
@@ -145,33 +145,28 @@ class Locator(Component):
             },
         }
         query_json = json.dumps(query_dict)
+        bundle_uuids: List[str] = []
         page_start = 0
-        catalog_files = []
-        fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&keys=uuid&limit={FILE_CATALOG_LIMIT}&start={page_start}')
-        num_files = len(fc_response["files"])
-        self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
-        catalog_files.extend(fc_response["files"])
-        while num_files == FILE_CATALOG_LIMIT:
-            self.logger.info(f'Paging File Catalog. start={page_start}')
-            page_start += num_files
-            fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&limit={FILE_CATALOG_LIMIT}&start={page_start}')
+        done = False
+        # until we're finished processing file catalog records
+        while not done:
+            # ask the file catalog for records relevant to the path
+            self.logger.info(f"GET /api/files?query=QUERY&keys=uuid&limit={self.file_catalog_page_size}&start={page_start}")
+            fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&keys=uuid&limit={self.file_catalog_page_size}&start={page_start}')
             num_files = len(fc_response["files"])
             self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
-            catalog_files.extend(fc_response["files"])
-
-        # if we didn't get any files, this is bad mojo
-        if not catalog_files:
+            page_start += num_files
+            done = (num_files == 0)
+            # for each result that we got back, look up the full record
+            for catalog_file in fc_response["files"]:
+                self.logger.info(f"GET /api/files/{catalog_file['uuid']}")
+                catalog_record = await fc_rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
+                # using bundle_uuids as an accumulator, reduce the provided record into unique bundle uuids
+                bundle_uuids = self._reduce_unique_archive_uuid(bundle_uuids, catalog_record, source)
+        # if we didn't get any bundle_uuids, this is bad mojo
+        if not bundle_uuids:
             await self._quarantine_transfer_request(lta_rc, tr, "File Catalog returned zero files for the TransferRequest")
             return
-        # query the file catalog for the full records
-        num_catalog_files = len(catalog_files)
-        self.logger.info(f'Processing {num_catalog_files} IDs returned by the File Catalog.')
-        catalog_records = []
-        for catalog_file in catalog_files:
-            catalog_record = await fc_rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
-            catalog_records.append(catalog_record)
-        # filter to unique bundle uuids
-        bundle_uuids = self._get_unique_archives(catalog_records, source)
         # query the file catalog for the bundle records
         bundle_records = []
         for bundle_uuid in bundle_uuids:
@@ -196,7 +191,6 @@ class Locator(Component):
                 "size": bundle_record["file_size"],
                 "bundle_path": bundle_record["lta"]["bundle_path"],
                 "checksum": bundle_record["lta"]["checksum"],
-                "files": [],  # don't worry about return files
                 "catalog": as_lta_record(bundle_record),
             })
 
@@ -212,24 +206,39 @@ class Locator(Component):
         uuid = result["bundles"][0]
         return uuid
 
-    def _get_unique_archives(self,
-                             records: List[Dict[str, Any]],
-                             source: str) -> List[str]:
+    async def _quarantine_transfer_request(self,
+                                           lta_rc: RestClient,
+                                           tr: TransferRequestType,
+                                           reason: str) -> None:
+        """Update the LTA DB to indicate the TransferRequest should be quarantined."""
+        self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
+        right_now = now()
+        patch_body = {
+            "status": "quarantined",
+            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
+            "work_priority_timestamp": right_now,
+        }
+        try:
+            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
+        except Exception as e:
+            self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
+
+    def _reduce_unique_archive_uuid(self,
+                                    bundle_uuids: List[str],
+                                    catalog_record: Dict[str, Any],
+                                    source: str) -> List[str]:
         """Obtain the set of archive bundle UUIDs that have the provided files."""
-        # for each file record that we are given
         bundle_paths = []
-        for record in records:
-            # for each location in that record
-            for location in record["locations"]:
-                # if this location is not an archive, just skip it
-                if "archive" not in location:
-                    continue
-                # if the file is contained in a bundle at the source
-                if (location["archive"] is True) and (location["site"] == source):
-                    # add the path to our list of bundle paths
-                    bundle_paths.append(location["path"])
+        # for each location in that record
+        for location in catalog_record["locations"]:
+            # if this location is not an archive, just skip it
+            if "archive" not in location:
+                continue
+            # if the file is contained in a bundle at the source
+            if (location["archive"] is True) and (location["site"] == source):
+                # add the path to our list of bundle paths
+                bundle_paths.append(location["path"])
         # for each bundle path we collected
-        bundle_uuids: List[str] = []
         for bundle_path in bundle_paths:
             # extract the archive portion of the path
             # bundle_path: /home/projects/icecube/data/exp/IceCube/2018/internal-system/pDAQ-2ndBld/0803/9a1cab0a395211eab1cbce3a3da73f88.zip:ukey_5667ab7c-919d-40d6-b3bb-31deecf39e3a_SPS-pDAQ-2ndBld-000_20180803_231701_000000.tar.gz
@@ -248,23 +257,6 @@ class Locator(Component):
                 bundle_uuids.append(uuid)
         # return the unique list of bundle UUIDs that we collected
         return bundle_uuids
-
-    async def _quarantine_transfer_request(self,
-                                           lta_rc: RestClient,
-                                           tr: TransferRequestType,
-                                           reason: str) -> None:
-        """Update the LTA DB to indicate the TransferRequest should be quarantined."""
-        self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
-        right_now = now()
-        patch_body = {
-            "status": "quarantined",
-            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
-            "work_priority_timestamp": right_now,
-        }
-        try:
-            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
-        except Exception as e:
-            self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
 
 def runner() -> None:
     """Configure a Locator component from the environment and set it running."""

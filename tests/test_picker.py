@@ -9,8 +9,10 @@ from uuid import uuid1
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
-from lta.picker import as_bundle_record, FILE_CATALOG_LIMIT, main, Picker
+from lta.picker import CREATE_CHUNK_SIZE, main, Picker
 from .test_util import AsyncMock
+
+FILE_CATALOG_LIMIT = 9000
 
 @pytest.fixture
 def config():
@@ -18,6 +20,7 @@ def config():
     return {
         "COMPONENT_NAME": "testing-picker",
         "DEST_SITE": "NERSC",
+        "FILE_CATALOG_PAGE_SIZE": str(FILE_CATALOG_LIMIT),
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "3",
@@ -26,9 +29,8 @@ def config():
         "INPUT_STATUS": "ethereal",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "LTA_SITE_CONFIG": "examples/site.json",
         "OUTPUT_STATUS": "specified",
-        "MAX_FILE_COUNT": "25000",
+        "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
@@ -137,6 +139,7 @@ async def test_picker_logs_configuration(mocker):
     picker_config = {
         "COMPONENT_NAME": "logme-testing-picker",
         "DEST_SITE": "NERSC",
+        "FILE_CATALOG_PAGE_SIZE": str(FILE_CATALOG_LIMIT),
         "FILE_CATALOG_REST_TOKEN": "logme-fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
@@ -145,8 +148,7 @@ async def test_picker_logs_configuration(mocker):
         "INPUT_STATUS": "ethereal",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "LTA_SITE_CONFIG": "examples/site.json",
-        "MAX_FILE_COUNT": "25000",
+        "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
         "OUTPUT_STATUS": "specified",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
@@ -159,6 +161,7 @@ async def test_picker_logs_configuration(mocker):
         call("picker 'logme-testing-picker' is configured:"),
         call('COMPONENT_NAME = logme-testing-picker'),
         call('DEST_SITE = NERSC'),
+        call('FILE_CATALOG_PAGE_SIZE = 9000'),
         call('FILE_CATALOG_REST_TOKEN = logme-fake-file-catalog-rest-token'),
         call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
@@ -167,8 +170,7 @@ async def test_picker_logs_configuration(mocker):
         call('INPUT_STATUS = ethereal'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
-        call('LTA_SITE_CONFIG = examples/site.json'),
-        call('MAX_FILE_COUNT = 25000'),
+        call('MAX_BUNDLE_SIZE = 107374182400'),
         call('OUTPUT_STATUS = specified'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
@@ -322,10 +324,20 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.MagicMock()
     lta_rc_mock.request = AsyncMock()
-    lta_rc_mock.request.return_value = {
-        "bundles": [uuid1().hex, uuid1().hex, uuid1().hex],
-        "count": 3
-    }
+    lta_rc_mock.request.side_effect = [
+        {
+            "bundles": [uuid1().hex],
+            "count": 1,
+        },
+        {
+            "metadata": [
+                "58a334e6-642e-475e-b642-e92bf08e96d4",
+                "89528506-9950-43dc-a910-f5108a1d25c0",
+                "1e4a88c6-247e-4e59-9c89-1a4edafafb1e",
+            ],
+            "count": 3,
+        },
+    ]
     tr_uuid = uuid1().hex
     tr = {
         "uuid": tr_uuid,
@@ -395,24 +407,21 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
             ],
             "file_size": 104136149,
             "meta_modify_date": "2019-07-26 01:53:22.591198"
-        }
+        },
     ]
     p = Picker(config, logger_mock)
     await p._do_work_transfer_request(lta_rc_mock, tr)
     fc_rc_mock.assert_called_with("GET", '/api/files/1e4a88c6-247e-4e59-9c89-1a4edafafb1e')
-    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/bulk_create', mocker.ANY)
+    lta_rc_mock.request.assert_called_with("POST", '/Metadata/actions/bulk_create', mocker.ANY)
 
 
 @pytest.mark.asyncio
 async def test_picker_do_work_transfer_request_fc_its_over_9000(config, mocker):
     """Test that _do_work_transfer_request can handle paginated File Catalog results."""
     logger_mock = mocker.MagicMock()
+    lta_rc_mock_request_side_effects = []
     lta_rc_mock = mocker.MagicMock()
     lta_rc_mock.request = AsyncMock()
-    lta_rc_mock.request.return_value = {
-        "bundles": [uuid1().hex, uuid1().hex, uuid1().hex],
-        "count": 3
-    }
     tr_uuid = uuid1().hex
     tr = {
         "uuid": tr_uuid,
@@ -444,6 +453,7 @@ async def test_picker_do_work_transfer_request_fc_its_over_9000(config, mocker):
         }
 
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    # these are the three paged queries to find files to bundle
     side_effects = [
         {
             "_links": {
@@ -479,49 +489,26 @@ async def test_picker_do_work_transfer_request_fc_its_over_9000(config, mocker):
             "files": [gen_file(i) for i in range(1000)],
         },
     ]
+    # then we add file record responses for each of the files we query
     records = [gen_record(i) for i in range(FILE_CATALOG_LIMIT*2 + 1000)]
     side_effects.extend(records)
+    # finally we add LTA DB for responses to creating Metadata entries
+    NUM_BUNDLES = 19
+    NUM_METADATA_BULK = 2
+    for i in range(NUM_BUNDLES):
+        lta_rc_mock_request_side_effects.append({
+            "bundles": [uuid1().hex, "BUNDLE 0"],
+            "count": 1,
+        })
+        for i in range(NUM_METADATA_BULK):
+            lta_rc_mock_request_side_effects.append({
+                "metadata": [uuid1().hex for i in range(CREATE_CHUNK_SIZE)],
+                "count": CREATE_CHUNK_SIZE,
+            })  # POST /Metadata/actions/bulk_create
+    # now we're ready to play Dr. Mario!
     fc_rc_mock.side_effect = side_effects
+    lta_rc_mock.request.side_effect = lta_rc_mock_request_side_effects
     p = Picker(config, logger_mock)
     await p._do_work_transfer_request(lta_rc_mock, tr)
     fc_rc_mock.assert_called_with("GET", mocker.ANY)
-    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/bulk_create', mocker.ANY)
-
-
-def test_as_bundle_record(config, mocker):
-    """Test that bundle_record cherry picks the right keys."""
-    catalog_record = {
-        "_links": {
-            "parent": {
-                "href": "/api/files"
-            },
-            "self": {
-                "href": "/api/files/e6549962-2c91-11ea-9a10-f6a52f4853dd"
-            }
-        },
-        "checksum": {
-            "sha512": "e001e7895e9367d20e804eec5cd867ea0758ebed068c52dac9fac55bf2d263695d1e39231b667598edcb16426048f8801341c44c0d9128df67e3cc22599319a0"
-        },
-        "file_size": 4977182,
-        "locations": [
-            {
-                "path": "/data/exp/IceCube/2018/unbiased/PFDST/1120/ukey_cf9b674a-7620-498a-8d59-a47d39d80245_PFDST_PhysicsFiltering_Run00131763_Subrun00000000_00000398.tar.gz",
-                "site": "WIPAC"
-            }
-        ],
-        "logical_name": "/data/exp/IceCube/2018/unbiased/PFDST/1120/ukey_cf9b674a-7620-498a-8d59-a47d39d80245_PFDST_PhysicsFiltering_Run00131763_Subrun00000000_00000398.tar.gz",
-        "meta_modify_date": "2020-01-01 12:26:13.440651",
-        "uuid": "e6549962-2c91-11ea-9a10-f6a52f4853dd"
-    }
-
-    bundle_record = as_bundle_record(catalog_record)
-
-    assert ("_links" not in bundle_record)
-    assert bundle_record["checksum"] == {
-        "sha512": "e001e7895e9367d20e804eec5cd867ea0758ebed068c52dac9fac55bf2d263695d1e39231b667598edcb16426048f8801341c44c0d9128df67e3cc22599319a0"
-    }
-    assert bundle_record["file_size"] == 4977182
-    assert ("locations" not in bundle_record)
-    assert bundle_record["logical_name"] == "/data/exp/IceCube/2018/unbiased/PFDST/1120/ukey_cf9b674a-7620-498a-8d59-a47d39d80245_PFDST_PhysicsFiltering_Run00131763_Subrun00000000_00000398.tar.gz"
-    assert bundle_record["meta_modify_date"] == "2020-01-01 12:26:13.440651"
-    assert bundle_record["uuid"] == "e6549962-2c91-11ea-9a10-f6a52f4853dd"
+    lta_rc_mock.request.assert_called_with("POST", '/Metadata/actions/bulk_create', mocker.ANY)

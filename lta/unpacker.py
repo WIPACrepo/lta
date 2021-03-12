@@ -129,9 +129,22 @@ class Unpacker(Component):
         #         }
         #     ],
         # }
+        # first try with version=2 (as above)
         metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.json")
-        with open(metadata_file_path) as metadata_file:
-            metadata_dict = json.load(metadata_file)
+        try:
+            with open(metadata_file_path) as metadata_file:
+                metadata_dict = json.load(metadata_file)
+        except Exception:
+            # whoops, let's try version=3; ndjson with a metadata dict followed by file catalog dicts
+            metadata_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.metadata.ndjson")
+            with open(metadata_file_path) as metadata_file:
+                line = metadata_file.readline()
+                metadata_dict = json.loads(line)
+                metadata_dict["files"] = []
+                while line:
+                    line = metadata_file.readline()
+                    file_dict = json.loads(line)
+                    metadata_dict["files"].append(file_dict)
         # 3. Move and verify each file described within the bundle's manifest metadata
         count_idx = 0
         count_max = len(metadata_dict["files"])

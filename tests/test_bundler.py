@@ -2,6 +2,7 @@
 """Unit tests for lta/bundler.py."""
 
 from unittest.mock import call, mock_open, patch
+from uuid import uuid1
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
@@ -18,6 +19,8 @@ def config():
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "testing-bundler",
         "DEST_SITE": "NERSC",
+        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
+        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
@@ -138,6 +141,8 @@ async def test_bundler_logs_configuration(mocker):
         "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
         "COMPONENT_NAME": "logme-testing-bundler",
         "DEST_SITE": "NERSC",
+        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
+        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
@@ -163,6 +168,8 @@ async def test_bundler_logs_configuration(mocker):
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
         call('COMPONENT_NAME = logme-testing-bundler'),
         call('DEST_SITE = NERSC'),
+        call('FILE_CATALOG_REST_TOKEN = fake-file-catalog-rest-token'),
+        call('FILE_CATALOG_REST_URL = http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
@@ -249,6 +256,7 @@ async def test_bundler_do_work_yes_results(config, mocker):
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
     }
     logger_mock = mocker.MagicMock()
+    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = {
         "bundle": BUNDLE_OBJ,
@@ -256,15 +264,68 @@ async def test_bundler_do_work_yes_results(config, mocker):
     dwb_mock = mocker.patch("lta.bundler.Bundler._do_work_bundle", new_callable=AsyncMock)
     p = Bundler(config, logger_mock)
     assert await p._do_work_claim()
+    fc_rc_mock.assert_not_called()
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
-    dwb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ)
+    dwb_mock.assert_called_with(fc_rc_mock, lta_rc_mock, BUNDLE_OBJ)
 
 
 @pytest.mark.asyncio
 async def test_bundler_do_work_dest_results(config, mocker):
     """Test that _do_work_bundle does the work of preparing an archive."""
+    BUNDLE_UUID = "f74db80e-9661-40cc-9f01-8d087af23f56"
+    FILE_CATALOG_UUID = "a8777703-6e9e-41a2-8776-c924a86d5f0f"
     logger_mock = mocker.MagicMock()
+    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    fc_rc_mock.request.side_effect = [
+        {
+            "uuid": FILE_CATALOG_UUID,
+            "logical_name": "/path/to/some/data/warehouse/file.i3"
+        },
+        {
+            "uuid": FILE_CATALOG_UUID,
+            "logical_name": "/path/to/some/data/warehouse/file.i3"
+        },
+    ]
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.request.side_effect = [
+        {
+            "results": [
+                {
+                    "uuid": uuid1().hex,
+                    "bundle_uuid": BUNDLE_UUID,
+                    "file_catalog_uuid": FILE_CATALOG_UUID,
+                }
+            ]
+        },
+        {
+            "results": []
+        },
+        {
+            "results": [
+                {
+                    "uuid": uuid1().hex,
+                    "bundle_uuid": BUNDLE_UUID,
+                    "file_catalog_uuid": FILE_CATALOG_UUID,
+                }
+            ]
+        },
+        {
+            "results": []
+        },
+        {
+            "uuid": BUNDLE_UUID,
+            "source": "WIPAC",
+            "dest": "NERSC",
+            "file_count": 1,
+            "status": "created",
+            "reason": "",
+            "bundle_path": "/path/to/bundler/outbox",
+            "size": 123456,
+            "checksum": "abcdef",
+            "verified": False,
+            "claimed": False,
+        },
+    ]
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
     mock_zipfile_init.return_value = None
     mock_zipfile_write = mocker.patch("zipfile.ZipFile.write")
@@ -282,13 +343,13 @@ async def test_bundler_do_work_dest_results(config, mocker):
     mock_os_remove.return_value = None
     p = Bundler(config, logger_mock)
     BUNDLE_OBJ = {
-        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+        "uuid": BUNDLE_UUID,
         "source": "WIPAC",
         "dest": "NERSC",
-        "files": [{"logical_name": "/path/to/a/data/file", }],
+        "file_count": 1,
     }
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
-        await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
+        await p._do_work_bundle(fc_rc_mock, lta_rc_mock, BUNDLE_OBJ)
         metadata_mock.assert_called_with(mocker.ANY, mode="w")
 
 
