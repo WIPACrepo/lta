@@ -1,0 +1,20 @@
+name: 'GitHub'
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  release:
+    name: "Semantic Release"
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Project
+      uses: actions/checkout@v2
+
+    - name: Python Semantic Release
+      uses: relekang/python-semantic-release@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        # pypi_token: ${{ secrets.PYPI_TOKEN }}
