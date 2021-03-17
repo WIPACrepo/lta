@@ -51,7 +51,7 @@ MEGABYTE = KILOBYTE * KILOBYTE
 GIGABYTE = MEGABYTE * KILOBYTE
 MINIMUM_REQUEST_SIZE = 100 * GIGABYTE
 
-PATH_PREFIX_WHITELIST = [
+PATH_PREFIX_ALLOW_LIST = [
     "/data/ana",
     "/data/exp",
     "/data/sim",
@@ -77,10 +77,10 @@ def display_time(s: Optional[str]) -> str:
 def normalize_path(path: str) -> str:
     """Validate and normalize the provided request path."""
     path = os.path.normpath(path)
-    for prefix in PATH_PREFIX_WHITELIST:
+    for prefix in PATH_PREFIX_ALLOW_LIST:
         if path.startswith(prefix):
             return path
-    raise ValueError(f"{path} does not begin with a whitelisted prefix")
+    raise ValueError(f"{path} does not begin with a prefix on the allow-list prefix")
 
 def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
     """Print the provided Dict as pretty-print JSON."""
@@ -517,6 +517,56 @@ async def display_config(args: Namespace) -> ExitCode:
     return EXIT_OK
 
 
+async def metadata_ls(args: Namespace) -> ExitCode:
+    """List Metadata records in the LTA DB."""
+    if not args.uuid and not args.bundle:
+        print("metadata ls: must supply --uuid UUID or --bundle UUID to identify records to list")
+        return EXIT_ERROR
+    if args.bundle:
+        obj: Dict[str, List[Any]] = {"metadata": []}
+        done = False
+        skip = 0
+        while not done:
+            result = await args.di["lta_rc"].request("GET", f"/Metadata?bundle_uuid={args.bundle}&skip={skip}")
+            num_results = len(result["results"])
+            skip = skip + num_results
+            done = (num_results == 0)
+            if args.json:
+                obj["metadata"].extend(result["results"])
+            else:
+                for record in result["results"]:
+                    print(f"uuid:{record['uuid']} bundle:{record['bundle_uuid']} fc:{record['file_catalog_uuid']}")
+        if args.json:
+            print_dict_as_pretty_json(obj)
+        return EXIT_OK
+    if args.uuid:
+        response = await args.di["lta_rc"].request("DELETE", f"/Metadata/{args.uuid}")
+        if args.json:
+            print_dict_as_pretty_json(response)
+        else:
+            print(f"uuid:              {response['uuid']}")
+            print(f"bundle_uuid:       {response['bundle_uuid']}")
+            print(f"file_catalog_uuid: {response['file_catalog_uuid']}")
+    return EXIT_OK
+
+
+async def metadata_rm(args: Namespace) -> ExitCode:
+    """Remove Metadata records from the LTA DB."""
+    if not args.uuid and not args.bundle:
+        print("metadata rm: must supply --uuid UUID or --bundle UUID to identify records to remove")
+        return EXIT_ERROR
+    if args.bundle:
+        await args.di["lta_rc"].request("DELETE", f"/Metadata?bundle_uuid={args.bundle}")
+        if args.verbose:
+            print(f"removed Metadata records for Bundle {args.bundle}")
+        return EXIT_OK
+    if args.uuid:
+        await args.di["lta_rc"].request("DELETE", f"/Metadata/{args.uuid}")
+        if args.verbose:
+            print(f"removed Metadata record {args.uuid}")
+    return EXIT_OK
+
+
 async def request_estimate(args: Namespace) -> ExitCode:
     """Estimate the count and size of a new TransferRequest."""
     files_and_size = _get_files_and_size(args.path)
@@ -626,6 +676,9 @@ async def request_rm(args: Namespace) -> ExitCode:
         await args.di["lta_rc"].request("DELETE", f"/Bundles/{bundle['uuid']}")
         if args.verbose:
             print(f"removed Bundle {bundle['uuid']}")
+        await args.di["lta_rc"].request("DELETE", f"/Metadata?bundle_uuid={bundle['uuid']}")
+        if args.verbose:
+            print(f"removed Metadata records for Bundle {bundle['uuid']}")
     return EXIT_OK
 
 
@@ -844,6 +897,32 @@ async def main() -> None:
                                        help="display output in JSON",
                                        action="store_true")
     parser_display_config.set_defaults(func=display_config)
+
+    # define a subparser for the 'metadata' subcommand
+    parser_metadata = subparser.add_parser('metadata', help='interact with metadata')
+    metadata_subparser = parser_metadata.add_subparsers(help='metadata command help')
+
+    # define a subparser for the 'metadata ls' subcommand
+    parser_metadata_ls = metadata_subparser.add_parser('ls', help='list metadata records')
+    parser_metadata_ls.add_argument("--bundle",
+                                    help="UUID of a bundle")
+    parser_metadata_ls.add_argument("--json",
+                                    help="display output in JSON",
+                                    action="store_true")
+    parser_metadata_ls.add_argument("--uuid",
+                                    help="UUID of a metadata record")
+    parser_metadata_ls.set_defaults(func=metadata_ls)
+
+    # define a subparser for the 'metadata rm' subcommand
+    parser_metadata_rm = metadata_subparser.add_parser('rm', help='delete a metadata record')
+    parser_metadata_ls.add_argument("--bundle",
+                                    help="UUID of a bundle")
+    parser_metadata_ls.add_argument("--uuid",
+                                    help="UUID of a metadata record")
+    parser_metadata_rm.add_argument("--verbose",
+                                    help="display an output line on success",
+                                    action="store_true")
+    parser_metadata_rm.set_defaults(func=metadata_rm)
 
     # define a subparser for the 'request' subcommand
     parser_request = subparser.add_parser('request', help='interact with transfer requests')
