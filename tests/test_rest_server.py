@@ -989,6 +989,92 @@ async def test_status_nersc(mongo, rest, mocker):
     }
 
 @pytest.mark.asyncio
+async def test_metadata_delete_bundle_uuid(mongo, rest):
+    """Check CRUD semantics for metadata."""
+    r = rest('system')
+    bundle_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    bundle_uuid1 = "05b7178b-82d0-428c-a0a6-d4add696de62"
+    #
+    # Create - POST /Metadata/actions/bulk_create
+    #
+    request = {
+        'bundle_uuid': bundle_uuid0,
+        'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
+    }
+    ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert len(ret["metadata"]) == 3
+    assert ret["count"] == 3
+    request = {
+        'bundle_uuid': bundle_uuid1,
+        'files': ["03ccb63e-32cf-4135-85b2-fd06b8c9137f", "c65f2c58-a412-403c-9354-d25d7ae5cdeb", "864f0903-f207-478d-bac2-b437ebc07226"]
+    }
+    ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert len(ret["metadata"]) == 3
+    assert ret["count"] == 3
+
+    #
+    # Read - GET /Metadata
+    #
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid0}')
+    results = ret["results"]
+    assert len(results) == 3
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid1}')
+    results = ret["results"]
+    assert len(results) == 3
+
+    #
+    # Delete - DELETE /Metadata?bundle_uuid={uuid}
+    #
+    ret = await r.request('DELETE', f'/Metadata?bundle_uuid={bundle_uuid0}')
+    assert not ret
+
+    #
+    # Read - GET /Metadata
+    #
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid0}')
+    results = ret["results"]
+    assert len(results) == 0
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid1}')
+    results = ret["results"]
+    assert len(results) == 3
+
+@pytest.mark.asyncio
+async def test_metadata_single_record(mongo, rest):
+    """Check CRUD semantics for metadata."""
+    r = rest('system')
+    bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    #
+    # Create - POST /Metadata/actions/bulk_create
+    #
+    request = {
+        'bundle_uuid': bundle_uuid,
+        'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
+    }
+    ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert len(ret["metadata"]) == 3
+    assert ret["count"] == 3
+    #
+    # Read - GET /Metadata/{uuid}
+    #
+    metadata_uuid = ret["metadata"][0]
+    ret2 = await r.request('GET', f'/Metadata/{metadata_uuid}')
+    assert ret2["uuid"] == metadata_uuid
+    assert ret2["bundle_uuid"] == bundle_uuid
+    assert ret2["file_catalog_uuid"] == "7b5c1f76-e568-4ae7-94d2-5a31d1d2b081"
+    #
+    # Delete - DELETE /Metadata/{uuid}
+    #
+    ret3 = await r.request('DELETE', f'/Metadata/{metadata_uuid}')
+    assert not ret3
+    #
+    # Read - GET /Metadata/{uuid}
+    #
+    with pytest.raises(HTTPError) as e:
+        await r.request('GET', f'/Metadata/{metadata_uuid}')
+    assert e.value.response.status_code == 404
+    assert e.value.response.json()["error"] == "not found"
+
+@pytest.mark.asyncio
 async def test_metadata_bulk_crud(mongo, rest):
     """Check CRUD semantics for metadata."""
     r = rest('system')
@@ -1086,3 +1172,13 @@ async def test_metadata_actions_bulk_delete_errors(rest):
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
     assert e.value.response.json()["error"] == "`metadata`: (ValueError) [] is forbidden ([[]])"
+
+@pytest.mark.asyncio
+async def test_metadata_delete_errors(rest):
+    """Check error conditions for DELETE /Metadata."""
+    r = rest('system')
+
+    with pytest.raises(HTTPError) as e:
+        await r.request('DELETE', '/Metadata')
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "`bundle_uuid`: (MissingArgumentError) required argument is missing"

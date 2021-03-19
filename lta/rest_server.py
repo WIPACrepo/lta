@@ -456,6 +456,42 @@ class MetadataHandler(BaseLTAHandler):
         }
         self.write(ret)
 
+    @lta_auth(roles=['admin', 'system', 'user'])
+    async def delete(self) -> None:
+        """Handle DELETE /Metadata?bundle_uuid={uuid}."""
+        bundle_uuid = self.get_argument("bundle_uuid")
+        query = {"bundle_uuid": bundle_uuid}
+        logging.debug(f"MONGO-START: db.Metadata.delete_many(filter={query})")
+        await self.db.Metadata.delete_many(filter=query)
+        logging.debug("MONGO-END:   db.Metadata.delete_many(filter)")
+        logging.info(f"deleted all Metadata records for Bundle {bundle_uuid}")
+        self.set_status(204)
+
+class MetadataSingleHandler(BaseLTAHandler):
+    """MetadataSingleHandler handles object level routes for Metadata."""
+
+    @lta_auth(roles=['admin', 'system', 'user'])
+    async def get(self, metadata_id: str) -> None:
+        """Handle GET /Metadata/{uuid}."""
+        query = {"uuid": metadata_id}
+        projection = {"_id": False}
+        logging.debug(f"MONGO-START: db.Metadata.find_one(filter={query}, projection={projection})")
+        ret = await self.db.Metadata.find_one(filter=query, projection=projection)
+        logging.debug("MONGO-END:   db.Metadata.find_one(filter, projection)")
+        if not ret:
+            raise tornado.web.HTTPError(404, reason="not found")
+        self.write(ret)
+
+    @lta_auth(roles=['admin', 'system', 'user'])
+    async def delete(self, metadata_id: str) -> None:
+        """Handle DELETE /Metadata/{uuid}."""
+        query = {"uuid": metadata_id}
+        logging.debug(f"MONGO-START: db.Metadata.delete_one(filter={query})")
+        await self.db.Metadata.delete_one(filter=query)
+        logging.debug("MONGO-END:   db.Metadata.delete_one(filter)")
+        logging.info(f"deleted Bundle {metadata_id}")
+        self.set_status(204)
+
 # -----------------------------------------------------------------------------
 
 class TransferRequestsHandler(BaseLTAHandler):
@@ -871,6 +907,7 @@ def start(debug: bool = False) -> RestServer:
     server.add_route(r'/Metadata', MetadataHandler, args)
     server.add_route(r'/Metadata/actions/bulk_create', MetadataActionsBulkCreateHandler, args)
     server.add_route(r'/Metadata/actions/bulk_delete', MetadataActionsBulkDeleteHandler, args)
+    server.add_route(r'/Metadata/(?P<metadata_id>\w+)', MetadataSingleHandler, args)
     server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
     server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
     server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
