@@ -915,9 +915,9 @@ async def main() -> None:
 
     # define a subparser for the 'metadata rm' subcommand
     parser_metadata_rm = metadata_subparser.add_parser('rm', help='delete a metadata record')
-    parser_metadata_ls.add_argument("--bundle",
+    parser_metadata_rm.add_argument("--bundle",
                                     help="UUID of a bundle")
-    parser_metadata_ls.add_argument("--uuid",
+    parser_metadata_rm.add_argument("--uuid",
                                     help="UUID of a metadata record")
     parser_metadata_rm.add_argument("--verbose",
                                     help="display an output line on success",
