@@ -195,12 +195,13 @@ class NerscVerifier(Component):
             # ask the LTA DB for the next chunk of Metadata records
             self.logger.info(f"GET /Metadata?bundle_uuid={bundle_uuid}&limit={limit}")
             lta_response = await lta_rc.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}&limit={limit}')
-            num_files = len(lta_response["results"])
+            results = lta_response["results"]
+            num_files = len(results)
             done = (num_files == 0)
             self.logger.info(f'LTA returned {num_files} Metadata documents to process.')
 
             # for each Metadata record returned by the LTA DB
-            for metadata_record in lta_response["results"]:
+            for metadata_record in results:
                 # load the record from the File Catalog and add the new location to the record
                 count = count + 1
                 file_catalog_uuid = metadata_record["file_catalog_uuid"]
@@ -223,11 +224,14 @@ class NerscVerifier(Component):
             # if we processed any Metadata records, we can now delete them
             if num_files > 0:
                 delete_query = {
-                    "metadata": lta_response["results"]
+                    "metadata": [x['uuid'] for x in results]
                 }
                 self.logger.info(f"POST /Metadata/actions/bulk_delete - {num_files} Metadata records")
                 bulk_response = await lta_rc.request('POST', '/Metadata/actions/bulk_delete', delete_query)
-                self.logger.info(f"LTA DB reports {bulk_response['count']} Metadata records are deleted.")
+                delete_count = bulk_response['count']
+                self.logger.info(f"LTA DB reports {delete_count} Metadata records are deleted.")
+                if delete_count != num_files:
+                    raise Exception(f"LTA DB gave us {num_files} records to process, but we only deleted {delete_count} records! BAD MOJO!")
 
         # the morning sun has vanquished the horrible night
         return True

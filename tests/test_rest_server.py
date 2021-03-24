@@ -1182,3 +1182,36 @@ async def test_metadata_delete_errors(rest):
         await r.request('DELETE', '/Metadata')
     assert e.value.response.status_code == 400
     assert e.value.response.json()["error"] == "`bundle_uuid`: (MissingArgumentError) required argument is missing"
+
+@pytest.mark.asyncio
+async def test_metadata_results_comprehension(mongo, rest):
+    """Check that our comprehension works."""
+    r = rest('system')
+    bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    #
+    # Create - POST /Metadata/actions/bulk_create
+    #
+    request = {
+        'bundle_uuid': bundle_uuid,
+        'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
+    }
+    ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert len(ret["metadata"]) == 3
+    assert ret["count"] == 3
+
+    #
+    # Read - GET /Metadata
+    #
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}')
+    results = ret["results"]
+    assert len(results) == 3
+
+    #
+    # Obtain the Metadata UUIDs with a comprehension
+    #
+    uuids = [x['uuid'] for x in results]
+    assert len(uuids) == 3
+    count = 0
+    for result in results:
+        assert uuids[count] == result['uuid']
+        count = count + 1
