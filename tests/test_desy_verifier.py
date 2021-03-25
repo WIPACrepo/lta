@@ -235,17 +235,20 @@ async def test_desy_verifier_add_bundle_to_file_catalog(config, mocker):
         },
         True,  # POST /api/files/UUID/locations - add the location
     ]
+    metadata_uuid0 = uuid1().hex
+    metadata_uuid1 = uuid1().hex
+    metadata_uuid2 = uuid1().hex
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     lta_rc_mock.request.side_effect = [
-        {
+        {  # GET /Metadata?bundle_uuid={bundle_uuid}&limit={limit}
             "results": [
-                {"file_catalog_uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
-                {"file_catalog_uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
-                {"file_catalog_uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
+                {"uuid": metadata_uuid0, "file_catalog_uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
+                {"uuid": metadata_uuid1, "file_catalog_uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
+                {"uuid": metadata_uuid2, "file_catalog_uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
             ]
         },
-        {
-            "metadata": [uuid1().hex, uuid1().hex, uuid1().hex],
+        {  # POST /Metadata/actions/bulk_delete
+            "metadata": [metadata_uuid0, metadata_uuid1, metadata_uuid2],
             "count": 3,
         },
         {
@@ -292,17 +295,20 @@ async def test_desy_verifier_add_bundle_to_file_catalog_patch_after_post_error(c
         },
         True,  # POST /api/files/UUID/locations - add the location
     ]
+    metadata_uuid0 = uuid1().hex
+    metadata_uuid1 = uuid1().hex
+    metadata_uuid2 = uuid1().hex
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     lta_rc_mock.request.side_effect = [
-        {
+        {  # GET /Metadata?bundle_uuid={bundle_uuid}&limit={limit}
             "results": [
-                {"file_catalog_uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
-                {"file_catalog_uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
-                {"file_catalog_uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
+                {"uuid": metadata_uuid0, "file_catalog_uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
+                {"uuid": metadata_uuid1, "file_catalog_uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
+                {"uuid": metadata_uuid2, "file_catalog_uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
             ]
         },
-        {
-            "metadata": [uuid1().hex, uuid1().hex, uuid1().hex],
+        {  # POST /Metadata/actions/bulk_delete
+            "metadata": [metadata_uuid0, metadata_uuid1, metadata_uuid2],
             "count": 3,
         },
         {
