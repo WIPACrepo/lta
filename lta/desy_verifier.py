@@ -208,7 +208,7 @@ class DesyVerifier(Component):
                 self.logger.info(f"POST /Metadata/actions/bulk_delete - {num_files} Metadata records")
                 bulk_response = await lta_rc.request('POST', '/Metadata/actions/bulk_delete', delete_query)
                 delete_count = bulk_response['count']
-                self.logger.info(f"LTA DB reports {bulk_response['count']} Metadata records are deleted.")
+                self.logger.info(f"LTA DB reports {delete_count} Metadata records are deleted.")
                 if delete_count != num_files:
                     raise Exception(f"LTA DB gave us {num_files} records to process, but we only deleted {delete_count} records! BAD MOJO!")
 
