@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+  release:
+    types: [published]
 
 jobs:
   build:
@@ -15,6 +17,20 @@ jobs:
 
     - name: Checkout Project
       uses: actions/checkout@v2
+
+    - name: Docker meta
+      id: docker_meta
+      uses: crazy-max/ghaction-docker-meta@v1
+      with:
+        # list of Docker images to use as base name for tags
+        images: |
+          wipac/lta
+        # add git short SHA as Docker tag
+        tag-sha: true
+        tag-semver: |
+            {{raw}}
+            {{major}}.{{minor}}
+            {{major}}.{{minor}}.{{patch}}
 
     - name: Set up Docker Buildx
       id: buildx
@@ -41,7 +57,6 @@ jobs:
         builder: ${{ steps.buildx.outputs.name }}
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache
-        tags: |
-          wipac/lta:${{ env.GITHUB_SHA_SHORT }}
-          wipac/lta:latest
+        tags: ${{ steps.docker_meta.outputs.tags }}
+        labels: ${{ steps.docker_meta.outputs.labels }}
         push: true
