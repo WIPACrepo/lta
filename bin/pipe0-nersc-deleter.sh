@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# export OUTPUT_STATUS=${OUTPUT_STATUS:="source-deleted"}
 cd /global/homes/i/icecubed/NEWLTA/lta
 source env/bin/activate
 cd /global/homes/i/icecubed/NEWLTA/lta/bin
