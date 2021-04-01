@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/mnt/lfss/jade-lta/bundler_stage"}
 export BUNDLER_WORKBOX_PATH=${BUNDLER_WORKBOX_PATH:="/mnt/lfss/jade-lta/bundler_work"}
+export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-pipe2-bundler"}
 export DEST_SITE=${DEST_SITE:="DESY"}
 export FILE_CATALOG_REST_TOKEN=${FILE_CATALOG_REST_TOKEN:="$(<service-token)"}
 export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="https://file-catalog.icecube.wisc.edu"}
-export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-pipe2-bundler"}
 export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
 export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="30"}
 export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"}
