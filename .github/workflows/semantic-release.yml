@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    if: github.repository_owner == 'WIPACrepo'
+    if: ${{ github.repository_owner == 'WIPACrepo' }}
     name: "Semantic Release"
     runs-on: ubuntu-latest
     steps:
