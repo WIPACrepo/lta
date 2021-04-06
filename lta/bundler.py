@@ -3,7 +3,6 @@
 
 import asyncio
 import json
-from logging import Logger
 import logging
 import os
 import shutil
@@ -18,6 +17,8 @@ from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .crypto import lta_checksums
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
+
+Logger = logging.Logger
 
 # maximum number of Metadata UUIDs to work with at a time
 CREATE_CHUNK_SIZE = 1000

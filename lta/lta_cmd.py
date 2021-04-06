@@ -5,7 +5,6 @@ Run with `python -m lta.lta_cmd $@`.
 """
 
 import argparse
-from argparse import Namespace
 import asyncio
 from datetime import datetime, timedelta
 import json
@@ -24,6 +23,8 @@ from rest_tools.server import from_environment  # type: ignore
 
 from lta.component import now
 from lta.crypto import sha512sum
+
+Namespace = argparse.Namespace
 
 ExitCode = int
 EXIT_OK = 0

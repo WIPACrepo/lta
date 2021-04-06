@@ -2,7 +2,6 @@
 """Module to implement the DesyMoveVerifier component of the Long Term Archive."""
 
 import asyncio
-from logging import Logger
 import logging
 import os
 import sys
@@ -18,6 +17,8 @@ from .log_format import StructuredFormatter
 from .lta_types import BundleType
 from .transfer.globus import SiteGlobusProxy
 from .transfer.gridftp import GridFTP
+
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
@@ -50,7 +51,6 @@ class DesyMoveVerifier(Component):
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.workbox_path = config["WORKBOX_PATH"]
-        pass
 
     def _do_status(self) -> Dict[str, Any]:
         """DesyMoveVerifier has no additional status to contribute."""

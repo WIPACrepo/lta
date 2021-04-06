@@ -2,7 +2,6 @@
 """Module to implement the DesyVerifier component of the Long Term Archive."""
 
 import asyncio
-from logging import Logger
 import logging
 import os
 import sys
@@ -16,6 +15,7 @@ from .joiner import join_smart
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
 
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({

@@ -2,7 +2,6 @@
 """Module to implement the TransferRequestFinisher component of the Long Term Archive."""
 
 import asyncio
-from logging import Logger
 import logging
 import sys
 from typing import Any, Dict, Optional, Union
@@ -14,6 +13,7 @@ from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
 
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({

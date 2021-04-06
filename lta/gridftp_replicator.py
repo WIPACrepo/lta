@@ -2,7 +2,6 @@
 """Module to implement the GridFTPReplicator component of the Long Term Archive."""
 
 import asyncio
-from logging import Logger
 import logging
 import os
 import sys
@@ -18,6 +17,8 @@ from .lta_types import BundleType
 from .rest_server import boolify
 from .transfer.globus import SiteGlobusProxy
 from .transfer.gridftp import GridFTP
+
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({

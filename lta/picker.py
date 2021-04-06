@@ -4,7 +4,6 @@
 import asyncio
 import json
 import logging
-from logging import Logger
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -15,6 +14,8 @@ from rest_tools.server import from_environment  # type: ignore
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
 from .lta_types import BundleType, TransferRequestType
+
+Logger = logging.Logger
 
 # maximum number of Metadata UUIDs to supply to LTA DB for bulk_create
 CREATE_CHUNK_SIZE = 1000

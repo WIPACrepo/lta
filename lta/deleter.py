@@ -2,7 +2,6 @@
 """Module to implement the Deleter component of the Long Term Archive."""
 
 import asyncio
-from logging import Logger
 import logging
 import os
 import sys
@@ -14,6 +13,8 @@ from rest_tools.server import from_environment  # type: ignore
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
+
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
@@ -44,7 +45,6 @@ class Deleter(Component):
         self.disk_base_path = config["DISK_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        pass
 
     def _do_status(self) -> Dict[str, Any]:
         """Contribute no additional status."""

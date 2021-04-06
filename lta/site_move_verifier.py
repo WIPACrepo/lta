@@ -2,7 +2,6 @@
 """Module to implement the SiteMoveVerifier component of the Long Term Archive."""
 
 import asyncio
-from logging import Logger
 import logging
 import os
 from subprocess import PIPE, run
@@ -18,6 +17,8 @@ from .joiner import join_smart
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
 from .rest_server import boolify
+
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
