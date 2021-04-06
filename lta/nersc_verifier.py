@@ -2,7 +2,6 @@
 """Module to implement the NerscVerifier component of the Long Term Archive."""
 
 import asyncio
-from logging import Logger
 import logging
 import os
 from subprocess import PIPE, run
@@ -15,6 +14,8 @@ from rest_tools.server import from_environment  # type: ignore
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
+
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({

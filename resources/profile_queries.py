@@ -2,8 +2,9 @@
 import os
 from urllib.parse import quote_plus
 
-import pymongo
-from pymongo import MongoClient
+import pymongo  # type: ignore
+
+MongoClient = pymongo.MongoClient
 
 CONFIG = {
     'LTA_MONGODB_AUTH_USER': '',

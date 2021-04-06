@@ -16,4 +16,3 @@ version_info = (
     int(__version__.split(".")[2]),
     0,
 )
-

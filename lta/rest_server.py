@@ -14,10 +14,12 @@ from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
 import pymongo  # type: ignore
-from pymongo import ASCENDING, MongoClient
 from rest_tools.utils.json_util import json_decode  # type: ignore
 from rest_tools.server import authenticated, catch_error, from_environment, RestHandler, RestHandlerSetup, RestServer  # type: ignore
 import tornado.web
+
+ASCENDING = pymongo.ASCENDING
+MongoClient = pymongo.MongoClient
 
 # maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
 DELETE_CHUNK_SIZE = 1000

@@ -4,7 +4,6 @@
 import asyncio
 import json
 import logging
-from logging import Logger
 import os
 import sys
 from typing import Any, Dict, List, Optional
@@ -17,6 +16,7 @@ from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
 from .lta_types import BundleType, TransferRequestType
 
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({

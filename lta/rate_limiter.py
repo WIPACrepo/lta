@@ -2,7 +2,6 @@
 """Module to implement the RateLimiter component of the Long Term Archive."""
 
 import asyncio
-from logging import Logger
 import logging
 import os
 import shutil
@@ -15,6 +14,8 @@ from rest_tools.server import from_environment  # type: ignore
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
+
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
@@ -69,7 +70,6 @@ class RateLimiter(Component):
         self.output_quota = int(config["OUTPUT_QUOTA"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        pass
 
     def _do_status(self) -> Dict[str, Any]:
         """Contribute no additional status."""

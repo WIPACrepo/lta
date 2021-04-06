@@ -10,8 +10,8 @@ if sys.version_info < (3, 6):
 
 try:
     # Use setuptools if available, for install_requires (among other things).
-    import setuptools
-    from setuptools import setup
+    import setuptools  # type: ignore
+    setup = setuptools.setup
 except ImportError:
     setuptools = None
     from distutils.core import setup
@@ -43,8 +43,8 @@ if setuptools is not None:
         'sphinx>=1.4',
         'tornado>=5.1'
     ]
-    kwargs['install_requires'] = install_requires
-    kwargs['zip_safe'] = False
+    kwargs['install_requires'] = install_requires  # type: ignore
+    kwargs['zip_safe'] = False  # type: ignore
 
 setup(
     name='lta',
