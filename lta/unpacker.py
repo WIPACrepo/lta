@@ -258,26 +258,21 @@ class Unpacker(Component):
 
     def _read_manifest_metadata_v3(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
         """Read the bundle metadata from a newer (version 3) manifest file."""
-        print("\n\n\nReal _read_manifest_metadata_v3 is called!!!")
         metadata_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.metadata.ndjson")
         try:
-            print(f"\n\nTrying to open {metadata_file_path}")
             with open(metadata_file_path) as metadata_file:
                 # read the JSON for the bundle
                 line = metadata_file.readline()
-                print(f"\n\nProcessing bundle JSON: {line}")
                 metadata_dict = json.loads(line)
                 metadata_dict["files"] = []
                 # read the JSON for each file in the manifest
                 line = metadata_file.readline()
                 while line:
-                    print(f"\n\nProcessing file JSON: {line}")
                     file_dict = json.loads(line)
                     metadata_dict["files"].append(file_dict)
                     line = metadata_file.readline()
         except Exception:
             return None
-        print(f"\n\nReturning {metadata_dict}")
         return cast(Dict[str, Any], metadata_dict)
 
     async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
