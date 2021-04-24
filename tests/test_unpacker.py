@@ -1,7 +1,7 @@
 # test_unpacker.py
 """Unit tests for lta/unpacker.py."""
 
-from unittest.mock import call, MagicMock, mock_open, patch
+from unittest.mock import call, mock_open, patch
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
@@ -358,6 +358,7 @@ async def test_unpacker_add_location_to_file_catalog(config, mocker, path_map_mo
         ]
     })
 
+
 @pytest.mark.asyncio
 async def test_unpacker_do_work_bundle(config, mocker, path_map_mock):
     """Test that _do_work_bundle does the work of preparing an archive."""
@@ -553,73 +554,227 @@ async def test_unpacker_do_work_bundle_path_remapping(config, mocker, path_map_m
         mock_lta_checksums.assert_called_with("/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2")
 
 
-@pytest.mark.asyncio
-@patch('builtins.open')
-async def test_unpacker_do_work_bundle_ndjson_metadata(file_open_mock, config, mocker, path_map_mock):
-    """Test that _do_work_bundle does the work of preparing an archive."""
+def test_unpacker_delete_manifest_metadata_v3(config, mocker, path_map_mock):
+    """Test that _delete_manifest_metadata will delete metadata of either version."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
-    mock_zipfile_init.return_value = None
-    mock_zipfile_write = mocker.patch("zipfile.ZipFile.extractall")
-    mock_zipfile_write.return_value = None
-    mock_json_load = mocker.patch("json.load")
-    mock_json_load.return_value = {
+    p = Unpacker(config, logger_mock)
+    mock_os_remove = mocker.patch("os.remove")
+    mock_os_remove.side_effect = [NameError, None]
+    p._delete_manifest_metadata("0869ea50-e437-443f-8cdb-31a350f88e57")
+    mock_os_remove.assert_called_with("/tmp/lta/testing/unpacker/outbox/0869ea50-e437-443f-8cdb-31a350f88e57.metadata.ndjson")
+
+
+def test_unpacker_delete_manifest_metadata_unknown(config, mocker, path_map_mock):
+    """Test that _delete_manifest_metadata will throw on an unknown version."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    mock_os_remove = mocker.patch("os.remove")
+    mock_os_remove.side_effect = [NameError, NameError]
+    with pytest.raises(NameError):
+        p._delete_manifest_metadata("0869ea50-e437-443f-8cdb-31a350f88e57")
+    mock_os_remove.assert_called_with("/tmp/lta/testing/unpacker/outbox/0869ea50-e437-443f-8cdb-31a350f88e57.metadata.ndjson")
+
+
+def test_unpacker_read_manifest_metadata_for_v3(config, mocker, path_map_mock):
+    """Test that _read_manifest_metadata will read v3 metadata."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    mock_v2 = mocker.patch("lta.unpacker.Unpacker._read_manifest_metadata_v2")
+    mock_v2.side_effect = [None]
+    mock_v3 = mocker.patch("lta.unpacker.Unpacker._read_manifest_metadata_v3")
+    mock_v3.side_effect = [{"some": "object"}]
+    p._read_manifest_metadata("0869ea50-e437-443f-8cdb-31a350f88e57")
+    mock_v2.assert_called_with("0869ea50-e437-443f-8cdb-31a350f88e57")
+    mock_v3.assert_called_with("0869ea50-e437-443f-8cdb-31a350f88e57")
+
+
+def test_unpacker_read_manifest_metadata_unknown(config, mocker, path_map_mock):
+    """Test that _read_manifest_metadata will throw on an unknown version."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    mock_v2 = mocker.patch("lta.unpacker.Unpacker._read_manifest_metadata_v2")
+    mock_v2.side_effect = [None]
+    mock_v3 = mocker.patch("lta.unpacker.Unpacker._read_manifest_metadata_v3")
+    mock_v3.side_effect = [None]
+    with pytest.raises(Exception):
+        p._read_manifest_metadata("0869ea50-e437-443f-8cdb-31a350f88e57")
+    mock_v2.assert_called_with("0869ea50-e437-443f-8cdb-31a350f88e57")
+    mock_v3.assert_called_with("0869ea50-e437-443f-8cdb-31a350f88e57")
+
+
+def test_unpacker_read_manifest_metadata_v2(config, mocker, path_map_mock):
+    """Test that _read_manifest_metadata_v2 will try to read metadata."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    with patch("builtins.open", mock_open(read_data='{"some": "object"}')) as metadata_mock:
+        assert p._read_manifest_metadata_v2("0869ea50-e437-443f-8cdb-31a350f88e57") == {"some": "object"}
+    metadata_mock.assert_called_with(mocker.ANY)
+
+
+@patch('builtins.open')
+def test_unpacker_read_manifest_metadata_v2_no_throw(file_open_mock, config, mocker, path_map_mock):
+    """Test that _read_manifest_metadata_v2 will not throw when unable to read metadata."""
+    logger_mock = mocker.MagicMock()
+    file_open_mock.side_effect = NameError
+    p = Unpacker(config, logger_mock)
+    assert not p._read_manifest_metadata_v2("0869ea50-e437-443f-8cdb-31a350f88e57")
+
+
+def test_unpacker_read_manifest_metadata_v3(config, mocker, path_map_mock):
+    """Test that _read_manifest_metadata_v3 will try to read metadata."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    read_data = """{}
+        {"some": "object"}"""
+    result = {
         "files": [
-            {
-                "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
-                "file_size": 1234567890,
-                "checksum": {
-                    "adler32": "89d5efeb",
-                    "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
-                },
-            }
+            {"some": "object"}
         ]
     }
-    mock_shutil_move = mocker.patch("shutil.move")
-    mock_shutil_move.return_value = None
-    mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
-    mock_lta_checksums.return_value = {
-        "adler32": "89d5efeb",
-        "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
-    }
-    mock_os_path_getsize = mocker.patch("os.path.getsize")
-    mock_os_path_getsize.return_value = 1234567890
-    mock_os_remove = mocker.patch("os.remove")
-    mock_os_remove.return_value = None
-    altfc_mock = mocker.patch("lta.unpacker.Unpacker._add_location_to_file_catalog", new_callable=AsyncMock)
-    altfc_mock.return_value = False
+    with patch("builtins.open", mock_open(read_data=read_data)) as metadata_mock:
+        assert p._read_manifest_metadata_v3("0869ea50-e437-443f-8cdb-31a350f88e57") == result
+    metadata_mock.assert_called_with(mocker.ANY)
+
+
+@patch('builtins.open')
+def test_unpacker_read_manifest_metadata_v3_no_throw(file_open_mock, config, mocker, path_map_mock):
+    """Test that _read_manifest_metadata_v3 will not throw when unable to read metadata."""
+    logger_mock = mocker.MagicMock()
+    file_open_mock.side_effect = NameError
     p = Unpacker(config, logger_mock)
-    BUNDLE_OBJ = {
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
-        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
-        "source": "NERSC",
-        "dest": "WIPAC",
-        "files": [{"logical_name": "/path/to/a/data/file", }],
-    }
-    ndjson_mock_data = MagicMock()
-    ndjson_mock_data.readline = MagicMock()
-    ndjson_mock_data.readline.side_effect = [
-        """{
-            "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
-            "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
-            "source": "NERSC",
-            "dest": "WIPAC"
-        }""",
-        """{
-            "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
-            "file_size": 1234567890,
-            "checksum": {
-                "adler32": "89d5efeb",
-                "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570"
-            }
-        }""",
-        None
-    ]
-    ndjson_mock = MagicMock()
-    ndjson_mock.__enter__.return_value = ndjson_mock_data
-    file_open_mock.side_effect = [
-        FileNotFoundError,
-        ndjson_mock,
-    ]
-    await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
+    assert not p._read_manifest_metadata_v3("0869ea50-e437-443f-8cdb-31a350f88e57")
+
+
+# @pytest.mark.asyncio
+# async def test_unpacker_do_work_bundle_ndjson_metadata(config, mocker, path_map_mock):
+#     """Test that _do_work_bundle does the work of preparing an archive."""
+#     logger_mock = mocker.MagicMock()
+#     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+#     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
+#     mock_zipfile_init.return_value = None
+#     mock_zipfile_write = mocker.patch("zipfile.ZipFile.extractall")
+#     mock_zipfile_write.return_value = None
+#     mock_json_load = mocker.patch("json.load")
+#     mock_json_load.side_effect = [
+#         {
+#             "files": [
+#                 {
+#                     "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
+#                     "file_size": 1234567890,
+#                     "checksum": {
+#                         "adler32": "89d5efeb",
+#                         "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+#                     },
+#                 }
+#             ]
+#         },
+#         {
+#             "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
+#             "file_size": 1234567890,
+#             "checksum": {
+#                 "adler32": "89d5efeb",
+#                 "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570"
+#             }
+#         },
+#     ]
+#     mock_shutil_move = mocker.patch("shutil.move")
+#     mock_shutil_move.return_value = None
+#     mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
+#     mock_lta_checksums.return_value = {
+#         "adler32": "89d5efeb",
+#         "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+#     }
+#     mock_os_path_getsize = mocker.patch("os.path.getsize")
+#     mock_os_path_getsize.return_value = 1234567890
+#     mock_os_remove = mocker.patch("os.remove")
+#     mock_os_remove.side_effect = [
+#         NameError,
+#         None
+#     ]
+#     altfc_mock = mocker.patch("lta.unpacker.Unpacker._add_location_to_file_catalog", new_callable=AsyncMock)
+#     altfc_mock.return_value = False
+#     p = Unpacker(config, logger_mock)
+#     BUNDLE_OBJ = {
+#         "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
+#         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+#         "source": "NERSC",
+#         "dest": "WIPAC",
+#         "files": [{"logical_name": "/path/to/a/data/file", }],
+#     }
+#     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
+#         await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
+#         metadata_mock.assert_called_with(mocker.ANY)
+
+
+# @pytest.mark.asyncio
+# @patch('builtins.open')
+# async def test_unpacker_do_work_bundle_ndjson_metadata(file_open_mock, config, mocker, path_map_mock):
+#     """Test that _do_work_bundle does the work of preparing an archive."""
+#     logger_mock = mocker.MagicMock()
+#     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+#     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
+#     mock_zipfile_init.return_value = None
+#     mock_zipfile_write = mocker.patch("zipfile.ZipFile.extractall")
+#     mock_zipfile_write.return_value = None
+#     mock_json_load = mocker.patch("json.load")
+#     mock_json_load.return_value = {
+#         "files": [
+#             {
+#                 "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
+#                 "file_size": 1234567890,
+#                 "checksum": {
+#                     "adler32": "89d5efeb",
+#                     "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+#                 },
+#             }
+#         ]
+#     }
+#     mock_shutil_move = mocker.patch("shutil.move")
+#     mock_shutil_move.return_value = None
+#     mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
+#     mock_lta_checksums.return_value = {
+#         "adler32": "89d5efeb",
+#         "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+#     }
+#     mock_os_path_getsize = mocker.patch("os.path.getsize")
+#     mock_os_path_getsize.return_value = 1234567890
+#     mock_os_remove = mocker.patch("os.remove")
+#     mock_os_remove.return_value = None
+#     altfc_mock = mocker.patch("lta.unpacker.Unpacker._add_location_to_file_catalog", new_callable=AsyncMock)
+#     altfc_mock.return_value = False
+#     p = Unpacker(config, logger_mock)
+#     BUNDLE_OBJ = {
+#         "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
+#         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+#         "source": "NERSC",
+#         "dest": "WIPAC",
+#         "files": [{"logical_name": "/path/to/a/data/file", }],
+#     }
+#     ndjson_mock_data = MagicMock()
+#     ndjson_mock_data.readline = MagicMock()
+#     ndjson_mock_data.readline.side_effect = [
+#         """{
+#             "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
+#             "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+#             "source": "NERSC",
+#             "dest": "WIPAC"
+#         }""",
+#         """{
+#             "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
+#             "file_size": 1234567890,
+#             "checksum": {
+#                 "adler32": "89d5efeb",
+#                 "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570"
+#             }
+#         }""",
+#         None
+#     ]
+#     ndjson_mock = MagicMock()
+#     ndjson_mock.__enter__.return_value = ndjson_mock_data
+#     file_open_mock.side_effect = [
+#         # FileNotFoundError,
+#         IOError,
+#         ndjson_mock,
+#     ]
+#     with file_open_mock:
+#         await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
