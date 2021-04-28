@@ -5,9 +5,10 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
 import shutil
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, cast, Dict, Optional
 from zipfile import ZipFile
 
 from rest_tools.client import RestClient  # type: ignore
@@ -24,6 +25,7 @@ EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
+    "PATH_MAP_JSON": None,
     "UNPACKER_OUTBOX_PATH": None,
     "UNPACKER_WORKBOX_PATH": None,
     "WORK_RETRIES": "3",
@@ -57,6 +59,8 @@ class Unpacker(Component):
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.workbox_path = config["UNPACKER_WORKBOX_PATH"]
+        path_map_json = Path(config["PATH_MAP_JSON"]).read_text()
+        self.path_map = json.loads(path_map_json)
 
     def _do_status(self) -> Dict[str, Any]:
         """Unpacker has no additional status to contribute."""
@@ -130,22 +134,7 @@ class Unpacker(Component):
         #         }
         #     ],
         # }
-        # first try with version=2 (as above)
-        metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.json")
-        try:
-            with open(metadata_file_path) as metadata_file:
-                metadata_dict = json.load(metadata_file)
-        except Exception:
-            # whoops, let's try version=3; ndjson with a metadata dict followed by file catalog dicts
-            metadata_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.metadata.ndjson")
-            with open(metadata_file_path) as metadata_file:
-                line = metadata_file.readline()
-                metadata_dict = json.loads(line)
-                metadata_dict["files"] = []
-                while line:
-                    line = metadata_file.readline()
-                    file_dict = json.loads(line)
-                    metadata_dict["files"].append(file_dict)
+        metadata_dict = self._read_manifest_metadata(bundle_uuid)
         # 3. Move and verify each file described within the bundle's manifest metadata
         count_idx = 0
         count_max = len(metadata_dict["files"])
@@ -163,7 +152,7 @@ class Unpacker(Component):
                 self.logger.error(f"Error: File '{file_basename}' has size {disk_size} bytes on disk, but the bundle metadata supplied size is {manifest_size} bytes.")
                 raise ValueError(f"File:{file_basename} size Calculated:{disk_size} size Expected:{manifest_size}")
             # move the file to the appropriate location in the data warehouse
-            dest_path = bundle_file["logical_name"]
+            dest_path = self._map_dest_path(bundle_file["logical_name"])
             self.logger.info(f"Moving {file_basename} to the Data Warehouse at {dest_path}")
             shutil.move(file_path, dest_path)
             # check that the checksum matches the expected checksum
@@ -174,15 +163,15 @@ class Unpacker(Component):
                 self.logger.error(f"Error: File '{file_basename}' has sha512 checksum '{disk_checksum['sha512']}' but the bundle metadata supplied checksum '{manifest_checksum}'")
                 raise ValueError(f"File:{file_basename} sha512 Calculated:{disk_checksum['sha512']} sha512 Expected:{manifest_checksum}")
             # add the new location to the file catalog
-            await self._add_location_to_file_catalog(bundle_file)
+            await self._add_location_to_file_catalog(bundle_file, dest_path)
         # 4. Clean up the metadata file
-        self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
-        os.remove(metadata_file_path)
-        self.logger.info(f"Bundle metadata '{metadata_file_path}' was deleted.")
+        self._delete_manifest_metadata(bundle_uuid)
         # 5. Update the bundle record in the LTA DB
         await self._update_bundle_in_lta_db(lta_rc, bundle)
 
-    async def _add_location_to_file_catalog(self, bundle_file: Dict[str, Any]) -> bool:
+    async def _add_location_to_file_catalog(self,
+                                            bundle_file: Dict[str, Any],
+                                            dest_path: str) -> bool:
         """Update File Catalog record with new Data Warehouse location."""
         # configure a RestClient to talk to the File Catalog
         fc_rc = RestClient(self.file_catalog_rest_url,
@@ -190,7 +179,7 @@ class Unpacker(Component):
                            timeout=self.work_timeout_seconds,
                            retries=self.work_retries)
         # extract the right variables from the metadata structure
-        fc_path = bundle_file["logical_name"]
+        fc_path = dest_path
         fc_uuid = bundle_file["uuid"]
         # add the new location to the File Catalog
         new_location = {
@@ -206,6 +195,26 @@ class Unpacker(Component):
         await fc_rc.request("POST", f"/api/files/{fc_uuid}/locations", new_location)
         # indicate that our file catalog updates were successful
         return True
+
+    def _delete_manifest_metadata(self, bundle_uuid: str) -> None:
+        metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.json")
+        self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
+        try:
+            os.remove(metadata_file_path)
+        except Exception:
+            metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.ndjson")
+            try:
+                os.remove(metadata_file_path)
+            except Exception as e:
+                raise e
+        self.logger.info(f"Bundle metadata '{metadata_file_path}' was deleted.")
+
+    def _map_dest_path(self, dest_path: str) -> str:
+        """Use the configured path map to remap the destination path if necessary."""
+        for prefix, remap in self.path_map.items():
+            if dest_path.startswith(prefix):
+                return dest_path.replace(prefix, remap)
+        return dest_path
 
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,
@@ -223,6 +232,48 @@ class Unpacker(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
         except Exception as e:
             self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
+
+    def _read_manifest_metadata(self, bundle_uuid: str) -> Dict[str, Any]:
+        """Read the bundle metadata from the manifest file."""
+        # try with version 2
+        metadata_dict = self._read_manifest_metadata_v2(bundle_uuid)
+        if metadata_dict:
+            return metadata_dict
+        # try with version 3
+        metadata_dict = self._read_manifest_metadata_v3(bundle_uuid)
+        if metadata_dict:
+            return metadata_dict
+        # whoops, we have no idea how to read the manifest
+        raise Exception("Unknown bundle manifest version")
+
+    def _read_manifest_metadata_v2(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
+        """Read the bundle metadata from an older (version 2) manifest file."""
+        metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.json")
+        try:
+            with open(metadata_file_path) as metadata_file:
+                metadata_dict = json.load(metadata_file)
+        except Exception:
+            return None
+        return cast(Dict[str, Any], metadata_dict)
+
+    def _read_manifest_metadata_v3(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
+        """Read the bundle metadata from a newer (version 3) manifest file."""
+        metadata_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.metadata.ndjson")
+        try:
+            with open(metadata_file_path) as metadata_file:
+                # read the JSON for the bundle
+                line = metadata_file.readline()
+                metadata_dict = json.loads(line)
+                metadata_dict["files"] = []
+                # read the JSON for each file in the manifest
+                line = metadata_file.readline()
+                while line:
+                    file_dict = json.loads(line)
+                    metadata_dict["files"].append(file_dict)
+                    line = metadata_file.readline()
+        except Exception:
+            return None
+        return cast(Dict[str, Any], metadata_dict)
 
     async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is unpacked."""
