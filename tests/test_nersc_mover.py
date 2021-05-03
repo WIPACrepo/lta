@@ -222,7 +222,7 @@ async def test_nersc_mover_hpss_not_available(config, mocker):
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=1,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -237,7 +237,7 @@ async def test_nersc_mover_do_work_pop_exception(config, mocker):
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -258,7 +258,7 @@ async def test_nersc_mover_do_work_claim_no_result(config, mocker):
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -282,7 +282,7 @@ async def test_nersc_mover_do_work_claim_yes_result(config, mocker):
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -308,7 +308,7 @@ async def test_nersc_mover_do_work_claim_write_bundle_raise_exception(config, mo
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -336,7 +336,7 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config, mocker):
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -354,7 +354,7 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config, mocker):
     ehc_mock.return_value = False
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'])
+    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'])
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
@@ -365,7 +365,7 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config, mocker):
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -383,7 +383,7 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config, mocker):
     ehc_mock.side_effect = [True, False]
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
@@ -394,7 +394,7 @@ async def test_nersc_mover_write_bundle_to_hpss(config, mocker):
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -415,7 +415,7 @@ async def test_nersc_mover_write_bundle_to_hpss(config, mocker):
     ehc_mock.side_effect = [True, True]
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
@@ -427,13 +427,13 @@ async def test_nersc_mover_execute_hsi_command_failed(config, mocker):
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            args=["/usr/common/software/bin/hpss_avail", "archive"],
             stdout="some text on stdout",
             stderr="some text on stderr",
         ),
         ObjectLiteral(
             returncode=1,
-            args=['/usr/common/mss/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'],
+            args=['/usr/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'],
             stdout="some text on stdout",
             stderr="some text on stderr",
         )
@@ -464,7 +464,7 @@ async def test_nersc_mover_execute_hsi_command_success(config, mocker):
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            args=["/usr/common/software/bin/hpss_avail", "archive"],
             stdout="some text on stdout",
             stderr="some text on stderr",
         ),

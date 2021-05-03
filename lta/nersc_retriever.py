@@ -2,6 +2,7 @@
 """Module to implement the NerscRetriever component of the Long Term Archive."""
 
 import asyncio
+from logging import Logger
 import logging
 import os
 from subprocess import PIPE, run
@@ -15,7 +16,6 @@ from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
 
-Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
@@ -80,7 +80,7 @@ class NerscRetriever(Component):
         """Claim a bundle and perform work on it."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
-        args = ["/usr/common/mss/bin/hpss_avail", "archive"]
+        args = ["/usr/common/software/bin/hpss_avail", "archive"]
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
@@ -134,7 +134,7 @@ class NerscRetriever(Component):
         #     get       -> read the source path from the hpss system to the dest path
         #     -c on     -> turn on the verification of checksums by the hpss system
         #     :         -> HPSS ... ¯\_(ツ)_/¯
-        args = ["/usr/common/mss/bin/hsi", "get", "-c", "on", output_path, ":", hpss_path]
+        args = ["/usr/bin/hsi", "get", "-c", "on", output_path, ":", hpss_path]
         if not await self._execute_hsi_command(lta_rc, bundle, args):
             return False
         # update the Bundle in the LTA DB

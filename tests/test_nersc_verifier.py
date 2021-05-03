@@ -152,7 +152,7 @@ async def test_nersc_verifier_hpss_not_available(config, mocker):
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=1,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -167,7 +167,7 @@ async def test_nersc_verifier_do_work_pop_exception(config, mocker):
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            args=["/usr/common/software/bin/hpss_avail", "archive"],
             stdout="some text on stdout",
             stderr="some text on stderr",
         ),
@@ -213,7 +213,7 @@ async def test_nersc_verifier_do_work_claim_no_result(config, mocker):
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            args=["/usr/common/software/bin/hpss_avail", "archive"],
             stdout="some text on stdout",
             stderr="some text on stderr",
         ),
@@ -242,7 +242,7 @@ async def test_nersc_verifier_do_work_claim_yes_result(config, mocker):
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            args=["/usr/common/software/bin/hpss_avail", "archive"],
             stdout="some text on stdout",
             stderr="some text on stderr",
         ),
@@ -274,7 +274,7 @@ async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config,
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            args=["/usr/common/software/bin/hpss_avail", "archive"],
             stdout="some text on stdout",
             stderr="some text on stderr",
         ),
@@ -310,7 +310,7 @@ async def test_nersc_verifier_do_work_claim_exception_caught(config, mocker):
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            args=["/usr/common/software/bin/hpss_avail", "archive"],
             stdout="some text on stdout",
             stderr="some text on stderr",
         ),
