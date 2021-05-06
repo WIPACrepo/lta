@@ -144,9 +144,11 @@ class GridFTP(object):
         tmpdir = None
         if filename is None:
             tmpdir = tempfile.mkdtemp(dir=os.getcwd())
-            dest = 'file:'+os.path.join(tmpdir, 'get_tmp_file')
+            #dest = 'file:'+os.path.join(tmpdir, 'get_tmp_file')
+            dest = 'gsiftp://gridftp.icecube.wisc.edu:2811'+os.path.join(tmpdir, 'get_tmp_file')
         else:
-            dest = 'file:'+filename
+            #dest = 'file:'+filename
+            dest = 'gsiftp://gridftp.icecube.wisc.edu:2811'+filename
 
         cmd = ['globus-url-copy', address, dest]
 
@@ -187,11 +189,13 @@ class GridFTP(object):
         tmpdir = None
         if data is not None:
             tmpdir = tempfile.mkdtemp(dir=os.getcwd())
-            src = 'file:'+os.path.join(tmpdir, 'put_tmp_file')
+            #src = 'file:'+os.path.join(tmpdir, 'put_tmp_file')
+            src = 'gsiftp://gridftp.icecube.wisc.edu:2811'+os.path.join(tmpdir, 'put_tmp_file')
             with open(src[5:], 'w' if isinstance(data, str) else 'wb') as f:
                 f.write(data)
         elif filename is not None:
-            src = 'file:'+filename
+            #src = 'file:'+filename
+            src = 'gsiftp://gridftp.icecube.wisc.edu:2811'+filename
         else:
             raise Exception('Neither data or filename is defined')
 
@@ -475,7 +479,8 @@ class GridFTP(object):
             type = type[:-3]
 
         tmpdir = tempfile.mkdtemp(dir=os.getcwd())
-        dest = 'file:'+os.path.join(tmpdir, 'dest')
+        #dest = 'file:'+os.path.join(tmpdir, 'dest')
+        dest = 'gsiftp://gridftp.icecube.wisc.edu:2811'+os.path.join(tmpdir, 'dest')
 
         cmd = ['globus-url-copy', address, dest]
 
