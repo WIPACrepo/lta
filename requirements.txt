@@ -4,6 +4,7 @@ flake8==3.9.2
 hurry.filesize==0.9
 motor==2.4.0
 mypy==0.812
+numpy==1.20.3
 prometheus-client==0.10.1
 pycycle==0.0.8
 pymongo==3.11.4
