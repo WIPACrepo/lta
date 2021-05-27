@@ -27,10 +27,9 @@ setup(
     url="https://github.com/WIPACrepo/lta",
     # package_data={shop.name: ["py.typed"]},
     **shop.get_kwargs(
-        subpackages=["client", "server", "utils"],
+        subpackages=["transfer"],
         other_classifiers=[
             "Operating System :: POSIX :: Linux",
-            "Topic :: Internet :: WWW/HTTP",
             "Topic :: System :: Distributed Computing",
             "Programming Language :: Python :: 3",
             "Programming Language :: Python :: Implementation :: CPython",
