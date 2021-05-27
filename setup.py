@@ -6,6 +6,10 @@ from setuptools import setup  # type: ignore[import]
 import subprocess
 
 subprocess.run(
+    "pip install --upgrade pip".split(),
+    check=True,
+)
+subprocess.run(
     "pip install git+https://github.com/WIPACrepo/wipac-dev-tools.git".split(),
     check=True,
 )
