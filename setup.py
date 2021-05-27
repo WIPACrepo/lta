@@ -21,7 +21,6 @@ shop = SetupShop(
 setup(
     scripts=glob.glob("bin/*"),
     url="https://github.com/WIPACrepo/lta",
-    license="https://github.com/WIPACrepo/lta/blob/master/LICENSE",
     # package_data={shop.name: ["py.typed"]},
     **shop.get_kwargs(
         subpackages=["client", "server", "utils"],
