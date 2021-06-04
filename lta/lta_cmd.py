@@ -16,7 +16,6 @@ from time import mktime, strptime
 from typing import Any, Dict, List, Optional, Tuple
 
 import colorama  # type: ignore
-from colorama import Fore, Style  # Back
 import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
@@ -25,6 +24,9 @@ from lta.component import now
 from lta.crypto import sha512sum
 
 Namespace = argparse.Namespace
+
+Fore = colorama.Fore
+Style = colorama.Style
 
 ExitCode = int
 EXIT_OK = 0
