@@ -18,7 +18,7 @@ from wipac_dev_tools import SetupShop  # noqa: E402  # pylint: disable=C0413
 shop = SetupShop(
     "lta",
     os.path.abspath(os.path.dirname(__file__)),
-    ((3, 7), (3, 10)),
+    ((3, 7), (3, 9)),
     "LTA is the Long Term Archive service and related tools, developed for the IceCube Collaboration.",
 )
 

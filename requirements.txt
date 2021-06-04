@@ -14,4 +14,3 @@ pytest-mock==3.6.1
 requests==2.25.1
 git+https://github.com/WIPACrepo/rest-tools@v1.1.6#egg=rest_tools
 tornado==6.1
-git+https://github.com/WIPACrepo/wipac-dev-tools@v1.0.10#egg=wipac_dev_tools
