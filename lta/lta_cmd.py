@@ -85,6 +85,16 @@ def normalize_path(path: str) -> str:
             return path
     raise ValueError(f"{path} does not begin with a prefix on the allow-list prefix")
 
+def print_catalog_record_as_line(d: Dict[str, Any]) -> None:
+    """Print the provided File Catalog record as a stat line."""
+    date = d["meta_modify_date"][:19]
+    if "create_date" in d:
+        date = d["create_date"].replace("T", " ")
+    size = d["file_size"]
+    uuid = d["uuid"]
+    logical_name = d["logical_name"]
+    print(f"{date} | {size} | {uuid} | {logical_name}")
+
 def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
     """Print the provided Dict as pretty-print JSON."""
     print(json.dumps(d, indent=4, sort_keys=True))
@@ -211,6 +221,40 @@ def _get_status_bar(status_list: List[str],
     # return the status bar to the caller
     return sb
 
+
+def _is_nersc_bundle_record(d: Dict[str, Any]) -> bool:
+    """Determine if the provided catalog record is a bundle at NERSC."""
+    # if we didn't get a record, this is not a bundle at NERSC
+    if not d:
+        raise Exception("bad record")
+        return False
+    # if the record doesn't contain locations, this is not a bundle at NERSC
+    if "locations" not in d:
+        raise Exception("no locations")
+        return False
+    # for each location
+    all_good = False
+    for location in d["locations"]:
+        # if the location record doesn't have the appropriate keys, skip it
+        if "site" not in location:
+            continue
+        if "hpss" not in location:
+            continue
+        if "online" not in location:
+            continue
+        # if this isn't a NERSC location, skip it
+        if location["site"] != "NERSC":
+            continue
+        # if this isn't on hpss, skip it
+        if not location["hpss"]:
+            continue
+        # if this record is online, skip it
+        if location["online"]:
+            continue
+        # winner, winner, chicken dinner!
+        all_good = True
+    # tell the caller what we think about the record
+    return all_good
 
 # -----------------------------------------------------------------------------
 
@@ -420,6 +464,48 @@ async def catalog_display(args: Namespace) -> ExitCode:
         print_dict_as_pretty_json({})
 
     return EXIT_OK
+
+
+async def catalog_stats(args: Namespace) -> ExitCode:
+    """Query for the bundles archived at NERSC."""
+    exit_code = EXIT_OK
+
+    # we want files at NERSC that are not contained within archives
+    query_dict = {
+        "logical_name": {
+            "$regex": "^/home/projects/icecube"
+        },
+        "locations.site": {
+            "$eq": "NERSC"
+        },
+    }
+    query_json = json.dumps(query_dict)
+    keys = "create_date|file_size|locations|logical_name|meta_modify_date|uuid"
+    start = 0
+    limit = 500
+    finished = False
+
+    # until we're done querying the File Catalog
+    while not finished:
+        # ask it for another {limit} file records to check
+        fc_response = await args.di["fc_rc"].request('GET', f'/api/files?query={query_json}&keys={keys}&start={start}&limit={limit}')
+        # for each record we got back
+        for catalog_file in fc_response["files"]:
+            # if it's an LTA bundle at NERSC
+            if _is_nersc_bundle_record(catalog_file):
+                # display the record
+                print_catalog_record_as_line(catalog_file)
+
+        # if we got {limit} file records to check
+        if len(fc_response["files"]) == limit:
+            # then update our indexes to check the next bunch
+            start = start + limit
+        else:
+            # otherwise, this was the last bunch, we're done
+            finished = True
+
+    # return the appropriate exit code based on what we found
+    return exit_code
 
 
 async def dashboard(args: Namespace) -> ExitCode:
@@ -879,6 +965,10 @@ async def main() -> None:
     parser_catalog_display.add_argument("--uuid",
                                         help="Catalog UUID to be displayed")
     parser_catalog_display.set_defaults(func=catalog_display)
+
+    # define a subparser for the 'catalog stats' subcommand
+    parser_catalog_stats = catalog_subparser.add_parser('stats', help='display the bundles archived to NERSC')
+    parser_catalog_stats.set_defaults(func=catalog_stats)
 
     # define a subparser for the 'dashboard' subcommand
     parser_dashboard_config = subparser.add_parser('dashboard', help='dashboard system dashboard')
