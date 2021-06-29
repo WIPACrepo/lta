@@ -137,6 +137,7 @@ class NerscVerifier(Component):
         hpss_path = os.path.normpath(stupid_python_path)
         # create a File Catalog entry for the bundle itself
         bundle_uuid = bundle["uuid"]
+        right_now = now()
         file_record = {
             "uuid": bundle_uuid,
             "logical_name": hpss_path,
@@ -150,6 +151,9 @@ class NerscVerifier(Component):
                 }
             ],
             "file_size": bundle["size"],
+            "lta": {
+                "date_archived": right_now,
+            },
         }
         # add the bundle file to the File Catalog
         try:

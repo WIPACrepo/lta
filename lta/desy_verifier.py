@@ -117,6 +117,7 @@ class DesyVerifier(Component):
         basename = os.path.basename(bundle["bundle_path"])  # 604b6c80659c11eb8ad66224ddddaab7.zip
         desy_tape_path = join_smart([self.tape_base_path, data_warehouse_path, basename])
         # create a File Catalog entry for the bundle itself
+        right_now = now()
         file_record = {
             "uuid": bundle["uuid"],
             "logical_name": desy_tape_path,
@@ -129,6 +130,9 @@ class DesyVerifier(Component):
                 }
             ],
             "file_size": bundle["size"],
+            "lta": {
+                "date_archived": right_now,
+            },
         }
         # add the bundle file to the File Catalog
         try:
