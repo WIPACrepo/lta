@@ -226,11 +226,9 @@ def _is_nersc_bundle_record(d: Dict[str, Any]) -> bool:
     """Determine if the provided catalog record is a bundle at NERSC."""
     # if we didn't get a record, this is not a bundle at NERSC
     if not d:
-        raise Exception("bad record")
         return False
     # if the record doesn't contain locations, this is not a bundle at NERSC
     if "locations" not in d:
-        raise Exception("no locations")
         return False
     # for each location
     all_good = False
