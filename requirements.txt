@@ -1,4 +1,4 @@
-binpacking==1.4.5
+binpacking==1.5.0
 colorama==0.4.4
 flake8==3.9.2
 hurry.filesize==0.9
