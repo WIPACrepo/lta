@@ -207,20 +207,6 @@ class SiteMoveVerifier(Component):
         # otherwise, we succeeded
         return completed_process.stdout.decode("utf-8")
 
-    # async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
-    #     """Run the myquota command to determine disk usage at the site."""
-    #     self.logger.info("Bundle is not ready to be verified; will unclaim it.")
-    #     bundle_id = bundle["uuid"]
-    #     right_now = now()
-    #     patch_body: Dict[str, Any] = {
-    #         "update_timestamp": right_now,
-    #         "claimed": False,
-    #         "work_priority_timestamp": right_now,
-    #     }
-    #     self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-    #     await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-    #     return True
-
 
 def runner() -> None:
     """Configure a SiteMoveVerifier component from the environment and set it running."""
