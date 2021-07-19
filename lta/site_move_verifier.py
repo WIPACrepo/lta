@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .crypto import sha512sum
@@ -96,6 +97,7 @@ class SiteMoveVerifier(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -105,6 +107,7 @@ class SiteMoveVerifier(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be verified
@@ -132,6 +135,7 @@ class SiteMoveVerifier(Component):
         # if we were successful at processing work, let the caller know
         return True
 
+    @wtt.spanned()
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,
                                  bundle: BundleType,
@@ -149,6 +153,7 @@ class SiteMoveVerifier(Component):
         except Exception as e:
             self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
+    @wtt.spanned()
     async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the provided Bundle with the transfer service and update the LTA DB."""
         # get our ducks in a row
@@ -188,6 +193,7 @@ class SiteMoveVerifier(Component):
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
+    @wtt.spanned()
     def _execute_myquota(self) -> Optional[str]:
         """Run the myquota command to determine disk usage at the site."""
         completed_process = run(MYQUOTA_ARGS, stdout=PIPE, stderr=PIPE)
@@ -201,19 +207,19 @@ class SiteMoveVerifier(Component):
         # otherwise, we succeeded
         return completed_process.stdout.decode("utf-8")
 
-    async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
-        """Run the myquota command to determine disk usage at the site."""
-        self.logger.info("Bundle is not ready to be verified; will unclaim it.")
-        bundle_id = bundle["uuid"]
-        right_now = now()
-        patch_body: Dict[str, Any] = {
-            "update_timestamp": right_now,
-            "claimed": False,
-            "work_priority_timestamp": right_now,
-        }
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-        return True
+    # async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+    #     """Run the myquota command to determine disk usage at the site."""
+    #     self.logger.info("Bundle is not ready to be verified; will unclaim it.")
+    #     bundle_id = bundle["uuid"]
+    #     right_now = now()
+    #     patch_body: Dict[str, Any] = {
+    #         "update_timestamp": right_now,
+    #         "claimed": False,
+    #         "work_priority_timestamp": right_now,
+    #     }
+    #     self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+    #     await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+    #     return True
 
 
 def runner() -> None:

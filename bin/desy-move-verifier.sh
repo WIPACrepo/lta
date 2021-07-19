@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-site-move-verifier"}
-export DEST_SITE=${DEST_SITE:="NERSC"}
+export DEST_SITE=${DEST_SITE:="DESY"}
 #export GLOBUS_PROXY_OUTPUT=${GLOBUS_PROXY_OUTPUT:=""}
 #export GLOBUS_PROXY_PASSPHRASE=${GLOBUS_PROXY_PASSPHRASE:="hunter2"}  # http://bash.org/?244321
 #export GLOBUS_PROXY_VOMS_ROLE=${GLOBUS_PROXY_VOMS_ROLE:=""}
