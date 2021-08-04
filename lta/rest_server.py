@@ -19,8 +19,6 @@ from rest_tools.utils.json_util import json_decode  # type: ignore
 from rest_tools.server import authenticated, catch_error, from_environment, RestHandler, RestHandlerSetup, RestServer  # type: ignore
 import tornado.web
 
-import wipac_telemetry.tracing_tools as wtt
-
 ASCENDING = pymongo.ASCENDING
 MongoClient = pymongo.MongoClient
 
