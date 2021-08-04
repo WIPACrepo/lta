@@ -9,6 +9,8 @@ import sys
 from typing import Callable, Dict, Tuple
 import webbrowser
 
+from lta import __version__
+
 
 def run(cmd) -> None:
     """Run the command and raise a CalledProcessError if the return code is nonzero."""
@@ -73,14 +75,8 @@ def do_docker_task() -> None:
     """Build a Docker image for the project."""
     do_clean_task()
     do_rebuild_task()
-    current_path = os.path.dirname(os.path.realpath(__file__))
-    version = 'SNAPSHOT'
-    with open(os.path.join(current_path, 'lta', '__init__.py')) as f:
-        for line in f.readlines():
-            if '__version__' in line:
-                version = line.split('=')[-1].split('\'')[1]
-    run(["docker", "build", "-t", f"wipac/lta:{version}", "-f", "Dockerfile", "."])
-    run(["docker", "image", "tag", f"wipac/lta:{version}", "wipac/lta:latest"])
+    run(["docker", "build", "-t", f"wipac/lta:{__version__}", "-f", "Dockerfile", "."])
+    run(["docker", "image", "tag", f"wipac/lta:{__version__}", "wipac/lta:latest"])
 
 
 def do_lint_task() -> None:
