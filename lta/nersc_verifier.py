@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
@@ -70,6 +71,7 @@ class NerscVerifier(Component):
         """NerscVerifier provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -79,6 +81,7 @@ class NerscVerifier(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 0. Do some pre-flight checks to ensure that we can do work
@@ -123,6 +126,7 @@ class NerscVerifier(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
         return False
 
+    @wtt.spanned()
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records."""
         # configure a RestClient to talk to the File Catalog
@@ -170,6 +174,7 @@ class NerscVerifier(Component):
         # indicate that our file catalog updates were successful
         return True
 
+    @wtt.spanned()
     async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is verified."""
         bundle_uuid = bundle["uuid"]
@@ -184,6 +189,7 @@ class NerscVerifier(Component):
         # the morning sun has vanquished the horrible night
         return True
 
+    @wtt.spanned()
     async def _update_files_in_file_catalog(self,
                                             fc_rc: RestClient,
                                             lta_rc: RestClient,
@@ -240,6 +246,7 @@ class NerscVerifier(Component):
         # the morning sun has vanquished the horrible night
         return True
 
+    @wtt.spanned()
     async def _verify_bundle_in_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the checksum of the bundle in HPSS."""
         bundle_uuid = bundle["uuid"]

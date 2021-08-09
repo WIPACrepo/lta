@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
@@ -69,6 +70,7 @@ class NerscMover(Component):
         """NerscMover provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -78,6 +80,7 @@ class NerscMover(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 0. Do some pre-flight checks to ensure that we can do work
@@ -120,6 +123,7 @@ class NerscMover(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return False
 
+    @wtt.spanned()
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Replicate the supplied bundle using the configured transfer service."""
         bundle_id = bundle["uuid"]
@@ -158,6 +162,7 @@ class NerscMover(Component):
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
+    @wtt.spanned()
     async def _execute_hsi_command(self, lta_rc: RestClient, bundle: BundleType, args: List[str]) -> bool:
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed

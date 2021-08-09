@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .joiner import join_smart_url
@@ -71,6 +72,7 @@ class GridFTPReplicator(Component):
         """GridFTPReplicator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -80,6 +82,7 @@ class GridFTPReplicator(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be transferred
@@ -107,6 +110,7 @@ class GridFTPReplicator(Component):
         # if we were successful at processing work, let the caller know
         return True
 
+    @wtt.spanned()
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,
                                  bundle: BundleType,
@@ -124,6 +128,7 @@ class GridFTPReplicator(Component):
         except Exception as e:
             self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
+    @wtt.spanned()
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""
         # get our ducks in a row

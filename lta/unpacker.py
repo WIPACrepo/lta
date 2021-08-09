@@ -13,6 +13,7 @@ from zipfile import ZipFile
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .crypto import lta_checksums
@@ -70,6 +71,7 @@ class Unpacker(Component):
         """Unpacker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -79,6 +81,7 @@ class Unpacker(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be unpacked
@@ -106,6 +109,7 @@ class Unpacker(Component):
         # signal the work was processed successfully
         return True
 
+    @wtt.spanned()
     async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""
         # 0. Get our ducks in a row about what we're doing here
@@ -169,6 +173,7 @@ class Unpacker(Component):
         # 5. Update the bundle record in the LTA DB
         await self._update_bundle_in_lta_db(lta_rc, bundle)
 
+    @wtt.spanned()
     async def _add_location_to_file_catalog(self,
                                             bundle_file: Dict[str, Any],
                                             dest_path: str) -> bool:
@@ -196,6 +201,7 @@ class Unpacker(Component):
         # indicate that our file catalog updates were successful
         return True
 
+    @wtt.spanned()
     def _delete_manifest_metadata(self, bundle_uuid: str) -> None:
         metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.json")
         self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
@@ -209,6 +215,7 @@ class Unpacker(Component):
                 raise e
         self.logger.info(f"Bundle metadata '{metadata_file_path}' was deleted.")
 
+    @wtt.spanned()
     def _map_dest_path(self, dest_path: str) -> str:
         """Use the configured path map to remap the destination path if necessary."""
         for prefix, remap in self.path_map.items():
@@ -216,6 +223,7 @@ class Unpacker(Component):
                 return dest_path.replace(prefix, remap)
         return dest_path
 
+    @wtt.spanned()
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,
                                  bundle: BundleType,
@@ -233,19 +241,23 @@ class Unpacker(Component):
         except Exception as e:
             self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
+    @wtt.spanned()
     def _read_manifest_metadata(self, bundle_uuid: str) -> Dict[str, Any]:
         """Read the bundle metadata from the manifest file."""
         # try with version 2
         metadata_dict = self._read_manifest_metadata_v2(bundle_uuid)
         if metadata_dict:
-            return metadata_dict
+            # return metadata_dict
+            return cast(Dict[str, Any], metadata_dict)
         # try with version 3
         metadata_dict = self._read_manifest_metadata_v3(bundle_uuid)
         if metadata_dict:
-            return metadata_dict
+            # return metadata_dict
+            return cast(Dict[str, Any], metadata_dict)
         # whoops, we have no idea how to read the manifest
         raise Exception("Unknown bundle manifest version")
 
+    @wtt.spanned()
     def _read_manifest_metadata_v2(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
         """Read the bundle metadata from an older (version 2) manifest file."""
         metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.json")
@@ -256,6 +268,7 @@ class Unpacker(Component):
             return None
         return cast(Dict[str, Any], metadata_dict)
 
+    @wtt.spanned()
     def _read_manifest_metadata_v3(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
         """Read the bundle metadata from a newer (version 3) manifest file."""
         metadata_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.metadata.ndjson")
@@ -275,6 +288,7 @@ class Unpacker(Component):
             return None
         return cast(Dict[str, Any], metadata_dict)
 
+    @wtt.spanned()
     async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is unpacked."""
         bundle_id = bundle["uuid"]

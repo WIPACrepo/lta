@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Union
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
@@ -53,6 +54,7 @@ class TransferRequestFinisher(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -62,6 +64,7 @@ class TransferRequestFinisher(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be deleted
@@ -85,6 +88,7 @@ class TransferRequestFinisher(Component):
         # even if we processed a Bundle, take a break between Bundles
         return False
 
+    @wtt.spanned()
     async def _update_transfer_request(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """
         Update the TransferRequest that spawned the Bundle.

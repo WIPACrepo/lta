@@ -12,6 +12,7 @@ from zipfile import ZIP_STORED, ZipFile
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .crypto import lta_checksums
@@ -67,6 +68,7 @@ class Bundler(Component):
         """Bundler provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -76,6 +78,7 @@ class Bundler(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be built
@@ -108,6 +111,7 @@ class Bundler(Component):
         # signal the work was processed successfully
         return True
 
+    @wtt.spanned()
     async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here
         bundle_uuid = bundle["uuid"]
@@ -157,6 +161,7 @@ class Bundler(Component):
         self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{bundle}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', bundle)
 
+    @wtt.spanned()
     async def _create_bundle_archive(self,
                                      fc_rc: RestClient,
                                      lta_rc: RestClient,
@@ -202,6 +207,7 @@ class Bundler(Component):
             self.logger.error(error_message)
             raise Exception(error_message)
 
+    @wtt.spanned()
     async def _create_metadata_file(self,
                                     fc_rc: RestClient,
                                     lta_rc: RestClient,
@@ -254,6 +260,7 @@ class Bundler(Component):
             self.logger.error(error_message)
             raise Exception(error_message)
 
+    @wtt.spanned()
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,
                                  bundle: BundleType,

@@ -195,7 +195,7 @@ should happen automatically after 30 seconds.
 Here are some commands to get the Docker container pushed to our Docker
 register in our Kubernetes cluster:
 
-    kubectl -n kube-system port-forward $(kubectl get pods --namespace kube-system -l "app=docker-registry,release=docker-registry" -o jsonpath="{.items[0].metadata.name}") 5000:5000 &
+    kubectl -n kube-system port-forward $(kubectl get pods --namespace kube-system -l "app=docker-registry" -o jsonpath="{.items[0].metadata.name}") 5000:5000 &
     docker tag wipac/lta:0.0.5 localhost:5000/wipac/lta:0.0.5
     docker push localhost:5000/wipac/lta:0.0.5
 
