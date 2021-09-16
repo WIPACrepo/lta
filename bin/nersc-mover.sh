@@ -11,7 +11,7 @@ export INPUT_STATUS=${INPUT_STATUS:="taping"}
 export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(resources/solicit-token.sh)"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export MAX_COUNT=${MAX_COUNT:="2"}
-export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="localhost:4317"}
+export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="verifying"}
 export RSE_BASE_PATH=${RSE_BASE_PATH:="/global/cscratch1/sd/icecubed/jade-disk/lta"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="True"}

@@ -8,7 +8,7 @@ export INPUT_PATH=${INPUT_PATH:="/mnt/lfss/jade-lta/bundler_stage"}
 export INPUT_STATUS=${INPUT_STATUS:="created"}
 export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(<service-token)"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
-export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="localhost:4317"}
+export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_PATH=${OUTPUT_PATH:="/mnt/lfss/jade-lta/bundler_todesy"}
 export OUTPUT_QUOTA=${OUTPUT_QUOTA:="2199023255552"}  # 2 TiB
 export OUTPUT_STATUS=${OUTPUT_STATUS:="staged"}

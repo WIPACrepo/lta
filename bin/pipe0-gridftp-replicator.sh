@@ -22,7 +22,7 @@ export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"
 export INPUT_STATUS=${INPUT_STATUS:="staged"}
 export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(<service-token)"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
-export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="localhost:4317"}
+export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="transferring"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="False"}
 export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
