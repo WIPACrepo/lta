@@ -400,7 +400,8 @@ async def test_unpacker_do_work_bundle(config, mocker, path_map_mock):
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
         "source": "NERSC",
         "dest": "WIPAC",
-        "files": [{"logical_name": "/path/to/a/data/file", }],
+        "path": "/full/path/to/file",
+        "files": [{"logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2", }],
     }
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
         await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
@@ -448,7 +449,8 @@ async def test_unpacker_do_work_bundle_mismatch_size(config, mocker, path_map_mo
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
         "source": "NERSC",
         "dest": "WIPAC",
-        "files": [{"logical_name": "/path/to/a/data/file", }],
+        "path": "/full/path/to/file",
+        "files": [{"logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2", }],
     }
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
         with pytest.raises(Exception):
@@ -497,7 +499,8 @@ async def test_unpacker_do_work_bundle_mismatch_checksum(config, mocker, path_ma
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
         "source": "NERSC",
         "dest": "WIPAC",
-        "files": [{"logical_name": "/path/to/a/data/file", }],
+        "path": "/full/path/to/file",
+        "files": [{"logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2", }],
     }
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
         with pytest.raises(Exception):
@@ -546,7 +549,8 @@ async def test_unpacker_do_work_bundle_path_remapping(config, mocker, path_map_m
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
         "source": "NERSC",
         "dest": "WIPAC",
-        "files": [{"logical_name": "/path/to/a/data/file", }],
+        "path": "/mnt/lfs7/IceCube/2013/filtered/PFFilt/1109",
+        "files": [{"logical_name": "/mnt/lfs7/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2", }],
     }
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
         await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
