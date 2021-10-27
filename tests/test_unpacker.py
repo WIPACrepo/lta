@@ -14,6 +14,7 @@ from .test_util import AsyncMock
 def config():
     """Supply a stock Unpacker component configuration."""
     return {
+        "CLEAN_OUTBOX": "TRUE",
         "COMPONENT_NAME": "testing-unpacker",
         "DEST_SITE": "WIPAC",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-token",
@@ -143,6 +144,7 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
     """Test to make sure the Unpacker logs its configuration."""
     logger_mock = mocker.MagicMock()
     unpacker_config = {
+        "CLEAN_OUTBOX": "true",
         "COMPONENT_NAME": "logme-testing-unpacker",
         "DEST_SITE": "WIPAC",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-token",
@@ -166,6 +168,7 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
     Unpacker(unpacker_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("unpacker 'logme-testing-unpacker' is configured:"),
+        call('CLEAN_OUTBOX = true'),
         call('COMPONENT_NAME = logme-testing-unpacker'),
         call('DEST_SITE = WIPAC'),
         call('FILE_CATALOG_REST_TOKEN = fake-file-catalog-token'),
@@ -392,6 +395,8 @@ async def test_unpacker_do_work_bundle(config, mocker, path_map_mock):
     mock_os_path_getsize.return_value = 1234567890
     mock_os_remove = mocker.patch("os.remove")
     mock_os_remove.return_value = None
+    mock_os_scandir = mocker.patch("os.scandir")
+    mock_os_scandir.return_value.__enter__.return_value = []
     altfc_mock = mocker.patch("lta.unpacker.Unpacker._add_location_to_file_catalog", new_callable=AsyncMock)
     altfc_mock.return_value = False
     p = Unpacker(config, logger_mock)
@@ -541,6 +546,8 @@ async def test_unpacker_do_work_bundle_path_remapping(config, mocker, path_map_m
     mock_os_path_getsize.return_value = 1234567890
     mock_os_remove = mocker.patch("os.remove")
     mock_os_remove.return_value = None
+    mock_os_scandir = mocker.patch("os.scandir")
+    mock_os_scandir.return_value.__enter__.return_value = []
     altfc_mock = mocker.patch("lta.unpacker.Unpacker._add_location_to_file_catalog", new_callable=AsyncMock)
     altfc_mock.return_value = False
     p = Unpacker(config, logger_mock)
@@ -647,3 +654,73 @@ def test_unpacker_read_manifest_metadata_v3_no_throw(file_open_mock, config, moc
     file_open_mock.side_effect = NameError
     p = Unpacker(config, logger_mock)
     assert not p._read_manifest_metadata_v3("0869ea50-e437-443f-8cdb-31a350f88e57")
+
+
+def test_unpacker_clean_outbox_directory_bail_early(config, mocker, path_map_mock):
+    """Test that _clean_outbox_directory will bail when configured not to clean."""
+    logger_mock = mocker.MagicMock()
+    config["CLEAN_OUTBOX"] = "FALSE"
+    mock_os_scandir = mocker.patch("os.scandir")
+    p = Unpacker(config, logger_mock)
+    p._clean_outbox_directory()
+    mock_os_scandir.assert_not_called()
+
+
+def test_unpacker_clean_outbox_directory_empty(config, mocker, path_map_mock):
+    """Test that _clean_outbox_directory will bail when configured not to clean."""
+    logger_mock = mocker.MagicMock()
+    mock_os_scandir = mocker.patch("os.scandir")
+    mock_os_scandir.return_value.__enter__.return_value = []
+    mock_os_remove = mocker.patch("os.remove")
+    mock_shutil_rmtree = mocker.patch("shutil.rmtree")
+    p = Unpacker(config, logger_mock)
+    p._clean_outbox_directory()
+    mock_os_remove.assert_not_called()
+    mock_shutil_rmtree.assert_not_called()
+
+
+def test_unpacker_clean_outbox_directory_file(config, mocker, path_map_mock):
+    """Test that _clean_outbox_directory will bail when configured not to clean."""
+    logger_mock = mocker.MagicMock()
+    mock_os_scandir = mocker.patch("os.scandir")
+    direntry = mocker.MagicMock()
+    direntry.is_file.return_value = True
+    mock_os_scandir.return_value.__enter__.return_value = [direntry]
+    mock_os_remove = mocker.patch("os.remove")
+    mock_shutil_rmtree = mocker.patch("shutil.rmtree")
+    p = Unpacker(config, logger_mock)
+    p._clean_outbox_directory()
+    mock_os_remove.assert_called()
+    mock_shutil_rmtree.assert_not_called()
+
+
+def test_unpacker_clean_outbox_directory_directory(config, mocker, path_map_mock):
+    """Test that _clean_outbox_directory will bail when configured not to clean."""
+    logger_mock = mocker.MagicMock()
+    mock_os_scandir = mocker.patch("os.scandir")
+    direntry = mocker.MagicMock()
+    direntry.is_file.return_value = False
+    direntry.is_dir.return_value = True
+    mock_os_scandir.return_value.__enter__.return_value = [direntry]
+    mock_os_remove = mocker.patch("os.remove")
+    mock_shutil_rmtree = mocker.patch("shutil.rmtree")
+    p = Unpacker(config, logger_mock)
+    p._clean_outbox_directory()
+    mock_os_remove.assert_not_called()
+    mock_shutil_rmtree.assert_called()
+
+
+def test_unpacker_clean_outbox_directory_unknown(config, mocker, path_map_mock):
+    """Test that _clean_outbox_directory will bail when configured not to clean."""
+    logger_mock = mocker.MagicMock()
+    mock_os_scandir = mocker.patch("os.scandir")
+    direntry = mocker.MagicMock()
+    direntry.is_file.return_value = False
+    direntry.is_dir.return_value = False
+    mock_os_scandir.return_value.__enter__.return_value = [direntry]
+    mock_os_remove = mocker.patch("os.remove")
+    mock_shutil_rmtree = mocker.patch("shutil.rmtree")
+    p = Unpacker(config, logger_mock)
+    p._clean_outbox_directory()
+    mock_os_remove.assert_not_called()
+    mock_shutil_rmtree.assert_not_called()
