@@ -627,7 +627,7 @@ async def metadata_ls(args: Namespace) -> ExitCode:
             print_dict_as_pretty_json(obj)
         return EXIT_OK
     if args.uuid:
-        response = await args.di["lta_rc"].request("DELETE", f"/Metadata/{args.uuid}")
+        response = await args.di["lta_rc"].request("GET", f"/Metadata/{args.uuid}")
         if args.json:
             print_dict_as_pretty_json(response)
         else:
