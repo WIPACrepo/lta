@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import logging
 import os
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict
 from urllib.parse import quote_plus
 from uuid import uuid1
 
