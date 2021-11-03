@@ -19,11 +19,13 @@ from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .crypto import lta_checksums
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
+from .rest_server import boolify
 
 Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "CLEAN_OUTBOX": "TRUE",
     "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
     "PATH_MAP_JSON": None,
@@ -54,6 +56,7 @@ class Unpacker(Component):
         logger - The object the unpacker should use for logging.
         """
         super(Unpacker, self).__init__("unpacker", config, logger)
+        self.clean_outbox = boolify(config["CLEAN_OUTBOX"])
         self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.outbox_path = config["UNPACKER_OUTBOX_PATH"]
@@ -116,6 +119,7 @@ class Unpacker(Component):
         bundle_file = os.path.basename(bundle["bundle_path"])
         bundle_uuid = bundle_file.split(".")[0]
         bundle_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.zip")
+        request_path = bundle["path"]
         # 1. Unpack the archive from our workbox to our outbox
         self.logger.info(f"Unpacking bundle {bundle_file_path} to {self.outbox_path}")
         with ZipFile(bundle_file_path, mode="r", allowZip64=True) as bundle_zip:
@@ -146,9 +150,11 @@ class Unpacker(Component):
             # bump up the counter for the next file
             count_idx += 1
             # determine where the file lives on disk
-            file_basename = os.path.basename(bundle_file["logical_name"])
-            file_path = os.path.join(self.outbox_path, file_basename)
-            self.logger.info(f"File {count_idx}/{count_max}: {file_basename}")
+            logical_name = bundle_file["logical_name"]
+            unzip_path = os.path.relpath(logical_name, request_path)
+            file_path = os.path.join(self.outbox_path, unzip_path)
+            file_basename = os.path.basename(logical_name)
+            self.logger.info(f"File {count_idx}/{count_max}: {file_basename} ({file_path})")
             # check that the size matches the expected size
             manifest_size = bundle_file["file_size"]
             disk_size = os.path.getsize(file_path)
@@ -157,7 +163,7 @@ class Unpacker(Component):
                 raise ValueError(f"File:{file_basename} size Calculated:{disk_size} size Expected:{manifest_size}")
             # move the file to the appropriate location in the data warehouse
             dest_path = self._map_dest_path(bundle_file["logical_name"])
-            self.logger.info(f"Moving {file_basename} to the Data Warehouse at {dest_path}")
+            self.logger.info(f"Moving {file_basename} from {file_path} to the Data Warehouse at {dest_path}")
             shutil.move(file_path, dest_path)
             # check that the checksum matches the expected checksum
             self.logger.info(f"Verifying checksum for {dest_path}")
@@ -170,7 +176,9 @@ class Unpacker(Component):
             await self._add_location_to_file_catalog(bundle_file, dest_path)
         # 4. Clean up the metadata file
         self._delete_manifest_metadata(bundle_uuid)
-        # 5. Update the bundle record in the LTA DB
+        # 5. Clean up the outbox directory (remove unzip subdirectories, if necessary)
+        self._clean_outbox_directory()
+        # 6. Update the bundle record in the LTA DB
         await self._update_bundle_in_lta_db(lta_rc, bundle)
 
     @wtt.spanned()
@@ -200,6 +208,32 @@ class Unpacker(Component):
         await fc_rc.request("POST", f"/api/files/{fc_uuid}/locations", new_location)
         # indicate that our file catalog updates were successful
         return True
+
+    @wtt.spanned()
+    def _clean_outbox_directory(self) -> None:
+        # if we don't care about subdirectories in the work directory, bail
+        if not self.clean_outbox:
+            self.logger.info(f"CLEAN_OUTBOX == False; will not remove entries from '{self.outbox_path}'")
+            return
+        # list all of the items in the work directory
+        self.logger.info(f"Scanning '{self.outbox_path}' for entries to remove")
+        with os.scandir(path=self.outbox_path) as it:
+            for entry in it:
+                self.logger.info(f"Processing '{entry.name}' at '{entry.path}'")
+                # if it's a file, remove it
+                if entry.is_file():
+                    self.logger.info(f"'{entry.name}' is a file, will os.remove '{entry.path}'")
+                    os.remove(entry.path)
+                    continue
+                # if it's a directory, remove the tree
+                if entry.is_dir():
+                    self.logger.info(f"'{entry.name}' is a directory, will shutil.rmtree '{entry.path}'")
+                    shutil.rmtree(path=entry.path, ignore_errors=True)
+                    continue
+                # if we can't figure it out, log an error
+                self.logger.error(f"'{entry.name}' was neither a file, nor a directory; nothing will be done")
+        # inform the caller that we finished
+        self.logger.info(f"Finished processing '{self.outbox_path}' for entries to remove")
 
     @wtt.spanned()
     def _delete_manifest_metadata(self, bundle_uuid: str) -> None:

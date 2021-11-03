@@ -171,6 +171,7 @@ class Bundler(Component):
                                      file_count: int) -> None:
         # 2. Create a ZIP bundle by writing constituent files to it
         bundle_uuid = bundle["uuid"]
+        request_path = bundle["path"]
         count = 0
         done = False
         limit = CREATE_CHUNK_SIZE
@@ -199,7 +200,8 @@ class Bundler(Component):
                     fc_response = await fc_rc.request('GET', f'/api/files/{file_catalog_uuid}')
                     bundle_me_path = fc_response["logical_name"]
                     self.logger.info(f"Writing file {count}/{num_files}: '{bundle_me_path}' to bundle '{bundle_file_path}'")
-                    bundle_zip.write(bundle_me_path, os.path.basename(bundle_me_path))
+                    zip_path = os.path.relpath(bundle_me_path, request_path)
+                    bundle_zip.write(bundle_me_path, zip_path)
 
         # do a last minute sanity check on our data
         if count != file_count:
