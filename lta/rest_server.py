@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import logging
 import os
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict
 from urllib.parse import quote_plus
 from uuid import uuid1
 
@@ -438,20 +438,17 @@ class MetadataHandler(BaseLTAHandler):
         skip = int(self.get_query_argument("skip", default=0))
 
         query: Dict[str, Any] = {
-            "uuid": {"$exists": True},
             "bundle_uuid": bundle_uuid,
         }
 
         projection: Dict[str, bool] = {"_id": False}
-        sort: List[Tuple[str, Any]] = [("uuid", ASCENDING)]
 
         results = []
         logging.debug(f"MONGO-START: db.Metadata.find(filter={query}, projection={projection}, limit={limit}, skip={skip})")
         async for row in self.db.Metadata.find(filter=query,
                                                projection=projection,
                                                skip=skip,
-                                               limit=limit,
-                                               sort=sort):
+                                               limit=limit):
             results.append(row)
         logging.debug("MONGO-END*:   db.Metadata.find(filter, projection, limit, skip)")
 
