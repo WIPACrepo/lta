@@ -38,7 +38,7 @@ EXPECTED_CONFIG = {
     'LTA_MONGODB_PORT': '27017',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
-    'MONGODB_MAX_QUERY_SECONDS': '30'
+    'MONGODB_MAX_QUERY_SECONDS': '300'
 }
 
 # -----------------------------------------------------------------------------
@@ -89,7 +89,8 @@ def db_health_check(method):  # type: ignore
         # if there are too many query-seconds, then bail
         query_seconds = 0
         for r in results:
-            query_seconds += r["secs_running"]
+            if "secs_running" in r:
+                query_seconds += r["secs_running"]
         if query_seconds > self.mongodb_max_query_seconds:
             raise tornado.web.HTTPError(429, reason=f"database has {len(results)} queries, running for a total of {query_seconds} seconds; LTA will not add to the heavy load (maximum: {self.mongodb_max_query_seconds} seconds)")
         # otherwise, we passed the gauntlet
