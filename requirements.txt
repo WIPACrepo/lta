@@ -12,5 +12,5 @@ pytest-asyncio==0.16.0
 pytest-cov==3.0.0
 pytest-mock==3.6.1
 requests==2.26.0
-git+https://github.com/WIPACrepo/rest-tools@v1.1.23#egg=rest_tools
+git+https://github.com/WIPACrepo/rest-tools@v1.1.22#egg=rest_tools
 tornado==6.1
