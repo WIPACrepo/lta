@@ -18,9 +18,250 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
-## [0.0.27] - 2020-01-29
+## This Release - 2021-11-11
 ### Added
 - Added health check for MongoDB prior to route logic in LTA REST server
+
+## [0.40.0] - 2021-02-18
+### Removed
+- Removed deprecated Rucio components and their dependencies
+
+## [0.39.0] - 2021-02-18
+### Changed
+- RucioStager has been renamed RateLimiter
+
+## [0.38.0] - 2021-02-18
+### Fixed
+- DesyVerifier component now populates the File Catalog from verified bundles
+- DesyVerifier and NerscVerifier stop recording constituent files in the File Catalog record of the bundle
+
+## [0.37.0] - 2021-02-15
+### Changed
+- Modified modules to use standardized configuration for interconnection
+
+## [0.36.0] - 2021-02-11
+### Fixed
+- DesyMoveVerifier verifies bundles at the final destination at DESY
+
+## [0.35.0] - 2021-02-05
+### Fixed
+- GridFTP Replicator now computes the correct path for USE_FULL_BUNDLE_PATH
+
+## [0.34.0] - 2021-02-05
+### Added
+- Added DesyStager component to stage files for transfer to DESY
+
+## [0.33.0] - 2021-02-02
+### Changed
+- Modified the way GridFTP Replicator builds paths to use GridFTP
+### Fixed
+- Changed the way errors in globus-url-copy are handled due to spurious returncode
+- Added DEST_SITE to GridFTP Replicator so instances can discriminate by destination
+
+## [0.32.0] - 2021-02-01
+### Added
+- GridFTP Replicator module for replicating files using GridFTP
+- USE_FULL_BUNDLE_PATH option for GridFTP Replicator and SiteMoveVerifier
+
+## [0.31.0] - 2020-12-28
+### Changed
+- LTA DB routes for GET /Bundles and GET /Bundles/{uuid} are more efficient
+- Modified ltacmd script to take advantage of GET efficiencies in LTA DB
+
+## [0.30.0] - 2020-12-17
+### Changed
+- Replicator can now register files at the Rucio destination with the Data Warehouse path.
+
+## [0.29.0] - 2020-11-23
+### Changed
+- SiteMoveVerifier now waits for Rucio to indicate a file is complete
+
+## [0.28.0] - 2020-11-20
+### Added
+- DesyVerifier verifies files were properly copied to DESY
+
+## [0.27.0] - 2020-11-12
+### Added
+- DesyMoveVerifier verifies Rucio completion for bundles moved to DESY
+
+## [0.26.0] - 2020-10-30
+### Fixed
+- Unpacker specifies the correct file and path to update in the File Catalog
+
+## [0.25.0] - 2020-10-29
+### Fixed
+- Unpacker uses the correct field in the bundle to compute paths
+
+## [0.24.0] - 2020-10-16
+### Fixed
+- NerscRetriever now uses the correct ordering for arguments to hsi get
+
+## [0.23.0] - 2020-10-16
+### Fixed
+- Locator now populates bundle_path, checksum, size, and verified fields
+
+## [0.22.0] - 2020-10-16
+### Fixed
+- Locator now populates claimed and files fields
+- NerscRetriever now looks for bundles in status located
+- ltacmd status commands now work for return requests and bundles
+
+## [0.21.0] - 2020-10-13
+### Added
+- Script to drive NerscRetriever at NERSC
+
+## [0.20.0] - 2020-10-13
+### Fixed
+- Locator properly parses File Catalog locations when choosing bundles
+
+## [0.19.0] - 2020-10-09
+### Fixed
+- NerscVerifier now uses full path when adding locations to File Catalog records
+
+## [0.18.0] - 2020-09-01
+### Fixed
+- Fixed locator to properly query LTA REST server for TransferRequests
+
+## [0.17.0] - 2020-08-25
+### Changed
+- Format of quarantine reason messages for Bundles
+
+## [0.16.0] - 2020-08-18
+### Added
+- Added NerscRetriever component for reading bundle files from HPSS at NERSC
+
+## [0.15.0] - 2020-08-10
+### Added
+- Added DEBUG logging for MongoDB queries in the REST server
+
+## [0.14.0] - 2020-08-06
+### Added
+- New LTA_MAX_BODY_SIZE configuration; not yet functional in underlying library
+### Changed
+- Updated requirements including new rest-tools with 503 backoff
+
+## [0.13.0] - 2020-07-30
+### Changed
+- Modified Picker and Locator to use File Catalog pagination for large record sets
+
+## [0.12.0] - 2020-06-09
+### Changed
+- Coverage report no longer includes lta_cmd or transfer service implementations
+### Removed
+- Bundler no longer adds a row to the deprecated JADE LTA database
+
+## [0.11.0] - 2020-06-01
+### Added
+- NerscVerifier will now PATCH a file catalog record that already exists for the bundle
+
+## [0.10.1] - 2020-04-30
+### Fixed
+- TransferRequestFinisher will actually finish Bundles and TransferRequests
+
+## [0.10.0] - 2020-04-27
+### Changed
+- SiteMoveVerifier will ignore Rucio and run checksums on its own in some cases
+
+## [0.9.1] - 2020-04-24
+### Fixed
+- PATCH /status now adds component-specific status data properly
+
+## [0.9.0] - 2020-04-23
+### Added
+- Added new /status/nersc route to LTA DB
+### Fixed
+- Relaxed RucioDetacher to act on a best effort basis
+
+## [0.8.0] - 2020-04-10
+### Added
+- Created new Deleter module
+- Created new RucioStager module
+- Created new TransferRequestFinisher module
+- Added scripts to bin directory to run new modules
+### Changed
+- Added check in ltacmd to prevent duplicate transfer requests
+- Added check in ltacmd to normalize transfer request path
+
+## [0.7.0] - 2020-04-02
+### Changed
+- Renamed Deleter module to RucioDetacher module
+- Modified RucioDetacher to detact from both source and destination datasets
+- Modified RucioDetacher to put bundles into "detached" status after processing
+
+## [0.6.0] - 2020-03-29
+### Fixed
+- Deleter queries the LTA DB properly to fix TransferRequests
+
+## [0.5.0] - 2020-03-26
+### Added
+- New work_priority_timestamp to LTA DB
+- New commands: ltacmd {bundle,request} priority reset
+### Changed
+- Modified command to display priority date for bundle and request
+
+## [0.4.0] - 2020-03-26
+### Changed
+- Refactored Deleter component to be make it ready for Kubernetes deployment
+
+## [0.3.0] - 2020-03-24
+### Fixed
+- Fixed source location for taping in NerscMover component
+
+## [0.2.1] - 2020-03-14
+### Added
+- Added better logging to RucioClient to help debug Rucio error codes
+- Added --status flag to display status in ltacmd bundle ls
+
+## [0.2.0] - 2020-03-11
+### Security
+- Replicator now takes RUCIO_PASSWORD from environment
+### Fixed
+- Replicator handling of errors while replicating Bundles
+
+## [0.1.1] - 2020-03-09
+### Fixed
+- Picker handling of errors while querying the File Catalog
+
+## [0.1.0] - 2020-02-25
+### Added
+- bin/site-move-verifier.sh was created to run a SiteMoveVerifier component
+### Changed
+- Added /dump directory to .gitignore for developer convenience
+- Modified docker-deps-{down,up}.sh to handle jade_lta_test container better
+- Modified ltacmd to display the reason a TransferRequest or Bundle is quarantined
+- replicator.py will now quarantine bundles that fail processing for some reason
+- site_move_verifier.py will now quarantine bundles that fail processing for some reason
+- Modified ltacmd script to have test/production configuration lines
+- Updated Python requirements to latest available versions
+- resources/rucio-workbench.sh has the correct information for production Rucio
+- rucio_workbench.py had some minor development changes
+- resources/test-data-reset.sh was modified to use resources directory scripts
+- resources/test-data-reset.sh was modified to test Rucio-talking components
+### Fixed
+- bin/replicator.sh was sorely outdated, and has been brought up to date
+- bundler.py not to fail hard when unable to reach MySQL dependency
+- picker.py now awaits the function to quarantine a bad transfer request
+- replicator.py now queries the LTA DB with the correct SOURCE_SITE
+
+## [0.0.31] - 2020-02-11
+### Changed
+- NerscVerifier trims down the bundle metadata added to the File Catalog
+
+## [0.0.30] - 2020-02-11
+### Changed
+- Allow MongoDB to use the hash index, but don't move the filtering to Python
+
+## [0.0.29] - 2020-02-10
+### Changed
+- ltacmd catalog commands use queries more friendly to MongoDB look up
+
+## [0.0.28] - 2020-02-10
+### Fixed
+- NerscMover and NerscVerifier now use full path for hsi command
+
+## [0.0.27] - 2020-01-30
+### Changed
+- Updated Python package requirements to latest versions
 
 ## [0.0.26] - 2020-01-29
 ### Changed
@@ -172,7 +413,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Project setup scripts
 
-[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.0.26...HEAD
+[Unreleased]: https://github.com/WIPACrepo/lta/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/WIPACrepo/lta/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/WIPACrepo/lta/compare/v0.12.0...v0.13.0
+[0.10.0]: https://github.com/WIPACrepo/lta/compare/v0.9.1...v0.10.0
+[0.9.1]: https://github.com/WIPACrepo/lta/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/WIPACrepo/lta/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/WIPACrepo/lta/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/WIPACrepo/lta/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/WIPACrepo/lta/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/WIPACrepo/lta/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/WIPACrepo/lta/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/WIPACrepo/lta/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/WIPACrepo/lta/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/WIPACrepo/lta/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/WIPACrepo/lta/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/WIPACrepo/lta/compare/v0.0.31...v0.1.0
+[0.0.31]: https://github.com/WIPACrepo/lta/compare/v0.0.30...v0.0.31
+[0.0.30]: https://github.com/WIPACrepo/lta/compare/v0.0.29...v0.0.30
+[0.0.29]: https://github.com/WIPACrepo/lta/compare/v0.0.28...v0.0.29
+[0.0.28]: https://github.com/WIPACrepo/lta/compare/v0.0.27...v0.0.28
+[0.0.27]: https://github.com/WIPACrepo/lta/compare/v0.0.26...v0.0.27
 [0.0.26]: https://github.com/WIPACrepo/lta/compare/v0.0.25...v0.0.26
 [0.0.25]: https://github.com/WIPACrepo/lta/compare/v0.0.24...v0.0.25
 [0.0.24]: https://github.com/WIPACrepo/lta/compare/v0.0.23...v0.0.24

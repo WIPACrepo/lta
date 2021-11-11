@@ -2,34 +2,36 @@
 """Module to implement the SiteMoveVerifier component of the Long Term Archive."""
 
 import asyncio
-import json
-from logging import Logger
 import logging
 import os
-from subprocess import run
+from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 from rest_tools.client import RestClient  # type: ignore
+from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
-from .config import from_environment
 from .crypto import sha512sum
+from .joiner import join_smart
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
-from .transfer.service import instantiate
+from .rest_server import boolify
+
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "DEST_SITE": None,
-    "NEXT_STATUS": None,
-    "TRANSFER_CONFIG_PATH": "etc/rucio.json",
+    "DEST_ROOT_PATH": None,
+    "USE_FULL_BUNDLE_PATH": "FALSE",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
 MYQUOTA_ARGS = ["/usr/bin/myquota", "-G"]
+
+OLD_MTIME_EPOCH_SEC = 30 * 60  # 30 MINUTES * 60 SEC_PER_MIN
 
 def as_nonempty_columns(s: str) -> List[str]:
     """Split the provided string into columns and return the non-empty ones."""
@@ -77,10 +79,8 @@ class SiteMoveVerifier(Component):
         logger - The object the site_move_verifier should use for logging.
         """
         super(SiteMoveVerifier, self).__init__("site_move_verifier", config, logger)
-        self.dest_site = config["DEST_SITE"]
-        self.next_status = config["NEXT_STATUS"]
-        with open(config["TRANSFER_CONFIG_PATH"]) as config_data:
-            self.transfer_config = json.load(config_data)
+        self.dest_root_path = config["DEST_ROOT_PATH"]
+        self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         pass
@@ -97,6 +97,7 @@ class SiteMoveVerifier(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -106,6 +107,7 @@ class SiteMoveVerifier(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be verified
@@ -118,36 +120,49 @@ class SiteMoveVerifier(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', f'/Bundles/actions/pop?dest={self.dest_site}&status=transferring', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify. Going on vacation.")
             return False
         # process the Bundle that we were given
-        await self._verify_bundle(lta_rc, bundle)
+        try:
+            await self._verify_bundle(lta_rc, bundle)
+        except Exception as e:
+            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            raise e
+        # if we were successful at processing work, let the caller know
         return True
 
+    @wtt.spanned()
+    async def _quarantine_bundle(self,
+                                 lta_rc: RestClient,
+                                 bundle: BundleType,
+                                 reason: str) -> None:
+        """Quarantine the supplied bundle using the supplied reason."""
+        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
+        right_now = now()
+        patch_body = {
+            "status": "quarantined",
+            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
+            "work_priority_timestamp": right_now,
+        }
+        try:
+            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
+        except Exception as e:
+            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
+
+    @wtt.spanned()
     async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the provided Bundle with the transfer service and update the LTA DB."""
+        # get our ducks in a row
         bundle_id = bundle["uuid"]
-        # instantiate a TransferService to query about the bundle
-        xfer_service = instantiate(self.transfer_config)
-        # ask the transfer service about the status of the transfer
-        xfer_status = await xfer_service.status(bundle["transfer_reference"])
-        self.logger.info(f"Bundle transfer status is: {xfer_status}")
-        # if it's not completed, we're still waiting to verify it
-        if not xfer_status["completed"]:
-            self.logger.info(f"Transfer of Bundle {bundle_id} is incomplete and will not be verified at this time.")
-            await self._unclaim_bundle(lta_rc, bundle)
-            return False
-        # when we verify bundles, we do so at the destination site
-        dest = bundle["dest"]
-        pfn_prefix = self.transfer_config["sites"][dest]["pfn"]  # UGLY: hard-coded RucioTransferService dependency
-        parsed_url = urlparse(pfn_prefix)
-        rucio_path = parsed_url.path
-        bundle_name = os.path.basename(bundle["bundle_path"])
-        bundle_path = os.path.join(rucio_path, bundle_name)
+        if self.use_full_bundle_path:
+            bundle_name = bundle["bundle_path"]
+        else:
+            bundle_name = os.path.basename(bundle["bundle_path"])
+        bundle_path = join_smart([self.dest_root_path, bundle_name])
         # we'll compute the bundle's checksum
         self.logger.info(f"Computing SHA512 checksum for bundle: '{bundle_path}'")
         checksum_sha512 = sha512sum(bundle_path)
@@ -156,18 +171,21 @@ class SiteMoveVerifier(Component):
         if bundle["checksum"]["sha512"] != checksum_sha512:
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
-            self.logger.info(f"These checksums do NOT match, and the Bundle will NOT be verified.")
+            self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
+            right_now = now()
             patch_body: Dict[str, Any] = {
                 "status": "quarantined",
-                "reason": f"Checksum mismatch between creation and destination: {checksum_sha512}",
+                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Checksum mismatch between creation and destination: {checksum_sha512}",
+                "work_priority_timestamp": right_now,
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
             return False
         # update the Bundle in the LTA DB
-        self.logger.info(f"Destination checksum matches bundle creation checksum; the bundle is now verified.")
+        self.logger.info("Destination checksum matches bundle creation checksum; the bundle is now verified.")
         patch_body = {
-            "status": self.next_status,
+            "status": self.output_status,
+            "reason": "",
             "update_timestamp": now(),
             "claimed": False,
         }
@@ -175,9 +193,10 @@ class SiteMoveVerifier(Component):
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
+    @wtt.spanned()
     def _execute_myquota(self) -> Optional[str]:
         """Run the myquota command to determine disk usage at the site."""
-        completed_process = run(MYQUOTA_ARGS)
+        completed_process = run(MYQUOTA_ARGS, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
             self.logger.info(f"Command to check quota failed: {completed_process.args}")
@@ -186,19 +205,7 @@ class SiteMoveVerifier(Component):
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             return None
         # otherwise, we succeeded
-        return str(completed_process.stdout)
-
-    async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
-        """Run the myquota command to determine disk usage at the site."""
-        self.logger.info(f"Bundle is not ready to be verified; will unclaim it.")
-        bundle_id = bundle["uuid"]
-        patch_body: Dict[str, Any] = {
-            "update_timestamp": now(),
-            "claimed": False,
-        }
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-        return True
+        return completed_process.stdout.decode("utf-8")
 
 
 def runner() -> None:

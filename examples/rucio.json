@@ -19,6 +19,16 @@
             "dataset": "dataset-wipac",
             "pfn": "gsiftp://gridftp.icecube.wisc.edu:2811/path/to/rse",
             "rse": "LTA-ND-A"
+        },
+        "NERSC": {
+            "dataset": "nersc-dataset",
+            "pfn": "gsiftp://dtn05.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk",
+            "rse": "NERSC-LTA"
+        },
+        "WIPAC": {
+            "dataset": "icecube-dataset",
+            "pfn": "gsiftp://gridftp.icecube.wisc.edu:2811/mnt/lfss/jade-lta/bundler_out",
+            "rse": "ICECUBE-LTA"
         }
     },
     "username": "icecube"

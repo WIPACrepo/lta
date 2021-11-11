@@ -2,24 +2,24 @@
 """Module to implement the Deleter component of the Long Term Archive."""
 
 import asyncio
-import json
-from logging import Logger
 import logging
+import os
 import sys
 from typing import Any, Dict, Optional
 
 from rest_tools.client import RestClient  # type: ignore
+from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
-from .config import from_environment
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
-from .transfer.service import instantiate
 
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "TRANSFER_CONFIG_PATH": "etc/rucio.json",
+    "DISK_BASE_PATH": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -29,15 +29,10 @@ class Deleter(Component):
     """
     Deleter is a Long Term Archive component.
 
-    A Deleter is responsible for deleteing intermediate copies of archive
-    bundles that have finished processing at their destination site(s). The
-    archive bundles are marked for deletion using the Rucio transfer service.
-    Rucio will then remove the intermediate bundle files from the
-    destination site(s).
-
-    It uses the LTA DB to find verified bundles that need to be deleted.
-    It de-registers the bundles with Rucio. It updates the Bundle and the
-    corresponding TransferRequest in the LTA DB with a 'deleted' status.
+    A Deleter is responsible for removing the physical files from the staging
+    area after archival verification has been completed. The transfer service
+    is queried for files ready to be deleted. Those files are removed, and
+    the bundle is moved to another state.
     """
 
     def __init__(self, config: Dict[str, str], logger: Logger) -> None:
@@ -48,20 +43,19 @@ class Deleter(Component):
         logger - The object the deleter should use for logging.
         """
         super(Deleter, self).__init__("deleter", config, logger)
-        with open(config["TRANSFER_CONFIG_PATH"]) as config_data:
-            self.transfer_config = json.load(config_data)
+        self.disk_base_path = config["DISK_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        pass
 
     def _do_status(self) -> Dict[str, Any]:
-        """Provide additional status for the Deleter."""
+        """Contribute no additional status."""
         return {}
 
     def _expected_config(self) -> Dict[str, Optional[str]]:
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -71,6 +65,7 @@ class Deleter(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be deleted
@@ -83,68 +78,60 @@ class Deleter(Component):
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
         }
-        response = await lta_rc.request('POST', '/Bundles/actions/pop?source=WIPAC&status=completed', pop_body)
+        response = await lta_rc.request('POST', f'/Bundles/actions/pop?source={self.source_site}&dest={self.dest_site}&status={self.input_status}', pop_body)
         self.logger.info(f"LTA DB responded with: {response}")
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to delete. Going on vacation.")
             return False
         # process the Bundle that we were given
-        await self._delete_bundle(lta_rc, bundle)
-        # update the TransferRequest that spawned the Bundle, if necessary
-        await self._update_transfer_request(lta_rc, bundle)
+        try:
+            await self._delete_bundle(lta_rc, bundle)
+        except Exception as e:
+            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            raise e
+        # if we were successful at processing work, let the caller know
         return True
 
-    async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
-        """Delete the provided Bundle with the transfer service and update the LTA DB."""
+    @wtt.spanned()
+    async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+        """Delete the provided Bundle and update the LTA DB."""
+        # determine the name of the file to be deleted
         bundle_id = bundle["uuid"]
-        # instantiate a TransferService to delete the bundle
-        xfer_service = instantiate(self.transfer_config)
-        # ask the transfer service to cancel (i.e.: delete) the transfer
-        await xfer_service.cancel(bundle["transfer_reference"])
+        bundle_name = os.path.basename(bundle["bundle_path"])
+        bundle_path = os.path.join(self.disk_base_path, bundle_name)
+        # delete the file from the disk
+        self.logger.info(f"Removing file {bundle_path} from the disk.")
+        os.remove(bundle_path)
         # update the Bundle in the LTA DB
+        self.logger.info(f"File {bundle_path} was deleted from the disk.")
         patch_body = {
-            "status": "deleted",
+            "status": self.output_status,
+            "reason": "",
             "update_timestamp": now(),
             "claimed": False,
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+        return True
 
-    async def _update_transfer_request(self, lta_rc: RestClient, bundle: BundleType) -> None:
-        """
-        Update the TransferRequest that spawned the Bundle.
-
-        If all of the Bundles created by the TransferRequest are now status
-        "deleted", then mark the TransferRequest as status "completed".
-        """
-        request_uuid = bundle["request"]
-        self.logger.info(f"Querying status of all bundles for TransferRequest {request_uuid}")
-        response = await lta_rc.request('GET', f'/Bundles?request={request_uuid}')
-        results = response["results"]
-        deleted_count = len(results)
-        self.logger.info(f"Found {deleted_count} bundles for TransferRequest {request_uuid}")
-        for result in results:
-            self.logger.info(f"Bundle {result['uuid']} has status {result['status']}")
-            if result["status"] == "deleted":
-                deleted_count = deleted_count - 1
-            else:
-                self.logger.info(f'{result["status"]} is not "deleted"; TransferRequest {request_uuid} will not be updated.')
-        if deleted_count > 0:
-            self.logger.info(f'TransferRequest {request_uuid} has {deleted_count} Bundles still waiting for status "deleted"')
-            return
-        # update the TransferRequest in the LTA DB
-        self.logger.info(f"Updating TransferRequest {request_uuid} to mark as completed.")
+    @wtt.spanned()
+    async def _quarantine_bundle(self,
+                                 lta_rc: RestClient,
+                                 bundle: BundleType,
+                                 reason: str) -> None:
+        """Quarantine the supplied bundle using the supplied reason."""
+        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
         right_now = now()
         patch_body = {
-            "status": "completed",
-            "update_timestamp": right_now,
-            "claimed": False,
-            "claimant": f"{self.name}-{self.instance_uuid}",
-            "claim_timestamp": right_now,
+            "status": "quarantined",
+            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
+            "work_priority_timestamp": right_now,
         }
-        self.logger.info(f"PATCH /TransferRequest/{request_uuid} - '{patch_body}'")
-        await lta_rc.request('PATCH', f'/TransferRequest/{request_uuid}', patch_body)
+        try:
+            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
+        except Exception as e:
+            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
 
 def runner() -> None:

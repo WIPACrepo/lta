@@ -1,7 +1,7 @@
 # test_deleter.py
 """Unit tests for lta/deleter.py."""
 
-from unittest.mock import call  # MagicMock
+from unittest.mock import call, MagicMock
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
@@ -14,14 +14,17 @@ def config():
     """Supply a stock Deleter component configuration."""
     return {
         "COMPONENT_NAME": "testing-deleter",
+        "DEST_SITE": "NERSC",
+        "DISK_BASE_PATH": "/path/to/rucio/rse/root",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+        "INPUT_STATUS": "detached",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "OUTPUT_STATUS": "source-deleted",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
-        "TRANSFER_CONFIG_PATH": "examples/rucio.json",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -32,17 +35,21 @@ def test_constructor_config(config, mocker):
     logger_mock = mocker.MagicMock()
     p = Deleter(config, logger_mock)
     assert p.name == "testing-deleter"
+    assert p.dest_site == "NERSC"
+    assert p.disk_base_path == "/path/to/rucio/rse/root"
     assert p.heartbeat_patch_retries == 3
     assert p.heartbeat_patch_timeout_seconds == 30
     assert p.heartbeat_sleep_duration_seconds == 60
+    assert p.input_status == "detached"
     assert p.lta_rest_token == "fake-lta-rest-token"
     assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.output_status == "source-deleted"
     assert p.source_site == "WIPAC"
-    assert p.transfer_config
     assert p.work_retries == 3
     assert p.work_sleep_duration_seconds == 60
     assert p.work_timeout_seconds == 30
     assert p.logger == logger_mock
+
 
 def test_do_status(config, mocker):
     """Verify that the Deleter has no additional state to offer."""
@@ -56,14 +63,17 @@ async def test_deleter_logs_configuration(mocker):
     logger_mock = mocker.MagicMock()
     deleter_config = {
         "COMPONENT_NAME": "logme-testing-deleter",
+        "DEST_SITE": "NERSC",
+        "DISK_BASE_PATH": "/path/to/rucio/rse/root",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
+        "INPUT_STATUS": "detached",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
+        "OUTPUT_STATUS": "source-deleted",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
-        "TRANSFER_CONFIG_PATH": "examples/rucio.json",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
@@ -72,14 +82,17 @@ async def test_deleter_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("deleter 'logme-testing-deleter' is configured:"),
         call('COMPONENT_NAME = logme-testing-deleter'),
+        call('DEST_SITE = NERSC'),
+        call('DISK_BASE_PATH = /path/to/rucio/rse/root'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
+        call('INPUT_STATUS = detached'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
+        call('OUTPUT_STATUS = source-deleted'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),
-        call('TRANSFER_CONFIG_PATH = examples/rucio.json'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
         call('WORK_TIMEOUT_SECONDS = 90')
@@ -136,7 +149,7 @@ async def test_deleter_do_work_pop_exception(config, mocker):
     p = Deleter(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=completed', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 @pytest.mark.asyncio
 async def test_deleter_do_work_no_results(config, mocker):
@@ -169,7 +182,7 @@ async def test_deleter_do_work_claim_no_result(config, mocker):
     db_mock = mocker.patch("lta.deleter.Deleter._delete_bundle", new_callable=AsyncMock)
     p = Deleter(config, logger_mock)
     await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=completed', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
     db_mock.assert_not_called()
 
 @pytest.mark.asyncio
@@ -183,79 +196,50 @@ async def test_deleter_do_work_claim_yes_result(config, mocker):
         },
     }
     db_mock = mocker.patch("lta.deleter.Deleter._delete_bundle", new_callable=AsyncMock)
-    utr_mock = mocker.patch("lta.deleter.Deleter._update_transfer_request", new_callable=AsyncMock)
     p = Deleter(config, logger_mock)
     assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&status=completed', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    utr_mock.assert_called_with(mocker.ANY, {"one": 1})
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
     db_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 @pytest.mark.asyncio
-async def test_deleter_delete_bundle(config, mocker):
-    """Test that _delete_bundle deletes a completed bundle transfer."""
+async def test_deleter_delete_bundle_raises(config, mocker):
+    """Test that _do_work_claim both calls _quarantine_bundle and re-raises when _delete_bundle raises."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    inst_mock = mocker.patch("lta.deleter.instantiate")
-    xfer_service_mock = AsyncMock()
-    inst_mock.return_value = xfer_service_mock
-    bundle_obj = {
-        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
-        "transfer_reference": "dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip",
-    }
-    p = Deleter(config, logger_mock)
-    await p._delete_bundle(lta_rc_mock, bundle_obj)
-    inst_mock.assert_called_with(p.transfer_config)
-    xfer_service_mock.cancel.assert_called_with("dataset-nersc|8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
-    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', mocker.ANY)
-
-@pytest.mark.asyncio
-async def test_deleter_update_transfer_request_no(config, mocker):
-    """Test that _update_transfer_request does not update an incomplete TransferRequest."""
-    deleted_bundle = {
-        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
-        "request": "a8758a77-2a66-46e6-b43d-b4c74d3078a6",
-        "status": "deleted",
-    }
-    transferring_bundle = {
-        "uuid": "90a664cc-e3f9-4421-973f-7bc2bc7407d0",
-        "request": "a8758a77-2a66-46e6-b43d-b4c74d3078a6",
-        "status": "transferring",
-    }
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    lta_rc_mock.request.return_value = {
-        "results": [deleted_bundle, transferring_bundle],
-    }
-    p = Deleter(config, logger_mock)
-    await p._update_transfer_request(lta_rc_mock, deleted_bundle)
-    lta_rc_mock.request.assert_called_with("GET", '/Bundles?request=a8758a77-2a66-46e6-b43d-b4c74d3078a6')
-
-@pytest.mark.asyncio
-async def test_deleter_update_transfer_request_yes(config, mocker):
-    """Test that _update_transfer_request does update a complete TransferRequest."""
-    deleted_bundle = {
-        "uuid": "8286d3ba-fb1b-4923-876d-935bdf7fc99e",
-        "request": "a8758a77-2a66-46e6-b43d-b4c74d3078a6",
-        "status": "deleted",
-    }
-    transfer_request = {
-        "uuid": "a8758a77-2a66-46e6-b43d-b4c74d3078a6",
-    }
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    lta_rc_mock.request.side_effect = [
-        {
-            "results": [deleted_bundle],
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    lta_rc_mock.return_value = {
+        "bundle": {
+            "one": 1,
         },
-        transfer_request,
-        None
-    ]
+    }
+    db_mock = mocker.patch("lta.deleter.Deleter._delete_bundle", new_callable=AsyncMock)
+    qb_mock = mocker.patch("lta.deleter.Deleter._quarantine_bundle", new_callable=AsyncMock)
+    db_mock.side_effect = Exception("LTA DB unavailable; currently safer at home")
     p = Deleter(config, logger_mock)
-    await p._update_transfer_request(lta_rc_mock, deleted_bundle)
-    lta_rc_mock.request.assert_called_with("PATCH", '/TransferRequest/a8758a77-2a66-46e6-b43d-b4c74d3078a6', {
-        "status": "completed",
-        "update_timestamp": mocker.ANY,
-        "claimed": False,
-        "claimant": mocker.ANY,
-        "claim_timestamp": mocker.ANY,
+    with pytest.raises(Exception):
+        await p._do_work_claim()
+    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    db_mock.assert_called_with(mocker.ANY, {"one": 1})
+    qb_mock.assert_called_with(mocker.ANY, {"one": 1}, "LTA DB unavailable; currently safer at home")
+
+@pytest.mark.asyncio
+async def test_deleter_delete_bundle(config, mocker):
+    """Test that _delete_bundle attempts to delete a Bundle."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    remove_mock = mocker.patch("os.remove", new_callable=MagicMock)
+    p = Deleter(config, logger_mock)
+    await p._delete_bundle(lta_rc_mock, {
+        "uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003",
+        "bundle_path": "/icecube/datawarehouse/path/to/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003.zip",
     })
+    remove_mock.assert_called()
+    lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
+
+@pytest.mark.asyncio
+async def test_deleter_quarantine_bundle_with_reason(config, mocker):
+    """Test that _do_work_claim attempts to quarantine a Bundle that fails to get deleted."""
+    logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
+    p = Deleter(config, logger_mock)
+    await p._quarantine_bundle(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"}, "Rucio caught fire, then we roasted marshmellows.")
+    lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)

@@ -22,10 +22,9 @@ Follow these steps to get a development environment for LTA:
     cd ~/projects
     git clone git@github.com:WIPACrepo/lta.git
     cd lta
-    python3.7 -m venv ./env
+    python3.8 -m venv ./env
     source env/bin/activate
     pip install --upgrade pip
-    pip install git+https://github.com/WIPACrepo/rest-tools
     pip install -r requirements.txt
 
 ### Updating requirements.txt after a pip install
@@ -196,6 +195,12 @@ should happen automatically after 30 seconds.
 Here are some commands to get the Docker container pushed to our Docker
 register in our Kubernetes cluster:
 
-    kubectl -n kube-system port-forward $(kubectl get pods --namespace kube-system -l "app=docker-registry,release=docker-registry" -o jsonpath="{.items[0].metadata.name}") 5000:5000 &
+    kubectl -n kube-system port-forward $(kubectl get pods --namespace kube-system -l "app=docker-registry" -o jsonpath="{.items[0].metadata.name}") 5000:5000 &
     docker tag wipac/lta:0.0.5 localhost:5000/wipac/lta:0.0.5
     docker push localhost:5000/wipac/lta:0.0.5
+
+### Obtaining an authentication token
+Use the IceCube Token Service to obtain a token with the `file-catalog`
+and `lta` scopes:
+
+    https://tokens.icecube.wisc.edu/service_token?scope=file-catalog%20lta

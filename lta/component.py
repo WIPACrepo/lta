@@ -12,17 +12,21 @@ from uuid import uuid4
 
 from rest_tools.client import RestClient  # type: ignore
 from urllib.parse import urljoin
+import wipac_telemetry.tracing_tools as wtt
 
 from .lta_const import drain_semaphore_filename
 from .rest_server import boolify
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "COMPONENT_NAME": None,
+    "DEST_SITE": None,
     "HEARTBEAT_PATCH_RETRIES": "3",
     "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
     "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
+    "INPUT_STATUS": None,
     "LTA_REST_TOKEN": None,
     "LTA_REST_URL": None,
+    "OUTPUT_STATUS": None,
     "RUN_ONCE_AND_DIE": "False",
     "SOURCE_SITE": None,
     "WORK_SLEEP_DURATION_SECONDS": "60",
@@ -66,11 +70,14 @@ class Component:
         self.config = config
         self.logger = logger
         # validate and assimilate the configuration
+        self.dest_site = config["DEST_SITE"]
         self.heartbeat_patch_retries = int(config["HEARTBEAT_PATCH_RETRIES"])
         self.heartbeat_patch_timeout_seconds = float(config["HEARTBEAT_PATCH_TIMEOUT_SECONDS"])
         self.heartbeat_sleep_duration_seconds = float(config["HEARTBEAT_SLEEP_DURATION_SECONDS"])
+        self.input_status = config["INPUT_STATUS"]
         self.lta_rest_token = config["LTA_REST_TOKEN"]
         self.lta_rest_url = config["LTA_REST_URL"]
+        self.output_status = config["OUTPUT_STATUS"]
         self.run_once_and_die = boolify(config["RUN_ONCE_AND_DIE"])
         self.source_site = config["SOURCE_SITE"]
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
@@ -83,6 +90,7 @@ class Component:
         for name in config:
             self.logger.info(f"{name} = {config[name]}")
 
+    @wtt.spanned()
     async def run(self) -> None:
         """Perform the Component's work cycle."""
         self.logger.info(f"Starting {self.type} work cycle")
@@ -91,8 +99,6 @@ class Component:
         # perform the work
         try:
             await self._do_work()
-            if self.run_once_and_die:
-                sys.exit()
         except Exception as e:
             # ut oh, something went wrong; log about it
             self.logger.error(f"Error occurred during the {self.type} work cycle")
@@ -100,6 +106,9 @@ class Component:
         # stop the work cycle stopwatch
         self.last_work_end_timestamp = datetime.utcnow().isoformat()
         self.logger.info(f"Ending {self.type} work cycle")
+        # if we are configured to run once and die, then die
+        if self.run_once_and_die:
+            sys.exit()
 
     def validate_config(self, config: Dict[str, str]) -> None:
         """Validate the configuration provided to the component."""
@@ -154,7 +163,7 @@ async def patch_status_heartbeat(component: Component) -> bool:
     }
     # ask the base class to annotate the status body
     status_update = component._do_status()
-    status_body.update(status_update)
+    status_body[component.name].update(status_update)
     # attempt to PATCH the status resource
     component.logger.info(f"PATCH {status_url} - {status_body}")
     try:

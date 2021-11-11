@@ -13,21 +13,23 @@ from pymongo.database import Database  # type: ignore
 import pytest  # type: ignore
 import requests  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
+from requests.exceptions import HTTPError
 
 from lta.rest_server import boolify, CheckClaims, main, start, unique_id
 
 ALL_DOCUMENTS: Dict[str, str] = {}
-MONGODB_NAME = "lta-unit-tests"
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
     'AUTH_SECRET': 'secret',
     'LTA_MONGODB_AUTH_USER': '',
     'LTA_MONGODB_AUTH_PASS': '',
-    'LTA_MONGODB_DATABASE_NAME': MONGODB_NAME,
+    'LTA_MONGODB_DATABASE_NAME': 'lta',
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
+    'OTEL_EXPORTER_OTLP_ENDPOINT': 'localhost:4317',
     'TOKEN_SERVICE': 'http://localhost:8888',
+    'WIPACTEL_EXPORT_STDOUT': 'TRUE',
 }
 for k in CONFIG:
     if k in os.environ:
@@ -44,9 +46,10 @@ def mongo(monkeypatch) -> Database:
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
     client = MongoClient(lta_mongodb_url, port=mongo_port)
-    db = client[MONGODB_NAME]
+    db = client[CONFIG['LTA_MONGODB_DATABASE_NAME']]
     for collection in db.list_collection_names():
-        db.drop_collection(collection)
+        if 'system' not in collection:
+            db.drop_collection(collection)
     return db
 
 @pytest.fixture
@@ -66,9 +69,11 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
     monkeypatch.setenv("LTA_AUTH_ISSUER", CONFIG['TOKEN_SERVICE'])
     monkeypatch.setenv("LTA_AUTH_SECRET", CONFIG['AUTH_SECRET'])
-    monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", MONGODB_NAME)
+    monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", CONFIG['LTA_MONGODB_DATABASE_NAME'])
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+    monkeypatch.setenv("WIPACTEL_EXPORT_STDOUT", "TRUE")
     s = start(debug=True)
 
     def client(role='admin', timeout=0.25):
@@ -205,7 +210,7 @@ async def test_transfer_request_crud(mongo, rest):
     assert ret == {}
 
     with pytest.raises(Exception):
-        await r.request('PATCH', f'/TransferRequests/foo', request2)
+        await r.request('PATCH', '/TransferRequests/foo', request2)
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
@@ -678,7 +683,7 @@ async def test_patch_bundles_uuid(mongo, rest):
     # we try to patch something that doesn't exist; error
     with pytest.raises(Exception):
         request = {"key": "value"}
-        await r.request('PATCH', f'/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
+        await r.request('PATCH', '/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
 
 @pytest.mark.asyncio
 async def test_bundles_actions_pop(mongo, rest):
@@ -917,3 +922,300 @@ async def test_status_component_count(mongo, rest):
     response = await r.request("GET", "/status/picker/count")
     assert response["component"] == "picker"
     assert response["count"] == 3
+
+@pytest.mark.asyncio
+async def test_status_nersc(mongo, rest, mocker):
+    """Verify that GET /status/nersc works."""
+    r = rest('system')
+
+    request = {
+        'cori08-site-move-verifier': {
+            'timestamp': datetime.utcnow().isoformat(),
+            'last_work_begin_timestamp': '2020-04-24T19:30:04.170470',
+            'last_work_end_timestamp': '2020-04-24T19:30:04.170470',
+            'name': 'cori08-site-move-verifier',
+            'component': 'site_move_verifier',
+            'quota': [
+                {
+                    'FILESYSTEM': 'home',
+                    'SPACE_USED': '2.87GiB',
+                    'SPACE_QUOTA': '40.00GiB',
+                    'SPACE_PCT': '7.2%',
+                    'INODE_USED': '0.00G',
+                    'INODE_QUOTA': '0.00G',
+                    'INODE_PCT': '3.1%'
+                },
+                {
+                    'FILESYSTEM': 'cscratch1',
+                    'SPACE_USED': '1400.55GiB',
+                    'SPACE_QUOTA': '20480.00GiB',
+                    'SPACE_PCT': '6.8%',
+                    'INODE_USED': '0.00G',
+                    'INODE_QUOTA': '0.01G',
+                    'INODE_PCT': '0.1%'
+                }
+            ]
+        }
+    }
+    await r.request('PATCH', '/status/site_move_verifier', request)
+
+    response = await r.request("GET", "/status/site_move_verifier/count")
+    assert response["component"] == "site_move_verifier"
+    assert response["count"] == 1
+
+    response = await r.request("GET", "/status/nersc")
+    assert response == {
+        'component': 'site_move_verifier',
+        'last_work_begin_timestamp': '2020-04-24T19:30:04.170470',
+        'last_work_end_timestamp': '2020-04-24T19:30:04.170470',
+        'name': 'cori08-site-move-verifier',
+        'quota': [
+            {
+                'FILESYSTEM': 'home',
+                'SPACE_USED': '2.87GiB',
+                'SPACE_QUOTA': '40.00GiB',
+                'SPACE_PCT': '7.2%',
+                'INODE_USED': '0.00G',
+                'INODE_QUOTA': '0.00G',
+                'INODE_PCT': '3.1%'
+            },
+            {
+                'FILESYSTEM': 'cscratch1',
+                'SPACE_USED': '1400.55GiB',
+                'SPACE_QUOTA': '20480.00GiB',
+                'SPACE_PCT': '6.8%',
+                'INODE_USED': '0.00G',
+                'INODE_QUOTA': '0.01G',
+                'INODE_PCT': '0.1%'
+            }
+        ],
+        'timestamp': mocker.ANY,
+    }
+
+@pytest.mark.asyncio
+async def test_metadata_delete_bundle_uuid(mongo, rest):
+    """Check CRUD semantics for metadata."""
+    r = rest('system')
+    bundle_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    bundle_uuid1 = "05b7178b-82d0-428c-a0a6-d4add696de62"
+    #
+    # Create - POST /Metadata/actions/bulk_create
+    #
+    request = {
+        'bundle_uuid': bundle_uuid0,
+        'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
+    }
+    ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert len(ret["metadata"]) == 3
+    assert ret["count"] == 3
+    request = {
+        'bundle_uuid': bundle_uuid1,
+        'files': ["03ccb63e-32cf-4135-85b2-fd06b8c9137f", "c65f2c58-a412-403c-9354-d25d7ae5cdeb", "864f0903-f207-478d-bac2-b437ebc07226"]
+    }
+    ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert len(ret["metadata"]) == 3
+    assert ret["count"] == 3
+
+    #
+    # Read - GET /Metadata
+    #
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid0}')
+    results = ret["results"]
+    assert len(results) == 3
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid1}')
+    results = ret["results"]
+    assert len(results) == 3
+
+    #
+    # Delete - DELETE /Metadata?bundle_uuid={uuid}
+    #
+    ret = await r.request('DELETE', f'/Metadata?bundle_uuid={bundle_uuid0}')
+    assert not ret
+
+    #
+    # Read - GET /Metadata
+    #
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid0}')
+    results = ret["results"]
+    assert len(results) == 0
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid1}')
+    results = ret["results"]
+    assert len(results) == 3
+
+@pytest.mark.asyncio
+async def test_metadata_single_record(mongo, rest):
+    """Check CRUD semantics for metadata."""
+    r = rest('system')
+    bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    #
+    # Create - POST /Metadata/actions/bulk_create
+    #
+    request = {
+        'bundle_uuid': bundle_uuid,
+        'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
+    }
+    ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert len(ret["metadata"]) == 3
+    assert ret["count"] == 3
+    #
+    # Read - GET /Metadata/{uuid}
+    #
+    metadata_uuid = ret["metadata"][0]
+    ret2 = await r.request('GET', f'/Metadata/{metadata_uuid}')
+    assert ret2["uuid"] == metadata_uuid
+    assert ret2["bundle_uuid"] == bundle_uuid
+    assert ret2["file_catalog_uuid"] == "7b5c1f76-e568-4ae7-94d2-5a31d1d2b081"
+    #
+    # Delete - DELETE /Metadata/{uuid}
+    #
+    ret3 = await r.request('DELETE', f'/Metadata/{metadata_uuid}')
+    assert not ret3
+    #
+    # Read - GET /Metadata/{uuid}
+    #
+    with pytest.raises(HTTPError) as e:
+        await r.request('GET', f'/Metadata/{metadata_uuid}')
+    assert e.value.response.status_code == 404
+    assert e.value.response.json()["error"] == "not found"
+
+@pytest.mark.asyncio
+async def test_metadata_bulk_crud(mongo, rest):
+    """Check CRUD semantics for metadata."""
+    r = rest('system')
+    bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    #
+    # Create - POST /Metadata/actions/bulk_create
+    #
+    request = {
+        'bundle_uuid': bundle_uuid,
+        'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
+    }
+    ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert len(ret["metadata"]) == 3
+    assert ret["count"] == 3
+
+    #
+    # Read - GET /Metadata
+    #
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}')
+    results = ret["results"]
+    assert len(results) == 3
+
+    #
+    # Delete - POST /Metadata/actions/bulk_delete
+    #
+    uuids = [unique_id()]
+    for result in results:
+        uuids.append(result["uuid"])
+    request2 = {'metadata': uuids}
+    ret = await r.request('POST', '/Metadata/actions/bulk_delete', request2)
+    assert ret["count"] == 3
+    assert ret["metadata"] == uuids
+
+    #
+    # Read - GET /Metadata
+    #
+    ret = await r.request('GET', '/Metadata')
+    results = ret["results"]
+    assert len(results) == 0
+
+@pytest.mark.asyncio
+async def test_metadata_actions_bulk_create_errors(rest):
+    """Check error conditions for bulk_create."""
+    r = rest('system')
+
+    request = {}
+    with pytest.raises(HTTPError) as e:
+        await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "`bundle_uuid`: (MissingArgumentError) required argument is missing"
+
+    request = {'bundle_uuid': []}
+    with pytest.raises(HTTPError) as e:
+        await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "`bundle_uuid`: (TypeError) [] (<class 'list'>) is not <class 'str'>"
+
+    request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27"}
+    with pytest.raises(HTTPError) as e:
+        await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "`files`: (MissingArgumentError) required argument is missing"
+
+    request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": {}}
+    with pytest.raises(HTTPError) as e:
+        await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "`files`: (TypeError) {} (<class 'dict'>) is not <class 'list'>"
+
+    request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": []}
+    with pytest.raises(HTTPError) as e:
+        await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "`files`: (ValueError) [] is forbidden ([[]])"
+
+@pytest.mark.asyncio
+async def test_metadata_actions_bulk_delete_errors(rest):
+    """Check error conditions for bulk_delete."""
+    r = rest('system')
+
+    request = {}
+    with pytest.raises(HTTPError) as e:
+        await r.request('POST', '/Metadata/actions/bulk_delete', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "`metadata`: (MissingArgumentError) required argument is missing"
+
+    request = {'metadata': ''}
+    with pytest.raises(HTTPError) as e:
+        await r.request('POST', '/Metadata/actions/bulk_delete', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "`metadata`: (TypeError)  (<class 'str'>) is not <class 'list'>"
+
+    request = {'metadata': []}
+    with pytest.raises(HTTPError) as e:
+        await r.request('POST', '/Metadata/actions/bulk_delete', request)
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "`metadata`: (ValueError) [] is forbidden ([[]])"
+
+@pytest.mark.asyncio
+async def test_metadata_delete_errors(rest):
+    """Check error conditions for DELETE /Metadata."""
+    r = rest('system')
+
+    with pytest.raises(HTTPError) as e:
+        await r.request('DELETE', '/Metadata')
+    assert e.value.response.status_code == 400
+    assert e.value.response.json()["error"] == "`bundle_uuid`: (MissingArgumentError) required argument is missing"
+
+@pytest.mark.asyncio
+async def test_metadata_results_comprehension(mongo, rest):
+    """Check that our comprehension works."""
+    r = rest('system')
+    bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    #
+    # Create - POST /Metadata/actions/bulk_create
+    #
+    request = {
+        'bundle_uuid': bundle_uuid,
+        'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
+    }
+    ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
+    assert len(ret["metadata"]) == 3
+    assert ret["count"] == 3
+
+    #
+    # Read - GET /Metadata
+    #
+    ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}')
+    results = ret["results"]
+    assert len(results) == 3
+
+    #
+    # Obtain the Metadata UUIDs with a comprehension
+    #
+    uuids = [x['uuid'] for x in results]
+    assert len(uuids) == 3
+    count = 0
+    for result in results:
+        assert uuids[count] == result['uuid']
+        count = count + 1
