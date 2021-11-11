@@ -222,7 +222,7 @@ async def test_nersc_retriever_hpss_not_available(config, mocker):
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=1,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -237,7 +237,7 @@ async def test_nersc_retriever_do_work_pop_exception(config, mocker):
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -258,7 +258,7 @@ async def test_nersc_retriever_do_work_claim_no_result(config, mocker):
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -282,7 +282,7 @@ async def test_nersc_retriever_do_work_claim_yes_result(config, mocker):
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -308,7 +308,7 @@ async def test_nersc_retriever_do_work_claim_write_bundle_raise_exception(config
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -336,7 +336,7 @@ async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config, mocker):
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -357,7 +357,7 @@ async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config, mocker):
     ehc_mock.side_effect = [True, False]
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
@@ -368,7 +368,7 @@ async def test_nersc_retriever_read_bundle_from_hpss(config, mocker):
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=0,
-        args=["/usr/common/mss/bin/hpss_avail", "archive"],
+        args=["/usr/common/software/bin/hpss_avail", "archive"],
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
@@ -389,7 +389,7 @@ async def test_nersc_retriever_read_bundle_from_hpss(config, mocker):
     ehc_mock.side_effect = [True, True]
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/common/mss/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
@@ -401,13 +401,13 @@ async def test_nersc_retriever_execute_hsi_command_failed(config, mocker):
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            args=["/usr/common/software/bin/hpss_avail", "archive"],
             stdout="some text on stdout",
             stderr="some text on stderr",
         ),
         ObjectLiteral(
             returncode=1,
-            args=['/usr/common/mss/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'],
+            args=['/usr/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'],
             stdout="some text on stdout",
             stderr="some text on stderr",
         )
@@ -438,7 +438,7 @@ async def test_nersc_retriever_execute_hsi_command_success(config, mocker):
     run_mock.side_effect = [
         ObjectLiteral(
             returncode=0,
-            args=["/usr/common/mss/bin/hpss_avail", "archive"],
+            args=["/usr/common/software/bin/hpss_avail", "archive"],
             stdout="some text on stdout",
             stderr="some text on stderr",
         ),

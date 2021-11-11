@@ -8,16 +8,19 @@ import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
 import logging
-from typing import Any, Callable, Dict, List, Tuple
+import os
+from typing import Any, Callable, Dict
 from urllib.parse import quote_plus
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
 import pymongo  # type: ignore
-from pymongo import ASCENDING, MongoClient
-from rest_tools.utils.json_util import json_decode  # type: ignore
+from rest_tools.utils.json_util import json_decode
 from rest_tools.server import authenticated, catch_error, from_environment, RestHandler, RestHandlerSetup, RestServer  # type: ignore
 import tornado.web
+
+ASCENDING = pymongo.ASCENDING
+MongoClient = pymongo.MongoClient
 
 # maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
 DELETE_CHUNK_SIZE = 1000
@@ -42,6 +45,7 @@ EXPECTED_CONFIG = {
 AFTER = pymongo.ReturnDocument.AFTER
 ALL_DOCUMENTS: Dict[str, str] = {}
 FIRST_IN_FIRST_OUT = [("work_priority_timestamp", pymongo.ASCENDING)]
+LOGGING_DENY_LIST = ["LTA_AUTH_SECRET", "LTA_MONGODB_AUTH_PASS"]
 MOST_RECENT_FIRST = [("timestamp", pymongo.DESCENDING)]
 REMOVE_ID = {"_id": False}
 TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
@@ -434,20 +438,17 @@ class MetadataHandler(BaseLTAHandler):
         skip = int(self.get_query_argument("skip", default=0))
 
         query: Dict[str, Any] = {
-            "uuid": {"$exists": True},
             "bundle_uuid": bundle_uuid,
         }
 
         projection: Dict[str, bool] = {"_id": False}
-        sort: List[Tuple[str, Any]] = [("uuid", ASCENDING)]
 
         results = []
         logging.debug(f"MONGO-START: db.Metadata.find(filter={query}, projection={projection}, limit={limit}, skip={skip})")
         async for row in self.db.Metadata.find(filter=query,
                                                projection=projection,
                                                skip=skip,
-                                               limit=limit,
-                                               sort=sort):
+                                               limit=limit):
             results.append(row)
         logging.debug("MONGO-END*:   db.Metadata.find(filter, projection, limit, skip)")
 
@@ -870,7 +871,15 @@ def start(debug: bool = False) -> RestServer:
     config = from_environment(EXPECTED_CONFIG)
     # logger = logging.getLogger('lta.rest')
     for name in config:
-        logging.info(f"{name} = {config[name]}")
+        if name not in LOGGING_DENY_LIST:
+            logging.info(f"{name} = {config[name]}")
+        else:
+            logging.info(f"{name} = REDACTED")
+    for name in ["OTEL_EXPORTER_OTLP_ENDPOINT", "WIPACTEL_EXPORT_STDOUT"]:
+        if name in os.environ:
+            logging.info(f"{name} = {os.environ[name]}")
+        else:
+            logging.info(f"{name} = NOT SPECIFIED")
 
     args = RestHandlerSetup({
         'auth': {

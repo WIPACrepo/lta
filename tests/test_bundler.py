@@ -1,6 +1,7 @@
 # test_bundler.py
 """Unit tests for lta/bundler.py."""
 
+import os
 from unittest.mock import call, mock_open, patch
 from uuid import uuid1
 
@@ -317,6 +318,7 @@ async def test_bundler_do_work_dest_results(config, mocker):
             "source": "WIPAC",
             "dest": "NERSC",
             "file_count": 1,
+            "path": "/path/to/some/data",
             "status": "created",
             "reason": "",
             "bundle_path": "/path/to/bundler/outbox",
@@ -347,10 +349,12 @@ async def test_bundler_do_work_dest_results(config, mocker):
         "source": "WIPAC",
         "dest": "NERSC",
         "file_count": 1,
+        "path": "/path/to/some/data",
     }
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
         await p._do_work_bundle(fc_rc_mock, lta_rc_mock, BUNDLE_OBJ)
         metadata_mock.assert_called_with(mocker.ANY, mode="w")
+    mock_zipfile_write.assert_called_with('/path/to/some/data/warehouse/file.i3', 'warehouse/file.i3')
 
 
 @pytest.mark.asyncio
@@ -365,3 +369,10 @@ async def test_bundler_do_work_bundle_once_and_die(config, mocker):
     p = Bundler(once, logger_mock)
     assert not await p._do_work()
     sys_exit_mock.assert_not_called()
+
+
+def test_relpath():
+    """Ensure os.path.relpath gives us the answers we expect."""
+    assert os.path.relpath('/data/exp/IceCube/2020/filtered/PFFilt/1028/PFFilt_PhysicsFiltering_Run00134642_Subrun00000000_00000000.tar.bz2', '/data/exp/IceCube/2020/filtered/PFFilt/1028') == "PFFilt_PhysicsFiltering_Run00134642_Subrun00000000_00000000.tar.bz2"
+    assert os.path.relpath('/data/exp/IceCube/2013/internal-system/hit-spooling/0403/HS_SNALERT_20130403_061113_ichub01.tar.gz', '/data/exp/IceCube/2013/internal-system/hit-spooling') == "0403/HS_SNALERT_20130403_061113_ichub01.tar.gz"
+    assert os.path.relpath('/data/exp/IceCube/2013/internal-system/hit-spooling/1116/HS_SNALERT_20131116_065747_ichub50.tar.gz', '/data/exp/IceCube/2013/internal-system/hit-spooling') == "1116/HS_SNALERT_20131116_065747_ichub50.tar.gz"

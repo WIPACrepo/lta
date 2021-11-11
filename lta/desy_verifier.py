@@ -2,7 +2,6 @@
 """Module to implement the DesyVerifier component of the Long Term Archive."""
 
 import asyncio
-from logging import Logger
 import logging
 import os
 import sys
@@ -10,12 +9,14 @@ from typing import Any, Dict, Optional
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .joiner import join_smart
 from .log_format import StructuredFormatter
 from .lta_types import BundleType
 
+Logger = logging.Logger
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
@@ -61,6 +62,7 @@ class DesyVerifier(Component):
         """DesyVerifier provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -70,6 +72,7 @@ class DesyVerifier(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be verified
@@ -105,6 +108,7 @@ class DesyVerifier(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return False
 
+    @wtt.spanned()
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records."""
         # configure a RestClient to talk to the File Catalog
@@ -117,6 +121,7 @@ class DesyVerifier(Component):
         basename = os.path.basename(bundle["bundle_path"])  # 604b6c80659c11eb8ad66224ddddaab7.zip
         desy_tape_path = join_smart([self.tape_base_path, data_warehouse_path, basename])
         # create a File Catalog entry for the bundle itself
+        right_now = now()
         file_record = {
             "uuid": bundle["uuid"],
             "logical_name": desy_tape_path,
@@ -129,6 +134,9 @@ class DesyVerifier(Component):
                 }
             ],
             "file_size": bundle["size"],
+            "lta": {
+                "date_archived": right_now,
+            },
         }
         # add the bundle file to the File Catalog
         try:
@@ -145,6 +153,7 @@ class DesyVerifier(Component):
         # indicate that our file catalog updates were successful
         return True
 
+    @wtt.spanned()
     async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is verified."""
         bundle_id = bundle["uuid"]
@@ -159,6 +168,7 @@ class DesyVerifier(Component):
         # the morning sun has vanquished the horrible night
         return True
 
+    @wtt.spanned()
     async def _update_files_in_file_catalog(self,
                                             fc_rc: RestClient,
                                             lta_rc: RestClient,

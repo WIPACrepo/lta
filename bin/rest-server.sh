@@ -10,4 +10,6 @@ export LTA_MONGODB_HOST=${LTA_MONGODB_HOST:='localhost'}
 export LTA_MONGODB_PORT=${LTA_MONGODB_PORT:='27017'}
 export LTA_REST_HOST=${LTA_REST_HOST:="127.0.0.1"}
 export LTA_REST_PORT=${LTA_REST_PORT:="8080"}
+export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
+export WIPACTEL_EXPORT_STDOUT=${WIPACTEL_EXPORT_STDOUT:="FALSE"}
 python -m lta.rest_server

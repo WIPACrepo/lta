@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 
 from rest_tools.client import RestClient  # type: ignore
 from rest_tools.server import from_environment  # type: ignore
+import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
 from .log_format import StructuredFormatter
@@ -70,6 +71,7 @@ class NerscVerifier(Component):
         """NerscVerifier provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
+    @wtt.spanned()
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -79,11 +81,12 @@ class NerscVerifier(Component):
             work_claimed &= not self.run_once_and_die
         self.logger.info("Ending work on Bundles.")
 
+    @wtt.spanned()
     async def _do_work_claim(self) -> bool:
         """Claim a bundle and perform work on it."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
-        args = ["/usr/common/mss/bin/hpss_avail", "archive"]
+        args = ["/usr/common/software/bin/hpss_avail", "archive"]
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
@@ -123,6 +126,7 @@ class NerscVerifier(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
         return False
 
+    @wtt.spanned()
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records."""
         # configure a RestClient to talk to the File Catalog
@@ -137,6 +141,7 @@ class NerscVerifier(Component):
         hpss_path = os.path.normpath(stupid_python_path)
         # create a File Catalog entry for the bundle itself
         bundle_uuid = bundle["uuid"]
+        right_now = now()
         file_record = {
             "uuid": bundle_uuid,
             "logical_name": hpss_path,
@@ -150,6 +155,9 @@ class NerscVerifier(Component):
                 }
             ],
             "file_size": bundle["size"],
+            "lta": {
+                "date_archived": right_now,
+            },
         }
         # add the bundle file to the File Catalog
         try:
@@ -166,6 +174,7 @@ class NerscVerifier(Component):
         # indicate that our file catalog updates were successful
         return True
 
+    @wtt.spanned()
     async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is verified."""
         bundle_uuid = bundle["uuid"]
@@ -180,6 +189,7 @@ class NerscVerifier(Component):
         # the morning sun has vanquished the horrible night
         return True
 
+    @wtt.spanned()
     async def _update_files_in_file_catalog(self,
                                             fc_rc: RestClient,
                                             lta_rc: RestClient,
@@ -236,6 +246,7 @@ class NerscVerifier(Component):
         # the morning sun has vanquished the horrible night
         return True
 
+    @wtt.spanned()
     async def _verify_bundle_in_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the checksum of the bundle in HPSS."""
         bundle_uuid = bundle["uuid"]
@@ -251,7 +262,7 @@ class NerscVerifier(Component):
         #                      It also results in setting "quiet" (no extraneous messages) mode,
         #                      disabling verbose response messages, and disabling interactive file transfer messages
         #     hashlist      -> List checksum hash for HPSS file(s)
-        args = ["/usr/common/mss/bin/hsi", "-P", "hashlist", hpss_path]
+        args = ["/usr/bin/hsi", "-P", "hashlist", hpss_path]
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
@@ -298,7 +309,7 @@ class NerscVerifier(Component):
         #                      disabling verbose response messages, and disabling interactive file transfer messages
         #     hashverify    -> Verify checksum hash for existing HPSS file(s)
         #     -A            -> enable auto-scheduling of retrievals
-        args = ["/usr/common/mss/bin/hsi", "-P", "hashverify", "-A", hpss_path]
+        args = ["/usr/bin/hsi", "-P", "hashverify", "-A", hpss_path]
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:

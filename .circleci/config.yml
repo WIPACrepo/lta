@@ -2,23 +2,24 @@ version: 2
 jobs:
     test:
         docker:
-            - image: circleci/python:3.7.2
+            - image: circleci/python:latest
               environment:
                 LTA_MONGODB_URL: mongodb://localhost:27017
                 LTA_MONGODB_NAME: lta-unit-tests
                 TOKEN_SERVICE: http://localhost:12345
-                AUTH_SECRET: lkjlksdldkfjlsdjflsdnfkl
-            - image: circleci/mongo:3.7.9-ram
+                AUTH_SECRET: hunter2
+            - image: circleci/mongo:latest-ram
             - image: wipac/token-service:latest
               environment:
                 port: 12345
-                auth_secret: lkjlksdldkfjlsdjflsdnfkl
+                auth_secret: hunter2
               command: [python, test_server.py]
         steps:
             - checkout
             - run: ./setupenv.sh
             - run: |
                 . env/bin/activate &&
+                pycycle --here --verbose &&
                 resources/enable_profiling.py &&
                 ./snake rebuild &&
                 resources/profile_queries.py
