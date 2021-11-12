@@ -10,7 +10,7 @@ import sys
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from rest_tools.client import RestClient  # type: ignore
+from rest_tools.client import RestClient
 from urllib.parse import urljoin
 import wipac_telemetry.tracing_tools as wtt
 

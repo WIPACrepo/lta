@@ -6,8 +6,8 @@ import time
 import sys
 from typing import cast, Any, Dict, Mapping
 
-from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import from_environment  # type: ignore
+from rest_tools.client import RestClient
+from rest_tools.server import from_environment
 
 from .log_format import StructuredFormatter
 
@@ -135,14 +135,14 @@ def main() -> None:
     monitors = []
     loop = asyncio.get_event_loop()
     for name in MONITOR_NAMES:
-        if check_bool(config['ENABLE_'+name]):
+        if check_bool(cast(str, config['ENABLE_'+name])):
             logger.info(f"Setting up monitor {name}")
             kwargs = {n.split('_', 1)[-1].lower(): config[n] for n in config if n.startswith(name)}
             kwargs.update({
                 'lta_rest_url': config['LTA_REST_URL'],
                 'lta_rest_token': config['LTA_REST_TOKEN'],
             })
-            m = MONITOR_NAMES[name](**kwargs)
+            m = MONITOR_NAMES[name](**kwargs)  # type: ignore[arg-type]
             monitors.append(m)
             loop.create_task(m.run())
 

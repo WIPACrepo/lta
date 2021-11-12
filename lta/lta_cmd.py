@@ -13,12 +13,12 @@ from operator import itemgetter
 import os
 import sys
 from time import mktime, strptime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, cast, Dict, List, Optional, Tuple
 
 import colorama  # type: ignore
 import hurry.filesize  # type: ignore
-from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import from_environment  # type: ignore
+from rest_tools.client import RestClient
+from rest_tools.server import from_environment
 
 from lta.component import now
 from lta.crypto import sha512sum
@@ -1135,8 +1135,8 @@ async def main() -> None:
             # load and inject the dependencies needed by the command
             config = from_environment(EXPECTED_CONFIG)
             di["config"] = config
-            di["fc_rc"] = RestClient(config["FILE_CATALOG_REST_URL"], token=config["FILE_CATALOG_REST_TOKEN"])
-            di["lta_rc"] = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
+            di["fc_rc"] = RestClient(cast(str, config["FILE_CATALOG_REST_URL"]), token=cast(str, config["FILE_CATALOG_REST_TOKEN"]))
+            di["lta_rc"] = RestClient(cast(str, config["LTA_REST_URL"]), token=cast(str, config["LTA_REST_TOKEN"]))
             # execute the command indicated by the user
             exit_code = await args.func(args)
             sys.exit(exit_code)
