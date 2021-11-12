@@ -34,6 +34,9 @@ EXPECTED_CONFIG = {
     'LTA_MONGODB_AUTH_USER': '',  # None means required to specify
     'LTA_MONGODB_AUTH_PASS': '',  # empty means no authentication required
     'LTA_MONGODB_DATABASE_NAME': 'lta',
+    'LTA_MONGODB_HEALTH_USER': '',  # None means required to specify
+    'LTA_MONGODB_HEALTH_PASS': '',  # empty means no authentication required
+    'LTA_MONGODB_HEALTH_DATABASE_NAME': 'admin',
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
     'LTA_REST_HOST': 'localhost',
@@ -936,7 +939,7 @@ def start(debug: bool = False) -> RestServer:
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
 
     # configure access to MongoDB as a backing store
-    mongo_user = quote_plus(config["LTA_MONGODB_AUTH_USER"])  # ignore: type[union]
+    mongo_user = quote_plus(config["LTA_MONGODB_AUTH_USER"])
     mongo_pass = quote_plus(config["LTA_MONGODB_AUTH_PASS"])
     mongo_host = config["LTA_MONGODB_HOST"]
     mongo_port = int(config["LTA_MONGODB_PORT"])
@@ -949,11 +952,14 @@ def start(debug: bool = False) -> RestServer:
     args['db'] = motor_client[mongo_db]
 
     # configure access to MongoDB for health checks
-    mongodb_health_url = f"mongodb://{mongo_host}:{mongo_port}/admin"
-    if mongo_user and mongo_pass:
-        mongodb_health_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/admin"
-    motor_client = MotorClient(mongodb_health_url)
-    args['db_health'] = motor_client["admin"]
+    mongo_health_user = quote_plus(config["LTA_MONGODB_HEALTH_USER"])
+    mongo_health_pass = quote_plus(config["LTA_MONGODB_HEALTH_PASS"])
+    mongo_health_db = config["LTA_MONGODB_DATABASE_NAME"]
+    mongodb_health_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_health_db}"
+    if mongo_health_user and mongo_health_pass:
+        mongodb_health_url = f"mongodb://{mongo_health_user}:{mongo_health_pass}@{mongo_host}:{mongo_port}/{mongo_health_db}"
+    motor_client_health = MotorClient(mongodb_health_url)
+    args['db_health'] = motor_client_health[mongo_health_db]
     args['mongodb_max_query_seconds'] = int(config['MONGODB_MAX_QUERY_SECONDS'])
 
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
