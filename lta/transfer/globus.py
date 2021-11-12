@@ -4,9 +4,9 @@
 import os
 import subprocess
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, cast, Dict, Optional
 
-from rest_tools.server import from_environment  # type: ignore
+from rest_tools.server import from_environment
 
 EMPTY_STRING_SENTINEL_VALUE = "517c094b-739a-4a01-9d61-8d29eee99fda"
 
@@ -76,13 +76,13 @@ class SiteGlobusProxy(object):
                     role = self.cfg['GLOBUS_PROXY_VOMS_ROLE']
                     cmd.extend(['-voms', '{0}:/{0}/Role={1}'.format(vo, role)])
                 else:
-                    cmd.extend(['-voms', self.cfg['GLOBUS_PROXY_VOMS_VO']])
+                    cmd.extend(['-voms', cast(str, self.cfg['GLOBUS_PROXY_VOMS_VO'])])
             else:
                 cmd = ['grid-proxy-init']
-            cmd.extend(['-pwstdin', '-valid', f'{self.cfg["GLOBUS_PROXY_DURATION"]+1}:0'])
+            cmd.extend(['-pwstdin', '-valid', f'{int(self.cfg["GLOBUS_PROXY_DURATION"])+1}:0'])
             if 'GLOBUS_PROXY_OUTPUT' in self.cfg and self.cfg['GLOBUS_PROXY_OUTPUT']:
-                cmd.extend(['-out', self.cfg['GLOBUS_PROXY_OUTPUT']])
-            inputbytes = (self.cfg['GLOBUS_PROXY_PASSPHRASE']+'\n').encode('utf-8')
+                cmd.extend(['-out', cast(str, self.cfg['GLOBUS_PROXY_OUTPUT'])])
+            inputbytes = (cast(str, self.cfg['GLOBUS_PROXY_PASSPHRASE'])+'\n').encode('utf-8')
             p = subprocess.run(cmd, input=inputbytes, capture_output=True, timeout=60, check=False)
             logger.info('proxy cmd: %r', p.args)
             logger.info('stdout: %s', p.stdout)

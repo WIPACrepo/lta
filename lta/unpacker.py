@@ -11,8 +11,8 @@ import sys
 from typing import Any, cast, Dict, Optional
 from zipfile import ZipFile
 
-from rest_tools.client import RestClient  # type: ignore
-from rest_tools.server import from_environment  # type: ignore
+from rest_tools.client import RestClient
+from rest_tools.server import from_environment
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
@@ -344,7 +344,7 @@ def runner() -> None:
     # configure structured logging for the application
     structured_formatter = StructuredFormatter(
         component_type='Unpacker',
-        component_name=config["COMPONENT_NAME"],
+        component_name=config["COMPONENT_NAME"],  # type: ignore[arg-type]
         ndjson=True)
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(structured_formatter)
@@ -353,7 +353,7 @@ def runner() -> None:
     root_logger.addHandler(stream_handler)
     logger = logging.getLogger("lta.unpacker")
     # create our Unpacker service
-    unpacker = Unpacker(config, logger)
+    unpacker = Unpacker(config, logger)  # type: ignore[arg-type]
     # let's get to work
     unpacker.logger.info("Adding tasks to asyncio loop")
     loop = asyncio.get_event_loop()

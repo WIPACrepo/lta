@@ -9,14 +9,14 @@ from datetime import datetime, timedelta
 from functools import wraps
 import logging
 import os
-from typing import Any, Callable, Dict
+from typing import Any, Callable, cast, Dict
 from urllib.parse import quote_plus
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
 import pymongo  # type: ignore
 from rest_tools.utils.json_util import json_decode
-from rest_tools.server import authenticated, catch_error, from_environment, RestHandler, RestHandlerSetup, RestServer  # type: ignore
+from rest_tools.server import authenticated, catch_error, from_environment, RestHandler, RestHandlerSetup, RestServer
 import tornado.web
 
 ASCENDING = pymongo.ASCENDING
@@ -127,9 +127,14 @@ class CheckClaims:
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
 
-    def initialize(self, check_claims: CheckClaims, db: MotorDatabase, *args: Any, **kwargs: Any) -> None:
+    def initialize(  # type: ignore[override]
+            self,
+            check_claims: CheckClaims,
+            db: MotorDatabase,
+            *args: Any,
+            **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
-        super(BaseLTAHandler, self).initialize(*args, **kwargs)
+        super(BaseLTAHandler, self).initialize(*args, **kwargs)  # type: ignore
         self.check_claims = check_claims
         self.db = db
 
@@ -434,8 +439,8 @@ class MetadataHandler(BaseLTAHandler):
     async def get(self) -> None:
         """Handle GET /Metadata."""
         bundle_uuid = self.get_query_argument("bundle_uuid", default=None)
-        limit = int(self.get_query_argument("limit", default=1000))
-        skip = int(self.get_query_argument("skip", default=0))
+        limit = int(cast(str, self.get_query_argument("limit", default="1000")))
+        skip = int(cast(str, self.get_query_argument("skip", default="0")))
 
         query: Dict[str, Any] = {
             "bundle_uuid": bundle_uuid,
@@ -881,7 +886,7 @@ def start(debug: bool = False) -> RestServer:
         else:
             logging.info(f"{name} = NOT SPECIFIED")
 
-    args = RestHandlerSetup({
+    args = RestHandlerSetup({  # type: ignore
         'auth': {
             'secret': config['LTA_AUTH_SECRET'],
             'issuer': config['LTA_AUTH_ISSUER'],
@@ -891,11 +896,11 @@ def start(debug: bool = False) -> RestServer:
     })
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
     # configure access to MongoDB as a backing store
-    mongo_user = quote_plus(config["LTA_MONGODB_AUTH_USER"])
-    mongo_pass = quote_plus(config["LTA_MONGODB_AUTH_PASS"])
+    mongo_user = quote_plus(cast(str, config["LTA_MONGODB_AUTH_USER"]))
+    mongo_pass = quote_plus(cast(str, config["LTA_MONGODB_AUTH_PASS"]))
     mongo_host = config["LTA_MONGODB_HOST"]
     mongo_port = int(config["LTA_MONGODB_PORT"])
-    mongo_db = config["LTA_MONGODB_DATABASE_NAME"]
+    mongo_db = cast(str, config["LTA_MONGODB_DATABASE_NAME"])
     lta_mongodb_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
@@ -905,28 +910,28 @@ def start(debug: bool = False) -> RestServer:
 
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
     max_body_size = int(config["LTA_MAX_BODY_SIZE"])
-    server = RestServer(debug=debug, max_body_size=max_body_size)
-    server.add_route(r'/', MainHandler, args)
-    server.add_route(r'/Bundles', BundlesHandler, args)
-    server.add_route(r'/Bundles/actions/bulk_create', BundlesActionsBulkCreateHandler, args)
-    server.add_route(r'/Bundles/actions/bulk_delete', BundlesActionsBulkDeleteHandler, args)
-    server.add_route(r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler, args)
-    server.add_route(r'/Bundles/actions/pop', BundlesActionsPopHandler, args)
-    server.add_route(r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler, args)
-    server.add_route(r'/Metadata', MetadataHandler, args)
-    server.add_route(r'/Metadata/actions/bulk_create', MetadataActionsBulkCreateHandler, args)
-    server.add_route(r'/Metadata/actions/bulk_delete', MetadataActionsBulkDeleteHandler, args)
-    server.add_route(r'/Metadata/(?P<metadata_id>\w+)', MetadataSingleHandler, args)
-    server.add_route(r'/TransferRequests', TransferRequestsHandler, args)
-    server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)
-    server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)
-    server.add_route(r'/status', StatusHandler, args)
-    server.add_route(r'/status/nersc', StatusNerscHandler, args)
-    server.add_route(r'/status/(?P<component>\w+)', StatusComponentHandler, args)
-    server.add_route(r'/status/(?P<component>\w+)/count', StatusComponentCountHandler, args)
+    server = RestServer(debug=debug, max_body_size=max_body_size)  # type: ignore[no-untyped-call]
+    server.add_route(r'/', MainHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles', BundlesHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles/actions/bulk_create', BundlesActionsBulkCreateHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles/actions/bulk_delete', BundlesActionsBulkDeleteHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles/actions/pop', BundlesActionsPopHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Metadata', MetadataHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Metadata/actions/bulk_create', MetadataActionsBulkCreateHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Metadata/actions/bulk_delete', MetadataActionsBulkDeleteHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Metadata/(?P<metadata_id>\w+)', MetadataSingleHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/TransferRequests', TransferRequestsHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/status', StatusHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/status/nersc', StatusNerscHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/status/(?P<component>\w+)', StatusComponentHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/status/(?P<component>\w+)/count', StatusComponentCountHandler, args)  # type: ignore[no-untyped-call]
 
     server.startup(address=config['LTA_REST_HOST'],
-                   port=int(config['LTA_REST_PORT']))
+                   port=int(config['LTA_REST_PORT']))  # type: ignore[no-untyped-call]
     return server
 
 def main() -> None:
