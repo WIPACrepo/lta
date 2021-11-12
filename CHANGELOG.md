@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## This Release - 2021-11-11
+### Added
+- Added health check for MongoDB prior to route logic in LTA REST server
+
 ## [0.40.0] - 2021-02-18
 ### Removed
 - Removed deprecated Rucio components and their dependencies

@@ -34,10 +34,14 @@ EXPECTED_CONFIG = {
     'LTA_MONGODB_AUTH_USER': '',  # None means required to specify
     'LTA_MONGODB_AUTH_PASS': '',  # empty means no authentication required
     'LTA_MONGODB_DATABASE_NAME': 'lta',
+    'LTA_MONGODB_HEALTH_USER': '',  # None means required to specify
+    'LTA_MONGODB_HEALTH_PASS': '',  # empty means no authentication required
+    'LTA_MONGODB_HEALTH_DATABASE_NAME': 'admin',
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
+    'MONGODB_MAX_QUERY_SECONDS': '300'
 }
 
 # -----------------------------------------------------------------------------
@@ -64,6 +68,40 @@ def unique_id() -> str:
 
 # -----------------------------------------------------------------------------
 
+def db_health_check(method):  # type: ignore
+    """
+    Ensure that MongoDB is healthy before processing route logic.
+
+    On a health check failure, raises a 429 error. (Too Many Requests)
+    On a database failure, raises a 500 error. (Internal Server Error)
+
+    Raises:
+        :py:class:`tornado.web.HTTPError`
+    """
+    @wraps(method)
+    async def wrapper(self, *args, **kwargs):  # type: ignore
+        # if there is no MongoDB, then bail
+        if not self.db_health:
+            raise tornado.web.HTTPError(500, reason="no reference to admin database")
+        # ask MongoDB how many queries have been running for how long
+        health_query = [{'$currentOp': {'allUsers': False, 'idleConnections': False}}, {'$project': {'secs_running': 1}}]
+        results = []
+        cursor = self.db_health.aggregate(health_query)
+        async for doc in cursor:
+            results.append(doc)
+        # if there are too many query-seconds, then bail
+        query_seconds = 0
+        for r in results:
+            if "secs_running" in r:
+                query_seconds += r["secs_running"]
+        if query_seconds > self.mongodb_max_query_seconds:
+            raise tornado.web.HTTPError(429, reason=f"database has {len(results)} queries, running for a total of {query_seconds} seconds; LTA will not add to the heavy load (maximum: {self.mongodb_max_query_seconds} seconds)")
+        # otherwise, we passed the gauntlet
+        return await method(self, *args, **kwargs)
+    return wrapper
+
+# -----------------------------------------------------------------------------
+
 def lta_auth(**_auth: Any) -> Callable[..., Any]:
     """
     Handle RBAC authorization for LTA.
@@ -81,6 +119,7 @@ def lta_auth(**_auth: Any) -> Callable[..., Any]:
 
     """
     def make_wrapper(method: Callable[..., Any]) -> Any:
+        @db_health_check  # type: ignore
         @authenticated  # type: ignore
         @catch_error  # type: ignore
         @wraps(method)
@@ -127,11 +166,19 @@ class CheckClaims:
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
 
-    def initialize(self, check_claims: CheckClaims, db: MotorDatabase, *args: Any, **kwargs: Any) -> None:
+    def initialize(self,
+                   check_claims: CheckClaims,
+                   db: MotorDatabase,
+                   db_health: MotorDatabase,
+                   mongodb_max_query_seconds: int,
+                   *args: Any,
+                   **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.check_claims = check_claims
         self.db = db
+        self.db_health = db_health
+        self.mongodb_max_query_seconds = mongodb_max_query_seconds
 
 # -----------------------------------------------------------------------------
 
@@ -890,6 +937,7 @@ def start(debug: bool = False) -> RestServer:
         'debug': debug
     })
     args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
+
     # configure access to MongoDB as a backing store
     mongo_user = quote_plus(config["LTA_MONGODB_AUTH_USER"])
     mongo_pass = quote_plus(config["LTA_MONGODB_AUTH_PASS"])
@@ -902,6 +950,17 @@ def start(debug: bool = False) -> RestServer:
     ensure_mongo_indexes(lta_mongodb_url, mongo_db)
     motor_client = MotorClient(lta_mongodb_url)
     args['db'] = motor_client[mongo_db]
+
+    # configure access to MongoDB for health checks
+    mongo_health_user = quote_plus(config["LTA_MONGODB_HEALTH_USER"])
+    mongo_health_pass = quote_plus(config["LTA_MONGODB_HEALTH_PASS"])
+    mongo_health_db = config["LTA_MONGODB_DATABASE_NAME"]
+    mongodb_health_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_health_db}"
+    if mongo_health_user and mongo_health_pass:
+        mongodb_health_url = f"mongodb://{mongo_health_user}:{mongo_health_pass}@{mongo_host}:{mongo_port}/{mongo_health_db}"
+    motor_client_health = MotorClient(mongodb_health_url)
+    args['db_health'] = motor_client_health[mongo_health_db]
+    args['mongodb_max_query_seconds'] = int(config['MONGODB_MAX_QUERY_SECONDS'])
 
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
     max_body_size = int(config["LTA_MAX_BODY_SIZE"])

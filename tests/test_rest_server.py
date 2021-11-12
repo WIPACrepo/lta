@@ -27,6 +27,7 @@ CONFIG = {
     'LTA_MONGODB_DATABASE_NAME': 'lta',
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
+    'MONGODB_MAX_QUERY_SECONDS': '300',
     'OTEL_EXPORTER_OTLP_ENDPOINT': 'localhost:4317',
     'TOKEN_SERVICE': 'http://localhost:8888',
     'WIPACTEL_EXPORT_STDOUT': 'TRUE',
@@ -72,6 +73,7 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", CONFIG['LTA_MONGODB_DATABASE_NAME'])
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
+    monkeypatch.setenv("MONGODB_MAX_QUERY_SECONDS", "300")
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
     monkeypatch.setenv("WIPACTEL_EXPORT_STDOUT", "TRUE")
     s = start(debug=True)
