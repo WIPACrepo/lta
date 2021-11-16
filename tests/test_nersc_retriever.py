@@ -1,13 +1,14 @@
 # test_nersc_retriever.py
 """Unit tests for lta/nersc_retriever.py."""
 
-from unittest.mock import call, MagicMock
+from unittest.mock import AsyncMock, call, MagicMock
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.nersc_retriever import main, NerscRetriever
-from .test_util import AsyncMock, ObjectLiteral
+from .test_util import ObjectLiteral
+
 
 @pytest.fixture
 def config():
@@ -340,8 +341,8 @@ async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config, mocker):
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    request_mock.side_effect = [
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -357,8 +358,8 @@ async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config, mocker):
     ehc_mock.side_effect = [True, False]
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
-    lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
+    ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    request_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -372,8 +373,8 @@ async def test_nersc_retriever_read_bundle_from_hpss(config, mocker):
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    request_mock.side_effect = [
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -389,8 +390,8 @@ async def test_nersc_retriever_read_bundle_from_hpss(config, mocker):
     ehc_mock.side_effect = [True, True]
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
-    lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
+    ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    request_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
 @pytest.mark.asyncio

@@ -1,14 +1,14 @@
 # test_nersc_verifier.py
 """Unit tests for lta/nersc_verifier.py."""
 
-from unittest.mock import call, MagicMock
+from unittest.mock import AsyncMock, call, MagicMock
 from uuid import uuid1
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.nersc_verifier import main, NerscVerifier
-from .test_util import AsyncMock, ObjectLiteral
+from .test_util import ObjectLiteral
 
 @pytest.fixture
 def config():

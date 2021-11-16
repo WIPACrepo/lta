@@ -1,13 +1,13 @@
 # test_transfer_request_finisher.py
 """Unit tests for lta/transfer_request_finisher.py."""
 
-from unittest.mock import call  # MagicMock
+from unittest.mock import AsyncMock, call
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.transfer_request_finisher import main, TransferRequestFinisher
-from .test_util import AsyncMock
+
 
 @pytest.fixture
 def config():

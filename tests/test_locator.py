@@ -4,14 +4,14 @@
 from math import floor
 from secrets import token_hex
 from typing import Dict, List, Union
-from unittest.mock import call, MagicMock
+from unittest.mock import AsyncMock, call, MagicMock
 from uuid import uuid1
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.locator import as_lta_record, main, Locator
-from .test_util import AsyncMock
+
 
 @pytest.fixture
 def config():

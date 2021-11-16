@@ -3,12 +3,12 @@
 
 import asyncio
 import socket
+from unittest.mock import AsyncMock
 
 import pytest  # type: ignore
 import requests
 
 import lta.monitoring
-from .test_util import AsyncMock
 
 
 @pytest.fixture

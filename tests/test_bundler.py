@@ -2,14 +2,13 @@
 """Unit tests for lta/bundler.py."""
 
 import os
-from unittest.mock import call, mock_open, patch
+from unittest.mock import AsyncMock, call, mock_open, patch
 from uuid import uuid1
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.bundler import Bundler, main
-from .test_util import AsyncMock
 
 
 @pytest.fixture
@@ -257,17 +256,15 @@ async def test_bundler_do_work_yes_results(config, mocker):
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
     }
     logger_mock = mocker.MagicMock()
-    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    request_mock.return_value = {
         "bundle": BUNDLE_OBJ,
     }
     dwb_mock = mocker.patch("lta.bundler.Bundler._do_work_bundle", new_callable=AsyncMock)
     p = Bundler(config, logger_mock)
     assert await p._do_work_claim()
-    fc_rc_mock.assert_not_called()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
-    dwb_mock.assert_called_with(fc_rc_mock, lta_rc_mock, BUNDLE_OBJ)
+    request_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
+    dwb_mock.assert_called_with(mocker.ANY, mocker.ANY, BUNDLE_OBJ)
 
 
 @pytest.mark.asyncio

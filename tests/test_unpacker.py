@@ -1,13 +1,12 @@
 # test_unpacker.py
 """Unit tests for lta/unpacker.py."""
 
-from unittest.mock import call, mock_open, patch
+from unittest.mock import AsyncMock, call, mock_open, patch
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.unpacker import Unpacker, main
-from .test_util import AsyncMock
 
 
 @pytest.fixture
@@ -257,15 +256,15 @@ async def test_unpacker_do_work_yes_results(config, mocker, path_map_mock):
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
     }
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    request_mock.return_value = {
         "bundle": BUNDLE_OBJ,
     }
     dwb_mock = mocker.patch("lta.unpacker.Unpacker._do_work_bundle", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
     assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
-    dwb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ)
+    request_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
+    dwb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ)
 
 
 @pytest.mark.asyncio
@@ -275,8 +274,8 @@ async def test_unpacker_do_work_raise_exception(config, mocker, path_map_mock):
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
     }
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    request_mock.return_value = {
         "bundle": BUNDLE_OBJ,
     }
     dwb_mock = mocker.patch("lta.unpacker.Unpacker._do_work_bundle", new_callable=AsyncMock)
@@ -285,9 +284,9 @@ async def test_unpacker_do_work_raise_exception(config, mocker, path_map_mock):
     p = Unpacker(config, logger_mock)
     with pytest.raises(Exception):
         await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
-    dwb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ)
-    qb_mock.assert_called_with(lta_rc_mock, BUNDLE_OBJ, "LTA DB started on fire again")
+    request_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
+    dwb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ)
+    qb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ, "LTA DB started on fire again")
 
 
 @pytest.mark.asyncio

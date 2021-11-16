@@ -1,13 +1,13 @@
 # test_rate_limiter.py
 """Unit tests for lta/rate_limiter.py."""
 
-from unittest.mock import call, MagicMock
+from unittest.mock import AsyncMock, call, MagicMock
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.rate_limiter import main, RateLimiter
-from .test_util import AsyncMock
+
 
 @pytest.fixture
 def config():

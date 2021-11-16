@@ -1,13 +1,13 @@
 # test_desy_move_verifier.py
 """Unit tests for lta/desy_move_verifier.py."""
 
-from unittest.mock import call
+from unittest.mock import AsyncMock, call
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.desy_move_verifier import main, DesyMoveVerifier
-from .test_util import AsyncMock
+
 
 @pytest.fixture
 def config():

@@ -1,14 +1,15 @@
 # test_site_move_verifier.py
 """Unit tests for lta/site_move_verifier.py."""
 
-from unittest.mock import call, MagicMock
+from unittest.mock import AsyncMock, call, MagicMock
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.site_move_verifier import as_nonempty_columns, discard_empty, MYQUOTA_ARGS, parse_myquota
 from lta.site_move_verifier import main, SiteMoveVerifier
-from .test_util import AsyncMock, ObjectLiteral
+from .test_util import ObjectLiteral
+
 
 @pytest.fixture
 def config():
