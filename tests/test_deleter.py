@@ -1,13 +1,13 @@
 # test_deleter.py
 """Unit tests for lta/deleter.py."""
 
-from unittest.mock import call, MagicMock
+from unittest.mock import AsyncMock, call, MagicMock
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.deleter import main, Deleter
-from .test_util import AsyncMock
+
 
 @pytest.fixture
 def config():
@@ -132,24 +132,25 @@ async def test_deleter_run(config, mocker):
 async def test_deleter_run_exception(config, mocker):
     """Test an error doesn't kill the Deleter."""
     logger_mock = mocker.MagicMock()
+    dw_mock = mocker.patch("lta.deleter.Deleter._do_work")  # , new_callable=AsyncMock)
+    dw_mock.side_effect = [Exception("bad thing happen!")]
     p = Deleter(config, logger_mock)
     p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
-    p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
-    p._do_work.assert_called()
     assert p.last_work_end_timestamp
+    dw_mock.assert_called()
 
 @pytest.mark.asyncio
 async def test_deleter_do_work_pop_exception(config, mocker):
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
+    rc_mock = mocker.MagicMock()
+    rc_mock.request = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = Deleter(config, logger_mock)
     with pytest.raises(HTTPError):
         await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 @pytest.mark.asyncio
 async def test_deleter_do_work_no_results(config, mocker):

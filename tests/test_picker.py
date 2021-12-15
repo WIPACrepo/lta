@@ -3,14 +3,14 @@
 
 from secrets import token_hex
 from typing import Dict, List, Union
-from unittest.mock import call, MagicMock
+from unittest.mock import AsyncMock, call, MagicMock
 from uuid import uuid1
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.picker import CREATE_CHUNK_SIZE, main, Picker
-from .test_util import AsyncMock
+
 
 FILE_CATALOG_LIMIT = 9000
 

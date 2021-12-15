@@ -1,13 +1,13 @@
 # test_nersc_mover.py
 """Unit tests for lta/nersc_mover.py."""
 
-from unittest.mock import call, MagicMock
+from unittest.mock import AsyncMock, call, MagicMock
 
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.nersc_mover import main, NerscMover
-from .test_util import AsyncMock, ObjectLiteral
+from .test_util import ObjectLiteral
 
 @pytest.fixture
 def config():
@@ -340,8 +340,8 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config, mocker):
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    request_mock.side_effect = [
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -354,8 +354,8 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config, mocker):
     ehc_mock.return_value = False
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'])
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'])
+    request_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -369,8 +369,8 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config, mocker):
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    request_mock.side_effect = [
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -383,8 +383,8 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config, mocker):
     ehc_mock.side_effect = [True, False]
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    request_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -398,8 +398,8 @@ async def test_nersc_mover_write_bundle_to_hpss(config, mocker):
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    request_mock.side_effect = [
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -415,8 +415,8 @@ async def test_nersc_mover_write_bundle_to_hpss(config, mocker):
     ehc_mock.side_effect = [True, True]
     p = NerscMover(config, logger_mock)
     await p._do_work_claim()
-    ehc_mock.assert_called_with(lta_rc_mock, mocker.ANY, ['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
-    lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
+    ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    request_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
 @pytest.mark.asyncio

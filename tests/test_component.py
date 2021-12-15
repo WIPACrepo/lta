@@ -2,7 +2,7 @@
 """Unit tests for lta/picker.py."""
 
 from asyncio import Future
-from unittest.mock import call, MagicMock
+from unittest.mock import AsyncMock, call, MagicMock
 from uuid import uuid1
 
 import pytest  # type: ignore
@@ -11,7 +11,8 @@ from tornado.web import HTTPError  # type: ignore
 
 from lta.component import patch_status_heartbeat, status_loop, work_loop
 from lta.picker import main, Picker
-from .test_util import AsyncMock, ObjectLiteral
+from .test_util import ObjectLiteral
+
 
 @pytest.fixture
 def config():

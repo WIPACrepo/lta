@@ -64,6 +64,7 @@ def port():
     return ephemeral_port
 
 @pytest.fixture
+@pytest.mark.asyncio
 async def rest(monkeypatch, port):
     """Provide RestClient as a test fixture."""
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
@@ -88,7 +89,7 @@ async def rest(monkeypatch, port):
         return RestClient(f'http://localhost:{port}', token=t, timeout=timeout, retries=0)
 
     yield client
-    s.stop()
+    await s.stop()
     await asyncio.sleep(0.01)
 
 # -----------------------------------------------------------------------------
