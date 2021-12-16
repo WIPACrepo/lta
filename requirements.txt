@@ -1,9 +1,9 @@
-binpacking==1.5.1
+binpacking==1.5.2
 colorama==0.4.4
 flake8==4.0.1
 hurry.filesize==0.9
 motor==2.5.1
-mypy==0.910
+mypy==0.920
 prometheus-client==0.12.0
 pycycle==0.0.8
 pymongo==3.12.1

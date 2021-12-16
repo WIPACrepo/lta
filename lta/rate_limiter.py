@@ -27,26 +27,6 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
-def _enumerate_path(path: str) -> List[str]:
-    """Recursively walk the file system to enumerate files at provided path."""
-    # enumerate all of the files on disk to be checked
-    disk_files = []
-    for root, dirs, files in os.walk(path):
-        disk_files.extend([os.path.join(root, file) for file in files])
-    return disk_files
-
-def _get_files_and_size(path: str) -> Tuple[List[str], int]:
-    """Recursively walk and add the files of files in the file system."""
-    # enumerate all of the files on disk to be checked
-    disk_files = _enumerate_path(path)
-    # for all of the files we want to check
-    size = 0
-    for disk_file in disk_files:
-        # determine the size of the file
-        size += os.path.getsize(disk_file)
-    return (disk_files, size)
-
-
 class RateLimiter(Component):
     """
     RateLimiter is a Long Term Archive component.
@@ -76,9 +56,33 @@ class RateLimiter(Component):
         """Contribute no additional status."""
         return {}
 
+    def _enumerate_path(self, path: str) -> List[str]:
+        """Recursively walk the file system to enumerate files at provided path."""
+        self.logger.info(f"Enumerating all files in {path}")
+        # enumerate all of the files on disk to be checked
+        disk_files = []
+        for root, dirs, files in os.walk(path):
+            disk_files.extend([os.path.join(root, file) for file in files])
+        self.logger.info(f"Found {len(disk_files)} entries in {path}")
+        return disk_files
+
     def _expected_config(self) -> Dict[str, Optional[str]]:
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
+
+    def _get_files_and_size(self, path: str) -> Tuple[List[str], int]:
+        """Recursively walk and add the files of files in the file system."""
+        # enumerate all of the files on disk to be checked
+        disk_files = self._enumerate_path(path)
+        # for all of the files we want to check
+        self.logger.info(f"Determining total size of files in {path}")
+        size = 0
+        for disk_file in disk_files:
+            # determine the size of the file
+            size += os.path.getsize(disk_file)
+            self.logger.debug(f"Size so far: {size} bytes")
+        self.logger.info(f"Found {len(disk_files)} entries ({size} bytes) in {path}")
+        return (disk_files, size)
 
     @wtt.spanned()
     async def _do_work(self) -> None:
@@ -141,7 +145,7 @@ class RateLimiter(Component):
         """Stage the Bundle to the output directory for transfer."""
         bundle_id = bundle["uuid"]
         # measure output directory size, our bundle's size, and the quota
-        output_size = _get_files_and_size(self.output_path)[1]
+        output_size = self._get_files_and_size(self.output_path)[1]
         bundle_size = bundle["size"]
         total_size = output_size + bundle_size
         # if we would exceed our destination quota
