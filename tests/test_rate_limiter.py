@@ -253,7 +253,7 @@ async def test_rate_limiter_stage_bundle_over_quota(config, mocker):
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     move_mock = mocker.patch("shutil.move", new_callable=MagicMock)
-    gfas_mock = mocker.patch("lta.rate_limiter._get_files_and_size", new_callable=MagicMock)
+    gfas_mock = mocker.patch("lta.rate_limiter.RateLimiter._get_files_and_size", new_callable=MagicMock)
     gfas_mock.return_value = (["/path/to/one/file.zip"], 11826192449536)
     ub_mock = mocker.patch("lta.rate_limiter.RateLimiter._unclaim_bundle", new_callable=AsyncMock)
     p = RateLimiter(config, logger_mock)
