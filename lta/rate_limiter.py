@@ -78,23 +78,16 @@ class RateLimiter(Component):
         self.logger.info(f"Determining total size of files in {path}")
         size = 0
         for disk_file in disk_files:
-            # determine the size of the file
-            size += os.path.getsize(disk_file)
+            try:
+                # determine the size of the file
+                size += os.path.getsize(disk_file)
+            except:
+                # whoops, looks like somebody downstream moved it
+                self.logger.error(f"Skipped getsize() on missing file: {disk_file}")
+                continue
             self.logger.debug(f"Size so far: {size} bytes")
         self.logger.info(f"Found {len(disk_files)} entries ({size} bytes) in {path}")
         return (disk_files, size)
-
-    def _get_files_and_size_with_retry(self, path: str) -> Tuple[List[str], int]:
-        """Recursively walk and add the files of files in the file system."""
-        retry_left = 3
-        while retry_left > 0:
-            retry_left = retry_left - 1
-            try:
-                return self._get_files_and_size(path)
-            except Exception as e:
-                self.logger.error(f"Error while checking the contents of {path}:", exc_info=e)
-                self.logger.error(f"Will attempt to retry up to {retry_left} more time(s).")
-        raise Exception(f"Ran out of retries while checking the contents of {path}")
 
     @wtt.spanned()
     async def _do_work(self) -> None:
@@ -157,7 +150,7 @@ class RateLimiter(Component):
         """Stage the Bundle to the output directory for transfer."""
         bundle_id = bundle["uuid"]
         # measure output directory size, our bundle's size, and the quota
-        output_size = self._get_files_and_size_with_retry(self.output_path)[1]
+        output_size = self._get_files_and_size(self.output_path)[1]
         bundle_size = bundle["size"]
         total_size = output_size + bundle_size
         # if we would exceed our destination quota
