@@ -287,3 +287,29 @@ async def test_rate_limiter_unclaim_bundle(config, mocker):
     p = RateLimiter(config, logger_mock)
     await p._unclaim_bundle(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"})
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
+
+def test_get_files_and_size_with_retry_will_retry(config, mocker):
+    """Test that retries work when an exception is thrown."""
+    logger_mock = mocker.MagicMock()
+    gfas_mock = mocker.patch("lta.rate_limiter.RateLimiter._get_files_and_size", new_callable=MagicMock)
+    gfas_mock.side_effect = [
+        Exception("file system on fire"),
+        ([], 0),    # it's okay, we put the fire out so it worked this time
+    ]
+    p = RateLimiter(config, logger_mock)
+    assert p._get_files_and_size_with_retry("/path/to/destination/directory") == ([], 0)
+
+def test_get_files_and_size_with_retry_will_exhaust_retries(config, mocker):
+    """Test that retries work until they don't."""
+    logger_mock = mocker.MagicMock()
+    gfas_mock = mocker.patch("lta.rate_limiter.RateLimiter._get_files_and_size", new_callable=MagicMock)
+    gfas_mock.side_effect = [
+        Exception("file system on fire"),
+        Exception("file system still on fire"),
+        Exception("file system still ablaze"),
+        Exception("file system fire spreading to office"),
+        Exception("file system is burning down the whole block"),
+    ]
+    p = RateLimiter(config, logger_mock)
+    with pytest.raises(Exception):
+        p._get_files_and_size_with_retry("/path/to/destination/directory")
