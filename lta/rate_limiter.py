@@ -78,8 +78,13 @@ class RateLimiter(Component):
         self.logger.info(f"Determining total size of files in {path}")
         size = 0
         for disk_file in disk_files:
-            # determine the size of the file
-            size += os.path.getsize(disk_file)
+            try:
+                # determine the size of the file
+                size += os.path.getsize(disk_file)
+            except Exception as e:
+                # whoops, looks like somebody downstream moved it
+                self.logger.error(f"Skipped getsize() on missing file: {disk_file}", exc_info=e)
+                continue
             self.logger.debug(f"Size so far: {size} bytes")
         self.logger.info(f"Found {len(disk_files)} entries ({size} bytes) in {path}")
         return (disk_files, size)

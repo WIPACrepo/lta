@@ -287,3 +287,20 @@ async def test_rate_limiter_unclaim_bundle(config, mocker):
     p = RateLimiter(config, logger_mock)
     await p._unclaim_bundle(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"})
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
+
+def test_get_files_and_size_with_ignore_bad_files(config, mocker):
+    """Test that missing files will not stop the measurement process."""
+    BUNDLES_IN_DESTINATION_DIRECTORY = [
+        "/path/to/destination/directory/bundle1.zip",
+        "/path/to/destination/directory/bundle2.zip",
+    ]
+    logger_mock = mocker.MagicMock()
+    ep_mock = mocker.patch("lta.rate_limiter.RateLimiter._enumerate_path", new_callable=MagicMock)
+    ep_mock.return_value = BUNDLES_IN_DESTINATION_DIRECTORY
+    gs_mock = mocker.patch("os.path.getsize", new_callable=MagicMock)
+    gs_mock.side_effect = [
+        Exception("bundle1.zip is sold out!"),
+        123_456_789,
+    ]
+    p = RateLimiter(config, logger_mock)
+    assert p._get_files_and_size("/path/to/destination/directory") == (BUNDLES_IN_DESTINATION_DIRECTORY, 123_456_789)
