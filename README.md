@@ -86,9 +86,9 @@ For Linux Mint 18, there is a script in the resources directory:
     resources/install-docker.sh
 
 #### Install circleci-cli
-As root, the following command installs circleci-cli locally:
+The following command installs circleci-cli locally:
 
-    curl -fLSs https://circle.ci/cli | bash
+    curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | sudo bash
 
 There are [other installation options](https://github.com/CircleCI-Public/circleci-cli) as well.
 
