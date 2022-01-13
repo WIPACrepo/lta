@@ -8,8 +8,8 @@ from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, List, Optional
 
-from rest_tools.client import RestClient
-from rest_tools.server import from_environment
+from rest_tools.client import RestClient  # type: ignore
+from rest_tools.server import from_environment  # type: ignore
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
@@ -159,7 +159,7 @@ class SiteMoveVerifier(Component):
         # get our ducks in a row
         bundle_id = bundle["uuid"]
         if self.use_full_bundle_path:
-            bundle_name = bundle["bundle_path"]
+            bundle_name = join_smart([bundle["path"], os.path.basename(bundle["bundle_path"])])
         else:
             bundle_name = os.path.basename(bundle["bundle_path"])
         bundle_path = join_smart([self.dest_root_path, bundle_name])
@@ -215,7 +215,7 @@ def runner() -> None:
     # configure structured logging for the application
     structured_formatter = StructuredFormatter(
         component_type='SiteMoveVerifier',
-        component_name=config["COMPONENT_NAME"],  # type: ignore[arg-type]
+        component_name=config["COMPONENT_NAME"],
         ndjson=True)
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(structured_formatter)
@@ -224,7 +224,7 @@ def runner() -> None:
     root_logger.addHandler(stream_handler)
     logger = logging.getLogger("lta.site_move_verifier")
     # create our SiteMoveVerifier service
-    site_move_verifier = SiteMoveVerifier(config, logger)  # type: ignore[arg-type]
+    site_move_verifier = SiteMoveVerifier(config, logger)
     # let's get to work
     site_move_verifier.logger.info("Adding tasks to asyncio loop")
     loop = asyncio.get_event_loop()
