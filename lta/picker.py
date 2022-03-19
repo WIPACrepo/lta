@@ -128,9 +128,10 @@ class Picker(Component):
             "locations.path": {
                 "$regex": f"^{path}"
             },
-            "logical_name": {
-                "$regex": f"^{path}"
-            },
+            # this isn't going to work; searching 'logical_name' by regular expression
+            # "logical_name": {
+            #     "$regex": f"^{path}"
+            # },
         }
         query_json = json.dumps(query_dict)
         page_start = 0

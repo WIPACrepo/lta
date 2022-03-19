@@ -141,11 +141,15 @@ class Locator(Component):
                 "$eq": True,
             },
             "locations.site": {
-                "$eq": source
+                "$eq": source,
             },
-            "logical_name": {
-                "$regex": f"^{path}"
+            "locations.path": {
+                "$regex": f"^{path}",
             },
+            # this isn't going to work; searching 'logical_name' by regular expression
+            # "logical_name": {
+            #     "$regex": f"^{path}",
+            # },
         }
         query_json = json.dumps(query_dict)
         bundle_uuids: List[str] = []
