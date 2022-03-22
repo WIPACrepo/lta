@@ -19,6 +19,7 @@ import colorama  # type: ignore
 import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient
 from rest_tools.server import from_environment
+import urllib
 
 from lta.component import now
 from lta.crypto import sha512sum
@@ -110,6 +111,7 @@ async def _catalog_get(rc: RestClient, path: str) -> Optional[Any]:
         "locations.path": {
             "$eq": path
         },
+        # this is probably OK; finding a single file catalog record by complete path
         "logical_name": {
             "$eq": path
         },
@@ -415,9 +417,10 @@ async def catalog_check(args: Namespace) -> ExitCode:
         "locations.path": {
             "$regex": f"^{args.path}"
         },
-        "logical_name": {
-            "$regex": f"^{args.path}"
-        }
+        # this isn't going to work; searching 'logical_name' by regular expression
+        # "logical_name": {
+        #     "$regex": f"^{args.path}"
+        # }
     }
     query_json = json.dumps(query_dict)
     fc_response = await args.di["fc_rc"].request('GET', f'/api/files?query={query_json}')
@@ -439,6 +442,30 @@ async def catalog_check(args: Namespace) -> ExitCode:
 
     # return the appropriate exit code based on what we found
     return exit_code
+
+
+async def catalog_query(args: Namespace) -> ExitCode:
+    """Run a freeform query against the File Catalog."""
+    # URL encode the provided query string if requested
+    query = args.query
+    if args.url_encode:
+        query = urllib.parse.quote_plus(query)
+
+    # print out the query string if we're debugging
+    if args.debug:
+        print(f"Using query string: {query}\n\nURL: /api/files?query={query}")
+
+    # run the query
+    fc_response = await args.di["fc_rc"].request('GET', f'/api/files?query={query}')
+
+    # display the results to the caller
+    if args.json:
+        print_dict_as_pretty_json(fc_response)
+    else:
+        print(fc_response)
+
+    # return the appropriate exit code based on what we found
+    return EXIT_OK
 
 
 async def catalog_display(args: Namespace) -> ExitCode:
@@ -470,11 +497,15 @@ async def catalog_stats(args: Namespace) -> ExitCode:
 
     # we want files at NERSC that are not contained within archives
     query_dict = {
-        "logical_name": {
-            "$regex": "^/home/projects/icecube"
-        },
+        # this isn't going to work; searching 'logical_name' by regular expression
+        # "logical_name": {
+        #     "$regex": "^/home/projects/icecube"
+        # },
         "locations.site": {
             "$eq": "NERSC"
+        },
+        "locations.path": {
+            "$regex": "^/home/projects/icecube"
         },
     }
     query_json = json.dumps(query_dict)
@@ -963,6 +994,23 @@ async def main() -> None:
     parser_catalog_display.add_argument("--uuid",
                                         help="Catalog UUID to be displayed")
     parser_catalog_display.set_defaults(func=catalog_display)
+
+    # define a subparser for the 'catalog query' subcommand
+    parser_catalog_query = catalog_subparser.add_parser('query', help='run a query on the catalog')
+    parser_catalog_query.add_argument("--debug",
+                                      help="display debugging output",
+                                      action="store_true")
+    parser_catalog_query.add_argument("--json",
+                                      help="display output in JSON",
+                                      action="store_true")
+    parser_catalog_query.add_argument("--query",
+                                      help="query string to provide to the catalog",
+                                      required=True)
+    parser_catalog_query.add_argument("--url-encode",
+                                      dest="url_encode",
+                                      help="URL encode the query string before use",
+                                      action="store_true")
+    parser_catalog_query.set_defaults(func=catalog_query)
 
     # define a subparser for the 'catalog stats' subcommand
     parser_catalog_stats = catalog_subparser.add_parser('stats', help='display the bundles archived to NERSC')
