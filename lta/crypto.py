@@ -13,7 +13,7 @@ def adler32sum(filename: str) -> str:
     mv = memoryview(b)
     with open(filename, 'rb', buffering=0) as f:
         # Known issue with MyPy: https://github.com/python/typeshed/issues/2166
-        for n in iter(lambda: f.readinto(mv), 0):  # type: ignore
+        for n in iter(lambda: f.readinto(mv), 0):
             value = zlib.adler32(mv[:n].tobytes(), value)
     return ("%08X" % (value & 0xffffffff)).lower()
 
@@ -26,7 +26,7 @@ def sha512sum(filename: str) -> str:
     mv = memoryview(b)
     with open(filename, 'rb', buffering=0) as f:
         # Known issue with MyPy: https://github.com/python/typeshed/issues/2166
-        for n in iter(lambda: f.readinto(mv), 0):  # type: ignore
+        for n in iter(lambda: f.readinto(mv), 0):
             h.update(mv[:n])
     return h.hexdigest()
 
@@ -40,7 +40,7 @@ def lta_checksums(filename: str) -> Dict[str, str]:
     mv = memoryview(b)
     with open(filename, 'rb', buffering=0) as f:
         # Known issue with MyPy: https://github.com/python/typeshed/issues/2166
-        for n in iter(lambda: f.readinto(mv), 0):  # type: ignore
+        for n in iter(lambda: f.readinto(mv), 0):
             value = zlib.adler32(mv[:n].tobytes(), value)
             h.update(mv[:n])
     return {

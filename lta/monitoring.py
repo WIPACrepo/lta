@@ -75,7 +75,7 @@ class Monitor:
 MONITOR_NAMES = {}
 
 try:
-    from prometheus_client import start_http_server, Enum  # type: ignore
+    from prometheus_client import start_http_server, Enum
 except ImportError:
     pass
 else:
@@ -85,7 +85,7 @@ else:
         def __init__(self, port: str = '8000', **kwargs: Any) -> None:
             """Initialize a PrometheusMonitor object."""
             super(PrometheusMonitor, self).__init__(**kwargs)
-            start_http_server(int(port))
+            start_http_server(int(port))  # type: ignore[no-untyped-call]
             self.state: Dict[str, Any] = {}
 
         def register_enum(self, name: str) -> None:

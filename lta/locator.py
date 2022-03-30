@@ -196,8 +196,8 @@ class Locator(Component):
                 "dest": dest,
                 "path": path,
                 "size": bundle_record["file_size"],
-                "bundle_path": bundle_record["lta"]["bundle_path"],
-                "checksum": bundle_record["lta"]["checksum"],
+                "bundle_path": bundle_record["logical_name"],
+                "checksum": bundle_record["checksum"],
                 "catalog": as_lta_record(bundle_record),
             })
 
