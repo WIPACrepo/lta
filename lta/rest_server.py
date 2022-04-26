@@ -16,8 +16,9 @@ from uuid import uuid1
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
 import pymongo  # type: ignore
 from rest_tools.utils.json_util import json_decode
-from rest_tools.server import authenticated, catch_error, from_environment, RestHandler, RestHandlerSetup, RestServer
+from rest_tools.server import authenticated, catch_error, RestHandler, RestHandlerSetup, RestServer
 import tornado.web
+from wipac_dev_tools import from_environment
 
 ASCENDING = pymongo.ASCENDING
 MongoClient = pymongo.MongoClient

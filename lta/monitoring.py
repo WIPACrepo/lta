@@ -7,7 +7,7 @@ import sys
 from typing import cast, Any, Dict, Mapping
 
 from rest_tools.client import RestClient
-from rest_tools.server import from_environment
+from wipac_dev_tools import from_environment
 
 from .log_format import StructuredFormatter
 
@@ -85,7 +85,7 @@ else:
         def __init__(self, port: str = '8000', **kwargs: Any) -> None:
             """Initialize a PrometheusMonitor object."""
             super(PrometheusMonitor, self).__init__(**kwargs)
-            start_http_server(int(port))  # type: ignore[no-untyped-call]
+            start_http_server(int(port))
             self.state: Dict[str, Any] = {}
 
         def register_enum(self, name: str) -> None:

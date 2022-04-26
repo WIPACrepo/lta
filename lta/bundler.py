@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 from zipfile import ZIP_STORED, ZipFile
 
 from rest_tools.client import RestClient
-from rest_tools.server import from_environment
+from wipac_dev_tools import from_environment
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop

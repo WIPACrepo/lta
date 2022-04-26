@@ -6,7 +6,7 @@ import subprocess
 import logging
 from typing import Any, cast, Dict, Optional
 
-from rest_tools.server import from_environment
+from wipac_dev_tools import from_environment
 
 EMPTY_STRING_SENTINEL_VALUE = "517c094b-739a-4a01-9d61-8d29eee99fda"
 
