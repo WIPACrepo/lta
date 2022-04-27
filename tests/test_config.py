@@ -3,7 +3,7 @@
 
 import pytest
 
-from rest_tools.server import from_environment  # type: ignore
+from wipac_dev_tools import from_environment
 
 
 def test_from_environment_none():

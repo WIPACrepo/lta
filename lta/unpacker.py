@@ -12,7 +12,7 @@ from typing import Any, cast, Dict, Optional
 from zipfile import ZipFile
 
 from rest_tools.client import RestClient
-from rest_tools.server import from_environment
+from wipac_dev_tools import from_environment
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
@@ -281,13 +281,11 @@ class Unpacker(Component):
         # try with version 2
         metadata_dict = self._read_manifest_metadata_v2(bundle_uuid)
         if metadata_dict:
-            # return metadata_dict
-            return cast(Dict[str, Any], metadata_dict)
+            return metadata_dict
         # try with version 3
         metadata_dict = self._read_manifest_metadata_v3(bundle_uuid)
         if metadata_dict:
-            # return metadata_dict
-            return cast(Dict[str, Any], metadata_dict)
+            return metadata_dict
         # whoops, we have no idea how to read the manifest
         raise Exception("Unknown bundle manifest version")
 

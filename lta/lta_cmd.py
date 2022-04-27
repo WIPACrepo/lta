@@ -18,8 +18,8 @@ from typing import Any, cast, Dict, List, Optional, Tuple
 import colorama  # type: ignore
 import hurry.filesize  # type: ignore
 from rest_tools.client import RestClient
-from rest_tools.server import from_environment
 import urllib
+from wipac_dev_tools import from_environment
 
 from lta.component import now
 from lta.crypto import sha512sum
