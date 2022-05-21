@@ -1,0 +1,5 @@
+#!/bin/bash
+cd /home/jadelta/LTA/lta
+eval `/cvmfs/icecube.opensciencegrid.org/py3-v4.1.0/setup.sh`
+source /home/jadelta/LTA/lta/env/bin/activate
+/home/jadelta/LTA/lta/bin/unpacker.sh

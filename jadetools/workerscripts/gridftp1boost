@@ -1,0 +1,5 @@
+#!/bin/bash
+hn=`/bin/hostname -s`
+nnn=$(date +%s)
+/home/jadelta/pipe1gridftp >& /mnt/lfs7/ltatemp/log/pipe1gridftp.run.${hn}.${nnn}.log &
+

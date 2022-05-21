@@ -1,0 +1,7 @@
+#!/bin/bash
+cd /home/jadelta/LTA/lta
+eval `/cvmfs/icecube.opensciencegrid.org/py3-v4.1.0/setup.sh`
+source ./env/bin/activate
+pwd
+ls resources/solicit-token.sh
+/home/jadelta/LTA/lta/bin/site-move-verifier-return.sh

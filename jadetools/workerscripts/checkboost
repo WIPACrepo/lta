@@ -1,0 +1,4 @@
+#!/bin/bash
+hn=`/bin/hostname -s`
+c=`date +%s`
+/home/jadelta/dumpcontrol/DumpStream/jadetools/onecheck >& /mnt/lfs7/ltatemp/log/check.run.${hn}.${c}.log &
