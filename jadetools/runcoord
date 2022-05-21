@@ -1,0 +1,8 @@
+#!/bin/bash
+eval `/cvmfs/icecube.opensciencegrid.org/py3-v4.1.0/setup.sh`
+source /home/jadelta/LTA/lta/env/bin/activate
+cd /home/jadelta/dumpcontrol/DumpStream/jadetools
+nnn=$(date +%s)
+#python coordinate.py >& "docoord${nnn}.log" &
+# Update to version 2
+python coordinate2.py >& "logs/docoord${nnn}.log" &

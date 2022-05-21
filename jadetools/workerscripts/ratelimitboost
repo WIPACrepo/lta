@@ -1,0 +1,5 @@
+#!/bin/bash
+hn=`/bin/hostname -s`
+nnn=$(date +%s)
+/home/jadelta/pipe0-rate-limiter >& /mnt/lfs7/ltatemp/log/pipe0-rate-limiter.run.${hn}.${nnn}.log &
+

@@ -1,0 +1,7 @@
+#!/bin/bash
+eval `/cvmfs/icecube.opensciencegrid.org/py3-v4.1.0/setup.sh`
+cd /home/jadelta/LTA/lta
+source env/bin/activate
+cd /home/jadelta/dumpcontrol/DumpStream/jadetools
+nnn=$(date +%s)
+python AutoFiles2.py >& "DEL${nnn}.log" &

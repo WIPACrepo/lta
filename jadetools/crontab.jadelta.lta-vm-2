@@ -1,0 +1,4 @@
+#5,20,35,50 * * * * 	/home/jadelta/dumpcontrol/DumpStream/jadetools/runcoord >& /home/jadelta/dumpcontrol/DumpStream/jadetools/runcoord.log
+
+MAILTO=”pmeade@icecube.wisc.edu”
+*/5 * * * *	/home/jadelta/dumpcontrol/DumpStream/jadetools/runcoord >& /home/jadelta/dumpcontrol/DumpStream/jadetools/runcoord.log

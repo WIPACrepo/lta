@@ -1,0 +1,53 @@
+{
+  "hotlimit" : 2,
+  "debuglevel" : 0,
+  "debugmode" : false,
+  "available" : [
+     "n-20.icecube.wisc.edu",
+     "n-40.icecube.wisc.edu",
+     "n-43.icecube.wisc.edu",
+     "c9-3.icecube.wisc.edu",
+     "c9-5.icecube.wisc.edu",
+     "c9-6.icecube.wisc.edu",
+     "c9-8.icecube.wisc.edu",
+     "c9-9.icecube.wisc.edu",
+     "c9-10.icecube.wisc.edu",
+     "c9-11.icecube.wisc.edu",
+     "c9-12.icecube.wisc.edu",
+     "c8-6.icecube.wisc.edu",
+     "c8-7.icecube.wisc.edu",
+     "c8-8.icecube.wisc.edu",
+     "c8-10.icecube.wisc.edu",
+     "c8-12.icecube.wisc.edu"],
+  "pipes": [
+     { "pipe" : "pipe0", 
+       "description" : "Copy files from Madison to NERSC",
+       "types" : [
+         {"name" : "bundler", "count" : 2, "submitter": "bundlerboost", "hot" : true, "key" : "pipe0-bundler", "on" : true},
+         {"name" : "check", "count" : 1, "submitter": "checkboost", "hot" : true, "key" : "InterfaceLTA", "on" : true},
+         {"name" : "delete", "count" : 1, "submitter": "delboost", "hot" : false, "key" : "pipe0-delete", "on" : true},
+         {"name" : "gridftp", "count" : 2, "submitter": "gridftpboost", "hot" : true, "key" : "pipe0-gridftp-replicator", "on" : true},
+         {"name" : "ratelimit", "count" : 1, "submitter" : "ratelimitboost", "hot" : false, "key" : "pipe0-rate-limiter", "on" : true},
+         {"name" : "deletemadison", "count" : 1, "submitter" : "delmadboost", "hot" : false, "key" : "AutoFiles", "on" : false}]
+     },
+     { "pipe" : "pipe1", 
+       "description" : "Copy NERSC to Madison",
+       "types" : [
+         {"name" : "site-move-verifier-return", "count" : 1, "submitter": "smrboost", "hot" : true, "key" : "pipe1-site-move-verifier", "on" : true},
+         {"name" : "delete-return", "count" : 1, "submitter": "delretboost", "hot" : false, "key" : "pipe1-deleter-return", "on" : true},
+         {"name" : "unpacker", "count" : 1, "submitter": "unpackboost", "hot" : true, "key" : "pipe1-unpacker", "on" : true},
+         {"name" : "gridftp", "count" : 1, "submitter": "gridftp1boost", "hot" : true, "key" : "pipe1-gridftp", "on" : false}]
+     },
+     { "pipe" : "pipe2", 
+       "description" : "Copy files from Madison to DESY archive",
+       "types" : [
+         {"name" : "bundler", "count" : 2, "submitter": "bundler2boost", "hot" : true, "key" : "pipe2-bundler", "on" : true},
+         {"name" : "delete", "count" : 1, "submitter": "deleter2boost", "hot" : false, "key" : "pipe2-deleter", "on" : true},
+         {"name" : "gridftp", "count" : 3, "submitter": "gridftp2boost", "hot" : true, "key" : "pipe2-gridftp", "on" : true},
+         {"name" : "ratelimit", "count" : 1, "submitter" : "ratelimit2boost", "hot" : false, "key" : "pipe2-rate-limiter", "on" : true},
+         {"name" : "site-move-verifier", "count" : 1, "submitter" : "sitemovever2boost", "hot" : true, "key" : "pipe2-site-move-verifier", "on" : false},
+         {"name" : "desy-verifier", "count" : 1, "submitter" : "desyverify2boost", "hot" : true, "key" : "pipe2-desy-verifier", "on" : true},
+         {"name" : "deletemadison", "count" : 1, "submitter" : "delmad2boost", "hot" : false, "key" : "pipe2-deletemadison", "on" : true}]
+     }
+   ]
+}

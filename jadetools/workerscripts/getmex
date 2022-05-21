@@ -1,0 +1,2 @@
+#!/bin/bash
+/bin/ps aux | grep -v indexer.py | /bin/awk '{if($1=="jadelta")print $0;}'

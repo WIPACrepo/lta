@@ -1,0 +1,4 @@
+#!/bin/bash
+hn=`/bin/hostname -s`
+nnn=$(date +%s)
+/home/jadelta/pipe0-deleter >& /mnt/lfs7/ltatemp/log/pipe0-deleter.run.${hn}.${nnn}.log &
