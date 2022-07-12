@@ -5,6 +5,7 @@ hurry.filesize==0.9
 motor==2.5.1
 mypy==0.942
 prometheus-client==0.14.1
+protobuf >= 3.13.0, < 4.0
 pycycle==0.0.8
 pyjwt[crypto]
 pymongo==3.12.3
