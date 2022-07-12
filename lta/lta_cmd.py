@@ -53,7 +53,8 @@ EXPECTED_CONFIG = {
 KILOBYTE = 1024
 MEGABYTE = KILOBYTE * KILOBYTE
 GIGABYTE = MEGABYTE * KILOBYTE
-MINIMUM_REQUEST_SIZE = 100 * GIGABYTE
+# MINIMUM_REQUEST_SIZE = 100 * GIGABYTE
+MINIMUM_REQUEST_SIZE = 75 * 1000**3
 
 PATH_PREFIX_ALLOW_LIST = [
     "/data/ana",
@@ -728,6 +729,9 @@ async def request_new(args: Namespace) -> ExitCode:
     source = args.source
     dest = args.dest
     path = normalize_path(args.path)
+    # if the request contains nothing at all, don't try to archive it
+    if (size == 0) or (len(disk_files) == 0):
+        raise Exception(f"TransferRequest for {path}\n{size:,} bytes ({hurry.filesize.size(size)}) in {len(disk_files):,} files.\nWill NOT attempt to archive 0 bytes.")
     # if it doesn't meet our minimize size requirement
     if size < MINIMUM_REQUEST_SIZE:
         # and the operator has not forced the issue
