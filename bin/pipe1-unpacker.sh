@@ -11,12 +11,13 @@ export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(<service-token)"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="completed"}
-export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="True"}
+export PATH_MAP_JSON=${PATH_MAP_JSON:="path_map.json"}
+export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="FALSE"}
 export SOURCE_SITE=${SOURCE_SITE:="NERSC"}
-export UNPACKER_OUTBOX_PATH=${UNPACKER_OUTBOX_PATH:="/mnt/lfss/jade-lta/unpacker_work"}
-export UNPACKER_WORKBOX_PATH=${UNPACKER_WORKBOX_PATH:="/mnt/lfss/jade-lta/retrieval"}
+export UNPACKER_OUTBOX_PATH=${UNPACKER_OUTBOX_PATH:="/data/user/jadelta/ltatemp/unpacker_work"}
+export UNPACKER_WORKBOX_PATH=${UNPACKER_WORKBOX_PATH:="/data/user/jadelta/ltatemp/welcome_home"}
 export WIPACTEL_EXPORT_STDOUT=${WIPACTEL_EXPORT_STDOUT:="FALSE"}
 export WORK_RETRIES=${WORK_RETRIES:="3"}
-export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="30"}
+export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="300"}
 export WORK_TIMEOUT_SECONDS=${WORK_TIMEOUT_SECONDS:="30"}
 python -m lta.unpacker

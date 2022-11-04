@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/mnt/lfss/jade-lta/bundler_stage"}
-export BUNDLER_WORKBOX_PATH=${BUNDLER_WORKBOX_PATH:="/mnt/lfss/jade-lta/bundler_work"}
+export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/data/user/jadelta/ltatemp/bundler_stage"}
+export BUNDLER_WORKBOX_PATH=${BUNDLER_WORKBOX_PATH:="/data/user/jadelta/ltatemp/bundler_work"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-pipe0-bundler"}
 export DEST_SITE=${DEST_SITE:="NERSC"}
 export FILE_CATALOG_REST_TOKEN=${FILE_CATALOG_REST_TOKEN:="$(<service-token)"}
@@ -13,7 +13,7 @@ export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(<service-token)"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="created"}
-export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="False"}
+export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="True"}
 export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
 export WIPACTEL_EXPORT_STDOUT=${WIPACTEL_EXPORT_STDOUT:="FALSE"}
 export WORK_RETRIES=${WORK_RETRIES:="3"}
