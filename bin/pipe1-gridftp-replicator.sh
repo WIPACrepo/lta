@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
+cd /global/homes/i/icecubed/NEWLTA/lta
+source env/bin/activate
+cd /global/homes/i/icecubed/NEWLTA/lta/bin
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-pipe1-gridftp-replicator"}
 export DEST_SITE=${DEST_SITE:="WIPAC"}
 export GLOBUS_PROXY_DURATION=${GLOBUS_PROXY_DURATION:="72"}
-export GRIDFTP_DEST_URL=${GRIDFTP_DEST_URL:="gsiftp://gridftp.icecube.wisc.edu:2811/mnt/lfss/jade-lta/welcome_home/"}
+export GLOBUS_PROXY_PASSPHRASE=${GLOBUS_PROXY_PASSPHRASE:="$(<globus-proxy-passphrase)"}
+#export GRIDFTP_DEST_URL=${GRIDFTP_DEST_URL:="gsiftp://gridftp.icecube.wisc.edu:2811/mnt/lfss/jade-lta/welcome_home/"}
+export GRIDFTP_DEST_URL=${GRIDFTP_DEST_URL:="gsiftp://gridftp.icecube.wisc.edu:2811/data/user/jadelta/ltatemp/welcome_home/"}
 export GRIDFTP_TIMEOUT=${GRIDFTP_TIMEOUT:="43200"}  # 43200 sec = 12 hours
 export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
 export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="30"}
@@ -12,11 +17,13 @@ export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(<service-token)"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="transferring"}
-export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="False"}
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION="python"
+export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="True"}
 export SOURCE_SITE=${SOURCE_SITE:="NERSC"}
 export USE_FULL_BUNDLE_PATH=${USE_FULL_BUNDLE_PATH:="FALSE"}
 export WIPACTEL_EXPORT_STDOUT=${WIPACTEL_EXPORT_STDOUT:="FALSE"}
 export WORK_RETRIES=${WORK_RETRIES:="3"}
 export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="30"}
 export WORK_TIMEOUT_SECONDS=${WORK_TIMEOUT_SECONDS:="30"}
+export X509_CERT_DIR=${X509_CERT_DIR:="/cvmfs/icecube.opensciencegrid.org/data/voms/share/certificates"}
 python -m lta.gridftp_replicator
