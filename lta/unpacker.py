@@ -163,6 +163,7 @@ class Unpacker(Component):
                 raise ValueError(f"File:{file_basename} size Calculated:{disk_size} size Expected:{manifest_size}")
             # move the file to the appropriate location in the data warehouse
             dest_path = self._map_dest_path(bundle_file["logical_name"])
+            self._ensure_dest_directory(dest_path)
             self.logger.info(f"Moving {file_basename} from {file_path} to the Data Warehouse at {dest_path}")
             shutil.move(file_path, dest_path)
             # check that the checksum matches the expected checksum
@@ -250,6 +251,13 @@ class Unpacker(Component):
         self.logger.info(f"Bundle metadata '{metadata_file_path}' was deleted.")
 
     @wtt.spanned()
+    def _ensure_dest_directory(self, dest_path: str) -> None:
+        """Ensure the destination directory exists in the Data Warehouse."""
+        dest_dir = os.path.dirname(dest_path)
+        self.logger.info(f"Creating Data Warehouse directory: {dest_dir}")
+        Path(dest_dir).mkdir(parents=True, exist_ok=True)
+
+    @wtt.spanned()
     def _map_dest_path(self, dest_path: str) -> str:
         """Use the configured path map to remap the destination path if necessary."""
         for prefix, remap in self.path_map.items():
@@ -303,7 +311,7 @@ class Unpacker(Component):
     @wtt.spanned()
     def _read_manifest_metadata_v3(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
         """Read the bundle metadata from a newer (version 3) manifest file."""
-        metadata_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.metadata.ndjson")
+        metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.ndjson")
         try:
             with open(metadata_file_path) as metadata_file:
                 # read the JSON for the bundle
