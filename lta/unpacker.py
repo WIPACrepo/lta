@@ -159,7 +159,7 @@ class Unpacker(Component):
                 self.logger.error(f"Error: File '{file_basename}' has size {disk_size} bytes on disk, but the bundle metadata supplied size is {manifest_size} bytes.")
                 raise ValueError(f"File:{file_basename} size Calculated:{disk_size} size Expected:{manifest_size}")
             # do a sanity check to make sure our metadata matches in file size
-            if file_zipinfo.filename != disk_size:
+            if file_zipinfo.file_size != disk_size:
                 self.logger.error(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.file_size:'{file_zipinfo.file_size}' vs disk_size:'{disk_size}'.")
                 raise ValueError(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.file_size:'{file_zipinfo.file_size}' vs disk_size:'{disk_size}'.")
             # move the file to the appropriate location in the data warehouse
