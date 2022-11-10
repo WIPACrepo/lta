@@ -12,22 +12,24 @@ from typing import Any, cast, Dict, Optional
 from zipfile import ZipFile
 
 from rest_tools.client import RestClient
-from wipac_dev_tools import from_environment
 import wipac_telemetry.tracing_tools as wtt
 
-from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
+from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import lta_checksums
-from .log_format import StructuredFormatter
+from .lta_tools import from_environment
 from .lta_types import BundleType
 from .rest_server import boolify
 
 Logger = logging.Logger
+
+LOG = logging.getLogger(__name__)
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "CLEAN_OUTBOX": "TRUE",
     "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
+    "LOG_LEVEL": "NOTSET",
     "PATH_MAP_JSON": None,
     "UNPACKER_OUTBOX_PATH": None,
     "UNPACKER_WORKBOX_PATH": None,
@@ -119,61 +121,60 @@ class Unpacker(Component):
         bundle_file = os.path.basename(bundle["bundle_path"])
         bundle_uuid = bundle_file.split(".")[0]
         bundle_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.zip")
-        request_path = bundle["path"]
-        # 1. Unpack the archive from our workbox to our outbox
-        self.logger.info(f"Unpacking bundle {bundle_file_path} to {self.outbox_path}")
-        with ZipFile(bundle_file_path, mode="r", allowZip64=True) as bundle_zip:
-            bundle_zip.extractall(path=self.outbox_path)
-        # 2. Load the bundle's manifest metadata; structure example below:
-        # metadata_dict = {
-        #     "uuid": bundle_id,
-        #     "component": "bundler",
-        #     "version": 2,
-        #     "create_timestamp": now(),
-        #     "files": [
-        #         {
-        #             "checksum": {
-        #                 "sha512": "09de7c539b724dee9543669309f978b172f6c7449d0269fecbb57d0c9cf7db51713fed3a94573c669fe0aa08fa122b41f84a0ea107c62f514b1525efbd08846b",
-        #             },
-        #             "file_size": 105311728,
-        #             "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000066.tar.bz2",
-        #             "meta_modify_date": "2020-02-20 22:47:25.180303",
-        #             "uuid": "2f0cb3c8-6cba-49b1-8eeb-13e13fed41dd",
-        #         }
-        #     ],
-        # }
+        # 1. Obtain the ZipInfo objects for the bundle zip file
+        bundle_zip_file = ZipFile(bundle_file_path, mode="r", allowZip64=True)
+        zip_info_list = bundle_zip_file.infolist()
+        # 2. Extract the bundle's metadata manifest
+        manifest_info = zip_info_list[0]  # assume metadata manifest at index 0
+        if not manifest_info.filename.startswith(bundle_uuid):
+            self.logger.error(f"Error: zip_info_list[0] in Bundle '{bundle_file_path}' is not JSON/NDJSON metadata. Expected: '{bundle_uuid}.metadata.json' or '{bundle_uuid}.metadata.ndjson'. Found: '{manifest_info.filename}'")
+            raise ValueError(f"Error: zip_info_list[0] in Bundle '{bundle_file_path}' is not JSON/NDJSON metadata. Expected: '{bundle_uuid}.metadata.json' or '{bundle_uuid}.metadata.ndjson'. Found: '{manifest_info.filename}'")
+        self.logger.info(f"Extracting '{manifest_info.filename}' to {self.outbox_path}")
+        bundle_zip_file.extract(manifest_info, path=self.outbox_path)
+        # 3. Read the bundle's metadata manifest into a dictionary
         metadata_dict = self._read_manifest_metadata(bundle_uuid)
-        # 3. Move and verify each file described within the bundle's manifest metadata
+        # 4. Move and verify each file described within the bundle's manifest metadata
         count_idx = 0
         count_max = len(metadata_dict["files"])
         for bundle_file in metadata_dict["files"]:
             # bump up the counter for the next file
             count_idx += 1
-            # determine where the file lives on disk
-            logical_name = bundle_file["logical_name"]
-            unzip_path = os.path.relpath(logical_name, request_path)
-            file_path = os.path.join(self.outbox_path, unzip_path)
+            # get the ZipInfo object for the file
+            file_zipinfo = zip_info_list[count_idx]
+            # determine where the file will live on disk
+            logical_name = self._map_dest_path(bundle_file["logical_name"])
             file_basename = os.path.basename(logical_name)
+            file_path = os.path.join(self.outbox_path, file_basename)
+            # do a sanity check to make sure our metadata matches in filename
+            if file_zipinfo.filename != file_basename:
+                self.logger.error(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.filename:'{file_zipinfo.filename}' vs file_basename:'{file_basename}'.")
+                raise ValueError(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.filename:'{file_zipinfo.filename}' vs file_basename:'{file_basename}'.")
+            # extract the file from the bundle zip to the work directory
             self.logger.info(f"File {count_idx}/{count_max}: {file_basename} ({file_path})")
+            bundle_zip_file.extract(file_zipinfo, path=self.outbox_path)
             # check that the size matches the expected size
             manifest_size = bundle_file["file_size"]
             disk_size = os.path.getsize(file_path)
             if disk_size != manifest_size:
                 self.logger.error(f"Error: File '{file_basename}' has size {disk_size} bytes on disk, but the bundle metadata supplied size is {manifest_size} bytes.")
                 raise ValueError(f"File:{file_basename} size Calculated:{disk_size} size Expected:{manifest_size}")
+            # do a sanity check to make sure our metadata matches in file size
+            if file_zipinfo.file_size != disk_size:
+                self.logger.error(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.file_size:'{file_zipinfo.file_size}' vs disk_size:'{disk_size}'.")
+                raise ValueError(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.file_size:'{file_zipinfo.file_size}' vs disk_size:'{disk_size}'.")
             # move the file to the appropriate location in the data warehouse
-            dest_path = self._map_dest_path(bundle_file["logical_name"])
-            self.logger.info(f"Moving {file_basename} from {file_path} to the Data Warehouse at {dest_path}")
-            shutil.move(file_path, dest_path)
+            self._ensure_dest_directory(logical_name)
+            self.logger.info(f"Moving {file_basename} from {file_path} to the Data Warehouse at {logical_name}")
+            shutil.move(file_path, logical_name)
             # check that the checksum matches the expected checksum
-            self.logger.info(f"Verifying checksum for {dest_path}")
+            self.logger.info(f"Verifying checksum for {logical_name}")
             manifest_checksum = bundle_file["checksum"]["sha512"]
-            disk_checksum = lta_checksums(dest_path)
+            disk_checksum = lta_checksums(logical_name)
             if disk_checksum["sha512"] != manifest_checksum:
                 self.logger.error(f"Error: File '{file_basename}' has sha512 checksum '{disk_checksum['sha512']}' but the bundle metadata supplied checksum '{manifest_checksum}'")
                 raise ValueError(f"File:{file_basename} sha512 Calculated:{disk_checksum['sha512']} sha512 Expected:{manifest_checksum}")
             # add the new location to the file catalog
-            await self._add_location_to_file_catalog(bundle_file, dest_path)
+            await self._add_location_to_file_catalog(bundle_file, logical_name)
         # 4. Clean up the metadata file
         self._delete_manifest_metadata(bundle_uuid)
         # 5. Clean up the outbox directory (remove unzip subdirectories, if necessary)
@@ -250,6 +251,13 @@ class Unpacker(Component):
         self.logger.info(f"Bundle metadata '{metadata_file_path}' was deleted.")
 
     @wtt.spanned()
+    def _ensure_dest_directory(self, dest_path: str) -> None:
+        """Ensure the destination directory exists in the Data Warehouse."""
+        dest_dir = os.path.dirname(dest_path)
+        self.logger.info(f"Creating Data Warehouse directory: {dest_dir}")
+        Path(dest_dir).mkdir(parents=True, exist_ok=True)
+
+    @wtt.spanned()
     def _map_dest_path(self, dest_path: str) -> str:
         """Use the configured path map to remap the destination path if necessary."""
         for prefix, remap in self.path_map.items():
@@ -303,7 +311,7 @@ class Unpacker(Component):
     @wtt.spanned()
     def _read_manifest_metadata_v3(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
         """Read the bundle metadata from a newer (version 3) manifest file."""
-        metadata_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.metadata.ndjson")
+        metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.ndjson")
         try:
             with open(metadata_file_path) as metadata_file:
                 # read the JSON for the bundle
@@ -339,23 +347,19 @@ def runner() -> None:
     """Configure a Unpacker component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
-    # configure structured logging for the application
-    structured_formatter = StructuredFormatter(
-        component_type='Unpacker',
-        component_name=config["COMPONENT_NAME"],  # type: ignore[arg-type]
-        ndjson=True)
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(structured_formatter)
-    root_logger = logging.getLogger(None)
-    root_logger.setLevel(logging.NOTSET)
-    root_logger.addHandler(stream_handler)
-    logger = logging.getLogger("lta.unpacker")
+    # configure logging for the application
+    log_level = getattr(logging, config["LOG_LEVEL"].upper())
+    logging.basicConfig(
+        format="{asctime} [{threadName}] {levelname:5} ({filename}:{lineno}) - {message}",
+        level=log_level,
+        stream=sys.stdout,
+        style="{",
+    )
     # create our Unpacker service
-    unpacker = Unpacker(config, logger)  # type: ignore[arg-type]
+    unpacker = Unpacker(config, LOG)
     # let's get to work
-    unpacker.logger.info("Adding tasks to asyncio loop")
+    LOG.info("Adding tasks to asyncio loop")
     loop = asyncio.get_event_loop()
-    loop.create_task(status_loop(unpacker))
     loop.create_task(work_loop(unpacker))
 
 

@@ -10,7 +10,7 @@ def join_smart(items: List[str]) -> str:
         return "."
     abnormal_path = os.path.sep.join(items)
     normal_path = os.path.normpath(abnormal_path)
-    if(items[-1].endswith(os.path.sep)):
+    if items[-1].endswith(os.path.sep):
         normal_path += os.path.sep
     return normal_path
 
@@ -19,10 +19,10 @@ def join_smart_url(items: List[str]) -> str:
     if not items:
         return ""
     base = items[0]
-    if(base.endswith(os.path.sep)):
+    if base.endswith(os.path.sep):
         base = base[:-1]
     items = items[1:]
     items_str = join_smart(items)
-    if(items_str.startswith(os.path.sep)):
+    if items_str.startswith(os.path.sep):
         items_str = items_str[1:]
     return "/".join([base, items_str])

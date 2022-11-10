@@ -87,7 +87,7 @@ def do_lint_task() -> None:
     # TODO: Maybe when pytest has a mypy library stub
     # run(mypy_cmd + ["tests"])
     run(flake8_cmd + ["lta"])
-    run(mypy_cmd + ["lta"])
+    run(mypy_cmd + ["--namespace-packages", "lta"])
 
 
 def do_rebuild_task() -> None:

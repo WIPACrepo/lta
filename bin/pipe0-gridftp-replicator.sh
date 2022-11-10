@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-deftarget="5"
+deftarget="1"
 if [[  "$1" != "" ]]
   then
-    if [[ "$1" == "6" || "$1" == "7" || "$1" == "8" ]]
+    if [[ "$1" == "2" || "$1" == "3" || "$1" == "4" ]]
       then
         deftarget="$1"
       fi
@@ -24,7 +24,7 @@ export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(<service-token)"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="transferring"}
-export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="False"}
+export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="True"}
 export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
 export USE_FULL_BUNDLE_PATH=${USE_FULL_BUNDLE_PATH:="FALSE"}
 export WIPACTEL_EXPORT_STDOUT=${WIPACTEL_EXPORT_STDOUT:="FALSE"}
