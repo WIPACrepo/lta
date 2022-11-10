@@ -135,8 +135,8 @@ class Unpacker(Component):
         metadata_dict = self._read_manifest_metadata(bundle_uuid)
         # 4. Move and verify each file described within the bundle's manifest metadata
         count_idx = 0
-        count_max = len(metadata_dict["files"])-1       # skip metadata manifest at index 0
-        for bundle_file in metadata_dict["files"][1:]:  # skip metadata manifest at index 0
+        count_max = len(metadata_dict["files"])
+        for bundle_file in metadata_dict["files"]:
             # bump up the counter for the next file
             count_idx += 1
             # get the ZipInfo object for the file
@@ -145,7 +145,7 @@ class Unpacker(Component):
             logical_name = self._map_dest_path(bundle_file["logical_name"])
             file_basename = os.path.basename(logical_name)
             file_path = os.path.join(self.outbox_path, file_basename)
-            # do a sanity check to make sure our metadata matches
+            # do a sanity check to make sure our metadata matches in filename
             if file_zipinfo.filename != file_basename:
                 self.logger.error(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.filename:'{file_zipinfo.filename}' vs file_basename:'{file_basename}'.")
                 raise ValueError(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.filename:'{file_zipinfo.filename}' vs file_basename:'{file_basename}'.")
@@ -158,6 +158,10 @@ class Unpacker(Component):
             if disk_size != manifest_size:
                 self.logger.error(f"Error: File '{file_basename}' has size {disk_size} bytes on disk, but the bundle metadata supplied size is {manifest_size} bytes.")
                 raise ValueError(f"File:{file_basename} size Calculated:{disk_size} size Expected:{manifest_size}")
+            # do a sanity check to make sure our metadata matches in file size
+            if file_zipinfo.filename != disk_size:
+                self.logger.error(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.file_size:'{file_zipinfo.file_size}' vs disk_size:'{disk_size}'.")
+                raise ValueError(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.file_size:'{file_zipinfo.file_size}' vs disk_size:'{disk_size}'.")
             # move the file to the appropriate location in the data warehouse
             self._ensure_dest_directory(logical_name)
             self.logger.info(f"Moving {file_basename} from {file_path} to the Data Warehouse at {logical_name}")
