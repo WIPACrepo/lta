@@ -7,6 +7,7 @@ import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
 from lta.unpacker import Unpacker, main
+from .test_util import ObjectLiteral
 
 
 @pytest.fixture
@@ -22,6 +23,7 @@ def config():
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "unpacking",
+        "LOG_LEVEL": "DEBUG",
         "LTA_REST_TOKEN": "fake-lta-rest-token",
         "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "OUTPUT_STATUS": "completed",
@@ -128,13 +130,9 @@ async def test_script_main(config, mocker, monkeypatch, path_map_mock):
     for key in config.keys():
         monkeypatch.setenv(key, config[key])
     mock_event_loop = mocker.patch("asyncio.get_event_loop")
-    mock_root_logger = mocker.patch("logging.getLogger")
-    mock_status_loop = mocker.patch("lta.unpacker.status_loop")
     mock_work_loop = mocker.patch("lta.unpacker.work_loop")
     main()
     mock_event_loop.assert_called()
-    mock_root_logger.assert_called()
-    mock_status_loop.assert_called()
     mock_work_loop.assert_called()
 
 
@@ -152,6 +150,7 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "unpacking",
+        "LOG_LEVEL": "DEBUG",
         "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "OUTPUT_STATUS": "completed",
@@ -176,6 +175,7 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = unpacking'),
+        call('LOG_LEVEL = DEBUG'),
         call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('OUTPUT_STATUS = completed'),
@@ -368,8 +368,19 @@ async def test_unpacker_do_work_bundle(config, mocker, path_map_mock):
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
     mock_zipfile_init.return_value = None
-    mock_zipfile_write = mocker.patch("zipfile.ZipFile.extractall")
-    mock_zipfile_write.return_value = None
+    mock_zipfile_infolist = mocker.patch("zipfile.ZipFile.infolist")
+    mock_zipfile_infolist.return_value = [
+        ObjectLiteral(
+            filename="9a1cab0a395211eab1cbce3a3da73f88.metadata.json",
+            file_size=0,
+        ),
+        ObjectLiteral(
+            filename="warehouse.tar.bz2",
+            file_size=1234567890,
+        ),
+    ]
+    mock_zipfile_extract = mocker.patch("zipfile.ZipFile.extract")
+    mock_zipfile_extract.return_value = None
     mock_json_load = mocker.patch("json.load")
     mock_json_load.return_value = {
         "files": [
@@ -383,6 +394,8 @@ async def test_unpacker_do_work_bundle(config, mocker, path_map_mock):
             }
         ]
     }
+    edd_mock = mocker.patch("lta.unpacker.Unpacker._ensure_dest_directory")
+    edd_mock.return_value = None
     mock_shutil_move = mocker.patch("shutil.move")
     mock_shutil_move.return_value = None
     mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
@@ -419,8 +432,19 @@ async def test_unpacker_do_work_bundle_mismatch_size(config, mocker, path_map_mo
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
     mock_zipfile_init.return_value = None
-    mock_zipfile_write = mocker.patch("zipfile.ZipFile.extractall")
-    mock_zipfile_write.return_value = None
+    mock_zipfile_infolist = mocker.patch("zipfile.ZipFile.infolist")
+    mock_zipfile_infolist.return_value = [
+        ObjectLiteral(
+            filename="9a1cab0a395211eab1cbce3a3da73f88.metadata.json",
+            file_size=0,
+        ),
+        ObjectLiteral(
+            filename="warehouse.tar.bz2",
+            file_size=1234567890,
+        ),
+    ]
+    mock_zipfile_extract = mocker.patch("zipfile.ZipFile.extract")
+    mock_zipfile_extract.return_value = None
     mock_json_load = mocker.patch("json.load")
     mock_json_load.return_value = {
         "files": [
@@ -469,8 +493,19 @@ async def test_unpacker_do_work_bundle_mismatch_checksum(config, mocker, path_ma
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
     mock_zipfile_init.return_value = None
-    mock_zipfile_write = mocker.patch("zipfile.ZipFile.extractall")
-    mock_zipfile_write.return_value = None
+    mock_zipfile_infolist = mocker.patch("zipfile.ZipFile.infolist")
+    mock_zipfile_infolist.return_value = [
+        ObjectLiteral(
+            filename="9a1cab0a395211eab1cbce3a3da73f88.metadata.json",
+            file_size=0,
+        ),
+        ObjectLiteral(
+            filename="warehouse.tar.bz2",
+            file_size=1234567890,
+        ),
+    ]
+    mock_zipfile_extract = mocker.patch("zipfile.ZipFile.extract")
+    mock_zipfile_extract.return_value = None
     mock_json_load = mocker.patch("json.load")
     mock_json_load.return_value = {
         "files": [
@@ -519,8 +554,19 @@ async def test_unpacker_do_work_bundle_path_remapping(config, mocker, path_map_m
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
     mock_zipfile_init.return_value = None
-    mock_zipfile_write = mocker.patch("zipfile.ZipFile.extractall")
-    mock_zipfile_write.return_value = None
+    mock_zipfile_infolist = mocker.patch("zipfile.ZipFile.infolist")
+    mock_zipfile_infolist.return_value = [
+        ObjectLiteral(
+            filename="9a1cab0a395211eab1cbce3a3da73f88.metadata.json",
+            file_size=0,
+        ),
+        ObjectLiteral(
+            filename="PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
+            file_size=1234567890,
+        ),
+    ]
+    mock_zipfile_extract = mocker.patch("zipfile.ZipFile.extract")
+    mock_zipfile_extract.return_value = None
     mock_json_load = mocker.patch("json.load")
     mock_json_load.return_value = {
         "files": [
@@ -534,6 +580,8 @@ async def test_unpacker_do_work_bundle_path_remapping(config, mocker, path_map_m
             }
         ]
     }
+    edd_mock = mocker.patch("lta.unpacker.Unpacker._ensure_dest_directory")
+    edd_mock.return_value = None
     mock_shutil_move = mocker.patch("shutil.move")
     mock_shutil_move.return_value = None
     mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
