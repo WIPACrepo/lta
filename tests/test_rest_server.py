@@ -8,6 +8,7 @@ import socket
 from typing import Dict
 from urllib.parse import quote_plus
 
+import jwt
 from pymongo import MongoClient  # type: ignore
 from pymongo.database import Database  # type: ignore
 import pytest  # type: ignore
@@ -64,8 +65,7 @@ def port():
     return ephemeral_port
 
 @pytest.fixture
-@pytest.mark.asyncio
-async def rest(monkeypatch, port):
+def rest(monkeypatch, port):
     """Provide RestClient as a test fixture."""
     monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
     monkeypatch.setenv("LTA_AUTH_ISSUER", CONFIG['TOKEN_SERVICE'])
@@ -78,6 +78,7 @@ async def rest(monkeypatch, port):
     s = start(debug=True)
 
     def client(role='admin', timeout=0.25):
+        # if we've got a TOKEN_SERVICE, use it to get a token otherwise bail
         if CONFIG['TOKEN_SERVICE']:
             r = requests.get(CONFIG['TOKEN_SERVICE']+'/token',
                              params={'scope': f'lta:{role}'})
@@ -85,12 +86,31 @@ async def rest(monkeypatch, port):
             t = r.json()['access']
         else:
             raise Exception('testing token service not defined')
-        print(t)
-        return RestClient(f'http://localhost:{port}', token=t, timeout=timeout, retries=0)
+
+        # But they were, all of them, deceived, for another Token was made.
+        # In the land of PyTest, in the fires of Mount Fixture, the Dark Lord
+        # Sauron forged in secret a master Token, to control all others. And
+        # into this Token he poured his cruelty, his malice and his will to
+        # dominate all life. One Token to rule them all.
+        header = jwt.get_unverified_header(t)
+        alg = header["alg"]
+        nenya = jwt.decode(t, options={"verify_signature": False})
+        nenya["iat"] = nenya["iat"]-1.0
+        nenya["nbf"] = nenya["nbf"]-1.0
+        one = jwt.encode(nenya, "secret", algorithm=alg)
+
+        # print(t)
+        # print("---")
+        # print(one)
+        return RestClient(f'http://localhost:{port}', token=one, timeout=timeout, retries=0)
+
+    async def shutdown():
+        s.stop()
+        await asyncio.sleep(0.01)
 
     yield client
-    await s.stop()
-    await asyncio.sleep(0.01)
+    asyncio.run(shutdown())
+
 
 # -----------------------------------------------------------------------------
 
