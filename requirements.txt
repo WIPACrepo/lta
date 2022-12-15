@@ -16,4 +16,4 @@ pytest-mock==3.10.0
 requests==2.28.1
 tornado==6.2
 wipac-rest-tools
-wipac-telemetry==0.2.5
+wipac-telemetry
