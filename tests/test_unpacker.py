@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, call, mock_open, patch
 import pytest  # type: ignore
 from tornado.web import HTTPError  # type: ignore
 
-from lta.unpacker import Unpacker, main
+from lta.unpacker import main, main_sync, Unpacker
 from .test_util import ObjectLiteral
 
 
@@ -120,7 +120,7 @@ def test_do_status(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch, path_map_mock):
+async def test_script_main_sync(config, mocker, monkeypatch, path_map_mock):
     """
     Verify Unpacker component behavior when run as a script.
 
@@ -129,10 +129,26 @@ async def test_script_main(config, mocker, monkeypatch, path_map_mock):
     """
     for key in config.keys():
         monkeypatch.setenv(key, config[key])
-    mock_event_loop = mocker.patch("asyncio.get_event_loop")
-    mock_work_loop = mocker.patch("lta.unpacker.work_loop")
-    main()
-    mock_event_loop.assert_called()
+    mock_run = mocker.patch("asyncio.run")
+    mock_main = mocker.patch("lta.unpacker.main")
+    main_sync()
+    mock_main.assert_called()
+    mock_run.assert_called()
+    await mock_run.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_script_main(config, mocker, monkeypatch, path_map_mock):
+    """
+    Verify Unpacker component behavior when run as a script.
+
+    Test to make sure running the Unpacker as a script does the async setup
+    work that we expect and then launches the unpacker service.
+    """
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    mock_work_loop = mocker.patch("lta.unpacker.work_loop", side_effect=AsyncMock())
+    await main(p)
     mock_work_loop.assert_called()
 
 
@@ -426,10 +442,10 @@ async def test_unpacker_do_work_bundle(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_bundle_mismatch_size(config, mocker, path_map_mock):
+async def test_unpacker_do_work_bundle_manifest_json_filename_mismatch(config, mocker, path_map_mock):
     """Test that _do_work_bundle does the work of preparing an archive."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    # lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
     mock_zipfile_init.return_value = None
     mock_zipfile_infolist = mocker.patch("zipfile.ZipFile.infolist")
@@ -440,6 +456,39 @@ async def test_unpacker_do_work_bundle_mismatch_size(config, mocker, path_map_mo
         ),
         ObjectLiteral(
             filename="warehouse.tar.bz2",
+            file_size=1234567890,
+        ),
+    ]
+    p = Unpacker(config, logger_mock)
+    BUNDLE_OBJ = {
+        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/58892e329b5111ed805113b05d4dfded.zip",
+        "uuid": "58892e32-9b51-11ed-8051-13b05d4dfded",
+        "source": "NERSC",
+        "dest": "WIPAC",
+        "path": "/full/path/to/file",
+        "files": [{"logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2", }],
+    }
+    with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
+        with pytest.raises(Exception):
+            await p._do_work_bundle(mocker.AsyncMock(), BUNDLE_OBJ)
+        metadata_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_bundle_filename_mismatch(config, mocker, path_map_mock):
+    """Test that _do_work_bundle does the work of preparing an archive."""
+    logger_mock = mocker.MagicMock()
+    # lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
+    mock_zipfile_init.return_value = None
+    mock_zipfile_infolist = mocker.patch("zipfile.ZipFile.infolist")
+    mock_zipfile_infolist.return_value = [
+        ObjectLiteral(
+            filename="9a1cab0a395211eab1cbce3a3da73f88.metadata.json",
+            file_size=0,
+        ),
+        ObjectLiteral(
+            filename="scarehouse.tar.bz2",
             file_size=1234567890,
         ),
     ]
@@ -458,19 +507,6 @@ async def test_unpacker_do_work_bundle_mismatch_size(config, mocker, path_map_mo
             }
         ]
     }
-    mock_shutil_move = mocker.patch("shutil.move")
-    mock_shutil_move.return_value = None
-    mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
-    mock_lta_checksums.return_value = {
-        "adler32": "89d5efeb",
-        "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
-    }
-    mock_os_path_getsize = mocker.patch("os.path.getsize")
-    mock_os_path_getsize.return_value = 234567890
-    mock_os_remove = mocker.patch("os.remove")
-    mock_os_remove.return_value = None
-    altfc_mock = mocker.patch("lta.unpacker.Unpacker._add_location_to_file_catalog", new_callable=AsyncMock)
-    altfc_mock.return_value = False
     p = Unpacker(config, logger_mock)
     BUNDLE_OBJ = {
         "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
@@ -482,15 +518,14 @@ async def test_unpacker_do_work_bundle_mismatch_size(config, mocker, path_map_mo
     }
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
         with pytest.raises(Exception):
-            await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
+            await p._do_work_bundle(mocker.AsyncMock(), BUNDLE_OBJ)
         metadata_mock.assert_called_with(mocker.ANY)
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_bundle_mismatch_checksum(config, mocker, path_map_mock):
+async def test_unpacker_do_work_bundle_disk_file_size_mismatch_manifest_size(config, mocker, path_map_mock):
     """Test that _do_work_bundle does the work of preparing an archive."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
     mock_zipfile_init.return_value = None
     mock_zipfile_infolist = mocker.patch("zipfile.ZipFile.infolist")
@@ -519,19 +554,8 @@ async def test_unpacker_do_work_bundle_mismatch_checksum(config, mocker, path_ma
             }
         ]
     }
-    mock_shutil_move = mocker.patch("shutil.move")
-    mock_shutil_move.return_value = None
-    mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
-    mock_lta_checksums.return_value = {
-        "adler32": "89d5efeb",
-        "sha512": "919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570c",
-    }
     mock_os_path_getsize = mocker.patch("os.path.getsize")
-    mock_os_path_getsize.return_value = 1234567890
-    mock_os_remove = mocker.patch("os.remove")
-    mock_os_remove.return_value = None
-    altfc_mock = mocker.patch("lta.unpacker.Unpacker._add_location_to_file_catalog", new_callable=AsyncMock)
-    altfc_mock.return_value = False
+    mock_os_path_getsize.return_value = 2345678901
     p = Unpacker(config, logger_mock)
     BUNDLE_OBJ = {
         "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
@@ -542,8 +566,115 @@ async def test_unpacker_do_work_bundle_mismatch_checksum(config, mocker, path_ma
         "files": [{"logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2", }],
     }
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
-        with pytest.raises(Exception):
-            await p._do_work_bundle(lta_rc_mock, BUNDLE_OBJ)
+        with pytest.raises(ValueError):
+            await p._do_work_bundle(mocker.AsyncMock(), BUNDLE_OBJ)
+        metadata_mock.assert_called_with(mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_bundle_zipinfo_size_mismatch_disk_file_size(config, mocker, path_map_mock):
+    """Test that _do_work_bundle does the work of preparing an archive."""
+    logger_mock = mocker.MagicMock()
+    mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
+    mock_zipfile_init.return_value = None
+    mock_zipfile_infolist = mocker.patch("zipfile.ZipFile.infolist")
+    mock_zipfile_infolist.return_value = [
+        ObjectLiteral(
+            filename="9a1cab0a395211eab1cbce3a3da73f88.metadata.json",
+            file_size=0,
+        ),
+        ObjectLiteral(
+            filename="warehouse.tar.bz2",
+            file_size=2345678901,
+        ),
+    ]
+    mock_zipfile_extract = mocker.patch("zipfile.ZipFile.extract")
+    mock_zipfile_extract.return_value = None
+    mock_json_load = mocker.patch("json.load")
+    mock_json_load.return_value = {
+        "files": [
+            {
+                "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
+                "file_size": 1234567890,
+                "checksum": {
+                    "adler32": "89d5efeb",
+                    "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+                },
+            }
+        ]
+    }
+    mock_os_path_getsize = mocker.patch("os.path.getsize")
+    mock_os_path_getsize.return_value = 1234567890
+    p = Unpacker(config, logger_mock)
+    BUNDLE_OBJ = {
+        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+        "source": "NERSC",
+        "dest": "WIPAC",
+        "path": "/full/path/to/file",
+        "files": [{"logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2", }],
+    }
+    with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
+        with pytest.raises(ValueError):
+            await p._do_work_bundle(mocker.AsyncMock(), BUNDLE_OBJ)
+        metadata_mock.assert_called_with(mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_unpacker_do_work_bundle_sha512_checksum_mismatch(config, mocker, path_map_mock):
+    """Test that _do_work_bundle does the work of preparing an archive."""
+    logger_mock = mocker.MagicMock()
+    mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
+    mock_zipfile_init.return_value = None
+    mock_zipfile_infolist = mocker.patch("zipfile.ZipFile.infolist")
+    mock_zipfile_infolist.return_value = [
+        ObjectLiteral(
+            filename="9a1cab0a395211eab1cbce3a3da73f88.metadata.json",
+            file_size=0,
+        ),
+        ObjectLiteral(
+            filename="warehouse.tar.bz2",
+            file_size=1234567890,
+        ),
+    ]
+    mock_zipfile_extract = mocker.patch("zipfile.ZipFile.extract")
+    mock_zipfile_extract.return_value = None
+    mock_json_load = mocker.patch("json.load")
+    mock_json_load.return_value = {
+        "files": [
+            {
+                "logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2",
+                "file_size": 1234567890,
+                "checksum": {
+                    "adler32": "89d5efeb",
+                    "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+                },
+            }
+        ]
+    }
+    edd_mock = mocker.patch("lta.unpacker.Unpacker._ensure_dest_directory")
+    edd_mock.return_value = None
+    mock_shutil_move = mocker.patch("shutil.move")
+    mock_shutil_move.return_value = None
+    mock_lta_checksums = mocker.patch("lta.unpacker.lta_checksums")
+    mock_lta_checksums.return_value = {
+        "adler32": "89d5efeb",
+        "sha512": "deadbeef00002327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
+    }
+    mock_os_path_getsize = mocker.patch("os.path.getsize")
+    mock_os_path_getsize.return_value = 1234567890
+    p = Unpacker(config, logger_mock)
+    BUNDLE_OBJ = {
+        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/9a1cab0a395211eab1cbce3a3da73f88.zip",
+        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+        "source": "NERSC",
+        "dest": "WIPAC",
+        "path": "/full/path/to/file",
+        "files": [{"logical_name": "/full/path/to/file/in/data/warehouse.tar.bz2", }],
+    }
+    with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
+        with pytest.raises(ValueError):
+            await p._do_work_bundle(mocker.AsyncMock(), BUNDLE_OBJ)
         metadata_mock.assert_called_with(mocker.ANY)
 
 
@@ -631,6 +762,15 @@ def test_unpacker_delete_manifest_metadata_unknown(config, mocker, path_map_mock
     with pytest.raises(NameError):
         p._delete_manifest_metadata("0869ea50-e437-443f-8cdb-31a350f88e57")
     mock_os_remove.assert_called_with("/tmp/lta/testing/unpacker/outbox/0869ea50-e437-443f-8cdb-31a350f88e57.metadata.ndjson")
+
+
+def test_unpacker_ensure_dest_directory(config, mocker, path_map_mock):
+    """Test that _ensure_dest_directory will attempt to ensure a directory exists."""
+    logger_mock = mocker.MagicMock()
+    p = Unpacker(config, logger_mock)
+    mock_mkdir = mocker.patch("pathlib.Path.mkdir")
+    p._ensure_dest_directory("/path/of/some/file/that/we/want/to/make/sure/directory/exists/MyFile_000123.tar.bz2")
+    mock_mkdir.assert_called_with(parents=True, exist_ok=True)
 
 
 def test_unpacker_read_manifest_metadata_for_v3(config, mocker, path_map_mock):

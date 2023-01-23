@@ -343,7 +343,15 @@ class Unpacker(Component):
         # the morning sun has vanquished the horrible night
         return True
 
-def runner() -> None:
+
+async def main(unpacker: Unpacker) -> None:
+    """Execute the work loop of the Unpacker component."""
+    LOG.info("Starting asynchronous code")
+    await work_loop(unpacker)
+    LOG.info("Ending asynchronous code")
+
+
+def main_sync() -> None:
     """Configure a Unpacker component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
@@ -356,18 +364,12 @@ def runner() -> None:
         style="{",
     )
     # create our Unpacker service
+    LOG.info("Starting synchronous code")
     unpacker = Unpacker(config, LOG)
     # let's get to work
-    LOG.info("Adding tasks to asyncio loop")
-    loop = asyncio.get_event_loop()
-    loop.create_task(work_loop(unpacker))
-
-
-def main() -> None:
-    """Configure a Unpacker component from the environment and set it running."""
-    runner()
-    asyncio.get_event_loop().run_forever()
+    asyncio.run(main(unpacker))
+    LOG.info("Ending synchronous code")
 
 
 if __name__ == "__main__":
-    main()
+    main_sync()
