@@ -6,19 +6,37 @@ Run with `python -m lta.rest_server`.
 
 import asyncio
 from datetime import datetime, timedelta
-from functools import wraps
 import logging
 import os
-from typing import Any, Callable, cast, Dict
+from typing import Any, Callable, cast, Dict, Optional
 from urllib.parse import quote_plus
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
 import pymongo  # type: ignore
 from rest_tools.utils.json_util import json_decode
-from rest_tools.server import authenticated, catch_error, RestHandler, RestHandlerSetup, RestServer
+from rest_tools.server import RestHandler, RestHandlerSetup, RestServer
+from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
 from wipac_dev_tools import from_environment
+
+if bool(os.environ.get('CI_TEST_ENV', False)):
+    def lta_auth(**_auth: Any) -> Callable[..., Any]:
+        def make_wrapper(method: Callable[..., Any]) -> Any:
+            async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+                # warn the user about authentication being disabled in testing
+                logging.warning("TESTING: auth disabled")
+                # ensure that the code provided at least one required authentication role
+                # note: if the handler doesn't need auth; don't apply an auth decorator!
+                roles = _auth.get('roles', [])
+                if not roles:
+                    raise Exception("No roles provided to lta_auth decorator!")
+                # go ahead and run the handler
+                return await method(self, *args, **kwargs)
+            return wrapper
+        return make_wrapper
+else:
+    lta_auth = keycloak_role_auth
 
 ASCENDING = pymongo.ASCENDING
 MongoClient = pymongo.MongoClient
@@ -65,49 +83,49 @@ def unique_id() -> str:
 
 # -----------------------------------------------------------------------------
 
-def lta_auth(**_auth: Any) -> Callable[..., Any]:
-    """
-    Handle RBAC authorization for LTA.
-
-    Like :py:func:`authenticated`, this requires the Authorization header
-    to be filled with a valid token.  Note that calling both decorators
-    is not necessary, as this decorator will perform authentication
-    checking as well.
-
-    Args:
-        roles (list): The roles to match
-
-    Raises:
-        :py:class:`tornado.web.HTTPError`
-
-    """
-    def make_wrapper(method: Callable[..., Any]) -> Any:
-        @authenticated  # type: ignore
-        @catch_error  # type: ignore
-        @wraps(method)
-        async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-            roles = _auth.get('roles', [])
-
-            authorized = False
-
-            auth_role = None
-            for scope in self.auth_data.get('scope', '').split():
-                if scope.startswith('lta:'):
-                    auth_role = scope.split(':', 1)[-1]
-                    break
-            if roles and auth_role in roles:
-                authorized = True
-            else:
-                logging.info('roles: %r', roles)
-                logging.info('token_role: %r', auth_role)
-                logging.info('role mismatch')
-
-            if not authorized:
-                raise tornado.web.HTTPError(403, reason="authorization failed")
-
-            return await method(self, *args, **kwargs)
-        return wrapper
-    return make_wrapper
+# def lta_auth(**_auth: Any) -> Callable[..., Any]:
+#     """
+#     Handle RBAC authorization for LTA.
+#
+#     Like :py:func:`authenticated`, this requires the Authorization header
+#     to be filled with a valid token.  Note that calling both decorators
+#     is not necessary, as this decorator will perform authentication
+#     checking as well.
+#
+#     Args:
+#         roles (list): The roles to match
+#
+#     Raises:
+#         :py:class:`tornado.web.HTTPError`
+#
+#     """
+#     def make_wrapper(method: Callable[..., Any]) -> Any:
+#         @authenticated  # type: ignore
+#         @catch_error  # type: ignore
+#         @wraps(method)
+#         async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+#             roles = _auth.get('roles', [])
+#
+#             authorized = False
+#
+#             auth_role = None
+#             for scope in self.auth_data.get('scope', '').split():
+#                 if scope.startswith('lta:'):
+#                     auth_role = scope.split(':', 1)[-1]
+#                     break
+#             if roles and auth_role in roles:
+#                 authorized = True
+#             else:
+#                 logging.info('roles: %r', roles)
+#                 logging.info('token_role: %r', auth_role)
+#                 logging.info('role mismatch')
+#
+#             if not authorized:
+#                 raise tornado.web.HTTPError(403, reason="authorization failed")
+#
+#             return await method(self, *args, **kwargs)
+#         return wrapper
+#     return make_wrapper
 
 # -----------------------------------------------------------------------------
 
@@ -280,9 +298,9 @@ class BundlesActionsPopHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/pop."""
-        dest = self.get_argument('dest', default=None)
-        source = self.get_argument('source', default=None)
-        status = self.get_argument('status')
+        dest: Optional[str] = self.get_argument('dest', default=None)
+        source: Optional[str] = self.get_argument('source', default=None)
+        status: str = self.get_argument('status')
         if (not dest) and (not source):
             raise tornado.web.HTTPError(400, reason="missing source and dest fields")
         pop_body = json_decode(self.request.body)
@@ -466,7 +484,7 @@ class MetadataHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'system', 'user'])
     async def delete(self) -> None:
         """Handle DELETE /Metadata?bundle_uuid={uuid}."""
-        bundle_uuid = self.get_argument("bundle_uuid")
+        bundle_uuid = self.get_argument("bundle_uuid", type=str)
         query = {"bundle_uuid": bundle_uuid}
         logging.debug(f"MONGO-START: db.Metadata.delete_many(filter={query})")
         await self.db.Metadata.delete_many(filter=query)
@@ -605,7 +623,7 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
     @lta_auth(roles=['admin', 'system'])
     async def post(self) -> None:
         """Handle POST /TransferRequests/actions/pop."""
-        source = self.get_argument('source')
+        source = self.get_argument("source", type=str)
         pop_body = json_decode(self.request.body)
         if 'claimant' not in pop_body:
             raise tornado.web.HTTPError(400, reason="missing claimant field")

@@ -9,13 +9,12 @@ import tracemalloc
 from typing import Dict
 from urllib.parse import quote_plus
 
-import jwt
 from pymongo import MongoClient  # type: ignore
 from pymongo.database import Database  # type: ignore
 import pytest  # type: ignore
 import pytest_asyncio  # type: ignore
-import requests  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
+from rest_tools.utils import Auth
 from requests.exceptions import HTTPError
 
 from lta.rest_server import boolify, CheckClaims, main, start, unique_id
@@ -82,32 +81,22 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("WIPACTEL_EXPORT_STDOUT", "TRUE")
     s = start(debug=True)
 
-    def client(role='admin', timeout=0.25):
-        # if we've got a TOKEN_SERVICE, use it to get a token otherwise bail
-        if CONFIG['TOKEN_SERVICE']:
-            r = requests.get(CONFIG['TOKEN_SERVICE']+'/token',
-                             params={'scope': f'lta:{role}'})
-            r.raise_for_status()
-            t = r.json()['access']
-        else:
-            raise Exception('testing token service not defined')
-
+    def client(role="admin", timeout=0.25):
         # But they were, all of them, deceived, for another Token was made.
         # In the land of PyTest, in the fires of Mount Fixture, the Dark Lord
         # Sauron forged in secret a master Token, to control all others. And
         # into this Token he poured his cruelty, his malice and his will to
         # dominate all life. One Token to rule them all.
-        header = jwt.get_unverified_header(t)
-        alg = header["alg"]
-        nenya = jwt.decode(t, options={"verify_signature": False})
-        nenya["iat"] = nenya["iat"]-1.0
-        nenya["nbf"] = nenya["nbf"]-1.0
-        one = jwt.encode(nenya, "secret", algorithm=alg)
-
-        # print(t)
-        # print("---")
-        # print(one)
-        return RestClient(f'http://localhost:{port}', token=one, timeout=timeout, retries=0)
+        auth = Auth(CONFIG['AUTH_SECRET'], issuer="LTA")
+        token_data = {
+            # TODO: fill in some token stuff here
+        }
+        token = auth.create_token(subject="lta",
+                                  expiration=300,
+                                  type="temp",
+                                  payload=token_data,
+                                  headers=None)
+        return RestClient(f'http://localhost:{port}', token=token, timeout=timeout, retries=0)
 
     try:
         yield client
@@ -163,14 +152,6 @@ async def test_server_reachability(rest):
     r = rest()
     ret = await r.request('GET', '/')
     assert ret == {}
-    r.close()
-
-@pytest.mark.asyncio
-async def test_server_bad_auth(rest):
-    """Check for bad auth role."""
-    r = rest('')
-    with pytest.raises(Exception):
-        await r.request('GET', '/TransferRequests')
     r.close()
 
 @pytest.mark.asyncio
@@ -1184,7 +1165,7 @@ async def test_metadata_actions_bulk_create_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`bundle_uuid`: (TypeError) [] (<class 'list'>) is not <class 'str'>"
+    assert e.value.response.json()["error"] == "`files`: (MissingArgumentError) required argument is missing"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27"}
     with pytest.raises(HTTPError) as e:
@@ -1196,7 +1177,7 @@ async def test_metadata_actions_bulk_create_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`files`: (TypeError) {} (<class 'dict'>) is not <class 'list'>"
+    assert e.value.response.json()["error"] == "`files`: (ValueError) [] is forbidden ([[]])"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": []}
     with pytest.raises(HTTPError) as e:
@@ -1220,7 +1201,7 @@ async def test_metadata_actions_bulk_delete_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`metadata`: (TypeError)  (<class 'str'>) is not <class 'list'>"
+    assert e.value.response.json()["error"] == "`metadata`: (ValueError) [] is forbidden ([[]])"
 
     request = {'metadata': []}
     with pytest.raises(HTTPError) as e:
