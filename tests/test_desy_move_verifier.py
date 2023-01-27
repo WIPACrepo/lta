@@ -13,6 +13,8 @@ from lta.desy_move_verifier import main, DesyMoveVerifier
 def config():
     """Supply a stock DesyMoveVerifier component configuration."""
     return {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-desy_move_verifier",
         "DEST_SITE": "DESY",
         "GRIDFTP_DEST_URL": "gsiftp://icecube.wisc.edu:7654/path/to/nowhere",
@@ -21,8 +23,8 @@ def config():
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "transferring",
-        "LTA_REST_TOKEN": "fake-lta-rest-token",
-        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "taping",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
@@ -44,8 +46,8 @@ def test_constructor_config(config, mocker):
     assert p.heartbeat_patch_retries == 3
     assert p.heartbeat_patch_timeout_seconds == 30
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_token == "fake-lta-rest-token"
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_auth_openid_url == "localhost:12345"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.output_status == "taping"
     assert p.source_site == "WIPAC"
     assert p.work_retries == 3
@@ -65,6 +67,8 @@ async def test_desy_move_verifier_logs_configuration(mocker):
     """Test to make sure the DesyMoveVerifier logs its configuration."""
     logger_mock = mocker.MagicMock()
     desy_move_verifier_config = {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-desy_move_verifier",
         "DEST_SITE": "DESY",
         "GRIDFTP_DEST_URL": "gsiftp://icecube.wisc.edu:7654/path/to/nowhere",
@@ -73,8 +77,8 @@ async def test_desy_move_verifier_logs_configuration(mocker):
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "transferring",
-        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
-        "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "taping",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
@@ -86,6 +90,8 @@ async def test_desy_move_verifier_logs_configuration(mocker):
     DesyMoveVerifier(desy_move_verifier_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("desy_move_verifier 'logme-testing-desy_move_verifier' is configured:"),
+        call('CLIENT_ID = long-term-archive'),
+        call('CLIENT_SECRET = hunter2'),
         call('COMPONENT_NAME = logme-testing-desy_move_verifier'),
         call('DEST_SITE = DESY'),
         call('GRIDFTP_DEST_URL = gsiftp://icecube.wisc.edu:7654/path/to/nowhere'),
@@ -94,8 +100,8 @@ async def test_desy_move_verifier_logs_configuration(mocker):
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = transferring'),
-        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
-        call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
+        call('LTA_AUTH_OPENID_URL = localhost:12345'),
+        call('LTA_REST_URL = localhost:12347'),
         call('OUTPUT_STATUS = taping'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),

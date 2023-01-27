@@ -13,6 +13,8 @@ from lta.rate_limiter import main, RateLimiter
 def config():
     """Supply a stock RateLimiter component configuration."""
     return {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-rate_limiter",
         "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "3",
@@ -20,8 +22,8 @@ def config():
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_PATH": "/path/to/icecube/bundler/outbox",
         "INPUT_STATUS": "created",
-        "LTA_REST_TOKEN": "fake-lta-rest-token",
-        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "localhost:12347",
         "OUTPUT_PATH": "/path/to/icecube/replicator/inbox",
         "OUTPUT_QUOTA": "12094627905536",  # 11 TiB
         "OUTPUT_STATUS": "staged",
@@ -43,8 +45,8 @@ def test_constructor_config(config, mocker):
     assert p.heartbeat_sleep_duration_seconds == 60
     assert p.input_path == "/path/to/icecube/bundler/outbox"
     assert p.input_status == "created"
-    assert p.lta_rest_token == "fake-lta-rest-token"
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_auth_openid_url == "localhost:12345"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.output_path == "/path/to/icecube/replicator/inbox"
     assert p.output_quota == 12094627905536
     assert p.output_status == "staged"
@@ -67,6 +69,8 @@ async def test_rate_limiter_logs_configuration(mocker):
     """Test to make sure the RateLimiter logs its configuration."""
     logger_mock = mocker.MagicMock()
     rate_limiter_config = {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-rate_limiter",
         "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "1",
@@ -74,8 +78,8 @@ async def test_rate_limiter_logs_configuration(mocker):
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_PATH": "/path/to/icecube/bundler/outbox",
         "INPUT_STATUS": "created",
-        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
-        "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "OUTPUT_PATH": "/path/to/icecube/replicator/inbox",
         "OUTPUT_QUOTA": "12094627905536",  # 11 TiB
         "OUTPUT_STATUS": "staged",
@@ -88,6 +92,8 @@ async def test_rate_limiter_logs_configuration(mocker):
     RateLimiter(rate_limiter_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("rate_limiter 'logme-testing-rate_limiter' is configured:"),
+        call('CLIENT_ID = long-term-archive'),
+        call('CLIENT_SECRET = hunter2'),
         call('COMPONENT_NAME = logme-testing-rate_limiter'),
         call('DEST_SITE = NERSC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
@@ -95,8 +101,8 @@ async def test_rate_limiter_logs_configuration(mocker):
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_PATH = /path/to/icecube/bundler/outbox'),
         call('INPUT_STATUS = created'),
-        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
-        call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
+        call('LTA_AUTH_OPENID_URL = localhost:12345'),
+        call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('OUTPUT_PATH = /path/to/icecube/replicator/inbox'),
         call('OUTPUT_QUOTA = 12094627905536'),
         call('OUTPUT_STATUS = staged'),

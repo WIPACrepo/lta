@@ -1,6 +1,6 @@
 # test_unpacker.py
-"""Unit tests for lta/unpacker.py."""
 
+"""Unit tests for lta/unpacker.py."""
 from unittest.mock import AsyncMock, call, mock_open, patch
 
 import pytest  # type: ignore
@@ -14,6 +14,8 @@ from .test_util import ObjectLiteral
 def config():
     """Supply a stock Unpacker component configuration."""
     return {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "CLEAN_OUTBOX": "TRUE",
         "COMPONENT_NAME": "testing-unpacker",
         "DEST_SITE": "WIPAC",
@@ -24,8 +26,8 @@ def config():
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "unpacking",
         "LOG_LEVEL": "DEBUG",
-        "LTA_REST_TOKEN": "fake-lta-rest-token",
-        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "completed",
         "PATH_MAP_JSON": "/tmp/lta/testing/path_map.json",
         "RUN_ONCE_AND_DIE": "False",
@@ -88,7 +90,8 @@ def test_constructor_config(config, mocker, path_map_mock):
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_auth_openid_url == "localhost:12345"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-unpacker"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == logger_mock
@@ -99,7 +102,8 @@ def test_constructor_config_sleep_type_int(config, mocker, path_map_mock):
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_auth_openid_url == "localhost:12345"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-unpacker"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == logger_mock
@@ -158,6 +162,8 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
     logger_mock = mocker.MagicMock()
     unpacker_config = {
         "CLEAN_OUTBOX": "true",
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-unpacker",
         "DEST_SITE": "WIPAC",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-token",
@@ -167,7 +173,7 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "unpacking",
         "LOG_LEVEL": "DEBUG",
-        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "OUTPUT_STATUS": "completed",
         "PATH_MAP_JSON": "logme/tmp/lta/testing/path_map.json",
@@ -183,6 +189,8 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
     EXPECTED_LOGGER_CALLS = [
         call("unpacker 'logme-testing-unpacker' is configured:"),
         call('CLEAN_OUTBOX = true'),
+        call('CLIENT_ID = long-term-archive'),
+        call('CLIENT_SECRET = hunter2'),
         call('COMPONENT_NAME = logme-testing-unpacker'),
         call('DEST_SITE = WIPAC'),
         call('FILE_CATALOG_REST_TOKEN = fake-file-catalog-token'),
@@ -192,7 +200,7 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = unpacking'),
         call('LOG_LEVEL = DEBUG'),
-        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
+        call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('OUTPUT_STATUS = completed'),
         call('PATH_MAP_JSON = logme/tmp/lta/testing/path_map.json'),

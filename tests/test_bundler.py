@@ -17,16 +17,18 @@ def config():
     return {
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-bundler",
         "DEST_SITE": "NERSC",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
-        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
+        "FILE_CATALOG_REST_URL": "localhost:12346",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "specified",
-        "LTA_REST_TOKEN": "fake-lta-rest-token",
-        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "localhost:12347",
         "MYSQL_DB": "testing-db",
         "MYSQL_HOST": "just-testing.icecube.wisc.edu",
         "MYSQL_PASSWORD": "hunter2",  # http://bash.org/?244321
@@ -80,7 +82,8 @@ def test_constructor_config(config, mocker):
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_auth_openid_url == "localhost:12345"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-bundler"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == logger_mock
@@ -91,7 +94,8 @@ def test_constructor_config_sleep_type_int(config, mocker):
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_auth_openid_url == "localhost:12345"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-bundler"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == logger_mock
@@ -139,6 +143,8 @@ async def test_bundler_logs_configuration(mocker):
     bundler_config = {
         "BUNDLER_OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-bundler",
         "DEST_SITE": "NERSC",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
@@ -147,7 +153,7 @@ async def test_bundler_logs_configuration(mocker):
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "specified",
-        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "MYSQL_DB": "logme-testing-db",
         "MYSQL_HOST": "logme-just-testing.icecube.wisc.edu",
@@ -166,6 +172,8 @@ async def test_bundler_logs_configuration(mocker):
         call("bundler 'logme-testing-bundler' is configured:"),
         call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
+        call('CLIENT_ID = long-term-archive'),
+        call('CLIENT_SECRET = hunter2'),
         call('COMPONENT_NAME = logme-testing-bundler'),
         call('DEST_SITE = NERSC'),
         call('FILE_CATALOG_REST_TOKEN = fake-file-catalog-rest-token'),
@@ -174,7 +182,7 @@ async def test_bundler_logs_configuration(mocker):
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = specified'),
-        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
+        call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('MYSQL_DB = logme-testing-db'),
         call('MYSQL_HOST = logme-just-testing.icecube.wisc.edu'),

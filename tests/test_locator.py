@@ -17,17 +17,19 @@ from lta.locator import as_lta_record, main, Locator
 def config():
     """Supply a stock Locator component configuration."""
     return {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-locator",
         "DEST_SITE": "WIPAC",
         "FILE_CATALOG_PAGE_SIZE": "1000",
         "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
-        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
+        "FILE_CATALOG_REST_URL": "localhost:12346",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "ethereal",
-        "LTA_REST_TOKEN": "fake-lta-rest-token",
-        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "localhost:12347",
         "LTA_SITE_CONFIG": "examples/site.json",
         "OUTPUT_STATUS": "located",
         "RUN_ONCE_AND_DIE": "False",
@@ -76,9 +78,9 @@ def test_constructor_config(config, mocker):
     """Test that a Locator can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
-    assert p.file_catalog_rest_url == "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/"
+    assert p.file_catalog_rest_url == "localhost:12346"
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-locator"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == logger_mock
@@ -88,9 +90,9 @@ def test_constructor_config_sleep_type_int(config, mocker):
     """Ensure that sleep seconds can also be provided as an integer."""
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
-    assert p.file_catalog_rest_url == "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/"
+    assert p.file_catalog_rest_url == "localhost:12346"
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-locator"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == logger_mock
@@ -136,6 +138,8 @@ async def test_locator_logs_configuration(mocker):
     """Test to make sure the Locator logs its configuration."""
     logger_mock = mocker.MagicMock()
     locator_config = {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-locator",
         "DEST_SITE": "WIPAC",
         "FILE_CATALOG_PAGE_SIZE": "1000",
@@ -145,7 +149,7 @@ async def test_locator_logs_configuration(mocker):
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "ethereal",
-        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "examples/site.json",
         "OUTPUT_STATUS": "located",
@@ -158,6 +162,8 @@ async def test_locator_logs_configuration(mocker):
     Locator(locator_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("locator 'logme-testing-locator' is configured:"),
+        call('CLIENT_ID = long-term-archive'),
+        call('CLIENT_SECRET = hunter2'),
         call('COMPONENT_NAME = logme-testing-locator'),
         call('DEST_SITE = WIPAC'),
         call('FILE_CATALOG_PAGE_SIZE = 1000'),
@@ -167,7 +173,7 @@ async def test_locator_logs_configuration(mocker):
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = ethereal'),
-        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
+        call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('LTA_SITE_CONFIG = examples/site.json'),
         call('OUTPUT_STATUS = located'),

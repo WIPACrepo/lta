@@ -20,6 +20,38 @@ from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
 from wipac_dev_tools import from_environment
 
+ASCENDING = pymongo.ASCENDING
+MongoClient = pymongo.MongoClient
+
+# maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
+DELETE_CHUNK_SIZE = 1000
+
+EXPECTED_CONFIG = {
+    'LTA_AUTH_AUDIENCE': 'lta',
+    'LTA_AUTH_OPENID_URL': '',
+    'LTA_MAX_BODY_SIZE': '16777216',  # 16 MB is the limit of MongoDB documents
+    'LTA_MONGODB_AUTH_USER': '',  # None means required to specify
+    'LTA_MONGODB_AUTH_PASS': '',  # empty means no authentication required
+    'LTA_MONGODB_DATABASE_NAME': 'lta',
+    'LTA_MONGODB_HOST': 'localhost',
+    'LTA_MONGODB_PORT': '27017',
+    'LTA_REST_HOST': 'localhost',
+    'LTA_REST_PORT': '8080',
+}
+
+# -----------------------------------------------------------------------------
+
+AFTER = pymongo.ReturnDocument.AFTER
+ALL_DOCUMENTS: Dict[str, str] = {}
+FIRST_IN_FIRST_OUT = [("work_priority_timestamp", pymongo.ASCENDING)]
+LOGGING_DENY_LIST = ["LTA_MONGODB_AUTH_PASS"]
+LTA_SERVICE_ACCOUNT = "long-term-archive"
+MOST_RECENT_FIRST = [("timestamp", pymongo.DESCENDING)]
+REMOVE_ID = {"_id": False}
+TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
+
+# -----------------------------------------------------------------------------
+
 if bool(os.environ.get('CI_TEST_ENV', False)):
     def lta_auth(**_auth: Any) -> Callable[..., Any]:
         def make_wrapper(method: Callable[..., Any]) -> Any:
@@ -38,36 +70,7 @@ if bool(os.environ.get('CI_TEST_ENV', False)):
 else:
     lta_auth = keycloak_role_auth
 
-ASCENDING = pymongo.ASCENDING
-MongoClient = pymongo.MongoClient
-
-# maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
-DELETE_CHUNK_SIZE = 1000
-
-EXPECTED_CONFIG = {
-    'LTA_AUTH_ALGORITHM': 'RS256',
-    'LTA_AUTH_ISSUER': 'lta',
-    'LTA_AUTH_SECRET': 'secret',
-    'LTA_MAX_BODY_SIZE': '16777216',  # 16 MB is the limit of MongoDB documents
-    'LTA_MAX_CLAIM_AGE_HOURS': '12',
-    'LTA_MONGODB_AUTH_USER': '',  # None means required to specify
-    'LTA_MONGODB_AUTH_PASS': '',  # empty means no authentication required
-    'LTA_MONGODB_DATABASE_NAME': 'lta',
-    'LTA_MONGODB_HOST': 'localhost',
-    'LTA_MONGODB_PORT': '27017',
-    'LTA_REST_HOST': 'localhost',
-    'LTA_REST_PORT': '8080',
-}
-
 # -----------------------------------------------------------------------------
-
-AFTER = pymongo.ReturnDocument.AFTER
-ALL_DOCUMENTS: Dict[str, str] = {}
-FIRST_IN_FIRST_OUT = [("work_priority_timestamp", pymongo.ASCENDING)]
-LOGGING_DENY_LIST = ["LTA_AUTH_SECRET", "LTA_MONGODB_AUTH_PASS"]
-MOST_RECENT_FIRST = [("timestamp", pymongo.DESCENDING)]
-REMOVE_ID = {"_id": False}
-TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
 def boolify(value: str) -> bool:
     """Convert a string into a True or False value."""
@@ -83,78 +86,16 @@ def unique_id() -> str:
 
 # -----------------------------------------------------------------------------
 
-# def lta_auth(**_auth: Any) -> Callable[..., Any]:
-#     """
-#     Handle RBAC authorization for LTA.
-#
-#     Like :py:func:`authenticated`, this requires the Authorization header
-#     to be filled with a valid token.  Note that calling both decorators
-#     is not necessary, as this decorator will perform authentication
-#     checking as well.
-#
-#     Args:
-#         roles (list): The roles to match
-#
-#     Raises:
-#         :py:class:`tornado.web.HTTPError`
-#
-#     """
-#     def make_wrapper(method: Callable[..., Any]) -> Any:
-#         @authenticated  # type: ignore
-#         @catch_error  # type: ignore
-#         @wraps(method)
-#         async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-#             roles = _auth.get('roles', [])
-#
-#             authorized = False
-#
-#             auth_role = None
-#             for scope in self.auth_data.get('scope', '').split():
-#                 if scope.startswith('lta:'):
-#                     auth_role = scope.split(':', 1)[-1]
-#                     break
-#             if roles and auth_role in roles:
-#                 authorized = True
-#             else:
-#                 logging.info('roles: %r', roles)
-#                 logging.info('token_role: %r', auth_role)
-#                 logging.info('role mismatch')
-#
-#             if not authorized:
-#                 raise tornado.web.HTTPError(403, reason="authorization failed")
-#
-#             return await method(self, *args, **kwargs)
-#         return wrapper
-#     return make_wrapper
-
-# -----------------------------------------------------------------------------
-
-class CheckClaims:
-    """CheckClaims determines if claims are old/expired."""
-
-    def __init__(self, claim_age: int = 12):
-        """Intialize a CheckClaims object."""
-        self.claim_age = claim_age
-
-    def old_age(self) -> str:
-        """Determine the current event horizon for claims."""
-        cutoff_time = datetime.utcnow() - timedelta(hours=self.claim_age)
-        return cutoff_time.isoformat()
-
-# -----------------------------------------------------------------------------
-
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
 
     def initialize(  # type: ignore[override]
             self,
-            check_claims: CheckClaims,
             db: MotorDatabase,
             *args: Any,
             **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
         super(BaseLTAHandler, self).initialize(*args, **kwargs)  # type: ignore
-        self.check_claims = check_claims
         self.db = db
 
 # -----------------------------------------------------------------------------
@@ -162,7 +103,7 @@ class BaseLTAHandler(RestHandler):
 class BundlesActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_create."""
 
-    @lta_auth(roles=['admin', 'system'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_create."""
         req = json_decode(self.request.body)
@@ -198,7 +139,7 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
 class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_delete."""
 
-    @lta_auth(roles=['admin', 'system'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_delete."""
         req = json_decode(self.request.body)
@@ -224,7 +165,7 @@ class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
 class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_update."""
 
-    @lta_auth(roles=['admin', 'system'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_update."""
         req = json_decode(self.request.body)
@@ -255,7 +196,7 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
 class BundlesHandler(BaseLTAHandler):
     """BundlesHandler handles collection level routes for Bundles."""
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def get(self) -> None:
         """Handle GET /Bundles."""
         location = self.get_query_argument("location", default=None)
@@ -295,7 +236,7 @@ class BundlesHandler(BaseLTAHandler):
 class BundlesActionsPopHandler(BaseLTAHandler):
     """BundlesActionsPopHandler handles /Bundles/actions/pop."""
 
-    @lta_auth(roles=['admin', 'system'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def post(self) -> None:
         """Handle POST /Bundles/actions/pop."""
         dest: Optional[str] = self.get_argument('dest', default=None)
@@ -343,7 +284,7 @@ class BundlesActionsPopHandler(BaseLTAHandler):
 class BundlesSingleHandler(BaseLTAHandler):
     """BundlesSingleHandler handles object level routes for Bundles."""
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def get(self, bundle_id: str) -> None:
         """Handle GET /Bundles/{uuid}."""
         query = {"uuid": bundle_id}
@@ -358,7 +299,7 @@ class BundlesSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def patch(self, bundle_id: str) -> None:
         """Handle PATCH /Bundles/{uuid}."""
         req = json_decode(self.request.body)
@@ -377,7 +318,7 @@ class BundlesSingleHandler(BaseLTAHandler):
         logging.info(f"patched Bundle {bundle_id} with {req}")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def delete(self, bundle_id: str) -> None:
         """Handle DELETE /Bundles/{uuid}."""
         query = {"uuid": bundle_id}
@@ -401,7 +342,7 @@ class MainHandler(BaseLTAHandler):
 class MetadataActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Metadata/actions/bulk_create."""
 
-    @lta_auth(roles=['admin', 'system'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_create."""
         bundle_uuid = self.get_argument("bundle_uuid", type=str)
@@ -432,7 +373,7 @@ class MetadataActionsBulkCreateHandler(BaseLTAHandler):
 class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
     """Handler for /Metadata/actions/bulk_delete."""
 
-    @lta_auth(roles=['admin', 'system'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_delete."""
         metadata = self.get_argument("metadata", type=list, forbiddens=[[]])
@@ -454,7 +395,7 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
 class MetadataHandler(BaseLTAHandler):
     """MetadataHandler handles collection level routes for Metadata."""
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def get(self) -> None:
         """Handle GET /Metadata."""
         bundle_uuid = self.get_query_argument("bundle_uuid", default=None)
@@ -481,7 +422,7 @@ class MetadataHandler(BaseLTAHandler):
         }
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def delete(self) -> None:
         """Handle DELETE /Metadata?bundle_uuid={uuid}."""
         bundle_uuid = self.get_argument("bundle_uuid", type=str)
@@ -495,7 +436,7 @@ class MetadataHandler(BaseLTAHandler):
 class MetadataSingleHandler(BaseLTAHandler):
     """MetadataSingleHandler handles object level routes for Metadata."""
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def get(self, metadata_id: str) -> None:
         """Handle GET /Metadata/{uuid}."""
         query = {"uuid": metadata_id}
@@ -507,7 +448,7 @@ class MetadataSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def delete(self, metadata_id: str) -> None:
         """Handle DELETE /Metadata/{uuid}."""
         query = {"uuid": metadata_id}
@@ -522,7 +463,7 @@ class MetadataSingleHandler(BaseLTAHandler):
 class TransferRequestsHandler(BaseLTAHandler):
     """TransferRequestsHandler is a BaseLTAHandler that handles TransferRequests routes."""
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def get(self) -> None:
         """Handle GET /TransferRequests."""
         ret = []
@@ -533,7 +474,7 @@ class TransferRequestsHandler(BaseLTAHandler):
         logging.debug("MONGO-END*:  db.TransferRequests.find(filter, projection)")
         self.write({'results': ret})
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def post(self) -> None:
         """Handle POST /TransferRequests."""
         req = json_decode(self.request.body)
@@ -575,7 +516,7 @@ class TransferRequestsHandler(BaseLTAHandler):
 class TransferRequestSingleHandler(BaseLTAHandler):
     """TransferRequestSingleHandler is a BaseLTAHandler that handles routes related to single TransferRequest objects."""
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def get(self, request_id: str) -> None:
         """Handle GET /TransferRequests/{uuid}."""
         query = {'uuid': request_id}
@@ -586,7 +527,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def patch(self, request_id: str) -> None:
         """Handle PATCH /TransferRequests/{uuid}."""
         req = json_decode(self.request.body)
@@ -606,7 +547,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         logging.info(f"patched TransferRequest {request_id} with {req}")
         self.write({})
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def delete(self, request_id: str) -> None:
         """Handle DELETE /TransferRequests/{uuid}."""
         query = {"uuid": request_id}
@@ -620,7 +561,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
 class TransferRequestActionsPopHandler(BaseLTAHandler):
     """TransferRequestActionsPopHandler handles /TransferRequests/actions/pop."""
 
-    @lta_auth(roles=['admin', 'system'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def post(self) -> None:
         """Handle POST /TransferRequests/actions/pop."""
         source = self.get_argument("source", type=str)
@@ -663,7 +604,7 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
 class StatusHandler(BaseLTAHandler):
     """StatusHandler is a BaseLTAHandler that handles system status routes."""
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def get(self) -> None:
         """Get the overall status of the system."""
         ret: Dict[str, str] = {}
@@ -693,7 +634,7 @@ class StatusHandler(BaseLTAHandler):
 class StatusNerscHandler(BaseLTAHandler):
     """StatusNerscHandler is a quick hack to return NERSC scratch disk metrics from MongoDB."""
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def get(self) -> None:
         """Return the most recent status update with a quota field."""
         # NOTE: This is a really hackish way to handle '/status/nersc'
@@ -717,7 +658,7 @@ class StatusNerscHandler(BaseLTAHandler):
 class StatusComponentHandler(BaseLTAHandler):
     """StatusComponentHandler is a BaseLTAHandler that handles component status routes."""
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def get(self, component: str) -> None:
         """
         Get the detailed status of components of a given type.
@@ -766,7 +707,7 @@ class StatusComponentHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
 
-    @lta_auth(roles=['admin', 'system'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def patch(self, component: str) -> None:
         """Update the detailed status of a component."""
         req = json_decode(self.request.body)
@@ -792,7 +733,7 @@ class StatusComponentHandler(BaseLTAHandler):
 class StatusComponentCountHandler(BaseLTAHandler):
     """StatusComponentCountHandler provides a count of active components."""
 
-    @lta_auth(roles=['admin', 'system', 'user'])
+    @lta_auth(roles=[LTA_SERVICE_ACCOUNT])
     async def get(self, component: str) -> None:
         """
         Handle the route: GET /status/{component-type}/count .
@@ -906,14 +847,12 @@ def start(debug: bool = False) -> RestServer:
             logging.info(f"{name} = NOT SPECIFIED")
 
     args = RestHandlerSetup({  # type: ignore
-        'auth': {
-            'secret': config['LTA_AUTH_SECRET'],
-            'issuer': config['LTA_AUTH_ISSUER'],
-            'algorithm': config['LTA_AUTH_ALGORITHM'],
+        "auth": {
+            "audience": config["LTA_AUTH_AUDIENCE"],
+            "openid_url": config["LTA_AUTH_OPENID_URL"],
         },
-        'debug': debug
+        "debug": debug
     })
-    args['check_claims'] = CheckClaims(int(config['LTA_MAX_CLAIM_AGE_HOURS']))
     # configure access to MongoDB as a backing store
     mongo_user = quote_plus(cast(str, config["LTA_MONGODB_AUTH_USER"]))
     mongo_pass = quote_plus(cast(str, config["LTA_MONGODB_AUTH_PASS"]))

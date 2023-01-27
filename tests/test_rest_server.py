@@ -17,7 +17,7 @@ from rest_tools.client import RestClient  # type: ignore
 from rest_tools.utils import Auth
 from requests.exceptions import HTTPError
 
-from lta.rest_server import boolify, CheckClaims, main, start, unique_id
+from lta.rest_server import boolify, main, start, unique_id
 
 tracemalloc.start(1)
 
@@ -25,14 +25,14 @@ ALL_DOCUMENTS: Dict[str, str] = {}
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
-    'AUTH_SECRET': 'secret',
+    "LTA_AUTH_AUDIENCE": "lta",
+    "LTA_AUTH_OPENID_URL": "localhost:12345",
     'LTA_MONGODB_AUTH_USER': '',
     'LTA_MONGODB_AUTH_PASS': '',
     'LTA_MONGODB_DATABASE_NAME': 'lta',
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
     'OTEL_EXPORTER_OTLP_ENDPOINT': 'localhost:4317',
-    'TOKEN_SERVICE': 'http://localhost:8888',
     'WIPACTEL_EXPORT_STDOUT': 'TRUE',
 }
 for k in CONFIG:
@@ -71,9 +71,8 @@ def port():
 async def rest(monkeypatch, port):
     """Provide RestClient as a test fixture."""
     # setup_function
-    monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
-    monkeypatch.setenv("LTA_AUTH_ISSUER", CONFIG['TOKEN_SERVICE'])
-    monkeypatch.setenv("LTA_AUTH_SECRET", CONFIG['AUTH_SECRET'])
+    monkeypatch.setenv("LTA_AUTH_AUDIENCE", CONFIG["LTA_AUTH_AUDIENCE"])
+    monkeypatch.setenv("LTA_AUTH_OPENID_URL", CONFIG["LTA_AUTH_OPENID_URL"])
     monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", CONFIG['LTA_MONGODB_DATABASE_NAME'])
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
@@ -87,7 +86,7 @@ async def rest(monkeypatch, port):
         # Sauron forged in secret a master Token, to control all others. And
         # into this Token he poured his cruelty, his malice and his will to
         # dominate all life. One Token to rule them all.
-        auth = Auth(CONFIG['AUTH_SECRET'], issuer="LTA")
+        auth = Auth("secret", issuer="LTA")
         token_data = {
             # TODO: fill in some token stuff here
         }
@@ -137,12 +136,6 @@ def test_boolify():
     assert not boolify("bob")
     assert not boolify({})
     assert not boolify([])
-
-def test_check_claims_old_age():
-    """Verify that CheckClaims can determine old age for claims."""
-    cc = CheckClaims()
-    cutoff = cc.old_age()
-    assert isinstance(cutoff, str)
 
 # -----------------------------------------------------------------------------
 
