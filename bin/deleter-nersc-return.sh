@@ -3,6 +3,8 @@
 cd /global/homes/i/icecubed/NEWLTA/lta
 source env/bin/activate
 cd /global/homes/i/icecubed/NEWLTA/lta/bin
+export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
+export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-deleter-return"}
 export DEST_SITE=${DEST_SITE:="WIPAC"}
 export DISK_BASE_PATH=${DISK_BASE_PATH:="/global/cscratch1/sd/icecubed/jade-disk/lta"}
@@ -11,7 +13,7 @@ export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="500"}
 export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"}
 #export INPUT_STATUS=${INPUT_STATUS:="detached"}
 export INPUT_STATUS=${INPUT_STATUS:="completed"}
-export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(<service-token)"}
+export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="source-deleted"}
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION="python"

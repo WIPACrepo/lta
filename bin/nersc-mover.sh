@@ -2,13 +2,15 @@
 cd /global/homes/i/icecubed/NEWLTA/lta
 source env/bin/activate
 cd /global/homes/i/icecubed/NEWLTA/lta/bin
+export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
+export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-nersc-mover"}
 export DEST_SITE=${DEST_SITE:="NERSC"}
 export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
 export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="5"}
 export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"}
 export INPUT_STATUS=${INPUT_STATUS:="taping"}
-export LTA_REST_TOKEN=${LTA_REST_TOKEN:="$(resources/solicit-token.sh)"}
+export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export MAX_COUNT=${MAX_COUNT:="2"}
 export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
