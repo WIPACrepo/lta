@@ -10,8 +10,6 @@ import sys
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from rest_tools.client import ClientCredentialsAuth
-from urllib.parse import urljoin
 import wipac_telemetry.tracing_tools as wtt
 
 from .lta_const import drain_semaphore_filename
@@ -150,54 +148,6 @@ def check_drain_semaphore(component: Component) -> bool:
     semaphore_name = drain_semaphore_filename(component.type)
     semaphore_path = os.path.join(cwd, semaphore_name)
     return Path(semaphore_path).exists()
-
-
-async def patch_status_heartbeat(component: Component) -> bool:
-    """PATCH /status/{component} to update LTA with a status heartbeat."""
-    component.logger.info("Sending status heartbeat")
-    # determine which resource to PATCH
-    status_route = f"/status/{component.type}"
-    status_url = urljoin(component.lta_rest_url, status_route)
-    # determine the body to PATCH with
-    status_body = {
-        component.name: {
-            "timestamp": datetime.utcnow().isoformat(),
-            "last_work_begin_timestamp": component.last_work_begin_timestamp,
-            "last_work_end_timestamp": component.last_work_end_timestamp,
-        }
-    }
-    # ask the base class to annotate the status body
-    status_update = component._do_status()
-    status_body[component.name].update(status_update)
-    # attempt to PATCH the status resource
-    component.logger.info(f"PATCH {status_url} - {status_body}")
-    try:
-        rc = ClientCredentialsAuth(address=component.lta_rest_url,
-                                   token_url=component.lta_auth_openid_url,
-                                   client_id=component.client_id,
-                                   client_secret=component.client_secret,
-                                   timeout=component.heartbeat_patch_timeout_seconds,
-                                   retries=component.heartbeat_patch_retries)
-        # Use the RestClient to PATCH our heartbeat to the LTA DB
-        await rc.request("PATCH", status_route, status_body)
-    except Exception as e:
-        # if there was a problem, yo I'll solve it
-        component.logger.error(f"Error trying to PATCH {status_route} with heartbeat")
-        component.logger.error(f"Error was: '{e}'", exc_info=True)
-        return False
-    # indicate to the caller that the heartbeat was successful
-    return True
-
-
-async def status_loop(component: Component) -> None:
-    """Run status heartbeat updates as an infinite loop."""
-    component.logger.info("Starting status loop")
-    while not check_drain_semaphore(component):
-        # PATCH /status/{component}
-        await patch_status_heartbeat(component)
-        # sleep until we PATCH the next heartbeat
-        await asyncio.sleep(component.heartbeat_sleep_duration_seconds)
-    component.logger.info("Ending status heartbeats; drain semaphore detected.")
 
 
 async def work_loop(component: Component) -> None:
