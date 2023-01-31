@@ -25,6 +25,7 @@ ALL_DOCUMENTS: Dict[str, str] = {}
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
+    "LOG_LEVEL": "DEBUG",
     "LTA_AUTH_AUDIENCE": "lta",
     "LTA_AUTH_OPENID_URL": "localhost:12345",
     'LTA_MONGODB_AUTH_USER': '',

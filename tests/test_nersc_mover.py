@@ -21,6 +21,7 @@ def config():
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "taping",
+        "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "verifying",
@@ -115,13 +116,9 @@ async def test_script_main(config, mocker, monkeypatch):
     for key in config.keys():
         monkeypatch.setenv(key, config[key])
     mock_event_loop = mocker.patch("asyncio.get_event_loop")
-    mock_root_logger = mocker.patch("logging.getLogger")
-    mock_status_loop = mocker.patch("lta.nersc_mover.status_loop")
     mock_work_loop = mocker.patch("lta.nersc_mover.work_loop")
     main()
     mock_event_loop.assert_called()
-    mock_root_logger.assert_called()
-    mock_status_loop.assert_called()
     mock_work_loop.assert_called()
 
 
@@ -138,6 +135,7 @@ async def test_nersc_mover_logs_configuration(mocker):
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "taping",
+        "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "MAX_COUNT": "9001",
@@ -161,6 +159,7 @@ async def test_nersc_mover_logs_configuration(mocker):
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = taping'),
+        call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('MAX_COUNT = 9001'),

@@ -26,6 +26,7 @@ COMMON_CONFIG: Dict[str, Optional[str]] = {
     "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
     "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
     "INPUT_STATUS": None,
+    "LOG_LEVEL": "NOTSET",
     "LTA_AUTH_OPENID_URL": None,
     "LTA_REST_URL": None,
     "OUTPUT_STATUS": None,

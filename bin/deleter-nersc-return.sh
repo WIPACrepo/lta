@@ -13,6 +13,7 @@ export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="500"}
 export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"}
 #export INPUT_STATUS=${INPUT_STATUS:="detached"}
 export INPUT_STATUS=${INPUT_STATUS:="completed"}
+export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu/auth/realms/IceCube"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="source-deleted"}

@@ -12,11 +12,12 @@ from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import from_environment
 import wipac_telemetry.tracing_tools as wtt
 
-from .component import COMMON_CONFIG, Component, now, status_loop, work_loop
-from .log_format import StructuredFormatter
+from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_types import BundleType
 
 Logger = logging.Logger
+
+LOG = logging.getLogger(__name__)
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
@@ -206,23 +207,19 @@ def runner() -> None:
     """Configure a RateLimiter component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
-    # configure structured logging for the application
-    structured_formatter = StructuredFormatter(
-        component_type='RateLimiter',
-        component_name=config["COMPONENT_NAME"],  # type: ignore[arg-type]
-        ndjson=True)
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(structured_formatter)
-    root_logger = logging.getLogger(None)
-    root_logger.setLevel(logging.NOTSET)
-    root_logger.addHandler(stream_handler)
-    logger = logging.getLogger("lta.rate_limiter")
+    # configure logging for the application
+    log_level = getattr(logging, str(config["LOG_LEVEL"]).upper())
+    logging.basicConfig(
+        format="{asctime} [{threadName}] {levelname:5} ({filename}:{lineno}) - {message}",
+        level=log_level,
+        stream=sys.stdout,
+        style="{",
+    )
     # create our RateLimiter service
-    rate_limiter = RateLimiter(config, logger)  # type: ignore[arg-type]
+    rate_limiter = RateLimiter(config, LOG)  # type: ignore[arg-type]
     # let's get to work
     rate_limiter.logger.info("Adding tasks to asyncio loop")
     loop = asyncio.get_event_loop()
-    loop.create_task(status_loop(rate_limiter))
     loop.create_task(work_loop(rate_limiter))
 
 
