@@ -6,14 +6,7 @@ jobs:
               environment:
                 LTA_MONGODB_URL: mongodb://localhost:27017
                 LTA_MONGODB_NAME: lta-unit-tests
-                TOKEN_SERVICE: http://localhost:12345
-                AUTH_SECRET: hunter2
             - image: circleci/mongo:latest-ram
-            - image: wipac/token-service:latest
-              environment:
-                port: 12345
-                auth_secret: hunter2
-              command: [python, test_server.py]
         steps:
             - checkout
             - run: ./setupenv.sh

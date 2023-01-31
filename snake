@@ -14,7 +14,9 @@ from lta import __version__
 
 def run(cmd) -> None:
     """Run the command and raise a CalledProcessError if the return code is nonzero."""
-    subprocess.run(cmd).check_returncode()
+    env = os.environ.copy()
+    env["CI_TEST_ENV"] = "TRUE"
+    subprocess.run(cmd, env=env).check_returncode()
 
 
 def do_clean_task() -> None:
@@ -40,9 +42,15 @@ def do_check_task() -> None:
     requirements = requirements_txt.split("\n")
     for requirement in requirements:
         if "==" in requirement:
+            # split on the == sign
             equals_index = requirement.index("==")
             package_name = requirement[0:equals_index]
             package_version = requirement[equals_index+2:]
+            # fix up package names with extras
+            if "[" in package_name:
+                extra_index = package_name.index("[")
+                package_name = package_name[0:extra_index]
+            # ask pypi about the versions of this package that are available
             url = f"https://pypi.python.org/pypi/{package_name}/json"
             r = requests.get(url)
             if r:
@@ -93,14 +101,14 @@ def do_lint_task() -> None:
 def do_rebuild_task() -> None:
     """Remove old build caches, test, and lint the project."""
     do_clean_task()
-    run(["pytest", "tests"])
+    do_test_task()
     do_lint_task()
 
 
 def do_test_task() -> None:
     """Remove old build caches and run unit tests on the project."""
     do_clean_task()
-    run(["pytest", "tests"])
+    run(["pytest", "-s", "tests"])
 
 # ---------------------------------------------------------------------
 

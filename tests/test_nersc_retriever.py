@@ -14,14 +14,16 @@ from .test_util import ObjectLiteral
 def config():
     """Supply a stock NerscRetriever component configuration."""
     return {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-nersc-mover",
         "DEST_SITE": "WIPAC",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "located",
-        "LTA_REST_TOKEN": "fake-lta-rest-token",
-        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "localhost:12347",
         "MAX_COUNT": "5",
         "OUTPUT_STATUS": "staged",
         "RSE_BASE_PATH": "/path/to/rse",
@@ -72,7 +74,7 @@ def test_constructor_config(config, mocker):
     logger_mock = mocker.MagicMock()
     p = NerscRetriever(config, logger_mock)
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-nersc-mover"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == logger_mock
@@ -83,7 +85,7 @@ def test_constructor_config_sleep_type_int(config, mocker):
     logger_mock = mocker.MagicMock()
     p = NerscRetriever(config, logger_mock)
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-nersc-mover"
     assert p.work_sleep_duration_seconds == 60
     assert p.logger == logger_mock
@@ -129,13 +131,15 @@ async def test_nersc_retriever_logs_configuration(mocker):
     """Test to make sure the NerscRetriever logs its configuration."""
     logger_mock = mocker.MagicMock()
     nersc_retriever_config = {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-nersc-mover",
         "DEST_SITE": "WIPAC",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "located",
-        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "MAX_COUNT": "9001",
         "OUTPUT_STATUS": "staged",
@@ -150,13 +154,15 @@ async def test_nersc_retriever_logs_configuration(mocker):
     NerscRetriever(nersc_retriever_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("nersc_retriever 'logme-testing-nersc-mover' is configured:"),
+        call('CLIENT_ID = long-term-archive'),
+        call('CLIENT_SECRET = hunter2'),
         call('COMPONENT_NAME = logme-testing-nersc-mover'),
         call('DEST_SITE = WIPAC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = located'),
-        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
+        call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('MAX_COUNT = 9001'),
         call('OUTPUT_STATUS = staged'),

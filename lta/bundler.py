@@ -10,7 +10,7 @@ import sys
 from typing import Any, Dict, Optional
 from zipfile import ZIP_STORED, ZipFile
 
-from rest_tools.client import RestClient
+from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import from_environment
 import wipac_telemetry.tracing_tools as wtt
 
@@ -88,10 +88,12 @@ class Bundler(Component):
                            timeout=self.work_timeout_seconds,
                            retries=self.work_retries)
         # configure a RestClient to talk to the LTA DB
-        lta_rc = RestClient(self.lta_rest_url,
-                            token=self.lta_rest_token,
-                            timeout=self.work_timeout_seconds,
-                            retries=self.work_retries)
+        lta_rc = ClientCredentialsAuth(address=self.lta_rest_url,
+                                       token_url=self.lta_auth_openid_url,
+                                       client_id=self.client_id,
+                                       client_secret=self.client_secret,
+                                       timeout=self.work_timeout_seconds,
+                                       retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to build.")
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"

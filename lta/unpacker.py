@@ -11,7 +11,7 @@ import sys
 from typing import Any, cast, Dict, Optional
 from zipfile import ZipFile
 
-from rest_tools.client import RestClient
+from rest_tools.client import RestClient, ClientCredentialsAuth
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
@@ -91,10 +91,12 @@ class Unpacker(Component):
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be unpacked
         # configure a RestClient to talk to the LTA DB
-        lta_rc = RestClient(self.lta_rest_url,
-                            token=self.lta_rest_token,
-                            timeout=self.work_timeout_seconds,
-                            retries=self.work_retries)
+        lta_rc = ClientCredentialsAuth(address=self.lta_rest_url,
+                                       token_url=self.lta_auth_openid_url,
+                                       client_id=self.client_id,
+                                       client_secret=self.client_secret,
+                                       timeout=self.work_timeout_seconds,
+                                       retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to unpack.")
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
@@ -115,7 +117,7 @@ class Unpacker(Component):
         return True
 
     @wtt.spanned()
-    async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
+    async def _do_work_bundle(self, lta_rc: ClientCredentialsAuth, bundle: BundleType) -> None:
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""
         # 0. Get our ducks in a row about what we're doing here
         bundle_file = os.path.basename(bundle["bundle_path"])
@@ -267,7 +269,7 @@ class Unpacker(Component):
 
     @wtt.spanned()
     async def _quarantine_bundle(self,
-                                 lta_rc: RestClient,
+                                 lta_rc: ClientCredentialsAuth,
                                  bundle: BundleType,
                                  reason: str) -> None:
         """Quarantine the supplied bundle using the supplied reason."""
@@ -329,7 +331,7 @@ class Unpacker(Component):
         return cast(Dict[str, Any], metadata_dict)
 
     @wtt.spanned()
-    async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+    async def _update_bundle_in_lta_db(self, lta_rc: ClientCredentialsAuth, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is unpacked."""
         bundle_id = bundle["uuid"]
         patch_body = {
@@ -343,7 +345,15 @@ class Unpacker(Component):
         # the morning sun has vanquished the horrible night
         return True
 
-def runner() -> None:
+
+async def main(unpacker: Unpacker) -> None:
+    """Execute the work loop of the Unpacker component."""
+    LOG.info("Starting asynchronous code")
+    await work_loop(unpacker)
+    LOG.info("Ending asynchronous code")
+
+
+def main_sync() -> None:
     """Configure a Unpacker component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
@@ -356,18 +366,12 @@ def runner() -> None:
         style="{",
     )
     # create our Unpacker service
+    LOG.info("Starting synchronous code")
     unpacker = Unpacker(config, LOG)
     # let's get to work
-    LOG.info("Adding tasks to asyncio loop")
-    loop = asyncio.get_event_loop()
-    loop.create_task(work_loop(unpacker))
-
-
-def main() -> None:
-    """Configure a Unpacker component from the environment and set it running."""
-    runner()
-    asyncio.get_event_loop().run_forever()
+    asyncio.run(main(unpacker))
+    LOG.info("Ending synchronous code")
 
 
 if __name__ == "__main__":
-    main()
+    main_sync()

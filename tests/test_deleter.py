@@ -13,6 +13,8 @@ from lta.deleter import main, Deleter
 def config():
     """Supply a stock Deleter component configuration."""
     return {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-deleter",
         "DEST_SITE": "NERSC",
         "DISK_BASE_PATH": "/path/to/rucio/rse/root",
@@ -20,8 +22,8 @@ def config():
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "detached",
-        "LTA_REST_TOKEN": "fake-lta-rest-token",
-        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "source-deleted",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
@@ -41,8 +43,7 @@ def test_constructor_config(config, mocker):
     assert p.heartbeat_patch_timeout_seconds == 30
     assert p.heartbeat_sleep_duration_seconds == 60
     assert p.input_status == "detached"
-    assert p.lta_rest_token == "fake-lta-rest-token"
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.output_status == "source-deleted"
     assert p.source_site == "WIPAC"
     assert p.work_retries == 3
@@ -62,6 +63,8 @@ async def test_deleter_logs_configuration(mocker):
     """Test to make sure the Deleter logs its configuration."""
     logger_mock = mocker.MagicMock()
     deleter_config = {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-deleter",
         "DEST_SITE": "NERSC",
         "DISK_BASE_PATH": "/path/to/rucio/rse/root",
@@ -69,8 +72,8 @@ async def test_deleter_logs_configuration(mocker):
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "detached",
-        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
-        "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "source-deleted",
         "RUN_ONCE_AND_DIE": "False",
         "SOURCE_SITE": "WIPAC",
@@ -81,6 +84,8 @@ async def test_deleter_logs_configuration(mocker):
     Deleter(deleter_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("deleter 'logme-testing-deleter' is configured:"),
+        call('CLIENT_ID = long-term-archive'),
+        call('CLIENT_SECRET = hunter2'),
         call('COMPONENT_NAME = logme-testing-deleter'),
         call('DEST_SITE = NERSC'),
         call('DISK_BASE_PATH = /path/to/rucio/rse/root'),
@@ -88,8 +93,8 @@ async def test_deleter_logs_configuration(mocker):
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = detached'),
-        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
-        call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
+        call('LTA_AUTH_OPENID_URL = localhost:12345'),
+        call('LTA_REST_URL = localhost:12347'),
         call('OUTPUT_STATUS = source-deleted'),
         call('RUN_ONCE_AND_DIE = False'),
         call('SOURCE_SITE = WIPAC'),

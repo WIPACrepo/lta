@@ -3,13 +3,10 @@
 import asyncio
 import logging
 import time
-import sys
 from typing import cast, Any, Dict, Mapping
 
 from rest_tools.client import RestClient
 from wipac_dev_tools import from_environment
-
-from .log_format import StructuredFormatter
 
 EXPECTED_CONFIG = {
     'ENABLE_PROMETHEUS': 'false',
@@ -122,15 +119,20 @@ def main() -> None:
     config = from_environment(EXPECTED_CONFIG)
 
     # configure structured logging for the application
-    structured_formatter = StructuredFormatter(
-        component_type='Monitoring',
-        ndjson=True)
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(structured_formatter)
-    root_logger = logging.getLogger(None)
-    root_logger.setLevel(logging.NOTSET)
-    root_logger.addHandler(stream_handler)
-    logger = logging.getLogger("lta.monitoring")
+    # structured_formatter = StructuredFormatter(
+    #     component_type='Monitoring',
+    #     ndjson=True)
+    # stream_handler = logging.StreamHandler(sys.stdout)
+    # stream_handler.setFormatter(structured_formatter)
+    # root_logger = logging.getLogger(None)
+    # root_logger.setLevel(logging.NOTSET)
+    # root_logger.addHandler(stream_handler)
+    # logger = logging.getLogger("lta.monitoring")
+    logging.basicConfig(
+        datefmt='%Y-%m-%d %H:%M:%S',
+        format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
+        level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
 
     monitors = []
     loop = asyncio.get_event_loop()

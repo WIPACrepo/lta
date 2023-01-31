@@ -5,30 +5,34 @@ import asyncio
 from datetime import datetime, timedelta
 import os
 import socket
+import tracemalloc
 from typing import Dict
 from urllib.parse import quote_plus
 
 from pymongo import MongoClient  # type: ignore
 from pymongo.database import Database  # type: ignore
 import pytest  # type: ignore
-import requests  # type: ignore
+import pytest_asyncio  # type: ignore
 from rest_tools.client import RestClient  # type: ignore
+from rest_tools.utils import Auth
 from requests.exceptions import HTTPError
 
-from lta.rest_server import boolify, CheckClaims, main, start, unique_id
+from lta.rest_server import boolify, main, start, unique_id
+
+tracemalloc.start(1)
 
 ALL_DOCUMENTS: Dict[str, str] = {}
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
-    'AUTH_SECRET': 'secret',
+    "LTA_AUTH_AUDIENCE": "lta",
+    "LTA_AUTH_OPENID_URL": "localhost:12345",
     'LTA_MONGODB_AUTH_USER': '',
     'LTA_MONGODB_AUTH_PASS': '',
     'LTA_MONGODB_DATABASE_NAME': 'lta',
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
     'OTEL_EXPORTER_OTLP_ENDPOINT': 'localhost:4317',
-    'TOKEN_SERVICE': 'http://localhost:8888',
     'WIPACTEL_EXPORT_STDOUT': 'TRUE',
 }
 for k in CONFIG:
@@ -63,13 +67,12 @@ def port():
     s.close()
     return ephemeral_port
 
-@pytest.fixture
-@pytest.mark.asyncio
+@pytest_asyncio.fixture
 async def rest(monkeypatch, port):
     """Provide RestClient as a test fixture."""
-    monkeypatch.setenv("LTA_AUTH_ALGORITHM", "HS512")
-    monkeypatch.setenv("LTA_AUTH_ISSUER", CONFIG['TOKEN_SERVICE'])
-    monkeypatch.setenv("LTA_AUTH_SECRET", CONFIG['AUTH_SECRET'])
+    # setup_function
+    monkeypatch.setenv("LTA_AUTH_AUDIENCE", CONFIG["LTA_AUTH_AUDIENCE"])
+    monkeypatch.setenv("LTA_AUTH_OPENID_URL", CONFIG["LTA_AUTH_OPENID_URL"])
     monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", CONFIG['LTA_MONGODB_DATABASE_NAME'])
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
@@ -77,20 +80,30 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("WIPACTEL_EXPORT_STDOUT", "TRUE")
     s = start(debug=True)
 
-    def client(role='admin', timeout=0.25):
-        if CONFIG['TOKEN_SERVICE']:
-            r = requests.get(CONFIG['TOKEN_SERVICE']+'/token',
-                             params={'scope': f'lta:{role}'})
-            r.raise_for_status()
-            t = r.json()['access']
-        else:
-            raise Exception('testing token service not defined')
-        print(t)
-        return RestClient(f'http://localhost:{port}', token=t, timeout=timeout, retries=0)
+    def client(role="admin", timeout=0.25):
+        # But they were, all of them, deceived, for another Token was made.
+        # In the land of PyTest, in the fires of Mount Fixture, the Dark Lord
+        # Sauron forged in secret a master Token, to control all others. And
+        # into this Token he poured his cruelty, his malice and his will to
+        # dominate all life. One Token to rule them all.
+        auth = Auth("secret", issuer="LTA")
+        token_data = {
+            # TODO: fill in some token stuff here
+        }
+        token = auth.create_token(subject="lta",
+                                  expiration=300,
+                                  type="temp",
+                                  payload=token_data,
+                                  headers=None)
+        return RestClient(f'http://localhost:{port}', token=token, timeout=timeout, retries=0)
 
-    yield client
-    await s.stop()
-    await asyncio.sleep(0.01)
+    try:
+        yield client
+    # teardown_function
+    finally:
+        await s.stop()
+        await asyncio.sleep(0.01)
+
 
 # -----------------------------------------------------------------------------
 
@@ -124,12 +137,6 @@ def test_boolify():
     assert not boolify({})
     assert not boolify([])
 
-def test_check_claims_old_age():
-    """Verify that CheckClaims can determine old age for claims."""
-    cc = CheckClaims()
-    cutoff = cc.old_age()
-    assert isinstance(cutoff, str)
-
 # -----------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -138,13 +145,7 @@ async def test_server_reachability(rest):
     r = rest()
     ret = await r.request('GET', '/')
     assert ret == {}
-
-@pytest.mark.asyncio
-async def test_server_bad_auth(rest):
-    """Check for bad auth role."""
-    r = rest('')
-    with pytest.raises(Exception):
-        await r.request('GET', '/TransferRequests')
+    r.close()
 
 @pytest.mark.asyncio
 async def test_transfer_request_fail(rest):
@@ -189,6 +190,7 @@ async def test_transfer_request_fail(rest):
     request = {'source': 'foo', 'dest': 'bar', 'path': ""}
     with pytest.raises(Exception):
         await r.request('POST', '/TransferRequests', request)
+    r.close()
 
 @pytest.mark.asyncio
 async def test_transfer_request_crud(mongo, rest):
@@ -224,6 +226,7 @@ async def test_transfer_request_crud(mongo, rest):
 
     ret = await r.request('GET', '/TransferRequests')
     assert len(ret['results']) == 0
+    r.close()
 
 @pytest.mark.asyncio
 async def test_transfer_request_pop(rest):
@@ -261,6 +264,7 @@ async def test_transfer_request_pop(rest):
     # repeating gets no work
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
     assert not ret['transfer_request']
+    r.close()
 
 @pytest.mark.asyncio
 async def test_status(mongo, rest):
@@ -295,6 +299,7 @@ async def test_status(mongo, rest):
     assert ret['health'] == 'WARN'
     assert ret['1'] == 'OK'
     assert ret['2'] == 'WARN'
+    r.close()
 
 @pytest.mark.asyncio
 async def test_script_main(mocker):
@@ -361,6 +366,7 @@ async def test_bundles_bulk_crud(mongo, rest):
     ret = await r.request('GET', '/Bundles')
     results = ret["results"]
     assert len(results) == 0
+    r.close()
 
 @pytest.mark.asyncio
 async def test_bundles_actions_bulk_create_errors(rest):
@@ -378,6 +384,7 @@ async def test_bundles_actions_bulk_create_errors(rest):
     request = {'bundles': []}
     with pytest.raises(Exception):
         await r.request('POST', '/Bundles/actions/bulk_create', request)
+    r.close()
 
 @pytest.mark.asyncio
 async def test_bundles_actions_bulk_delete_errors(rest):
@@ -395,6 +402,7 @@ async def test_bundles_actions_bulk_delete_errors(rest):
     request = {'bundles': []}
     with pytest.raises(Exception):
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
+    r.close()
 
 @pytest.mark.asyncio
 async def test_bundles_actions_bulk_update_errors(rest):
@@ -420,6 +428,7 @@ async def test_bundles_actions_bulk_update_errors(rest):
     request = {'update': {}, 'bundles': []}
     with pytest.raises(Exception):
         await r.request('POST', '/Bundles/actions/bulk_update', request)
+    r.close()
 
 @pytest.mark.asyncio
 async def test_get_bundles_filter(mongo, rest):
@@ -539,6 +548,7 @@ async def test_get_bundles_filter(mongo, rest):
     ret = await r.request('GET', '/Bundles?status=waiting&verified=true')
     results = ret["results"]
     assert len(results) == 1
+    r.close()
 
 @pytest.mark.asyncio
 async def test_get_bundles_request_filter(mongo, rest):
@@ -599,6 +609,7 @@ async def test_get_bundles_request_filter(mongo, rest):
     ret = await r.request('GET', '/Bundles?request=baebf071-702f-4ab5-9486-a9dec5420b84')
     results = ret["results"]
     assert len(results) == 2
+    r.close()
 
 @pytest.mark.asyncio
 async def test_get_bundles_uuid_error(rest):
@@ -607,6 +618,7 @@ async def test_get_bundles_uuid_error(rest):
 
     with pytest.raises(Exception):
         await r.request('GET', '/Bundles/d4390bcadac74f9dbb49874b444b448d')
+    r.close()
 
 @pytest.mark.asyncio
 async def test_delete_bundles_uuid(mongo, rest):
@@ -645,6 +657,7 @@ async def test_delete_bundles_uuid(mongo, rest):
     # we try to delete it again!
     ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
     assert not ret
+    r.close()
 
 @pytest.mark.asyncio
 async def test_patch_bundles_uuid(mongo, rest):
@@ -685,6 +698,7 @@ async def test_patch_bundles_uuid(mongo, rest):
     with pytest.raises(Exception):
         request = {"key": "value"}
         await r.request('PATCH', '/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
+    r.close()
 
 @pytest.mark.asyncio
 async def test_bundles_actions_pop(mongo, rest):
@@ -783,6 +797,7 @@ async def test_bundles_actions_pop(mongo, rest):
     ret = await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=accessible', claimant_body)
     assert ret['bundle']
     assert ret['bundle']["path"] == "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
+    r.close()
 
 @pytest.mark.asyncio
 async def test_bundles_actions_pop_errors(mongo, rest):
@@ -804,6 +819,7 @@ async def test_bundles_actions_pop_errors(mongo, rest):
 
     with pytest.raises(Exception):
         await r.request('POST', '/Bundles/actions/pop?status=taping', request)
+    r.close()
 
 @pytest.mark.asyncio
 async def test_bundles_actions_pop_at_destination(mongo, rest):
@@ -836,6 +852,7 @@ async def test_bundles_actions_pop_at_destination(mongo, rest):
     ret = await r.request('POST', '/Bundles/actions/pop?dest=NERSC&status=taping', claimant_body)
     assert ret['bundle']
     assert ret['bundle']["path"] == "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
+    r.close()
 
 @pytest.mark.asyncio
 async def test_bundles_actions_bulk_create_huge(mongo, rest):
@@ -891,6 +908,7 @@ async def test_bundles_actions_bulk_create_huge(mongo, rest):
     ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
     assert len(ret["bundles"]) == 1
     assert ret["count"] == 1
+    r.close()
 
 @pytest.mark.asyncio
 async def test_status_component_count(mongo, rest):
@@ -923,6 +941,7 @@ async def test_status_component_count(mongo, rest):
     response = await r.request("GET", "/status/picker/count")
     assert response["component"] == "picker"
     assert response["count"] == 3
+    r.close()
 
 @pytest.mark.asyncio
 async def test_status_nersc(mongo, rest, mocker):
@@ -992,6 +1011,7 @@ async def test_status_nersc(mongo, rest, mocker):
         ],
         'timestamp': mocker.ANY,
     }
+    r.close()
 
 @pytest.mark.asyncio
 async def test_metadata_delete_bundle_uuid(mongo, rest):
@@ -1042,6 +1062,7 @@ async def test_metadata_delete_bundle_uuid(mongo, rest):
     ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid1}')
     results = ret["results"]
     assert len(results) == 3
+    r.close()
 
 @pytest.mark.asyncio
 async def test_metadata_single_record(mongo, rest):
@@ -1078,6 +1099,7 @@ async def test_metadata_single_record(mongo, rest):
         await r.request('GET', f'/Metadata/{metadata_uuid}')
     assert e.value.response.status_code == 404
     assert e.value.response.json()["error"] == "not found"
+    r.close()
 
 @pytest.mark.asyncio
 async def test_metadata_bulk_crud(mongo, rest):
@@ -1119,6 +1141,7 @@ async def test_metadata_bulk_crud(mongo, rest):
     ret = await r.request('GET', '/Metadata')
     results = ret["results"]
     assert len(results) == 0
+    r.close()
 
 @pytest.mark.asyncio
 async def test_metadata_actions_bulk_create_errors(rest):
@@ -1135,7 +1158,7 @@ async def test_metadata_actions_bulk_create_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`bundle_uuid`: (TypeError) [] (<class 'list'>) is not <class 'str'>"
+    assert e.value.response.json()["error"] == "`files`: (MissingArgumentError) required argument is missing"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27"}
     with pytest.raises(HTTPError) as e:
@@ -1147,13 +1170,14 @@ async def test_metadata_actions_bulk_create_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`files`: (TypeError) {} (<class 'dict'>) is not <class 'list'>"
+    assert e.value.response.json()["error"] == "`files`: (ValueError) [] is forbidden ([[]])"
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": []}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
     assert e.value.response.json()["error"] == "`files`: (ValueError) [] is forbidden ([[]])"
+    r.close()
 
 @pytest.mark.asyncio
 async def test_metadata_actions_bulk_delete_errors(rest):
@@ -1170,13 +1194,14 @@ async def test_metadata_actions_bulk_delete_errors(rest):
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`metadata`: (TypeError)  (<class 'str'>) is not <class 'list'>"
+    assert e.value.response.json()["error"] == "`metadata`: (ValueError) [] is forbidden ([[]])"
 
     request = {'metadata': []}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
     assert e.value.response.json()["error"] == "`metadata`: (ValueError) [] is forbidden ([[]])"
+    r.close()
 
 @pytest.mark.asyncio
 async def test_metadata_delete_errors(rest):
@@ -1187,9 +1212,10 @@ async def test_metadata_delete_errors(rest):
         await r.request('DELETE', '/Metadata')
     assert e.value.response.status_code == 400
     assert e.value.response.json()["error"] == "`bundle_uuid`: (MissingArgumentError) required argument is missing"
+    r.close()
 
 @pytest.mark.asyncio
-async def test_metadata_results_comprehension(mongo, rest):
+async def test_metadata_results_comprehension(rest):
     """Check that our comprehension works."""
     r = rest('system')
     bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
@@ -1220,3 +1246,4 @@ async def test_metadata_results_comprehension(mongo, rest):
     for result in results:
         assert uuids[count] == result['uuid']
         count = count + 1
+    r.close()

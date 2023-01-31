@@ -13,14 +13,16 @@ from lta.transfer_request_finisher import main, TransferRequestFinisher
 def config():
     """Supply a stock TransferRequestFinisher component configuration."""
     return {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-transfer_request_finisher",
         "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "deleted",
-        "LTA_REST_TOKEN": "fake-lta-rest-token",
-        "LTA_REST_URL": "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
+        "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "finished",
         "RUCIO_PASSWORD": "hunter2",
         "RUN_ONCE_AND_DIE": "False",
@@ -39,8 +41,8 @@ def test_constructor_config(config, mocker):
     assert p.heartbeat_patch_retries == 3
     assert p.heartbeat_patch_timeout_seconds == 30
     assert p.heartbeat_sleep_duration_seconds == 60
-    assert p.lta_rest_token == "fake-lta-rest-token"
-    assert p.lta_rest_url == "http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/"
+    assert p.lta_auth_openid_url == "localhost:12345"
+    assert p.lta_rest_url == "localhost:12347"
     assert p.source_site == "WIPAC"
     assert p.work_retries == 3
     assert p.work_sleep_duration_seconds == 60
@@ -58,13 +60,15 @@ async def test_transfer_request_finisher_logs_configuration(mocker):
     """Test to make sure the TransferRequestFinisher logs its configuration."""
     logger_mock = mocker.MagicMock()
     transfer_request_finisher_config = {
+        "CLIENT_ID": "long-term-archive",
+        "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-transfer_request_finisher",
         "DEST_SITE": "NERSC",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
         "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "deleted",
-        "LTA_REST_TOKEN": "logme-fake-lta-rest-token",
+        "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/",
         "OUTPUT_STATUS": "finished",
         "RUCIO_PASSWORD": "hunter3-electric-boogaloo",
@@ -78,13 +82,15 @@ async def test_transfer_request_finisher_logs_configuration(mocker):
     TransferRequestFinisher(transfer_request_finisher_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("transfer_request_finisher 'logme-testing-transfer_request_finisher' is configured:"),
+        call('CLIENT_ID = long-term-archive'),
+        call('CLIENT_SECRET = hunter2'),
         call('COMPONENT_NAME = logme-testing-transfer_request_finisher'),
         call('DEST_SITE = NERSC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
         call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = deleted'),
-        call('LTA_REST_TOKEN = logme-fake-lta-rest-token'),
+        call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = logme-http://zjwdm5ggeEgS1tZDZy9l1DOZU53uiSO4Urmyb8xL0.com/'),
         call('OUTPUT_STATUS = finished'),
         call('RUCIO_PASSWORD = hunter3-electric-boogaloo'),
@@ -109,8 +115,8 @@ async def test_script_main(config, mocker, monkeypatch):
         monkeypatch.setenv(key, config[key])
     mock_event_loop = mocker.patch("asyncio.get_event_loop")
     mock_root_logger = mocker.patch("logging.getLogger")
-    mock_status_loop = mocker.patch("lta.transfer_request_finisher.status_loop")
-    mock_work_loop = mocker.patch("lta.transfer_request_finisher.work_loop")
+    mock_status_loop = mocker.patch("lta.transfer_request_finisher.status_loop", new_callable=AsyncMock)
+    mock_work_loop = mocker.patch("lta.transfer_request_finisher.work_loop", new_callable=AsyncMock)
     main()
     mock_event_loop.assert_called()
     mock_root_logger.assert_called()

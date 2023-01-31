@@ -10,7 +10,7 @@ import sys
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from rest_tools.client import RestClient
+from rest_tools.client import ClientCredentialsAuth
 from urllib.parse import urljoin
 import wipac_telemetry.tracing_tools as wtt
 
@@ -18,13 +18,15 @@ from .lta_const import drain_semaphore_filename
 from .rest_server import boolify
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
+    "CLIENT_ID": None,
+    "CLIENT_SECRET": None,
     "COMPONENT_NAME": None,
     "DEST_SITE": None,
     "HEARTBEAT_PATCH_RETRIES": "3",
     "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
     "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
     "INPUT_STATUS": None,
-    "LTA_REST_TOKEN": None,
+    "LTA_AUTH_OPENID_URL": None,
     "LTA_REST_URL": None,
     "OUTPUT_STATUS": None,
     "RUN_ONCE_AND_DIE": "False",
@@ -70,12 +72,14 @@ class Component:
         self.config = config
         self.logger = logger
         # validate and assimilate the configuration
+        self.client_id = config["CLIENT_ID"]
+        self.client_secret = config["CLIENT_SECRET"]
         self.dest_site = config["DEST_SITE"]
         self.heartbeat_patch_retries = int(config["HEARTBEAT_PATCH_RETRIES"])
         self.heartbeat_patch_timeout_seconds = float(config["HEARTBEAT_PATCH_TIMEOUT_SECONDS"])
         self.heartbeat_sleep_duration_seconds = float(config["HEARTBEAT_SLEEP_DURATION_SECONDS"])
         self.input_status = config["INPUT_STATUS"]
-        self.lta_rest_token = config["LTA_REST_TOKEN"]
+        self.lta_auth_openid_url = config["LTA_AUTH_OPENID_URL"]
         self.lta_rest_url = config["LTA_REST_URL"]
         self.output_status = config["OUTPUT_STATUS"]
         self.run_once_and_die = boolify(config["RUN_ONCE_AND_DIE"])
@@ -167,10 +171,12 @@ async def patch_status_heartbeat(component: Component) -> bool:
     # attempt to PATCH the status resource
     component.logger.info(f"PATCH {status_url} - {status_body}")
     try:
-        rc = RestClient(component.lta_rest_url,
-                        token=component.lta_rest_token,
-                        timeout=component.heartbeat_patch_timeout_seconds,
-                        retries=component.heartbeat_patch_retries)
+        rc = ClientCredentialsAuth(address=component.lta_rest_url,
+                                   token_url=component.lta_auth_openid_url,
+                                   client_id=component.client_id,
+                                   client_secret=component.client_secret,
+                                   timeout=component.heartbeat_patch_timeout_seconds,
+                                   retries=component.heartbeat_patch_retries)
         # Use the RestClient to PATCH our heartbeat to the LTA DB
         await rc.request("PATCH", status_route, status_body)
     except Exception as e:
