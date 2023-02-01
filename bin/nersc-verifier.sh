@@ -12,7 +12,7 @@ export INPUT_STATUS=${INPUT_STATUS:="verifying"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu/auth/realms/IceCube"}
 export LTA_REST_URL=${LTA_REST_URL:="http://127.0.0.1:8080"}
-export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
+# export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="completed"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="False"}
 export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
