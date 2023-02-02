@@ -2,7 +2,6 @@
 """Unit tests for lta/rest_server.py."""
 
 import asyncio
-from datetime import datetime, timedelta
 import os
 import socket
 import tracemalloc
@@ -25,6 +24,7 @@ ALL_DOCUMENTS: Dict[str, str] = {}
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
+    "LOG_LEVEL": "DEBUG",
     "LTA_AUTH_AUDIENCE": "lta",
     "LTA_AUTH_OPENID_URL": "localhost:12345",
     'LTA_MONGODB_AUTH_USER': '',
@@ -264,41 +264,6 @@ async def test_transfer_request_pop(rest):
     # repeating gets no work
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
     assert not ret['transfer_request']
-    r.close()
-
-@pytest.mark.asyncio
-async def test_status(mongo, rest):
-    """Check for status handling."""
-    r = rest('system')
-    ret = await r.request('GET', '/status')
-    assert ret['health'] == 'OK'
-
-    request = {'1.1': {'timestamp': datetime.utcnow().isoformat(), 'foo': 'bar'}}
-    await r.request('PATCH', '/status/1', request)
-
-    ret = await r.request('GET', '/status')
-    assert ret['health'] == 'OK'
-    assert ret['1'] == 'OK'
-
-    ret = await r.request('GET', '/status/1')
-    assert ret == request
-
-    with pytest.raises(Exception):
-        await r.request('GET', '/status/2')
-
-    request2 = {'1.2': {'timestamp': datetime.utcnow().isoformat(), 'baz': 2}}
-    await r.request('PATCH', '/status/1', request2)
-    request_all = dict(request)
-    request_all.update(request2)
-    ret = await r.request('GET', '/status/1')
-    assert ret == request_all
-
-    request = {'2.1': {'timestamp': (datetime.utcnow() - timedelta(hours=1)).isoformat(), 'foo': 'bar'}}
-    await r.request('PATCH', '/status/2', request)
-    ret = await r.request('GET', '/status')
-    assert ret['health'] == 'WARN'
-    assert ret['1'] == 'OK'
-    assert ret['2'] == 'WARN'
     r.close()
 
 @pytest.mark.asyncio
@@ -908,109 +873,6 @@ async def test_bundles_actions_bulk_create_huge(mongo, rest):
     ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
     assert len(ret["bundles"]) == 1
     assert ret["count"] == 1
-    r.close()
-
-@pytest.mark.asyncio
-async def test_status_component_count(mongo, rest):
-    """Verify that GET /status/{component}/count works."""
-    r = rest('system')
-
-    request = {'picker1': {'timestamp': datetime.utcnow().isoformat(), 'foo': 'bar'}}
-    await r.request('PATCH', '/status/picker', request)
-
-    response = await r.request("GET", "/status/picker/count")
-    assert response["component"] == "picker"
-    assert response["count"] == 1
-
-    request = {'picker2': {'timestamp': datetime.utcnow().isoformat(), 'foo': 'bar'}}
-    await r.request('PATCH', '/status/picker', request)
-
-    request = {'picker3': {'timestamp': datetime.utcnow().isoformat(), 'foo': 'bar'}}
-    await r.request('PATCH', '/status/picker', request)
-
-    response = await r.request("GET", "/status/picker/count")
-    assert response["component"] == "picker"
-    assert response["count"] == 3
-
-    request = {'picker4': {'timestamp': (datetime.utcnow() - timedelta(minutes=15)).isoformat(), 'foo': 'bar'}}
-    await r.request('PATCH', '/status/picker', request)
-
-    request = {'picker5': {'timestamp': (datetime.utcnow() - timedelta(minutes=15)).isoformat(), 'foo': 'bar'}}
-    await r.request('PATCH', '/status/picker', request)
-
-    response = await r.request("GET", "/status/picker/count")
-    assert response["component"] == "picker"
-    assert response["count"] == 3
-    r.close()
-
-@pytest.mark.asyncio
-async def test_status_nersc(mongo, rest, mocker):
-    """Verify that GET /status/nersc works."""
-    r = rest('system')
-
-    request = {
-        'cori08-site-move-verifier': {
-            'timestamp': datetime.utcnow().isoformat(),
-            'last_work_begin_timestamp': '2020-04-24T19:30:04.170470',
-            'last_work_end_timestamp': '2020-04-24T19:30:04.170470',
-            'name': 'cori08-site-move-verifier',
-            'component': 'site_move_verifier',
-            'quota': [
-                {
-                    'FILESYSTEM': 'home',
-                    'SPACE_USED': '2.87GiB',
-                    'SPACE_QUOTA': '40.00GiB',
-                    'SPACE_PCT': '7.2%',
-                    'INODE_USED': '0.00G',
-                    'INODE_QUOTA': '0.00G',
-                    'INODE_PCT': '3.1%'
-                },
-                {
-                    'FILESYSTEM': 'cscratch1',
-                    'SPACE_USED': '1400.55GiB',
-                    'SPACE_QUOTA': '20480.00GiB',
-                    'SPACE_PCT': '6.8%',
-                    'INODE_USED': '0.00G',
-                    'INODE_QUOTA': '0.01G',
-                    'INODE_PCT': '0.1%'
-                }
-            ]
-        }
-    }
-    await r.request('PATCH', '/status/site_move_verifier', request)
-
-    response = await r.request("GET", "/status/site_move_verifier/count")
-    assert response["component"] == "site_move_verifier"
-    assert response["count"] == 1
-
-    response = await r.request("GET", "/status/nersc")
-    assert response == {
-        'component': 'site_move_verifier',
-        'last_work_begin_timestamp': '2020-04-24T19:30:04.170470',
-        'last_work_end_timestamp': '2020-04-24T19:30:04.170470',
-        'name': 'cori08-site-move-verifier',
-        'quota': [
-            {
-                'FILESYSTEM': 'home',
-                'SPACE_USED': '2.87GiB',
-                'SPACE_QUOTA': '40.00GiB',
-                'SPACE_PCT': '7.2%',
-                'INODE_USED': '0.00G',
-                'INODE_QUOTA': '0.00G',
-                'INODE_PCT': '3.1%'
-            },
-            {
-                'FILESYSTEM': 'cscratch1',
-                'SPACE_USED': '1400.55GiB',
-                'SPACE_QUOTA': '20480.00GiB',
-                'SPACE_PCT': '6.8%',
-                'INODE_USED': '0.00G',
-                'INODE_QUOTA': '0.01G',
-                'INODE_PCT': '0.1%'
-            }
-        ],
-        'timestamp': mocker.ANY,
-    }
     r.close()
 
 @pytest.mark.asyncio

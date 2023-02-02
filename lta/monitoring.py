@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import sys
 import time
 from typing import cast, Any, Dict, Mapping
 
@@ -10,6 +11,7 @@ from wipac_dev_tools import from_environment
 
 EXPECTED_CONFIG = {
     'ENABLE_PROMETHEUS': 'false',
+    'LOG_LEVEL': 'DEBUG',
     'LTA_REST_URL': None,
     'LTA_REST_TOKEN': None,
     'PROMETHEUS_MONITORING_INTERVAL': '60',  # seconds
@@ -118,20 +120,14 @@ def main() -> None:
     """Configure a monitoring component from the environment and set it running."""
     config = from_environment(EXPECTED_CONFIG)
 
-    # configure structured logging for the application
-    # structured_formatter = StructuredFormatter(
-    #     component_type='Monitoring',
-    #     ndjson=True)
-    # stream_handler = logging.StreamHandler(sys.stdout)
-    # stream_handler.setFormatter(structured_formatter)
-    # root_logger = logging.getLogger(None)
-    # root_logger.setLevel(logging.NOTSET)
-    # root_logger.addHandler(stream_handler)
-    # logger = logging.getLogger("lta.monitoring")
+    # configure logging for the application
+    log_level = getattr(logging, str(config["LOG_LEVEL"]).upper())
     logging.basicConfig(
-        datefmt='%Y-%m-%d %H:%M:%S',
-        format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
-        level=logging.DEBUG)
+        format="{asctime} [{threadName}] {levelname:5} ({filename}:{lineno}) - {message}",
+        level=log_level,
+        stream=sys.stdout,
+        style="{",
+    )
     logger = logging.getLogger(__name__)
 
     monitors = []

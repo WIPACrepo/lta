@@ -17,7 +17,7 @@ from typing import Any, cast, Dict, List, Optional, Tuple
 
 import colorama  # type: ignore
 import hurry.filesize  # type: ignore
-from rest_tools.client import RestClient
+from rest_tools.client import ClientCredentialsAuth, RestClient
 import urllib
 from wipac_dev_tools import from_environment
 
@@ -44,10 +44,12 @@ COMPONENT_NAMES = [
 ]
 
 EXPECTED_CONFIG = {
-    'FILE_CATALOG_REST_TOKEN': None,
-    'FILE_CATALOG_REST_URL': None,
-    'LTA_REST_TOKEN': None,
-    'LTA_REST_URL': None,
+    "CLIENT_ID": None,
+    "CLIENT_SECRET": None,
+    "FILE_CATALOG_REST_TOKEN": None,
+    "FILE_CATALOG_REST_URL": None,
+    "LTA_AUTH_OPENID_URL": None,
+    "LTA_REST_URL": None,
 }
 
 KILOBYTE = 1024
@@ -851,51 +853,6 @@ async def request_update_status(args: Namespace) -> ExitCode:
     return EXIT_OK
 
 
-async def status(args: Namespace) -> ExitCode:
-    """Query the status of the LTA DB or a component of LTA."""
-    old_data = (datetime.utcnow() - timedelta(days=args.days)).isoformat()
-
-    def date_ok(d: str) -> bool:
-        return d > old_data
-
-    # if we want the status of a particular component type
-    if args.component:
-        response = await args.di["lta_rc"].request("GET", f"/status/{args.component}")
-        if args.json:
-            r = response.copy()
-            for key in response:
-                timestamp = response[key]['timestamp']
-                if not date_ok(timestamp):
-                    del r[key]
-            print_dict_as_pretty_json(r)
-        else:
-            for key in response:
-                timestamp = response[key]['timestamp']
-                status = "WARN"
-                if date_ok(timestamp):
-                    status = "OK"
-                print(f"{(key+':'):<25}[{status:<4}] {timestamp.replace('T', ' ')}")
-
-    # otherwise we want the status of the whole system
-    else:
-        response = await args.di["lta_rc"].request("GET", "/status")
-        if args.json:
-            print_dict_as_pretty_json(response)
-        else:
-            print(f"LTA:          {response['health']}")
-            for key in response:
-                if key != "health":
-                    print(f"{(key+':'):<14}{response[key]}")
-
-    return EXIT_OK
-
-
-async def status_nersc(args: Namespace) -> ExitCode:
-    """Query the status of the quota at NERSC."""
-    response = await args.di["lta_rc"].request("GET", "/status/nersc")
-    print_dict_as_pretty_json(response)
-    return EXIT_OK
-
 # -----------------------------------------------------------------------------
 
 async def main() -> None:
@@ -1160,26 +1117,6 @@ async def main() -> None:
                                               action="store_true")
     parser_request_update_status.set_defaults(func=request_update_status)
 
-    # define a subparser for the 'status' subcommand
-    parser_status = subparser.add_parser('status', help='perform a status query')
-    status_subparser = parser_status.add_subparsers(help='status command help')
-    parser_status.add_argument("component",
-                               choices=COMPONENT_NAMES,
-                               help="optional LTA component",
-                               nargs='?')
-    parser_status.add_argument("--days",
-                               help="ignore status reports older than",
-                               type=int,
-                               default=2)
-    parser_status.add_argument("--json",
-                               help="display output in JSON",
-                               action="store_true")
-    parser_status.set_defaults(func=status)
-
-    # define a subparser for the 'request update-status' subcommand
-    parser_status_nersc = status_subparser.add_parser('nersc', help='get latest quota at NERSC')
-    parser_status_nersc.set_defaults(func=status_nersc)
-
     # parse the provided command line arguments and call the function
     args = parser.parse_args()
     if hasattr(args, "func"):
@@ -1188,7 +1125,10 @@ async def main() -> None:
             config = from_environment(EXPECTED_CONFIG)
             di["config"] = config
             di["fc_rc"] = RestClient(cast(str, config["FILE_CATALOG_REST_URL"]), token=cast(str, config["FILE_CATALOG_REST_TOKEN"]))
-            di["lta_rc"] = RestClient(cast(str, config["LTA_REST_URL"]), token=cast(str, config["LTA_REST_TOKEN"]))
+            di["lta_rc"] = ClientCredentialsAuth(address=cast(str, config["LTA_REST_URL"]),
+                                                 token_url=cast(str, config["LTA_AUTH_OPENID_URL"]),
+                                                 client_id=cast(str, config["CLIENT_ID"]),
+                                                 client_secret=cast(str, config["CLIENT_SECRET"]))
             # execute the command indicated by the user
             exit_code = await args.func(args)
             sys.exit(exit_code)
