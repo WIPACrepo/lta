@@ -107,6 +107,7 @@ venv.bak/
 .lta-*
 /dump
 /etc
+/file-catalog-client-secret
 /keycloak-client-secret
 /local-secret
 /service-token*
