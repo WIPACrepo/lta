@@ -78,9 +78,7 @@ protobuf==3.20.3
 pycparser==2.21
     # via cffi
 pyjwt[crypto]==2.5.0
-    # via
-    #   lta (setup.py)
-    #   wipac-rest-tools
+    # via wipac-rest-tools
 pymongo==4.3.3
     # via
     #   lta (setup.py)
