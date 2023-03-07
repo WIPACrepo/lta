@@ -118,9 +118,7 @@ pycycle==0.0.8
 pyflakes==3.0.1
     # via flake8
 pyjwt[crypto]==2.5.0
-    # via
-    #   lta (setup.py)
-    #   wipac-rest-tools
+    # via wipac-rest-tools
 pymongo==4.3.3
     # via
     #   lta (setup.py)
