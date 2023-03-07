@@ -10,7 +10,8 @@ import sys
 from typing import Any, Dict, Optional
 from zipfile import ZIP_STORED, ZipFile
 
-from rest_tools.client import ClientCredentialsAuth, RestClient
+from rest_tools.client import RestClient
+from rest_tools.client.client_credentials import ClientCredentialsAuth
 from wipac_dev_tools import from_environment
 import wipac_telemetry.tracing_tools as wtt
 
