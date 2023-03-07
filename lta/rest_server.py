@@ -75,19 +75,23 @@ else:
 
 # -----------------------------------------------------------------------------
 
+
 def boolify(value: str) -> bool:
     """Convert a string into a True or False value."""
     return isinstance(value, str) and value.lower() in TRUE_SET
 
+
 def now() -> str:
     """Return string timestamp for current time, to the second."""
     return datetime.utcnow().isoformat(timespec='seconds')
+
 
 def unique_id() -> str:
     """Return a unique ID for an LTA database entity."""
     return uuid1().hex
 
 # -----------------------------------------------------------------------------
+
 
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
@@ -102,6 +106,7 @@ class BaseLTAHandler(RestHandler):
         self.db = db
 
 # -----------------------------------------------------------------------------
+
 
 class BundlesActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_create."""
@@ -139,6 +144,7 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
         self.set_status(201)
         self.write({'bundles': uuids, 'count': create_count})
 
+
 class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_delete."""
 
@@ -164,6 +170,7 @@ class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
                 results.append(uuid)
 
         self.write({'bundles': results, 'count': len(results)})
+
 
 class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_update."""
@@ -195,6 +202,7 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
                 results.append(uuid)
 
         self.write({'bundles': results, 'count': len(results)})
+
 
 class BundlesHandler(BaseLTAHandler):
     """BundlesHandler handles collection level routes for Bundles."""
@@ -235,6 +243,7 @@ class BundlesHandler(BaseLTAHandler):
             'results': results,
         }
         self.write(ret)
+
 
 class BundlesActionsPopHandler(BaseLTAHandler):
     """BundlesActionsPopHandler handles /Bundles/actions/pop."""
@@ -283,6 +292,7 @@ class BundlesActionsPopHandler(BaseLTAHandler):
         else:
             logging.info(f"Bundle {bundle['uuid']} claimed by {claimant}")
         self.write({'bundle': bundle})
+
 
 class BundlesSingleHandler(BaseLTAHandler):
     """BundlesSingleHandler handles object level routes for Bundles."""
@@ -333,6 +343,7 @@ class BundlesSingleHandler(BaseLTAHandler):
 
 # -----------------------------------------------------------------------------
 
+
 class MainHandler(BaseLTAHandler):
     """MainHandler is a BaseLTAHandler that handles the root route."""
 
@@ -341,6 +352,7 @@ class MainHandler(BaseLTAHandler):
         self.write({})
 
 # -----------------------------------------------------------------------------
+
 
 class MetadataActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Metadata/actions/bulk_create."""
@@ -373,6 +385,7 @@ class MetadataActionsBulkCreateHandler(BaseLTAHandler):
         self.set_status(201)
         self.write({'metadata': uuids, 'count': create_count})
 
+
 class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
     """Handler for /Metadata/actions/bulk_delete."""
 
@@ -386,7 +399,7 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
         NUM_UUIDS = len(metadata)
         for i in range(slice_index, NUM_UUIDS, DELETE_CHUNK_SIZE):
             slice_index = i
-            delete_slice = metadata[slice_index:slice_index+DELETE_CHUNK_SIZE]
+            delete_slice = metadata[slice_index:(slice_index + DELETE_CHUNK_SIZE)]
             query = {"uuid": {"$in": delete_slice}}
             logging.debug(f"MONGO-START: db.Metadata.delete_many(filter={len(delete_slice)} UUIDs)")
             ret = await self.db.Metadata.delete_many(filter=query)
@@ -394,6 +407,7 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
             count = count + ret.deleted_count
 
         self.write({'metadata': metadata, 'count': count})
+
 
 class MetadataHandler(BaseLTAHandler):
     """MetadataHandler handles collection level routes for Metadata."""
@@ -436,6 +450,7 @@ class MetadataHandler(BaseLTAHandler):
         logging.info(f"deleted all Metadata records for Bundle {bundle_uuid}")
         self.set_status(204)
 
+
 class MetadataSingleHandler(BaseLTAHandler):
     """MetadataSingleHandler handles object level routes for Metadata."""
 
@@ -462,6 +477,7 @@ class MetadataSingleHandler(BaseLTAHandler):
         self.set_status(204)
 
 # -----------------------------------------------------------------------------
+
 
 class TransferRequestsHandler(BaseLTAHandler):
     """TransferRequestsHandler is a BaseLTAHandler that handles TransferRequests routes."""
@@ -515,6 +531,7 @@ class TransferRequestsHandler(BaseLTAHandler):
         logging.info(f"created TransferRequest {req['uuid']}")
         self.set_status(201)
         self.write({'TransferRequest': req['uuid']})
+
 
 class TransferRequestSingleHandler(BaseLTAHandler):
     """TransferRequestSingleHandler is a BaseLTAHandler that handles routes related to single TransferRequest objects."""
@@ -603,6 +620,7 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
         self.write({'transfer_request': tr})
 
 # -----------------------------------------------------------------------------
+
 
 def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     """Ensure that necessary indexes exist in MongoDB."""
@@ -710,6 +728,7 @@ def start(debug: bool = False) -> RestServer:
                    port=int(config['LTA_REST_PORT']))  # type: ignore[no-untyped-call]
     return server
 
+
 def main() -> None:
     """Configure logging and start a LTA DB service."""
     log_level = getattr(logging, os.getenv("LOG_LEVEL", default="DEBUG"))
@@ -722,6 +741,7 @@ def main() -> None:
     start(debug=True)
     loop = asyncio.get_event_loop()
     loop.run_forever()
+
 
 if __name__ == '__main__':
     main()

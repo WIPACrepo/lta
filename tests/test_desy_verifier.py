@@ -1,17 +1,22 @@
 # test_desy_verifier.py
 """Unit tests for lta/desy_verifier.py."""
 
+from typing import Dict
 from unittest.mock import AsyncMock, call
 from uuid import uuid1
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.desy_verifier import main, DesyVerifier
 
+TestConfig = Dict[str, str]
+
 
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock DesyVerifier component configuration."""
     return {
         "CLIENT_ID": "long-term-archive",
@@ -20,7 +25,8 @@ def config():
         "DEST_SITE": "DESY",
         "DESY_CRED_PATH": "/path/to/my/gridftp/cert",
         "DESY_GSIFTP": "gsiftp://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com:2811/path/to/files/at/desy",
-        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-token",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
@@ -39,12 +45,14 @@ def config():
         "WORKBOX_PATH": "/path/to/wipac/workbox/directory",
     }
 
-def test_constructor_config(config, mocker):
+
+def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a DesyVerifier can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = DesyVerifier(config, logger_mock)
     assert p.name == "testing-desy_verifier"
-    assert p.file_catalog_rest_token == "fake-file-catalog-token"
+    assert p.file_catalog_client_id == "file-catalog-client-id"
+    assert p.file_catalog_client_secret == "file-catalog-client-secret"
     assert p.file_catalog_rest_url == "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/"
     assert p.heartbeat_patch_retries == 3
     assert p.heartbeat_patch_timeout_seconds == 30
@@ -58,14 +66,16 @@ def test_constructor_config(config, mocker):
     assert p.work_timeout_seconds == 30
     assert p.logger == logger_mock
 
-def test_do_status(config, mocker):
+
+def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the DesyVerifier has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = DesyVerifier(config, logger_mock)
     assert p._do_status() == {}
 
+
 @pytest.mark.asyncio
-async def test_desy_verifier_logs_configuration(mocker):
+async def test_desy_verifier_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the DesyVerifier logs its configuration."""
     logger_mock = mocker.MagicMock()
     desy_verifier_config = {
@@ -75,7 +85,8 @@ async def test_desy_verifier_logs_configuration(mocker):
         "DEST_SITE": "DESY",
         "DESY_CRED_PATH": "/path/to/my/gridftp/cert",
         "DESY_GSIFTP": "gsiftp://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com:2811/path/to/files/at/desy",
-        "FILE_CATALOG_REST_TOKEN": "logme-fake-file-catalog-token",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
@@ -97,12 +108,13 @@ async def test_desy_verifier_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("desy_verifier 'logme-testing-desy_verifier' is configured:"),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-desy_verifier'),
         call('DEST_SITE = DESY'),
         call('DESY_CRED_PATH = /path/to/my/gridftp/cert'),
         call('DESY_GSIFTP = gsiftp://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com:2811/path/to/files/at/desy'),
-        call('FILE_CATALOG_REST_TOKEN = logme-fake-file-catalog-token'),
+        call('FILE_CATALOG_CLIENT_ID = file-catalog-client-id'),
+        call('FILE_CATALOG_CLIENT_SECRET = [秘密]'),
         call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
@@ -122,8 +134,9 @@ async def test_desy_verifier_logs_configuration(mocker):
     ]
     logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
 
+
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch):
+async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify DesyVerifier component behavior when run as a script.
 
@@ -138,29 +151,32 @@ async def test_script_main(config, mocker, monkeypatch):
     mock_event_loop.assert_called()
     mock_work_loop.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_desy_verifier_run(config, mocker):
+async def test_desy_verifier_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the DesyVerifier does the work the desy_verifier should do."""
     logger_mock = mocker.MagicMock()
     p = DesyVerifier(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     await p.run()
     p._do_work.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_desy_verifier_run_exception(config, mocker):
+async def test_desy_verifier_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the DesyVerifier."""
     logger_mock = mocker.MagicMock()
     p = DesyVerifier(config, logger_mock)
-    p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
+    p.last_work_end_timestamp = ""
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
     assert p.last_work_end_timestamp
 
+
 @pytest.mark.asyncio
-async def test_desy_verifier_do_work_pop_exception(config, mocker):
+async def test_desy_verifier_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -170,8 +186,9 @@ async def test_desy_verifier_do_work_pop_exception(config, mocker):
         await p._do_work()
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
+
 @pytest.mark.asyncio
-async def test_desy_verifier_do_work_no_results(config, mocker):
+async def test_desy_verifier_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.desy_verifier.DesyVerifier._do_work_claim", new_callable=AsyncMock)
@@ -180,8 +197,9 @@ async def test_desy_verifier_do_work_no_results(config, mocker):
     await p._do_work()
     dwc_mock.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_desy_verifier_do_work_yes_results(config, mocker):
+async def test_desy_verifier_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.desy_verifier.DesyVerifier._do_work_claim", new_callable=AsyncMock)
@@ -190,8 +208,9 @@ async def test_desy_verifier_do_work_yes_results(config, mocker):
     await p._do_work()
     assert dwc_mock.call_count == 3
 
+
 @pytest.mark.asyncio
-async def test_desy_verifier_do_work_claim_yes_result_update_fc_and_lta(config, mocker):
+async def test_desy_verifier_do_work_claim_yes_result_update_fc_and_lta(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -208,8 +227,9 @@ async def test_desy_verifier_do_work_claim_yes_result_update_fc_and_lta(config, 
     abtfc_mock.assert_called_with(mocker.ANY, {"one": 1})
     ubild_mock.assert_called_with(mocker.ANY, {"one": 1})
 
+
 @pytest.mark.asyncio
-async def test_desy_verifier_add_bundle_to_file_catalog(config, mocker):
+async def test_desy_verifier_add_bundle_to_file_catalog(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _add_bundle_to_file_catalog adds a record for the bundle and adds its location to constituent files."""
     logger_mock = mocker.MagicMock()
     bundle = {
@@ -267,8 +287,9 @@ async def test_desy_verifier_add_bundle_to_file_catalog(config, mocker):
     assert fc_rc_mock.call_count == 7
     fc_rc_mock.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
 
+
 @pytest.mark.asyncio
-async def test_desy_verifier_add_bundle_to_file_catalog_patch_after_post_error(config, mocker):
+async def test_desy_verifier_add_bundle_to_file_catalog_patch_after_post_error(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _add_bundle_to_file_catalog patches the record for the bundle already in the file catalog."""
     logger_mock = mocker.MagicMock()
     bundle = {
@@ -327,8 +348,9 @@ async def test_desy_verifier_add_bundle_to_file_catalog_patch_after_post_error(c
     assert fc_rc_mock.call_count == 8
     fc_rc_mock.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
 
+
 @pytest.mark.asyncio
-async def test_desy_verifier_update_bundle_in_lta_db(config, mocker):
+async def test_desy_verifier_update_bundle_in_lta_db(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _update_bundle_in_lta_db updates the bundle as verified in the LTA DB."""
     logger_mock = mocker.MagicMock()
     bundle = {"uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef"}

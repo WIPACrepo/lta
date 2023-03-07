@@ -21,12 +21,14 @@ LOG = logging.getLogger(__name__)
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "FILE_CATALOG_CLIENT_ID": None,
+    "FILE_CATALOG_CLIENT_SECRET": None,
     "FILE_CATALOG_PAGE_SIZE": "1000",
-    "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
 
 def as_lta_record(catalog_record: Dict[str, Any]) -> Dict[str, Any]:
     """Cherry pick keys from a File Catalog record to include in Bundle metadata."""
@@ -69,8 +71,9 @@ class Locator(Component):
         logger - The object the locator should use for logging.
         """
         super(Locator, self).__init__("locator", config, logger)
+        self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
+        self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_page_size = int(config["FILE_CATALOG_PAGE_SIZE"])
-        self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
@@ -129,10 +132,10 @@ class Locator(Component):
                                         tr: TransferRequestType) -> None:
         self.logger.info(f"Processing TransferRequest: {tr}")
         # configure a RestClient to talk to the File Catalog
-        fc_rc = RestClient(self.file_catalog_rest_url,
-                           token=self.file_catalog_rest_token,
-                           timeout=self.work_timeout_seconds,
-                           retries=self.work_retries)
+        fc_rc = ClientCredentialsAuth(address=self.file_catalog_rest_url,
+                                      token_url=self.lta_auth_openid_url,
+                                      client_id=self.file_catalog_client_id,
+                                      client_secret=self.file_catalog_client_secret)
         # figure out which files need to come back
         source = tr["source"]
         dest = tr["dest"]
@@ -270,6 +273,7 @@ class Locator(Component):
                 bundle_uuids.append(uuid)
         # return the unique list of bundle UUIDs that we collected
         return bundle_uuids
+
 
 def runner() -> None:
     """Configure a Locator component from the environment and set it running."""

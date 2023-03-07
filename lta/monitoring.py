@@ -18,6 +18,7 @@ EXPECTED_CONFIG = {
     'PROMETHEUS_PORT': '8000',
 }
 
+
 class Monitor:
     """
     Generic monitor class.
@@ -33,9 +34,9 @@ class Monitor:
                  monitoring_interval: str = '60', logger: Any = None) -> None:
         """Initialize a Monitor object."""
         self.logger = logger if logger else logging
-        self.interval = int(monitoring_interval)
+        self.interval = float(monitoring_interval)
         self.rest = RestClient(lta_rest_url, lta_rest_token,
-                               timeout=self.interval//10, retries=1)
+                               timeout=self.interval // 10, retries=1)
         self.running = False
 
     async def get_from_rest(self) -> Mapping[Any, Any]:
@@ -71,6 +72,7 @@ class Monitor:
         """Stop a monitor's `run` loop."""
         self.running = False
 
+
 MONITOR_NAMES = {}
 
 try:
@@ -89,7 +91,7 @@ else:
 
         def register_enum(self, name: str) -> None:
             """Register enum."""
-            desc = 'Health of '+name
+            desc = 'Health of ' + name
             if name == 'health':
                 desc = 'Overall LTA health'
 
@@ -116,6 +118,7 @@ def check_bool(text: str) -> bool:
     else:
         return False
 
+
 def main() -> None:
     """Configure a monitoring component from the environment and set it running."""
     config = from_environment(EXPECTED_CONFIG)
@@ -133,7 +136,7 @@ def main() -> None:
     monitors = []
     loop = asyncio.get_event_loop()
     for name in MONITOR_NAMES:
-        if check_bool(cast(str, config['ENABLE_'+name])):
+        if check_bool(cast(str, config['ENABLE_' + name])):
             logger.info(f"Setting up monitor {name}")
             kwargs = {n.split('_', 1)[-1].lower(): config[n] for n in config if n.startswith(name)}
             kwargs.update({
@@ -146,6 +149,7 @@ def main() -> None:
 
     logger.info("Starting asyncio loop")
     loop.run_forever()
+
 
 if __name__ == "__main__":
     main()

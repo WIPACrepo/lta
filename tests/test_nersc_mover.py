@@ -1,16 +1,22 @@
 # test_nersc_mover.py
 """Unit tests for lta/nersc_mover.py."""
 
+from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.nersc_mover import main, NerscMover
 from .test_util import ObjectLiteral
 
+TestConfig = Dict[str, str]
+
+
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock NerscMover component configuration."""
     return {
         "CLIENT_ID": "long-term-archive",
@@ -35,22 +41,8 @@ def config():
         "WORK_TIMEOUT_SECONDS": "30",
     }
 
-def test_constructor_missing_config():
-    """Fail with a TypeError if a configuration object isn't provided."""
-    with pytest.raises(TypeError):
-        NerscMover()
 
-
-def test_constructor_missing_logging():
-    """Fail with a TypeError if a logging object isn't provided."""
-    with pytest.raises(TypeError):
-        config = {
-            "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
-        }
-        NerscMover(config)
-
-
-def test_constructor_config_missing_values(mocker):
+def test_constructor_config_missing_values(mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     config = {
         "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
@@ -60,16 +52,16 @@ def test_constructor_config_missing_values(mocker):
         NerscMover(config, logger_mock)
 
 
-def test_constructor_config_poison_values(config, mocker):
+def test_constructor_config_poison_values(config: TestConfig, mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     nersc_mover_config = config.copy()
-    nersc_mover_config["LTA_REST_URL"] = None
+    del nersc_mover_config["LTA_REST_URL"]
     logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
         NerscMover(nersc_mover_config, logger_mock)
 
 
-def test_constructor_config(config, mocker):
+def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a NerscMover can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = NerscMover(config, logger_mock)
@@ -80,7 +72,7 @@ def test_constructor_config(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_constructor_config_sleep_type_int(config, mocker):
+def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFixture) -> None:
     """Ensure that sleep seconds can also be provided as an integer."""
     logger_mock = mocker.MagicMock()
     p = NerscMover(config, logger_mock)
@@ -91,14 +83,14 @@ def test_constructor_config_sleep_type_int(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_constructor_state(config, mocker):
+def test_constructor_state(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the NerscMover has a reasonable state when it is first constructed."""
     logger_mock = mocker.MagicMock()
     p = NerscMover(config, logger_mock)
     assert p.last_work_begin_timestamp is p.last_work_end_timestamp
 
 
-def test_do_status(config, mocker):
+def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the NerscMover has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = NerscMover(config, logger_mock)
@@ -106,7 +98,7 @@ def test_do_status(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch):
+async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify NerscMover component behavior when run as a script.
 
@@ -123,7 +115,7 @@ async def test_script_main(config, mocker, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_logs_configuration(mocker):
+async def test_nersc_mover_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the NerscMover logs its configuration."""
     logger_mock = mocker.MagicMock()
     nersc_mover_config = {
@@ -152,7 +144,7 @@ async def test_nersc_mover_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("nersc_mover 'logme-testing-nersc-mover' is configured:"),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-nersc-mover'),
         call('DEST_SITE = NERSC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
@@ -176,22 +168,22 @@ async def test_nersc_mover_logs_configuration(mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_run(config, mocker):
+async def test_nersc_mover_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the NerscMover does the work the nersc_mover should do."""
     logger_mock = mocker.MagicMock()
     p = NerscMover(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     await p.run()
     p._do_work.assert_called()
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_run_exception(config, mocker):
+async def test_nersc_mover_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the NerscMover."""
     logger_mock = mocker.MagicMock()
     p = NerscMover(config, logger_mock)
-    p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
+    p.last_work_end_timestamp = ""
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
@@ -199,7 +191,7 @@ async def test_nersc_mover_run_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_do_work_no_results(config, mocker):
+async def test_nersc_mover_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.nersc_mover.NerscMover._do_work_claim", new_callable=AsyncMock)
@@ -210,7 +202,7 @@ async def test_nersc_mover_do_work_no_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_do_work_yes_results(config, mocker):
+async def test_nersc_mover_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.nersc_mover.NerscMover._do_work_claim", new_callable=AsyncMock)
@@ -221,7 +213,7 @@ async def test_nersc_mover_do_work_yes_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_hpss_not_available(config, mocker):
+async def test_nersc_mover_hpss_not_available(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a bad returncode on hpss_avail will prevent work."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
@@ -236,7 +228,7 @@ async def test_nersc_mover_hpss_not_available(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_do_work_pop_exception(config, mocker):
+async def test_nersc_mover_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
@@ -257,7 +249,7 @@ async def test_nersc_mover_do_work_pop_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_do_work_claim_no_result(config, mocker):
+async def test_nersc_mover_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
@@ -281,7 +273,7 @@ async def test_nersc_mover_do_work_claim_no_result(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_do_work_claim_yes_result(config, mocker):
+async def test_nersc_mover_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
@@ -307,7 +299,7 @@ async def test_nersc_mover_do_work_claim_yes_result(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_do_work_claim_write_bundle_raise_exception(config, mocker):
+async def test_nersc_mover_do_work_claim_write_bundle_raise_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim will quarantine a bundle if an exception occurs."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
@@ -335,7 +327,7 @@ async def test_nersc_mover_do_work_claim_write_bundle_raise_exception(config, mo
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_write_bundle_to_hpss_mkdir(config, mocker):
+async def test_nersc_mover_write_bundle_to_hpss_mkdir(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _write_bundle_to_hpss executes an HSI command to create the destination directory."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
@@ -364,7 +356,7 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config, mocker):
+async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _write_bundle_to_hpss executes an HSI command to write the file to tape."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
@@ -393,7 +385,7 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_write_bundle_to_hpss(config, mocker):
+async def test_nersc_mover_write_bundle_to_hpss(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _write_bundle_to_hpss updates the LTA DB after success."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
@@ -425,7 +417,7 @@ async def test_nersc_mover_write_bundle_to_hpss(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_execute_hsi_command_failed(config, mocker):
+async def test_nersc_mover_execute_hsi_command_failed(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _execute_hsi_command will PATCH a bundle to quarantine on failure."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)
@@ -462,7 +454,7 @@ async def test_nersc_mover_execute_hsi_command_failed(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_mover_execute_hsi_command_success(config, mocker):
+async def test_nersc_mover_execute_hsi_command_success(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _execute_hsi_command will PATCH a bundle to quarantine on failure."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_mover.run", new_callable=MagicMock)

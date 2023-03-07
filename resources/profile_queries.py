@@ -33,7 +33,7 @@ if ret != pymongo.ALL:
 db.set_profiling_level(pymongo.OFF)
 
 bad_queries = []
-ret = db.system.profile.find({ 'op': { '$nin' : ['command', 'insert'] } })
+ret = db.system.profile.find({'op': {'$nin': ['command', 'insert']}})
 for query in ret:
     try:
         if 'find' in query['command'] and query['command']['find'] == 'collections':
@@ -44,13 +44,13 @@ for query in ret:
             print(query)
             continue
         if 'IXSCAN' not in query['planSummary']:
-            bad_queries.append((query['command'],query['planSummary']))
+            bad_queries.append((query['command'], query['planSummary']))
     except Exception:
         print(query)
         raise
 
 if bad_queries:
-    for q,p in bad_queries:
+    for q, p in bad_queries:
         print(q)
         print(p)
         print('---')

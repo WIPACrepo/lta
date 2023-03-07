@@ -1,17 +1,22 @@
 # test_unpacker.py
-
 """Unit tests for lta/unpacker.py."""
-from unittest.mock import AsyncMock, call, mock_open, patch
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+from typing import Any, Dict
+from unittest.mock import AsyncMock, call, MagicMock, mock_open, patch
+
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.unpacker import main, main_sync, Unpacker
 from .test_util import ObjectLiteral
 
+TestConfig = Dict[str, str]
+
 
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock Unpacker component configuration."""
     return {
         "CLIENT_ID": "long-term-archive",
@@ -19,7 +24,8 @@ def config():
         "CLEAN_OUTBOX": "TRUE",
         "COMPONENT_NAME": "testing-unpacker",
         "DEST_SITE": "WIPAC",
-        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-token",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
@@ -39,34 +45,20 @@ def config():
         "WORK_TIMEOUT_SECONDS": "30",
     }
 
+
 @pytest.fixture
-def path_map_mock(mocker):
+def path_map_mock(mocker: MockerFixture) -> MagicMock:
     rtm = mocker.patch("pathlib.Path.read_text")
     rtm.return_value = '{"/mnt/lfs7": "/data/exp"}'
     return rtm
 
 
-def test_always_succeed():
+def test_always_succeed() -> None:
     """Canary test to verify test framework is operating properly."""
     assert True
 
 
-def test_constructor_missing_config():
-    """Fail with a TypeError if a configuration object isn't provided."""
-    with pytest.raises(TypeError):
-        Unpacker()
-
-
-def test_constructor_missing_logging():
-    """Fail with a TypeError if a logging object isn't provided."""
-    with pytest.raises(TypeError):
-        config = {
-            "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
-        }
-        Unpacker(config)
-
-
-def test_constructor_config_missing_values(mocker):
+def test_constructor_config_missing_values(mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     config = {
         "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
@@ -76,16 +68,16 @@ def test_constructor_config_missing_values(mocker):
         Unpacker(config, logger_mock)
 
 
-def test_constructor_config_poison_values(config, mocker):
+def test_constructor_config_poison_values(config: TestConfig, mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     unpacker_config = config.copy()
-    unpacker_config["LTA_REST_URL"] = None
+    del unpacker_config["LTA_REST_URL"]
     logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
         Unpacker(unpacker_config, logger_mock)
 
 
-def test_constructor_config(config, mocker, path_map_mock):
+def test_constructor_config(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that a Unpacker can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
@@ -97,7 +89,7 @@ def test_constructor_config(config, mocker, path_map_mock):
     assert p.logger == logger_mock
 
 
-def test_constructor_config_sleep_type_int(config, mocker, path_map_mock):
+def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Ensure that sleep seconds can also be provided as an integer."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
@@ -109,14 +101,14 @@ def test_constructor_config_sleep_type_int(config, mocker, path_map_mock):
     assert p.logger == logger_mock
 
 
-def test_constructor_state(config, mocker, path_map_mock):
+def test_constructor_state(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Verify that the Unpacker has a reasonable state when it is first constructed."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
     assert p.last_work_begin_timestamp is p.last_work_end_timestamp
 
 
-def test_do_status(config, mocker, path_map_mock):
+def test_do_status(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Verify that the Unpacker has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
@@ -124,7 +116,10 @@ def test_do_status(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_script_main_sync(config, mocker, monkeypatch, path_map_mock):
+async def test_script_main_sync(config: TestConfig,
+                                mocker: MockerFixture,
+                                monkeypatch: MonkeyPatch,
+                                path_map_mock: MagicMock) -> None:
     """
     Verify Unpacker component behavior when run as a script.
 
@@ -142,7 +137,10 @@ async def test_script_main_sync(config, mocker, monkeypatch, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch, path_map_mock):
+async def test_script_main(config: TestConfig,
+                           mocker: MockerFixture,
+                           monkeypatch: MonkeyPatch,
+                           path_map_mock: MagicMock) -> None:
     """
     Verify Unpacker component behavior when run as a script.
 
@@ -157,7 +155,7 @@ async def test_script_main(config, mocker, monkeypatch, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_logs_configuration(mocker, path_map_mock):
+async def test_unpacker_logs_configuration(mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test to make sure the Unpacker logs its configuration."""
     logger_mock = mocker.MagicMock()
     unpacker_config = {
@@ -166,7 +164,8 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-unpacker",
         "DEST_SITE": "WIPAC",
-        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-token",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
@@ -190,10 +189,11 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
         call("unpacker 'logme-testing-unpacker' is configured:"),
         call('CLEAN_OUTBOX = true'),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-unpacker'),
         call('DEST_SITE = WIPAC'),
-        call('FILE_CATALOG_REST_TOKEN = fake-file-catalog-token'),
+        call('FILE_CATALOG_CLIENT_ID = file-catalog-client-id'),
+        call('FILE_CATALOG_CLIENT_SECRET = [秘密]'),
         call('FILE_CATALOG_REST_URL = http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
@@ -216,22 +216,22 @@ async def test_unpacker_logs_configuration(mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_run(config, mocker, path_map_mock):
+async def test_unpacker_run(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test the Unpacker does the work the unpacker should do."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     await p.run()
     p._do_work.assert_called()
 
 
 @pytest.mark.asyncio
-async def test_unpacker_run_exception(config, mocker, path_map_mock):
+async def test_unpacker_run_exception(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test an error doesn't kill the Unpacker."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
-    p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
+    p.last_work_end_timestamp = ""
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
@@ -239,7 +239,7 @@ async def test_unpacker_run_exception(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_pop_exception(config, mocker, path_map_mock):
+async def test_unpacker_do_work_pop_exception(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -251,7 +251,7 @@ async def test_unpacker_do_work_pop_exception(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_no_results(config, mocker, path_map_mock):
+async def test_unpacker_do_work_no_results(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     claim_mock = mocker.patch("lta.unpacker.Unpacker._do_work_claim", new_callable=AsyncMock)
@@ -261,7 +261,7 @@ async def test_unpacker_do_work_no_results(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_claim_no_results(config, mocker, path_map_mock):
+async def test_unpacker_do_work_claim_no_results(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_claim returns False when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -274,7 +274,7 @@ async def test_unpacker_do_work_claim_no_results(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_yes_results(config, mocker, path_map_mock):
+async def test_unpacker_do_work_yes_results(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_claim processes each Bundle that it gets from the LTA DB."""
     BUNDLE_OBJ = {
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
@@ -292,7 +292,7 @@ async def test_unpacker_do_work_yes_results(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_raise_exception(config, mocker, path_map_mock):
+async def test_unpacker_do_work_raise_exception(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_claim processes each Bundle that it gets from the LTA DB."""
     BUNDLE_OBJ = {
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
@@ -314,7 +314,7 @@ async def test_unpacker_do_work_raise_exception(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_bundle_once_and_die(config, mocker, path_map_mock):
+async def test_unpacker_do_work_bundle_once_and_die(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     once = config.copy()
     once["RUN_ONCE_AND_DIE"] = "True"
@@ -323,12 +323,12 @@ async def test_unpacker_do_work_bundle_once_and_die(config, mocker, path_map_moc
     claim_mock.return_value = False
     sys_exit_mock = mocker.patch("sys.exit")
     p = Unpacker(once, logger_mock)
-    assert not await p._do_work()
+    await p._do_work()
     sys_exit_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_unpacker_quarantine_bundle_with_reason(config, mocker, path_map_mock):
+async def test_unpacker_quarantine_bundle_with_reason(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_claim attempts to quarantine a Bundle that fails to get unpacked."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
@@ -338,7 +338,7 @@ async def test_unpacker_quarantine_bundle_with_reason(config, mocker, path_map_m
 
 
 @pytest.mark.asyncio
-async def test_unpacker_quarantine_bundle_with_reason_raises(config, mocker, path_map_mock):
+async def test_unpacker_quarantine_bundle_with_reason_raises(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_claim attempts to quarantine a Bundle that fails to get unpacked."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
@@ -349,7 +349,7 @@ async def test_unpacker_quarantine_bundle_with_reason_raises(config, mocker, pat
 
 
 @pytest.mark.asyncio
-async def test_unpacker_update_bundle_in_lta_db(config, mocker, path_map_mock):
+async def test_unpacker_update_bundle_in_lta_db(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _update_bundle_in_lta_db updates the status of the bundle in the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
@@ -359,12 +359,12 @@ async def test_unpacker_update_bundle_in_lta_db(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_add_location_to_file_catalog(config, mocker, path_map_mock):
+async def test_unpacker_add_location_to_file_catalog(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _add_location_to_file_catalog adds a location in the File Catalog."""
     logger_mock = mocker.MagicMock()
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
-    bundle_file = {
+    bundle_file: Dict[str, Any] = {
         "checksum": {
             "sha512": "09de7c539b724dee9543669309f978b172f6c7449d0269fecbb57d0c9cf7db51713fed3a94573c669fe0aa08fa122b41f84a0ea107c62f514b1525efbd08846b",
         },
@@ -386,7 +386,7 @@ async def test_unpacker_add_location_to_file_catalog(config, mocker, path_map_mo
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_bundle(config, mocker, path_map_mock):
+async def test_unpacker_do_work_bundle(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_bundle does the work of preparing an archive."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -450,7 +450,7 @@ async def test_unpacker_do_work_bundle(config, mocker, path_map_mock):
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_bundle_manifest_json_filename_mismatch(config, mocker, path_map_mock):
+async def test_unpacker_do_work_bundle_manifest_json_filename_mismatch(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_bundle does the work of preparing an archive."""
     logger_mock = mocker.MagicMock()
     # lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -483,7 +483,7 @@ async def test_unpacker_do_work_bundle_manifest_json_filename_mismatch(config, m
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_bundle_filename_mismatch(config, mocker, path_map_mock):
+async def test_unpacker_do_work_bundle_filename_mismatch(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_bundle does the work of preparing an archive."""
     logger_mock = mocker.MagicMock()
     # lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -531,7 +531,7 @@ async def test_unpacker_do_work_bundle_filename_mismatch(config, mocker, path_ma
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_bundle_disk_file_size_mismatch_manifest_size(config, mocker, path_map_mock):
+async def test_unpacker_do_work_bundle_disk_file_size_mismatch_manifest_size(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_bundle does the work of preparing an archive."""
     logger_mock = mocker.MagicMock()
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
@@ -580,7 +580,7 @@ async def test_unpacker_do_work_bundle_disk_file_size_mismatch_manifest_size(con
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_bundle_zipinfo_size_mismatch_disk_file_size(config, mocker, path_map_mock):
+async def test_unpacker_do_work_bundle_zipinfo_size_mismatch_disk_file_size(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_bundle does the work of preparing an archive."""
     logger_mock = mocker.MagicMock()
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
@@ -629,7 +629,7 @@ async def test_unpacker_do_work_bundle_zipinfo_size_mismatch_disk_file_size(conf
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_bundle_sha512_checksum_mismatch(config, mocker, path_map_mock):
+async def test_unpacker_do_work_bundle_sha512_checksum_mismatch(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_bundle does the work of preparing an archive."""
     logger_mock = mocker.MagicMock()
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
@@ -687,7 +687,7 @@ async def test_unpacker_do_work_bundle_sha512_checksum_mismatch(config, mocker, 
 
 
 @pytest.mark.asyncio
-async def test_unpacker_do_work_bundle_path_remapping(config, mocker, path_map_mock):
+async def test_unpacker_do_work_bundle_path_remapping(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_bundle does the work of preparing an archive."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -751,7 +751,7 @@ async def test_unpacker_do_work_bundle_path_remapping(config, mocker, path_map_m
         mock_lta_checksums.assert_called_with("/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2")
 
 
-def test_unpacker_delete_manifest_metadata_v3(config, mocker, path_map_mock):
+def test_unpacker_delete_manifest_metadata_v3(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _delete_manifest_metadata will delete metadata of either version."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
@@ -761,7 +761,7 @@ def test_unpacker_delete_manifest_metadata_v3(config, mocker, path_map_mock):
     mock_os_remove.assert_called_with("/tmp/lta/testing/unpacker/outbox/0869ea50-e437-443f-8cdb-31a350f88e57.metadata.ndjson")
 
 
-def test_unpacker_delete_manifest_metadata_unknown(config, mocker, path_map_mock):
+def test_unpacker_delete_manifest_metadata_unknown(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _delete_manifest_metadata will throw on an unknown version."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
@@ -772,7 +772,7 @@ def test_unpacker_delete_manifest_metadata_unknown(config, mocker, path_map_mock
     mock_os_remove.assert_called_with("/tmp/lta/testing/unpacker/outbox/0869ea50-e437-443f-8cdb-31a350f88e57.metadata.ndjson")
 
 
-def test_unpacker_ensure_dest_directory(config, mocker, path_map_mock):
+def test_unpacker_ensure_dest_directory(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _ensure_dest_directory will attempt to ensure a directory exists."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
@@ -781,7 +781,7 @@ def test_unpacker_ensure_dest_directory(config, mocker, path_map_mock):
     mock_mkdir.assert_called_with(parents=True, exist_ok=True)
 
 
-def test_unpacker_read_manifest_metadata_for_v3(config, mocker, path_map_mock):
+def test_unpacker_read_manifest_metadata_for_v3(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _read_manifest_metadata will read v3 metadata."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
@@ -794,7 +794,7 @@ def test_unpacker_read_manifest_metadata_for_v3(config, mocker, path_map_mock):
     mock_v3.assert_called_with("0869ea50-e437-443f-8cdb-31a350f88e57")
 
 
-def test_unpacker_read_manifest_metadata_unknown(config, mocker, path_map_mock):
+def test_unpacker_read_manifest_metadata_unknown(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _read_manifest_metadata will throw on an unknown version."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
@@ -808,7 +808,7 @@ def test_unpacker_read_manifest_metadata_unknown(config, mocker, path_map_mock):
     mock_v3.assert_called_with("0869ea50-e437-443f-8cdb-31a350f88e57")
 
 
-def test_unpacker_read_manifest_metadata_v2(config, mocker, path_map_mock):
+def test_unpacker_read_manifest_metadata_v2(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _read_manifest_metadata_v2 will try to read metadata."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
@@ -818,7 +818,7 @@ def test_unpacker_read_manifest_metadata_v2(config, mocker, path_map_mock):
 
 
 @patch('builtins.open')
-def test_unpacker_read_manifest_metadata_v2_no_throw(file_open_mock, config, mocker, path_map_mock):
+def test_unpacker_read_manifest_metadata_v2_no_throw(file_open_mock: MagicMock, config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _read_manifest_metadata_v2 will not throw when unable to read metadata."""
     logger_mock = mocker.MagicMock()
     file_open_mock.side_effect = NameError
@@ -826,7 +826,7 @@ def test_unpacker_read_manifest_metadata_v2_no_throw(file_open_mock, config, moc
     assert not p._read_manifest_metadata_v2("0869ea50-e437-443f-8cdb-31a350f88e57")
 
 
-def test_unpacker_read_manifest_metadata_v3(config, mocker, path_map_mock):
+def test_unpacker_read_manifest_metadata_v3(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _read_manifest_metadata_v3 will try to read metadata."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
@@ -843,7 +843,7 @@ def test_unpacker_read_manifest_metadata_v3(config, mocker, path_map_mock):
 
 
 @patch('builtins.open')
-def test_unpacker_read_manifest_metadata_v3_no_throw(file_open_mock, config, mocker, path_map_mock):
+def test_unpacker_read_manifest_metadata_v3_no_throw(file_open_mock: MagicMock, config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _read_manifest_metadata_v3 will not throw when unable to read metadata."""
     logger_mock = mocker.MagicMock()
     file_open_mock.side_effect = NameError
@@ -851,7 +851,7 @@ def test_unpacker_read_manifest_metadata_v3_no_throw(file_open_mock, config, moc
     assert not p._read_manifest_metadata_v3("0869ea50-e437-443f-8cdb-31a350f88e57")
 
 
-def test_unpacker_clean_outbox_directory_bail_early(config, mocker, path_map_mock):
+def test_unpacker_clean_outbox_directory_bail_early(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _clean_outbox_directory will bail when configured not to clean."""
     logger_mock = mocker.MagicMock()
     config["CLEAN_OUTBOX"] = "FALSE"
@@ -861,7 +861,7 @@ def test_unpacker_clean_outbox_directory_bail_early(config, mocker, path_map_moc
     mock_os_scandir.assert_not_called()
 
 
-def test_unpacker_clean_outbox_directory_empty(config, mocker, path_map_mock):
+def test_unpacker_clean_outbox_directory_empty(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _clean_outbox_directory will bail when configured not to clean."""
     logger_mock = mocker.MagicMock()
     mock_os_scandir = mocker.patch("os.scandir")
@@ -874,7 +874,7 @@ def test_unpacker_clean_outbox_directory_empty(config, mocker, path_map_mock):
     mock_shutil_rmtree.assert_not_called()
 
 
-def test_unpacker_clean_outbox_directory_file(config, mocker, path_map_mock):
+def test_unpacker_clean_outbox_directory_file(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _clean_outbox_directory will bail when configured not to clean."""
     logger_mock = mocker.MagicMock()
     mock_os_scandir = mocker.patch("os.scandir")
@@ -889,7 +889,7 @@ def test_unpacker_clean_outbox_directory_file(config, mocker, path_map_mock):
     mock_shutil_rmtree.assert_not_called()
 
 
-def test_unpacker_clean_outbox_directory_directory(config, mocker, path_map_mock):
+def test_unpacker_clean_outbox_directory_directory(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _clean_outbox_directory will bail when configured not to clean."""
     logger_mock = mocker.MagicMock()
     mock_os_scandir = mocker.patch("os.scandir")
@@ -905,7 +905,7 @@ def test_unpacker_clean_outbox_directory_directory(config, mocker, path_map_mock
     mock_shutil_rmtree.assert_called()
 
 
-def test_unpacker_clean_outbox_directory_unknown(config, mocker, path_map_mock):
+def test_unpacker_clean_outbox_directory_unknown(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _clean_outbox_directory will bail when configured not to clean."""
     logger_mock = mocker.MagicMock()
     mock_os_scandir = mocker.patch("os.scandir")

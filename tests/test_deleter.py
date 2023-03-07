@@ -1,16 +1,21 @@
 # test_deleter.py
 """Unit tests for lta/deleter.py."""
 
+from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.deleter import main, Deleter
 
+TestConfig = Dict[str, str]
+
 
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock Deleter component configuration."""
     return {
         "CLIENT_ID": "long-term-archive",
@@ -33,7 +38,8 @@ def config():
         "WORK_TIMEOUT_SECONDS": "30",
     }
 
-def test_constructor_config(config, mocker):
+
+def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a Deleter can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = Deleter(config, logger_mock)
@@ -53,14 +59,15 @@ def test_constructor_config(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_do_status(config, mocker):
+def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the Deleter has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = Deleter(config, logger_mock)
     assert p._do_status() == {}
 
+
 @pytest.mark.asyncio
-async def test_deleter_logs_configuration(mocker):
+async def test_deleter_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the Deleter logs its configuration."""
     logger_mock = mocker.MagicMock()
     deleter_config = {
@@ -87,7 +94,7 @@ async def test_deleter_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("deleter 'logme-testing-deleter' is configured:"),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-deleter'),
         call('DEST_SITE = NERSC'),
         call('DISK_BASE_PATH = /path/to/rucio/rse/root'),
@@ -107,8 +114,11 @@ async def test_deleter_logs_configuration(mocker):
     ]
     logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
 
+
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch):
+async def test_script_main(config: TestConfig,
+                           mocker: MockerFixture,
+                           monkeypatch: MonkeyPatch) -> None:
     """
     Verify Deleter component behavior when run as a script.
 
@@ -123,29 +133,32 @@ async def test_script_main(config, mocker, monkeypatch):
     mock_event_loop.assert_called()
     mock_work_loop.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_deleter_run(config, mocker):
+async def test_deleter_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the Deleter does the work the deleter should do."""
     logger_mock = mocker.MagicMock()
     p = Deleter(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     await p.run()
     p._do_work.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_deleter_run_exception(config, mocker):
+async def test_deleter_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the Deleter."""
     logger_mock = mocker.MagicMock()
     dw_mock = mocker.patch("lta.deleter.Deleter._do_work")  # , new_callable=AsyncMock)
     dw_mock.side_effect = [Exception("bad thing happen!")]
     p = Deleter(config, logger_mock)
-    p.last_work_end_timestamp = None
+    p.last_work_end_timestamp = ""
     await p.run()
     assert p.last_work_end_timestamp
     dw_mock.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_deleter_do_work_pop_exception(config, mocker):
+async def test_deleter_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     rc_mock = mocker.MagicMock()
@@ -156,8 +169,9 @@ async def test_deleter_do_work_pop_exception(config, mocker):
         await p._do_work()
     rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
+
 @pytest.mark.asyncio
-async def test_deleter_do_work_no_results(config, mocker):
+async def test_deleter_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.deleter.Deleter._do_work_claim", new_callable=AsyncMock)
@@ -166,8 +180,9 @@ async def test_deleter_do_work_no_results(config, mocker):
     await p._do_work()
     dwc_mock.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_deleter_do_work_yes_results(config, mocker):
+async def test_deleter_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.deleter.Deleter._do_work_claim", new_callable=AsyncMock)
@@ -176,8 +191,9 @@ async def test_deleter_do_work_yes_results(config, mocker):
     await p._do_work()
     dwc_mock.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_deleter_do_work_claim_no_result(config, mocker):
+async def test_deleter_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -190,8 +206,9 @@ async def test_deleter_do_work_claim_no_result(config, mocker):
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
     db_mock.assert_not_called()
 
+
 @pytest.mark.asyncio
-async def test_deleter_do_work_claim_yes_result(config, mocker):
+async def test_deleter_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -206,8 +223,9 @@ async def test_deleter_do_work_claim_yes_result(config, mocker):
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
     db_mock.assert_called_with(mocker.ANY, {"one": 1})
 
+
 @pytest.mark.asyncio
-async def test_deleter_delete_bundle_raises(config, mocker):
+async def test_deleter_delete_bundle_raises(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim both calls _quarantine_bundle and re-raises when _delete_bundle raises."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -226,8 +244,9 @@ async def test_deleter_delete_bundle_raises(config, mocker):
     db_mock.assert_called_with(mocker.ANY, {"one": 1})
     qb_mock.assert_called_with(mocker.ANY, {"one": 1}, "LTA DB unavailable; currently safer at home")
 
+
 @pytest.mark.asyncio
-async def test_deleter_delete_bundle(config, mocker):
+async def test_deleter_delete_bundle(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _delete_bundle attempts to delete a Bundle."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
@@ -240,8 +259,9 @@ async def test_deleter_delete_bundle(config, mocker):
     remove_mock.assert_called()
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
 
+
 @pytest.mark.asyncio
-async def test_deleter_quarantine_bundle_with_reason(config, mocker):
+async def test_deleter_quarantine_bundle_with_reason(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim attempts to quarantine a Bundle that fails to get deleted."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)

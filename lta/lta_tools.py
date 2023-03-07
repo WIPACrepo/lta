@@ -4,6 +4,7 @@
 import os
 from typing import cast, Dict, Optional
 
+
 def from_environment(keys: Dict[str, Optional[str]]) -> Dict[str, str]:
     """Obtain configuration values from the OS environment."""
     # make sure we were given a dictionary of keys and defaults to work from

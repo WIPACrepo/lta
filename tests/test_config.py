@@ -2,49 +2,32 @@
 """Unit tests for lta/config.py."""
 
 import pytest
+from pytest import MonkeyPatch
 
 from wipac_dev_tools import from_environment
 
 
-def test_from_environment_none():
-    """Fail with a TypeError if we don't ask for any environment variables."""
-    with pytest.raises(TypeError):
-        from_environment(None)
-
-
-def test_from_environment_scalar():
-    """Fail with a TypeError if we don't ask for any environment variables."""
-    with pytest.raises(TypeError):
-        from_environment(50)
-
-
-def test_from_environment_scalar_list():
-    """Fail with a TypeError if we don't ask for any environment variables."""
-    with pytest.raises(TypeError):
-        from_environment([10, 20, 30, 40, 50])
-
-
-def test_from_environment_missing(monkeypatch):
+def test_from_environment_missing(monkeypatch: MonkeyPatch) -> None:
     """Fail with an OSError if we ask for an environment variable that does not exist."""
     with pytest.raises(OSError):
         monkeypatch.delenv("PAN_GALACTIC_GARGLE_BLASTER", raising=False)
         from_environment("PAN_GALACTIC_GARGLE_BLASTER")
 
 
-def test_from_environment_missing_list(monkeypatch):
+def test_from_environment_missing_list(monkeypatch: MonkeyPatch) -> None:
     """Fail with an OSError if we ask for an environment variable that does not exist on a list that we provide."""
     with pytest.raises(OSError):
         monkeypatch.delenv("PAN_GALACTIC_GARGLE_BLASTER", raising=False)
         from_environment(["PAN_GALACTIC_GARGLE_BLASTER"])
 
 
-def test_from_environment_empty():
+def test_from_environment_empty() -> None:
     """Return an empty dictionary if we ask for no environment variables."""
     obj = from_environment([])
     assert len(obj.keys()) == 0
 
 
-def test_from_environment_key(monkeypatch):
+def test_from_environment_key(monkeypatch: MonkeyPatch) -> None:
     """Return a dictionary with a single environment variable."""
     monkeypatch.setenv("LANGUAGE", "ja_JP")
     obj = from_environment("LANGUAGE")
@@ -52,7 +35,7 @@ def test_from_environment_key(monkeypatch):
     assert obj["LANGUAGE"] == "ja_JP"
 
 
-def test_from_environment_list(monkeypatch):
+def test_from_environment_list(monkeypatch: MonkeyPatch) -> None:
     """Return a dictionary with a list of environment variables."""
     monkeypatch.setenv("HOME", "/home/tux")
     monkeypatch.setenv("LANGUAGE", "ja_JP")
@@ -62,7 +45,7 @@ def test_from_environment_list(monkeypatch):
     assert obj["LANGUAGE"] == "ja_JP"
 
 
-def test_from_environment_dict(monkeypatch):
+def test_from_environment_dict(monkeypatch: MonkeyPatch) -> None:
     """Return a dictionary where we override one default but leave the other."""
     EXPECTED_CONFIG = {
         'HOME': '/home/tux',
@@ -76,7 +59,7 @@ def test_from_environment_dict(monkeypatch):
     assert obj["LANGUAGE"] == "ja_JP"
 
 
-def test_from_environment_dict_required(monkeypatch):
+def test_from_environment_dict_required(monkeypatch: MonkeyPatch) -> None:
     """Raise an error where we require the environment to provide a value."""
     with pytest.raises(OSError):
         EXPECTED_CONFIG = {

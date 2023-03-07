@@ -1,17 +1,22 @@
 # test_nersc_retriever.py
 """Unit tests for lta/nersc_retriever.py."""
 
+from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.nersc_retriever import main, NerscRetriever
 from .test_util import ObjectLiteral
 
+TestConfig = Dict[str, str]
+
 
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock NerscRetriever component configuration."""
     return {
         "CLIENT_ID": "long-term-archive",
@@ -36,22 +41,8 @@ def config():
         "WORK_TIMEOUT_SECONDS": "30",
     }
 
-def test_constructor_missing_config():
-    """Fail with a TypeError if a configuration object isn't provided."""
-    with pytest.raises(TypeError):
-        NerscRetriever()
 
-
-def test_constructor_missing_logging():
-    """Fail with a TypeError if a logging object isn't provided."""
-    with pytest.raises(TypeError):
-        config = {
-            "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
-        }
-        NerscRetriever(config)
-
-
-def test_constructor_config_missing_values(mocker):
+def test_constructor_config_missing_values(mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     config = {
         "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
@@ -61,16 +52,16 @@ def test_constructor_config_missing_values(mocker):
         NerscRetriever(config, logger_mock)
 
 
-def test_constructor_config_poison_values(config, mocker):
+def test_constructor_config_poison_values(config: TestConfig, mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     nersc_retriever_config = config.copy()
-    nersc_retriever_config["LTA_REST_URL"] = None
+    del nersc_retriever_config["LTA_REST_URL"]
     logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
         NerscRetriever(nersc_retriever_config, logger_mock)
 
 
-def test_constructor_config(config, mocker):
+def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a NerscRetriever can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = NerscRetriever(config, logger_mock)
@@ -81,7 +72,7 @@ def test_constructor_config(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_constructor_config_sleep_type_int(config, mocker):
+def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFixture) -> None:
     """Ensure that sleep seconds can also be provided as an integer."""
     logger_mock = mocker.MagicMock()
     p = NerscRetriever(config, logger_mock)
@@ -92,14 +83,14 @@ def test_constructor_config_sleep_type_int(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_constructor_state(config, mocker):
+def test_constructor_state(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the NerscRetriever has a reasonable state when it is first constructed."""
     logger_mock = mocker.MagicMock()
     p = NerscRetriever(config, logger_mock)
     assert p.last_work_begin_timestamp is p.last_work_end_timestamp
 
 
-def test_do_status(config, mocker):
+def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the NerscRetriever has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = NerscRetriever(config, logger_mock)
@@ -107,7 +98,7 @@ def test_do_status(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch):
+async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify NerscRetriever component behavior when run as a script.
 
@@ -124,7 +115,7 @@ async def test_script_main(config, mocker, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_logs_configuration(mocker):
+async def test_nersc_retriever_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the NerscRetriever logs its configuration."""
     logger_mock = mocker.MagicMock()
     nersc_retriever_config = {
@@ -153,7 +144,7 @@ async def test_nersc_retriever_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("nersc_retriever 'logme-testing-nersc-mover' is configured:"),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-nersc-mover'),
         call('DEST_SITE = WIPAC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
@@ -177,22 +168,22 @@ async def test_nersc_retriever_logs_configuration(mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_run(config, mocker):
+async def test_nersc_retriever_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the NerscRetriever does the work the nersc_retriever should do."""
     logger_mock = mocker.MagicMock()
     p = NerscRetriever(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     await p.run()
     p._do_work.assert_called()
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_run_exception(config, mocker):
+async def test_nersc_retriever_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the NerscRetriever."""
     logger_mock = mocker.MagicMock()
     p = NerscRetriever(config, logger_mock)
-    p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
+    p.last_work_end_timestamp = ""
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
@@ -200,7 +191,7 @@ async def test_nersc_retriever_run_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_do_work_no_results(config, mocker):
+async def test_nersc_retriever_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._do_work_claim", new_callable=AsyncMock)
@@ -211,7 +202,7 @@ async def test_nersc_retriever_do_work_no_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_do_work_yes_results(config, mocker):
+async def test_nersc_retriever_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._do_work_claim", new_callable=AsyncMock)
@@ -222,7 +213,7 @@ async def test_nersc_retriever_do_work_yes_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_hpss_not_available(config, mocker):
+async def test_nersc_retriever_hpss_not_available(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a bad returncode on hpss_avail will prevent work."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
@@ -237,7 +228,7 @@ async def test_nersc_retriever_hpss_not_available(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_do_work_pop_exception(config, mocker):
+async def test_nersc_retriever_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
@@ -258,7 +249,7 @@ async def test_nersc_retriever_do_work_pop_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_do_work_claim_no_result(config, mocker):
+async def test_nersc_retriever_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
@@ -282,7 +273,7 @@ async def test_nersc_retriever_do_work_claim_no_result(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_do_work_claim_yes_result(config, mocker):
+async def test_nersc_retriever_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
@@ -308,7 +299,7 @@ async def test_nersc_retriever_do_work_claim_yes_result(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_do_work_claim_write_bundle_raise_exception(config, mocker):
+async def test_nersc_retriever_do_work_claim_write_bundle_raise_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim will quarantine a bundle if an exception occurs."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
@@ -336,7 +327,7 @@ async def test_nersc_retriever_do_work_claim_write_bundle_raise_exception(config
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config, mocker):
+async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _read_bundle_from_hpss executes an HSI command to read the file from tape."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
@@ -368,7 +359,7 @@ async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_read_bundle_from_hpss(config, mocker):
+async def test_nersc_retriever_read_bundle_from_hpss(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _read_bundle_from_hpss updates the LTA DB after success."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
@@ -400,7 +391,7 @@ async def test_nersc_retriever_read_bundle_from_hpss(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_execute_hsi_command_failed(config, mocker):
+async def test_nersc_retriever_execute_hsi_command_failed(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _execute_hsi_command will PATCH a bundle to quarantine on failure."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)
@@ -437,7 +428,7 @@ async def test_nersc_retriever_execute_hsi_command_failed(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_nersc_retriever_execute_hsi_command_success(config, mocker):
+async def test_nersc_retriever_execute_hsi_command_success(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _execute_hsi_command will PATCH a bundle to quarantine on failure."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_retriever.run", new_callable=MagicMock)

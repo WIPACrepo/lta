@@ -28,6 +28,7 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
+
 class RateLimiter(Component):
     """
     RateLimiter is a Long Term Archive component.

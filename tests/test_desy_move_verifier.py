@@ -1,16 +1,21 @@
 # test_desy_move_verifier.py
 """Unit tests for lta/desy_move_verifier.py."""
 
+from typing import Dict
 from unittest.mock import AsyncMock, call
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.desy_move_verifier import main, DesyMoveVerifier
 
+TestConfig = Dict[str, str]
+
 
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock DesyMoveVerifier component configuration."""
     return {
         "CLIENT_ID": "long-term-archive",
@@ -36,7 +41,8 @@ def config():
         "WORKBOX_PATH": "/path/to/some/temp/directory",
     }
 
-def test_constructor_config(config, mocker):
+
+def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a DesyMoveVerifier can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = DesyMoveVerifier(config, logger_mock)
@@ -57,14 +63,16 @@ def test_constructor_config(config, mocker):
     assert p.logger == logger_mock
     assert p.workbox_path == "/path/to/some/temp/directory"
 
-def test_do_status(config, mocker):
+
+def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the DesyMoveVerifier has additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = DesyMoveVerifier(config, logger_mock)
     assert p._do_status() == {}
 
+
 @pytest.mark.asyncio
-async def test_desy_move_verifier_logs_configuration(mocker):
+async def test_desy_move_verifier_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the DesyMoveVerifier logs its configuration."""
     logger_mock = mocker.MagicMock()
     desy_move_verifier_config = {
@@ -93,7 +101,7 @@ async def test_desy_move_verifier_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("desy_move_verifier 'logme-testing-desy_move_verifier' is configured:"),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-desy_move_verifier'),
         call('DEST_SITE = DESY'),
         call('GRIDFTP_DEST_URL = gsiftp://icecube.wisc.edu:7654/path/to/nowhere'),
@@ -115,8 +123,9 @@ async def test_desy_move_verifier_logs_configuration(mocker):
     ]
     logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
 
+
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch):
+async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify DesyMoveVerifier component behavior when run as a script.
 
@@ -131,29 +140,32 @@ async def test_script_main(config, mocker, monkeypatch):
     mock_event_loop.assert_called()
     mock_work_loop.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_desy_move_verifier_run(config, mocker):
+async def test_desy_move_verifier_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the DesyMoveVerifier does the work the desy_move_verifier should do."""
     logger_mock = mocker.MagicMock()
     p = DesyMoveVerifier(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     await p.run()
     p._do_work.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_desy_move_verifier_run_exception(config, mocker):
+async def test_desy_move_verifier_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the DesyMoveVerifier."""
     logger_mock = mocker.MagicMock()
     p = DesyMoveVerifier(config, logger_mock)
-    p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
+    p.last_work_end_timestamp = ""
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
     assert p.last_work_end_timestamp
 
+
 @pytest.mark.asyncio
-async def test_desy_move_verifier_do_work_pop_exception(config, mocker):
+async def test_desy_move_verifier_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -163,8 +175,9 @@ async def test_desy_move_verifier_do_work_pop_exception(config, mocker):
         await p._do_work()
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
+
 @pytest.mark.asyncio
-async def test_desy_move_verifier_do_work_no_results(config, mocker):
+async def test_desy_move_verifier_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.desy_move_verifier.DesyMoveVerifier._do_work_claim", new_callable=AsyncMock)
@@ -173,8 +186,9 @@ async def test_desy_move_verifier_do_work_no_results(config, mocker):
     await p._do_work()
     dwc_mock.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_desy_move_verifier_do_work_yes_results(config, mocker):
+async def test_desy_move_verifier_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.desy_move_verifier.DesyMoveVerifier._do_work_claim", new_callable=AsyncMock)
@@ -183,8 +197,9 @@ async def test_desy_move_verifier_do_work_yes_results(config, mocker):
     await p._do_work()
     dwc_mock.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_desy_move_verifier_do_work_claim_no_result(config, mocker):
+async def test_desy_move_verifier_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -197,8 +212,9 @@ async def test_desy_move_verifier_do_work_claim_no_result(config, mocker):
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_not_called()
 
+
 @pytest.mark.asyncio
-async def test_desy_move_verifier_do_work_claim_yes_result(config, mocker):
+async def test_desy_move_verifier_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -213,8 +229,9 @@ async def test_desy_move_verifier_do_work_claim_yes_result(config, mocker):
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_called_with(mocker.ANY, {"one": 1})
 
+
 @pytest.mark.asyncio
-async def test_desy_move_verifier_verify_bundle_finished(config, mocker):
+async def test_desy_move_verifier_verify_bundle_finished(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _delete_bundle deletes a completed bundle transfer."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)

@@ -33,13 +33,18 @@ COMMON_CONFIG: Dict[str, Optional[str]] = {
     "WORK_SLEEP_DURATION_SECONDS": "60",
 }
 
+LOGGING_DENY_LIST = ["CLIENT_SECRET", "FILE_CATALOG_CLIENT_SECRET"]
+
+
 def now() -> str:
     """Return string timestamp for current time, to the second."""
     return datetime.utcnow().isoformat(timespec='seconds')
 
+
 def unique_id() -> str:
     """Return a unique ID for a module instance."""
     return str(uuid4())
+
 
 class Component:
     """
@@ -91,7 +96,10 @@ class Component:
         # log the way this component has been configured
         self.logger.info(f"{self.type} '{self.name}' is configured:")
         for name in config:
-            self.logger.info(f"{name} = {config[name]}")
+            if name in LOGGING_DENY_LIST:
+                self.logger.info(f"{name} = [秘密]")
+            else:
+                self.logger.info(f"{name} = {config[name]}")
 
     @wtt.spanned()
     async def run(self) -> None:

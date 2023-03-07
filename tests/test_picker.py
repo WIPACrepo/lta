@@ -2,28 +2,33 @@
 """Unit tests for lta/picker.py."""
 
 from secrets import token_hex
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 from unittest.mock import AsyncMock, call, MagicMock
 from uuid import uuid1
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.picker import CREATE_CHUNK_SIZE, main, Picker
 
+TestConfig = Dict[str, str]
 
 FILE_CATALOG_LIMIT = 9000
 
+
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock Picker component configuration."""
     return {
         "CLIENT_ID": "long-term-archive",
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-picker",
         "DEST_SITE": "NERSC",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_PAGE_SIZE": str(FILE_CATALOG_LIMIT),
-        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "localhost:12346",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
@@ -42,22 +47,7 @@ def config():
     }
 
 
-def test_constructor_missing_config():
-    """Fail with a TypeError if a configuration object isn't provided."""
-    with pytest.raises(TypeError):
-        Picker()
-
-
-def test_constructor_missing_logging():
-    """Fail with a TypeError if a logging object isn't provided."""
-    with pytest.raises(TypeError):
-        config = {
-            "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
-        }
-        Picker(config)
-
-
-def test_constructor_config_missing_values(mocker):
+def test_constructor_config_missing_values(mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     config = {
         "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
@@ -67,16 +57,16 @@ def test_constructor_config_missing_values(mocker):
         Picker(config, logger_mock)
 
 
-def test_constructor_config_poison_values(config, mocker):
+def test_constructor_config_poison_values(config: TestConfig, mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     picker_config = config.copy()
-    picker_config["LTA_REST_URL"] = None
+    del picker_config["LTA_REST_URL"]
     logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
         Picker(picker_config, logger_mock)
 
 
-def test_constructor_config(config, mocker):
+def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a Picker can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = Picker(config, logger_mock)
@@ -88,7 +78,7 @@ def test_constructor_config(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_constructor_config_sleep_type_int(config, mocker):
+def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFixture) -> None:
     """Ensure that sleep seconds can also be provided as an integer."""
     logger_mock = mocker.MagicMock()
     p = Picker(config, logger_mock)
@@ -100,14 +90,14 @@ def test_constructor_config_sleep_type_int(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_constructor_state(config, mocker):
+def test_constructor_state(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the Picker has a reasonable state when it is first constructed."""
     logger_mock = mocker.MagicMock()
     p = Picker(config, logger_mock)
     assert p.last_work_begin_timestamp is p.last_work_end_timestamp
 
 
-def test_do_status(config, mocker):
+def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the Picker has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = Picker(config, logger_mock)
@@ -115,7 +105,7 @@ def test_do_status(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch):
+async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify Picker component behavior when run as a script.
 
@@ -132,7 +122,7 @@ async def test_script_main(config, mocker, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_picker_logs_configuration(mocker):
+async def test_picker_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the Picker logs its configuration."""
     logger_mock = mocker.MagicMock()
     picker_config = {
@@ -140,8 +130,9 @@ async def test_picker_logs_configuration(mocker):
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-picker",
         "DEST_SITE": "NERSC",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_PAGE_SIZE": str(FILE_CATALOG_LIMIT),
-        "FILE_CATALOG_REST_TOKEN": "logme-fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
@@ -162,11 +153,12 @@ async def test_picker_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("picker 'logme-testing-picker' is configured:"),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-picker'),
         call('DEST_SITE = NERSC'),
+        call('FILE_CATALOG_CLIENT_ID = file-catalog-client-id'),
+        call('FILE_CATALOG_CLIENT_SECRET = [秘密]'),
         call('FILE_CATALOG_PAGE_SIZE = 9000'),
-        call('FILE_CATALOG_REST_TOKEN = logme-fake-file-catalog-rest-token'),
         call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
@@ -187,22 +179,22 @@ async def test_picker_logs_configuration(mocker):
 
 
 @pytest.mark.asyncio
-async def test_picker_run(config, mocker):
+async def test_picker_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the Picker does the work the picker should do."""
     logger_mock = mocker.MagicMock()
     p = Picker(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     await p.run()
     p._do_work.assert_called()
 
 
 @pytest.mark.asyncio
-async def test_picker_run_exception(config, mocker):
+async def test_picker_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the Picker."""
     logger_mock = mocker.MagicMock()
     p = Picker(config, logger_mock)
-    p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
+    p.last_work_end_timestamp = ""
+    p._do_work = AsyncMock()  # type: ignore[assignment]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
@@ -210,7 +202,7 @@ async def test_picker_run_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_pop_exception(config, mocker):
+async def test_picker_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -222,7 +214,7 @@ async def test_picker_do_work_pop_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_no_results(config, mocker):
+async def test_picker_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.picker.Picker._do_work_claim", new_callable=AsyncMock)
@@ -233,7 +225,7 @@ async def test_picker_do_work_no_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_yes_results(config, mocker):
+async def test_picker_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.picker.Picker._do_work_claim", new_callable=AsyncMock)
@@ -244,7 +236,7 @@ async def test_picker_do_work_yes_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_claim_no_result(config, mocker):
+async def test_picker_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -259,7 +251,7 @@ async def test_picker_do_work_claim_no_result(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_claim_yes_result(config, mocker):
+async def test_picker_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the TransferRequest it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -276,7 +268,7 @@ async def test_picker_do_work_claim_yes_result(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_transfer_request_fc_exception(config, mocker):
+async def test_picker_do_work_transfer_request_fc_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_transfer_request raises an exception if the File Catalog has an error."""
     logger_mock = mocker.MagicMock()
     p = Picker(config, logger_mock)
@@ -297,7 +289,7 @@ async def test_picker_do_work_transfer_request_fc_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_transfer_request_fc_no_results(config, mocker):
+async def test_picker_do_work_transfer_request_fc_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_transfer_request raises an exception when the LTA DB refuses to create an empty list."""
     QUARANTINE = {'status': 'quarantined', 'reason': mocker.ANY, 'work_priority_timestamp': mocker.ANY}
     logger_mock = mocker.MagicMock()
@@ -324,7 +316,7 @@ async def test_picker_do_work_transfer_request_fc_no_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
+async def test_picker_do_work_transfer_request_fc_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_transfer_request processes each file it gets back from the File Catalog."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.MagicMock()
@@ -421,7 +413,7 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_transfer_request_fc_its_over_9000(config, mocker):
+async def test_picker_do_work_transfer_request_fc_its_over_9000(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_transfer_request can handle paginated File Catalog results."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock_request_side_effects = []
@@ -459,7 +451,7 @@ async def test_picker_do_work_transfer_request_fc_its_over_9000(config, mocker):
 
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     # these are the three paged queries to find files to bundle
-    side_effects = [
+    side_effects: List[Dict[str, Any]] = [
         {
             "_links": {
                 "parent": {
@@ -495,7 +487,7 @@ async def test_picker_do_work_transfer_request_fc_its_over_9000(config, mocker):
         },
     ]
     # then we add file record responses for each of the files we query
-    records = [gen_record(i) for i in range(FILE_CATALOG_LIMIT*2 + 1000)]
+    records = [gen_record(i) for i in range((FILE_CATALOG_LIMIT * 2) + 1000)]
     side_effects.extend(records)
     # finally we add LTA DB for responses to creating Metadata entries
     NUM_BUNDLES = 19

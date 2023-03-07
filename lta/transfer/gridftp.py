@@ -14,6 +14,7 @@ from typing import Any, List, Optional, Tuple, Union
 File = namedtuple('File', ['directory', 'perms', 'subfiles', 'owner', 'group', 'size', 'date', 'name'])
 logger = logging.getLogger('gridftp')
 
+
 def _cmd(cmd: List[str], timeout: int = 1200) -> None:
     completed_process = subprocess.run(cmd, timeout=timeout, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     # if our command failed
@@ -23,6 +24,7 @@ def _cmd(cmd: List[str], timeout: int = 1200) -> None:
         logger.info(f"stdout: {str(completed_process.stdout)}")
         logger.info(f"stderr: {str(completed_process.stderr)}")
 
+
 def _cmd_output(cmd: List[str], timeout: int = 1200) -> Tuple[int, str]:
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
@@ -31,6 +33,7 @@ def _cmd_output(cmd: List[str], timeout: int = 1200) -> Tuple[int, str]:
     except subprocess.TimeoutExpired:
         p.kill()
         raise Exception('Request timed out')
+
 
 def cksm(filename: str, type: str, buffersize: int = 16384, file: bool = True) -> Any:
     """Return checksum of file using algorithm specified."""
@@ -53,6 +56,7 @@ def cksm(filename: str, type: str, buffersize: int = 16384, file: bool = True) -
         # just checksum the contents of the first argument
         digest.update(filename)
     return digest.hexdigest()
+
 
 def listify(lines: str, details: bool = False, dotfiles: bool = False) -> List[Union[File, str]]:
     """Turn ls output into a list of NamedTuples."""
@@ -89,6 +93,7 @@ def listify(lines: str, details: bool = False, dotfiles: bool = False) -> List[U
                 out.append(f)
     return out
 
+
 class GridFTP(object):
     """
     GridFTP interface to command line client.
@@ -116,7 +121,7 @@ class GridFTP(object):
         pieces = address.split('://', 1)
         if '/' in pieces[1]:
             pieces2 = pieces[1].split('/', 1)
-            return (pieces[0]+'://'+pieces2[0], '/'+pieces2[1])
+            return (pieces[0] + '://' + pieces2[0], '/' + pieces2[1])
         else:
             return (address, '/')
 
@@ -144,9 +149,9 @@ class GridFTP(object):
         tmpdir = None
         if filename is None:
             tmpdir = tempfile.mkdtemp(dir=os.getcwd())
-            dest = 'file:'+os.path.join(tmpdir, 'get_tmp_file')
+            dest = 'file:' + os.path.join(tmpdir, 'get_tmp_file')
         else:
-            dest = 'file:'+filename
+            dest = 'file:' + filename
 
         cmd = ['globus-url-copy', address, dest]
 
@@ -187,11 +192,11 @@ class GridFTP(object):
         tmpdir = None
         if data is not None:
             tmpdir = tempfile.mkdtemp(dir=os.getcwd())
-            src = 'file:'+os.path.join(tmpdir, 'put_tmp_file')
+            src = 'file:' + os.path.join(tmpdir, 'put_tmp_file')
             with open(src[5:], 'w' if isinstance(data, str) else 'wb') as f:
                 f.write(data)
         elif filename is not None:
-            src = 'file:'+filename
+            src = 'file:' + filename
         else:
             raise Exception('Neither data or filename is defined')
 
@@ -475,7 +480,7 @@ class GridFTP(object):
             type = type[:-3]
 
         tmpdir = tempfile.mkdtemp(dir=os.getcwd())
-        dest = 'file:'+os.path.join(tmpdir, 'dest')
+        dest = 'file:' + os.path.join(tmpdir, 'dest')
 
         cmd = ['globus-url-copy', address, dest]
 

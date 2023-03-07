@@ -31,6 +31,7 @@ EXPECTED_CONFIG.update({
     "WORKBOX_PATH": None,
 })
 
+
 class DesyMoveVerifier(Component):
     """
     DesyMoveVerifier is a Long Term Archive component.
@@ -173,6 +174,7 @@ class DesyMoveVerifier(Component):
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
+
 
 def runner() -> None:
     """Configure a DesyMoveVerifier component from the environment and set it running."""

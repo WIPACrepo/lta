@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """snake is a build script with homage to cake, rake, and make."""
 
 import json

@@ -177,6 +177,7 @@ class NerscRetriever(Component):
         # otherwise, we succeeded
         return True
 
+
 def runner() -> None:
     """Configure a NerscRetriever component from the environment and set it running."""
     # obtain our configuration from the environment
@@ -196,10 +197,12 @@ def runner() -> None:
     loop = asyncio.get_event_loop()
     loop.create_task(work_loop(nersc_retriever))
 
+
 def main() -> None:
     """Configure a NerscRetriever component from the environment and set it running."""
     runner()
     asyncio.get_event_loop().run_forever()
+
 
 if __name__ == "__main__":
     main()

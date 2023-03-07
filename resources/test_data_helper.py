@@ -16,26 +16,25 @@ import asyncio
 import os
 from secrets import token_hex
 import sys
+from typing import Any, Dict
 from uuid import uuid4
 
-from rest_tools.client import RestClient  # type: ignore
+from rest_tools.client import RestClient
 from rest_tools.server import from_environment  # type: ignore
 
 from lta.crypto import sha512sum
 
 EXPECTED_CONFIG = {
     'FAKE_CHECKSUM': "False",
-    'FILE_CATALOG_REST_TOKEN': None,
     'FILE_CATALOG_REST_URL': None,
-    'LTA_REST_TOKEN': None,
     'LTA_REST_URL': None,
 }
 
 
-async def add_catalog(site, path):
+async def add_catalog(site: str, path: str) -> None:
     # configure a RestClient from the environment
     config = from_environment(EXPECTED_CONFIG)
-    rc = RestClient(config["FILE_CATALOG_REST_URL"], token=config["FILE_CATALOG_REST_TOKEN"])
+    rc = RestClient(config["FILE_CATALOG_REST_URL"])
     # for each (dirpath, dirnames, filenames) tuple in the walk
     for root, dirs, files in os.walk(path):
         # don't recurse into deeper subdirectories
@@ -46,7 +45,7 @@ async def add_catalog(site, path):
             # determine the logical name of the file
             logical_name = os.path.join(root, data_file)
             # create a catalog record for it
-            file_record = {
+            file_record: Dict[str, Any] = {
                 "uuid": str(uuid4()),
                 "logical_name": logical_name,
                 "checksum": {
@@ -66,16 +65,16 @@ async def add_catalog(site, path):
             # add the file to the File Catalog
             try:
                 print(f"POST /api/files - {logical_name}")
-                response = await rc.request("POST", "/api/files", file_record)
+                await rc.request("POST", "/api/files", file_record)
             except Exception as e:
                 # whoopsy daisy...
                 print(e)
 
 
-async def clear_catalog():
+async def clear_catalog() -> None:
     # configure a RestClient from the environment
     config = from_environment(EXPECTED_CONFIG)
-    rc = RestClient(config["FILE_CATALOG_REST_URL"], token=config["FILE_CATALOG_REST_TOKEN"])
+    rc = RestClient(config["FILE_CATALOG_REST_URL"])
     # while there are still files
     clearing = True
     while clearing:
@@ -89,7 +88,7 @@ async def clear_catalog():
                 uuid = x["uuid"]
                 logical_name = x["logical_name"]
                 print(f"DELETE /api/files/{uuid} - {logical_name}")
-                response2 = await rc.request("DELETE", f"/api/files/{uuid}")
+                await rc.request("DELETE", f"/api/files/{uuid}")
             # if we didn't get any files back, we're done
             if len(files) < 1:
                 clearing = False
@@ -99,10 +98,10 @@ async def clear_catalog():
             print(e)
 
 
-async def clear_lta_bundles():
+async def clear_lta_bundles() -> None:
     # configure a RestClient from the environment
     config = from_environment(EXPECTED_CONFIG)
-    rc = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
+    rc = RestClient(config["LTA_REST_URL"])
     # while there are still bundles
     clearing = True
     while clearing:
@@ -114,7 +113,7 @@ async def clear_lta_bundles():
             for uuid in results:
                 # remove it from the LTA DB
                 print(f"DELETE /Bundles/{uuid}")
-                response2 = await rc.request("DELETE", f"/Bundles/{uuid}")
+                await rc.request("DELETE", f"/Bundles/{uuid}")
             # if we didn't get any files back, we're done
             if len(results) < 1:
                 clearing = False
@@ -124,10 +123,10 @@ async def clear_lta_bundles():
             print(e)
 
 
-async def clear_lta_transfer_requests():
+async def clear_lta_transfer_requests() -> None:
     # configure a RestClient from the environment
     config = from_environment(EXPECTED_CONFIG)
-    rc = RestClient(config["LTA_REST_URL"], token=config["LTA_REST_TOKEN"])
+    rc = RestClient(config["LTA_REST_URL"])
     # while there are still transfer requests
     clearing = True
     while clearing:
@@ -141,7 +140,7 @@ async def clear_lta_transfer_requests():
                 # remove it from the file catalog
                 uuid = x["uuid"]
                 print(f"DELETE /TransferRequests/{uuid}")
-                response2 = await rc.request("DELETE", f"/TransferRequests/{uuid}")
+                await rc.request("DELETE", f"/TransferRequests/{uuid}")
             # if we didn't get any files back, we're done
             if len(results) < 1:
                 clearing = False
@@ -151,7 +150,7 @@ async def clear_lta_transfer_requests():
             print(e)
 
 
-async def main():
+async def main() -> None:
     # make sure we were given a subcommand
     if len(sys.argv) < 2:
         print("Usage: test_data_helper.py [add-catalog <site> <path> | clear-catalog | clear-lta-transfer-requests]")
@@ -180,6 +179,9 @@ async def main():
         return
 
 
+def main_sync() -> None:
+    asyncio.run(main())
+
+
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    main_sync()
