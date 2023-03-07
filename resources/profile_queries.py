@@ -1,44 +1,53 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 import os
-from urllib.parse import quote_plus
+from typing import Any, cast, Dict
 
-import pymongo  # type: ignore
+from pymongo import MongoClient  # type: ignore[import]
+from pymongo.database import Database  # type: ignore[import]
 
-MongoClient = pymongo.MongoClient
+# PyMongo profiling level constants from PyMongo 3 (removed in PyMongo 4)
+# See: https://api.mongodb.com/python/3.0.3/api/pymongo/database.html#pymongo.ALL
+# See: https://www.mongodb.com/docs/manual/reference/command/profile/#mongodb-dbcommand-dbcmd.profile
+OFF = 0
+SLOW_ONLY = 1
+ALL = 2
 
-CONFIG = {
-    'LTA_MONGODB_AUTH_USER': '',
-    'LTA_MONGODB_AUTH_PASS': '',
-    'LTA_MONGODB_DATABASE_NAME': 'lta',
+FCDoc = Dict[str, Any]
+
+env = {
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
 }
-for k in CONFIG:
+for k in env:
     if k in os.environ:
-        CONFIG[k] = os.environ[k]
+        env[k] = os.environ[k]
 
-mongo_user = quote_plus(CONFIG["LTA_MONGODB_AUTH_USER"])
-mongo_pass = quote_plus(CONFIG["LTA_MONGODB_AUTH_PASS"])
-mongo_host = CONFIG["LTA_MONGODB_HOST"]
-mongo_port = int(CONFIG["LTA_MONGODB_PORT"])
-lta_mongodb_url = f"mongodb://{mongo_host}"
-if mongo_user and mongo_pass:
-    lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
-client = MongoClient(lta_mongodb_url, port=mongo_port)
-db = client[CONFIG['LTA_MONGODB_DATABASE_NAME']]
+test_database_host = str(env['LTA_MONGODB_HOST'])
+test_database_port = int(str(env['LTA_MONGODB_PORT']))
+db: Database[FCDoc] = cast(Database[FCDoc], MongoClient(host=test_database_host, port=test_database_port).lta)
 
-ret = db.profiling_level()
-if ret != pymongo.ALL:
+# level = db.profiling_level()
+# See: https://pymongo.readthedocs.io/en/stable/migrate-to-pymongo4.html#database-profiling-level-is-removed
+profile: Dict[str, Any] = db.command('profile', -1)
+level = profile['was']
+if level != ALL:
     raise Exception('profiling disabled')
-db.set_profiling_level(pymongo.OFF)
+# db.set_profiling_level(pymongo.OFF)
+# See: https://pymongo.readthedocs.io/en/stable/migrate-to-pymongo4.html#database-set-profiling-level-is-removed
+db.command('profile', ALL, filter={'op': 'query'})
+
+unrealistic_queries = [
+    # the query to get the queries that we're profiling doesn't count!
+    {'op': {'$nin': ['command', 'insert']}},
+]
 
 bad_queries = []
 ret = db.system.profile.find({'op': {'$nin': ['command', 'insert']}})
 for query in ret:
     try:
-        if 'find' in query['command'] and query['command']['find'] == 'collections':
-            continue
-        if 'find' in query['command'] and query['command']['filter'] == {} and query['command']['projection'] in ({}, {'_id': False}):
+        # exclude unrealistic test queries
+        if 'filter' in query['command'] and query['command']['filter'] in unrealistic_queries:
             continue
         if 'planSummary' not in query:
             print(query)
