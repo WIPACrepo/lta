@@ -4,12 +4,12 @@ export BROWSER=${BROWSER:="firefox"}  # use 'firefox' if BROWSER isn't set
 
 export CI_TEST_ENV=${CI_TEST_ENV:="TRUE"}  # disable keycloak_role_auth in testing
 
-export TEST_DATABASE_HOST=${TEST_DATABASE_HOST:="localhost"}
-export TEST_DATABASE_NAME=${TEST_DATABASE_NAME:="lta"}
-export TEST_DATABASE_PORT=${TEST_DATABASE_PORT:="27017"}
+export LTA_MONGODB_DATABASE_NAME=${LTA_MONGODB_DATABASE_NAME:="lta"}
+export LTA_MONGODB_HOST=${LTA_MONGODB_HOST:="localhost"}
+export LTA_MONGODB_PORT=${LTA_MONGODB_PORT:="27017"}
 
 function check {
-    python -m resources.check_requirements
+    python3 -m resources.check_requirements
 }
 
 function clean {
@@ -18,19 +18,24 @@ function clean {
     rm -fr .pytest_cache
     rm -fr build
     rm -fr dist
+    rm -fr htmlcov
     find lta -name __pycache__ -exec rm -fr {} +
     find lta -name __init__.pyc -exec rm -fr {} +
-    rm -fr htmlcov
+    rm -fr lta.egg-info
     find resources -name __pycache__ -exec rm -fr {} +
     find resources -name __init__.pyc -exec rm -fr {} +
     find tests -name __pycache__ -exec rm -fr {} +
     find tests -name __init__.pyc -exec rm -fr {} +
-    rm -fr lta.egg-info
 }
 
 function coverage {
     pytest --cov=file_catalog --cov-report=html --no-cov-on-fail ${2:-'tests'}  # use 'tests' if a module wasn't provided
     ${BROWSER} --new-tab htmlcov/index.html
+}
+
+function dist {
+    rebuild
+    python3 setup.py sdist bdist_wheel
 }
 
 function lint {
@@ -74,12 +79,13 @@ case "$1" in
     check)    check         ;;
     clean)    clean         ;;
     coverage) coverage "$@" ;;  # pass all command line args to coverage function
+    dist)     dist          ;;
     lint)     lint          ;;
     mongo)    mongo         ;;
     rebuild)  rebuild       ;;
     test)     test "$@"     ;;  # pass all command line args to test function
     *)
-        echo "Usage: $0 {check|clean|coverage|lint|mongo|rebuild|test}"
+        echo "Usage: $0 {check|clean|coverage|dist|lint|mongo|rebuild|test}"
         exit 1
 esac
 
