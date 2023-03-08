@@ -146,7 +146,7 @@ async def test_desy_move_verifier_run(config: TestConfig, mocker: MockerFixture)
     """Test the DesyMoveVerifier does the work the desy_move_verifier should do."""
     logger_mock = mocker.MagicMock()
     p = DesyMoveVerifier(config, logger_mock)
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 
@@ -157,7 +157,7 @@ async def test_desy_move_verifier_run_exception(config: TestConfig, mocker: Mock
     logger_mock = mocker.MagicMock()
     p = DesyMoveVerifier(config, logger_mock)
     p.last_work_end_timestamp = ""
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()

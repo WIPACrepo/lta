@@ -172,7 +172,7 @@ async def test_nersc_mover_run(config: TestConfig, mocker: MockerFixture) -> Non
     """Test the NerscMover does the work the nersc_mover should do."""
     logger_mock = mocker.MagicMock()
     p = NerscMover(config, logger_mock)
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 
@@ -183,7 +183,7 @@ async def test_nersc_mover_run_exception(config: TestConfig, mocker: MockerFixtu
     logger_mock = mocker.MagicMock()
     p = NerscMover(config, logger_mock)
     p.last_work_end_timestamp = ""
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()

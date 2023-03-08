@@ -220,7 +220,7 @@ async def test_unpacker_run(config: TestConfig, mocker: MockerFixture, path_map_
     """Test the Unpacker does the work the unpacker should do."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 
@@ -231,7 +231,7 @@ async def test_unpacker_run_exception(config: TestConfig, mocker: MockerFixture,
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
     p.last_work_end_timestamp = ""
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()

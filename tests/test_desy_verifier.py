@@ -157,7 +157,7 @@ async def test_desy_verifier_run(config: TestConfig, mocker: MockerFixture) -> N
     """Test the DesyVerifier does the work the desy_verifier should do."""
     logger_mock = mocker.MagicMock()
     p = DesyVerifier(config, logger_mock)
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 
@@ -168,7 +168,7 @@ async def test_desy_verifier_run_exception(config: TestConfig, mocker: MockerFix
     logger_mock = mocker.MagicMock()
     p = DesyVerifier(config, logger_mock)
     p.last_work_end_timestamp = ""
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()

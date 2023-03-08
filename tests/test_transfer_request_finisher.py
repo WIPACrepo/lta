@@ -137,7 +137,7 @@ async def test_transfer_request_finisher_run(config: TestConfig, mocker: MockerF
     """Test the TransferRequestFinisher does the work the transfer_request_finisher should do."""
     logger_mock = mocker.MagicMock()
     p = TransferRequestFinisher(config, logger_mock)
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 
@@ -148,7 +148,7 @@ async def test_transfer_request_finisher_run_exception(config: TestConfig, mocke
     logger_mock = mocker.MagicMock()
     p = TransferRequestFinisher(config, logger_mock)
     p.last_work_end_timestamp = ""
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()

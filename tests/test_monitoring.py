@@ -55,7 +55,7 @@ async def test_base_init(monitor: AsyncMock) -> None:
 async def test_base_run(monitor: AsyncMock) -> None:
     """Check the run() method of the base class."""
     m = lta.monitoring.Monitor('foo', 'bar')
-    m.do = AsyncMock(side_effect=m.stop)  # type: ignore[assignment]
+    m.do = AsyncMock(side_effect=m.stop)  # type: ignore[method-assign]
 
     m.interval = 0.1
     await m.run()

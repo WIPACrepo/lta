@@ -139,7 +139,7 @@ async def test_deleter_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the Deleter does the work the deleter should do."""
     logger_mock = mocker.MagicMock()
     p = Deleter(config, logger_mock)
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 

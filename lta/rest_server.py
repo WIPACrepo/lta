@@ -14,15 +14,13 @@ from urllib.parse import quote_plus
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
-import pymongo  # type: ignore
+import pymongo
+from pymongo import MongoClient
 from rest_tools.utils.json_util import json_decode
 from rest_tools.server import RestHandler, RestHandlerSetup, RestServer
 from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
 from wipac_dev_tools import from_environment
-
-ASCENDING = pymongo.ASCENDING
-MongoClient = pymongo.MongoClient
 
 # maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
 DELETE_CHUNK_SIZE = 1000
@@ -44,7 +42,7 @@ EXPECTED_CONFIG = {
 # -----------------------------------------------------------------------------
 
 AFTER = pymongo.ReturnDocument.AFTER
-ALL_DOCUMENTS: Dict[str, str] = {}
+ALL_DOCUMENTS: Dict[str, Any] = {"uuid": {"$exists": True}}
 FIRST_IN_FIRST_OUT = [("work_priority_timestamp", pymongo.ASCENDING)]
 LOGGING_DENY_LIST = ["LTA_MONGODB_AUTH_PASS"]
 LTA_AUTH_PREFIX = "resource_access.long-term-archive.roles"
@@ -625,7 +623,7 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
 def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     """Ensure that necessary indexes exist in MongoDB."""
     logging.info(f"Configuring MongoDB client at: {mongo_url}")
-    client = MongoClient(mongo_url)
+    client: MongoClient[Dict[str, Any]] = MongoClient(mongo_url)
     db = client[mongo_db]
     logging.info(f"Creating indexes in MongoDB database: {mongo_db}")
     # Bundle.uuid
@@ -679,7 +677,7 @@ def start(debug: bool = False) -> RestServer:
         if name not in LOGGING_DENY_LIST:
             logging.info(f"{name} = {config[name]}")
         else:
-            logging.info(f"{name} = REDACTED")
+            logging.info(f"{name} = [秘密]")
     for name in ["OTEL_EXPORTER_OTLP_ENDPOINT", "WIPACTEL_EXPORT_STDOUT"]:
         if name in os.environ:
             logging.info(f"{name} = {os.environ[name]}")

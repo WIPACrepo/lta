@@ -8,8 +8,8 @@ import tracemalloc
 from typing import Any, AsyncGenerator, Callable, cast, Dict, List
 from urllib.parse import quote_plus
 
-from pymongo import MongoClient  # type: ignore
-from pymongo.database import Database  # type: ignore
+from pymongo import MongoClient
+from pymongo.database import Database
 import pytest
 from pytest import MonkeyPatch
 import pytest_asyncio
@@ -20,6 +20,7 @@ from requests.exceptions import HTTPError
 
 from lta.rest_server import boolify, main, start, unique_id
 
+LtaCollection = Database[Dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
 
 tracemalloc.start(1)
@@ -45,7 +46,7 @@ for k in CONFIG:
 
 
 @pytest.fixture
-def mongo(monkeypatch: MonkeyPatch) -> Database:
+def mongo(monkeypatch: MonkeyPatch) -> LtaCollection:
     """Get a reference to a test instance of a MongoDB Database."""
     mongo_user = quote_plus(CONFIG["LTA_MONGODB_AUTH_USER"])
     mongo_pass = quote_plus(CONFIG["LTA_MONGODB_AUTH_PASS"])
@@ -54,7 +55,7 @@ def mongo(monkeypatch: MonkeyPatch) -> Database:
     lta_mongodb_url = f"mongodb://{mongo_host}"
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
-    client = MongoClient(lta_mongodb_url, port=mongo_port)
+    client: MongoClient[Dict[str, Any]] = MongoClient(lta_mongodb_url, port=mongo_port)
     db = client[CONFIG['LTA_MONGODB_DATABASE_NAME']]
     for collection in db.list_collection_names():
         if 'system' not in collection:
@@ -199,7 +200,7 @@ async def test_transfer_request_fail(rest: RestClientFactory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_transfer_request_crud(mongo: Database, rest: RestClientFactory) -> None:
+async def test_transfer_request_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for transfer requests."""
     r = rest(role="system")  # type: ignore[call-arg]
     request = {'source': 'foo', 'dest': 'bar', 'path': 'snafu'}
@@ -287,7 +288,7 @@ async def test_script_main(mocker: MockerFixture) -> None:
 
 
 @pytest.mark.asyncio
-async def test_bundles_bulk_crud(mongo: Database, rest: RestClientFactory) -> None:
+async def test_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for bundles."""
     r = rest('system')  # type: ignore[call-arg]
 
@@ -409,7 +410,7 @@ async def test_bundles_actions_bulk_update_errors(rest: RestClientFactory) -> No
 
 
 @pytest.mark.asyncio
-async def test_get_bundles_filter(mongo: Database, rest: RestClientFactory) -> None:
+async def test_get_bundles_filter(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that GET /Bundles filters properly by query parameters.."""
     r = rest('system')  # type: ignore[call-arg]
 
@@ -530,7 +531,7 @@ async def test_get_bundles_filter(mongo: Database, rest: RestClientFactory) -> N
 
 
 @pytest.mark.asyncio
-async def test_get_bundles_request_filter(mongo: Database, rest: RestClientFactory) -> None:
+async def test_get_bundles_request_filter(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that GET /Bundles filters properly by query parameter request."""
     r = rest('system')  # type: ignore[call-arg]
 
@@ -602,7 +603,7 @@ async def test_get_bundles_uuid_error(rest: RestClientFactory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_bundles_uuid(mongo: Database, rest: RestClientFactory) -> None:
+async def test_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that DELETE /Bundles/UUID returns 204, exist or not exist."""
     r = rest('system')  # type: ignore[call-arg]
 
@@ -642,7 +643,7 @@ async def test_delete_bundles_uuid(mongo: Database, rest: RestClientFactory) -> 
 
 
 @pytest.mark.asyncio
-async def test_patch_bundles_uuid(mongo: Database, rest: RestClientFactory) -> None:
+async def test_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that PATCH /Bundles/UUID does the right thing, every time."""
     r = rest('system')  # type: ignore[call-arg]
 
@@ -684,7 +685,7 @@ async def test_patch_bundles_uuid(mongo: Database, rest: RestClientFactory) -> N
 
 
 @pytest.mark.asyncio
-async def test_bundles_actions_pop(mongo: Database, rest: RestClientFactory) -> None:
+async def test_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check pop action for bundles."""
     r = rest('system')  # type: ignore[call-arg]
 
@@ -784,7 +785,7 @@ async def test_bundles_actions_pop(mongo: Database, rest: RestClientFactory) -> 
 
 
 @pytest.mark.asyncio
-async def test_bundles_actions_pop_errors(mongo: Database, rest: RestClientFactory) -> None:
+async def test_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check error handlers for pop action for bundles."""
     r = rest('system')  # type: ignore[call-arg]
     request: Dict[str, Any] = {}
@@ -807,7 +808,7 @@ async def test_bundles_actions_pop_errors(mongo: Database, rest: RestClientFacto
 
 
 @pytest.mark.asyncio
-async def test_bundles_actions_pop_at_destination(mongo: Database, rest: RestClientFactory) -> None:
+async def test_bundles_actions_pop_at_destination(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check pop action for bundles at destination."""
     r = rest('system')  # type: ignore[call-arg]
 
@@ -841,7 +842,7 @@ async def test_bundles_actions_pop_at_destination(mongo: Database, rest: RestCli
 
 
 @pytest.mark.asyncio
-async def test_bundles_actions_bulk_create_huge(mongo: Database, rest: RestClientFactory) -> None:
+async def test_bundles_actions_bulk_create_huge(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check pop action for bundles at destination."""
     NUM_FILES_TO_MAKE_IT_HUGE = 16000  # 16000 file entries ~= 12 MB body data
 
@@ -898,7 +899,7 @@ async def test_bundles_actions_bulk_create_huge(mongo: Database, rest: RestClien
 
 
 @pytest.mark.asyncio
-async def test_metadata_delete_bundle_uuid(mongo: Database, rest: RestClientFactory) -> None:
+async def test_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for metadata."""
     r = rest('system')  # type: ignore[call-arg]
     bundle_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
@@ -950,7 +951,7 @@ async def test_metadata_delete_bundle_uuid(mongo: Database, rest: RestClientFact
 
 
 @pytest.mark.asyncio
-async def test_metadata_single_record(mongo: Database, rest: RestClientFactory) -> None:
+async def test_metadata_single_record(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for metadata."""
     r = rest('system')  # type: ignore[call-arg]
     bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
@@ -988,7 +989,7 @@ async def test_metadata_single_record(mongo: Database, rest: RestClientFactory) 
 
 
 @pytest.mark.asyncio
-async def test_metadata_bulk_crud(mongo: Database, rest: RestClientFactory) -> None:
+async def test_metadata_bulk_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for metadata."""
     r = rest('system')  # type: ignore[call-arg]
     bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"

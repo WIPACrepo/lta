@@ -3,8 +3,8 @@
 import os
 from typing import Any, cast, Dict
 
-from pymongo import MongoClient  # type: ignore[import]
-from pymongo.database import Database  # type: ignore[import]
+from pymongo import MongoClient
+from pymongo.database import Database
 
 # PyMongo profiling level constants from PyMongo 3 (removed in PyMongo 4)
 # See: https://api.mongodb.com/python/3.0.3/api/pymongo/database.html#pymongo.ALL

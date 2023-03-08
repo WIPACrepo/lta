@@ -198,7 +198,7 @@ async def test_bundler_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the Bundler does the work the bundler should do."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 
@@ -209,7 +209,7 @@ async def test_bundler_run_exception(config: TestConfig, mocker: MockerFixture) 
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
     p.last_work_end_timestamp = ""
-    p._do_work = AsyncMock()  # type: ignore[assignment]
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
