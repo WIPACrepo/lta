@@ -106,7 +106,6 @@ prometheus-client==0.16.0
 protobuf==3.20.3
     # via
     #   googleapis-common-protos
-    #   lta (setup.py)
     #   opentelemetry-proto
     #   wipac-telemetry
 pycodestyle==2.10.0
