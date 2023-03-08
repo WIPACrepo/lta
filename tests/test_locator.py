@@ -3,26 +3,31 @@
 
 from math import floor
 from secrets import token_hex
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 from unittest.mock import AsyncMock, call, MagicMock
 from uuid import uuid1
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.locator import as_lta_record, main, Locator
 
+TestConfig = Dict[str, str]
+
 
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock Locator component configuration."""
     return {
         "CLIENT_ID": "long-term-archive",
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-locator",
         "DEST_SITE": "WIPAC",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_PAGE_SIZE": "1000",
-        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "localhost:12346",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
@@ -41,22 +46,7 @@ def config():
     }
 
 
-def test_constructor_missing_config():
-    """Fail with a TypeError if a configuration object isn't provided."""
-    with pytest.raises(TypeError):
-        Locator()
-
-
-def test_constructor_missing_logging():
-    """Fail with a TypeError if a logging object isn't provided."""
-    with pytest.raises(TypeError):
-        config = {
-            "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
-        }
-        Locator(config)
-
-
-def test_constructor_config_missing_values(mocker):
+def test_constructor_config_missing_values(mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     config = {
         "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
@@ -66,16 +56,16 @@ def test_constructor_config_missing_values(mocker):
         Locator(config, logger_mock)
 
 
-def test_constructor_config_poison_values(config, mocker):
+def test_constructor_config_poison_values(config: TestConfig, mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     locator_config = config.copy()
-    locator_config["LTA_REST_URL"] = None
+    del locator_config["LTA_REST_URL"]
     logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
         Locator(locator_config, logger_mock)
 
 
-def test_constructor_config(config, mocker):
+def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a Locator can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
@@ -87,7 +77,7 @@ def test_constructor_config(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_constructor_config_sleep_type_int(config, mocker):
+def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFixture) -> None:
     """Ensure that sleep seconds can also be provided as an integer."""
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
@@ -99,14 +89,14 @@ def test_constructor_config_sleep_type_int(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_constructor_state(config, mocker):
+def test_constructor_state(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the Locator has a reasonable state when it is first constructed."""
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
     assert p.last_work_begin_timestamp is p.last_work_end_timestamp
 
 
-def test_do_status(config, mocker):
+def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the Locator has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
@@ -114,7 +104,7 @@ def test_do_status(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch):
+async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify Locator component behavior when run as a script.
 
@@ -131,7 +121,7 @@ async def test_script_main(config, mocker, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_locator_logs_configuration(mocker):
+async def test_locator_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the Locator logs its configuration."""
     logger_mock = mocker.MagicMock()
     locator_config = {
@@ -139,8 +129,9 @@ async def test_locator_logs_configuration(mocker):
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-locator",
         "DEST_SITE": "WIPAC",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_PAGE_SIZE": "1000",
-        "FILE_CATALOG_REST_TOKEN": "logme-fake-file-catalog-rest-token",
         "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
@@ -161,11 +152,12 @@ async def test_locator_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("locator 'logme-testing-locator' is configured:"),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-locator'),
         call('DEST_SITE = WIPAC'),
+        call('FILE_CATALOG_CLIENT_ID = file-catalog-client-id'),
+        call('FILE_CATALOG_CLIENT_SECRET = [秘密]'),
         call('FILE_CATALOG_PAGE_SIZE = 1000'),
-        call('FILE_CATALOG_REST_TOKEN = logme-fake-file-catalog-rest-token'),
         call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
@@ -186,22 +178,22 @@ async def test_locator_logs_configuration(mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_run(config, mocker):
+async def test_locator_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the Locator does the work the locator should do."""
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 
 
 @pytest.mark.asyncio
-async def test_locator_run_exception(config, mocker):
+async def test_locator_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the Locator."""
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
-    p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
+    p.last_work_end_timestamp = ""
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
@@ -209,7 +201,7 @@ async def test_locator_run_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_do_work_pop_exception(config, mocker):
+async def test_locator_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -221,7 +213,7 @@ async def test_locator_do_work_pop_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_do_work_no_results(config, mocker):
+async def test_locator_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.locator.Locator._do_work_claim", new_callable=AsyncMock)
@@ -232,7 +224,7 @@ async def test_locator_do_work_no_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_do_work_yes_results(config, mocker):
+async def test_locator_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.locator.Locator._do_work_claim", new_callable=AsyncMock)
@@ -243,7 +235,7 @@ async def test_locator_do_work_yes_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_do_work_claim_no_result(config, mocker):
+async def test_locator_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -258,7 +250,7 @@ async def test_locator_do_work_claim_no_result(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_do_work_claim_yes_result(config, mocker):
+async def test_locator_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the TransferRequest it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -275,7 +267,7 @@ async def test_locator_do_work_claim_yes_result(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_do_work_claim_exception_when_processing(config, mocker):
+async def test_locator_do_work_claim_exception_when_processing(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the TransferRequest it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -296,7 +288,7 @@ async def test_locator_do_work_claim_exception_when_processing(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_do_work_transfer_request_fc_exception(config, mocker):
+async def test_locator_do_work_transfer_request_fc_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_transfer_request raises an exception if the File Catalog has an error."""
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
@@ -317,7 +309,7 @@ async def test_locator_do_work_transfer_request_fc_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_do_work_transfer_request_fc_no_results(config, mocker):
+async def test_locator_do_work_transfer_request_fc_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_transfer_request raises an exception when the LTA DB refuses to create an empty list."""
     QUARANTINE = {'status': 'quarantined', 'reason': mocker.ANY, 'work_priority_timestamp': mocker.ANY}
     logger_mock = mocker.MagicMock()
@@ -344,7 +336,7 @@ async def test_locator_do_work_transfer_request_fc_no_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
+async def test_locator_do_work_transfer_request_fc_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_transfer_request processes each file it gets back from the File Catalog."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.MagicMock()
@@ -494,7 +486,7 @@ async def test_locator_do_work_transfer_request_fc_yes_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker):
+async def test_locator_do_work_transfer_request_fc_its_over_9000(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_transfer_request processes each file it gets back from the File Catalog."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.MagicMock()
@@ -533,9 +525,9 @@ async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker)
             "meta_modify_date": "2019-07-26 01:53:20.857303"
         }
 
-    FILE_CATALOG_LIMIT_10TH = floor(FILE_CATALOG_LIMIT/10)
+    FILE_CATALOG_LIMIT_10TH = floor(FILE_CATALOG_LIMIT / 10)
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    side_effects = []
+    side_effects: List[Dict[str, Any]] = []
     side_effects.append({
         "_links": {
             "parent": {
@@ -642,7 +634,7 @@ async def test_locator_do_work_transfer_request_fc_its_over_9000(config, mocker)
 
 
 @pytest.mark.asyncio
-async def test_locator_create_bundle(config, mocker):
+async def test_locator_create_bundle(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _create_bundle does what it says on the tin."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.MagicMock()
@@ -675,7 +667,7 @@ async def test_locator_create_bundle(config, mocker):
     })
 
 
-def test_as_lta_record(config, mocker):
+def test_as_lta_record(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that bundle_record cherry picks the right keys."""
     catalog_record = {
         "_links": {

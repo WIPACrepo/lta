@@ -1,30 +1,33 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 import os
-from urllib.parse import quote_plus
+from typing import Any, cast, Dict
 
-import pymongo  # type: ignore
+from pymongo import MongoClient
+from pymongo.database import Database
 
-MongoClient = pymongo.MongoClient
+# PyMongo profiling level constants from PyMongo 3 (removed in PyMongo 4)
+# See: https://api.mongodb.com/python/3.0.3/api/pymongo/database.html#pymongo.ALL
+# See: https://www.mongodb.com/docs/manual/reference/command/profile/#mongodb-dbcommand-dbcmd.profile
+OFF = 0
+SLOW_ONLY = 1
+ALL = 2
 
-CONFIG = {
-    'LTA_MONGODB_AUTH_USER': '',
-    'LTA_MONGODB_AUTH_PASS': '',
-    'LTA_MONGODB_DATABASE_NAME': 'lta',
+FCDoc = Dict[str, Any]
+
+env = {
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
 }
-for k in CONFIG:
+for k in env:
     if k in os.environ:
-        CONFIG[k] = os.environ[k]
+        env[k] = os.environ[k]
 
-mongo_user = quote_plus(CONFIG["LTA_MONGODB_AUTH_USER"])
-mongo_pass = quote_plus(CONFIG["LTA_MONGODB_AUTH_PASS"])
-mongo_host = CONFIG["LTA_MONGODB_HOST"]
-mongo_port = int(CONFIG["LTA_MONGODB_PORT"])
-lta_mongodb_url = f"mongodb://{mongo_host}"
-if mongo_user and mongo_pass:
-    lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
-client = MongoClient(lta_mongodb_url, port=mongo_port)
-db = client[CONFIG['LTA_MONGODB_DATABASE_NAME']]
-db.set_profiling_level(pymongo.ALL)
+test_database_host = str(env['LTA_MONGODB_HOST'])
+test_database_port = int(str(env['LTA_MONGODB_PORT']))
+db: Database[FCDoc] = cast(Database[FCDoc], MongoClient(host=test_database_host, port=test_database_port).lta)
+
+# db.set_profiling_level(pymongo.OFF)
+# See: https://pymongo.readthedocs.io/en/stable/migrate-to-pymongo4.html#database-set-profiling-level-is-removed
+db.command('profile', ALL, filter={'op': 'query'})
 print('MongoDB profiling enabled')

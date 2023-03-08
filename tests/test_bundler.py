@@ -2,17 +2,22 @@
 """Unit tests for lta/bundler.py."""
 
 import os
+from typing import Dict
 from unittest.mock import AsyncMock, call, mock_open, patch
 from uuid import uuid1
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.bundler import Bundler, main
 
+TestConfig = Dict[str, str]
+
 
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock Bundler component configuration."""
     return {
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
@@ -21,7 +26,8 @@ def config():
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-bundler",
         "DEST_SITE": "NERSC",
-        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_REST_URL": "localhost:12346",
         "HEARTBEAT_PATCH_RETRIES": "3",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
@@ -44,22 +50,7 @@ def config():
     }
 
 
-def test_constructor_missing_config():
-    """Fail with a TypeError if a configuration object isn't provided."""
-    with pytest.raises(TypeError):
-        Bundler()
-
-
-def test_constructor_missing_logging():
-    """Fail with a TypeError if a logging object isn't provided."""
-    with pytest.raises(TypeError):
-        config = {
-            "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
-        }
-        Bundler(config)
-
-
-def test_constructor_config_missing_values(mocker):
+def test_constructor_config_missing_values(mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     config = {
         "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
@@ -69,16 +60,16 @@ def test_constructor_config_missing_values(mocker):
         Bundler(config, logger_mock)
 
 
-def test_constructor_config_poison_values(config, mocker):
+def test_constructor_config_poison_values(config: TestConfig, mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     bundler_config = config.copy()
-    bundler_config["LTA_REST_URL"] = None
+    del bundler_config["LTA_REST_URL"]
     logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
         Bundler(bundler_config, logger_mock)
 
 
-def test_constructor_config(config, mocker):
+def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a Bundler can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
@@ -90,7 +81,7 @@ def test_constructor_config(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_constructor_config_sleep_type_int(config, mocker):
+def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFixture) -> None:
     """Ensure that sleep seconds can also be provided as an integer."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
@@ -102,14 +93,14 @@ def test_constructor_config_sleep_type_int(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_constructor_state(config, mocker):
+def test_constructor_state(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the Bundler has a reasonable state when it is first constructed."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
     assert p.last_work_begin_timestamp is p.last_work_end_timestamp
 
 
-def test_do_status(config, mocker):
+def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the Bundler has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
@@ -117,7 +108,9 @@ def test_do_status(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch):
+async def test_script_main(config: TestConfig,
+                           mocker: MockerFixture,
+                           monkeypatch: MonkeyPatch) -> None:
     """
     Verify Bundler component behavior when run as a script.
 
@@ -134,7 +127,7 @@ async def test_script_main(config, mocker, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_bundler_logs_configuration(mocker):
+async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the Bundler logs its configuration."""
     logger_mock = mocker.MagicMock()
     bundler_config = {
@@ -144,7 +137,8 @@ async def test_bundler_logs_configuration(mocker):
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-bundler",
         "DEST_SITE": "NERSC",
-        "FILE_CATALOG_REST_TOKEN": "fake-file-catalog-rest-token",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
         "HEARTBEAT_PATCH_RETRIES": "1",
         "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
@@ -171,10 +165,11 @@ async def test_bundler_logs_configuration(mocker):
         call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-bundler'),
         call('DEST_SITE = NERSC'),
-        call('FILE_CATALOG_REST_TOKEN = fake-file-catalog-rest-token'),
+        call('FILE_CATALOG_CLIENT_ID = file-catalog-client-id'),
+        call('FILE_CATALOG_CLIENT_SECRET = [秘密]'),
         call('FILE_CATALOG_REST_URL = http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
         call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
@@ -199,22 +194,22 @@ async def test_bundler_logs_configuration(mocker):
 
 
 @pytest.mark.asyncio
-async def test_bundler_run(config, mocker):
+async def test_bundler_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the Bundler does the work the bundler should do."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 
 
 @pytest.mark.asyncio
-async def test_bundler_run_exception(config, mocker):
+async def test_bundler_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the Bundler."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
-    p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
+    p.last_work_end_timestamp = ""
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
@@ -222,7 +217,7 @@ async def test_bundler_run_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_bundler_do_work_pop_exception(config, mocker):
+async def test_bundler_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -234,7 +229,7 @@ async def test_bundler_do_work_pop_exception(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_bundler_do_work_no_results(config, mocker):
+async def test_bundler_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
@@ -244,7 +239,7 @@ async def test_bundler_do_work_no_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_bundler_do_work_claim_no_results(config, mocker):
+async def test_bundler_do_work_claim_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim returns False when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -257,7 +252,7 @@ async def test_bundler_do_work_claim_no_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_bundler_do_work_yes_results(config, mocker):
+async def test_bundler_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes each Bundle that it gets from the LTA DB."""
     BUNDLE_OBJ = {
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
@@ -275,7 +270,7 @@ async def test_bundler_do_work_yes_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_bundler_do_work_dest_results(config, mocker):
+async def test_bundler_do_work_dest_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_bundle does the work of preparing an archive."""
     BUNDLE_UUID = "f74db80e-9661-40cc-9f01-8d087af23f56"
     FILE_CATALOG_UUID = "a8777703-6e9e-41a2-8776-c924a86d5f0f"
@@ -362,7 +357,7 @@ async def test_bundler_do_work_dest_results(config, mocker):
 
 
 @pytest.mark.asyncio
-async def test_bundler_do_work_bundle_once_and_die(config, mocker):
+async def test_bundler_do_work_bundle_once_and_die(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     once = config.copy()
     once["RUN_ONCE_AND_DIE"] = "True"
@@ -371,11 +366,11 @@ async def test_bundler_do_work_bundle_once_and_die(config, mocker):
     claim_mock.return_value = False
     sys_exit_mock = mocker.patch("sys.exit")
     p = Bundler(once, logger_mock)
-    assert not await p._do_work()
+    await p._do_work()
     sys_exit_mock.assert_not_called()
 
 
-def test_relpath():
+def test_relpath() -> None:
     """Ensure os.path.relpath gives us the answers we expect."""
     assert os.path.relpath('/data/exp/IceCube/2020/filtered/PFFilt/1028/PFFilt_PhysicsFiltering_Run00134642_Subrun00000000_00000000.tar.bz2', '/data/exp/IceCube/2020/filtered/PFFilt/1028') == "PFFilt_PhysicsFiltering_Run00134642_Subrun00000000_00000000.tar.bz2"
     assert os.path.relpath('/data/exp/IceCube/2013/internal-system/hit-spooling/0403/HS_SNALERT_20130403_061113_ichub01.tar.gz', '/data/exp/IceCube/2013/internal-system/hit-spooling') == "0403/HS_SNALERT_20130403_061113_ichub01.tar.gz"

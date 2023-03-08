@@ -29,11 +29,13 @@ EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "BUNDLER_OUTBOX_PATH": None,
     "BUNDLER_WORKBOX_PATH": None,
-    "FILE_CATALOG_REST_TOKEN": None,
+    "FILE_CATALOG_CLIENT_ID": None,
+    "FILE_CATALOG_CLIENT_SECRET": None,
     "FILE_CATALOG_REST_URL": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
 
 class Bundler(Component):
     """
@@ -54,7 +56,8 @@ class Bundler(Component):
         logger - The object the bundler should use for logging.
         """
         super(Bundler, self).__init__("bundler", config, logger)
-        self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
+        self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
+        self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.outbox_path = config["BUNDLER_OUTBOX_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
@@ -84,10 +87,10 @@ class Bundler(Component):
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be built
         # configure a RestClient to talk to the File Catalog
-        fc_rc = RestClient(self.file_catalog_rest_url,
-                           token=self.file_catalog_rest_token,
-                           timeout=self.work_timeout_seconds,
-                           retries=self.work_retries)
+        fc_rc = ClientCredentialsAuth(address=self.file_catalog_rest_url,
+                                      token_url=self.lta_auth_openid_url,
+                                      client_id=self.file_catalog_client_id,
+                                      client_secret=self.file_catalog_client_secret)
         # configure a RestClient to talk to the LTA DB
         lta_rc = ClientCredentialsAuth(address=self.lta_rest_url,
                                        token_url=self.lta_auth_openid_url,
@@ -282,6 +285,7 @@ class Bundler(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
         except Exception as e:
             self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
+
 
 def runner() -> None:
     """Configure a Bundler component from the environment and set it running."""

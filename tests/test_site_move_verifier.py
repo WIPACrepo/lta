@@ -1,18 +1,23 @@
 # test_site_move_verifier.py
 """Unit tests for lta/site_move_verifier.py."""
 
+from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.site_move_verifier import as_nonempty_columns, discard_empty, MYQUOTA_ARGS, parse_myquota
 from lta.site_move_verifier import main, SiteMoveVerifier
 from .test_util import ObjectLiteral
 
+TestConfig = Dict[str, str]
+
 
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock SiteMoveVerifier component configuration."""
     return {
         "CLIENT_ID": "long-term-archive",
@@ -36,18 +41,20 @@ def config():
         "WORK_TIMEOUT_SECONDS": "30",
     }
 
-def test_as_nonempty_columns():
+
+def test_as_nonempty_columns() -> None:
     """Test that test_as_nonempty_columns does what it says on the tin."""
     assert as_nonempty_columns("FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT") == ["FILESYSTEM", "SPACE_USED", "SPACE_QUOTA", "SPACE_PCT", "INODE_USED", "INODE_QUOTA", "INODE_PCT"]
     assert as_nonempty_columns("cscratch1    7638.60GiB   51200.00GiB   14.9%       0.00G        0.01G         0.1%") == ["cscratch1", "7638.60GiB", "51200.00GiB", "14.9%", "0.00G", "0.01G", "0.1%"]
 
-def test_discard_empty():
+
+def test_discard_empty() -> None:
     """Test that discard_empty does what it says on the tin."""
-    assert not discard_empty(None)
     assert not discard_empty("")
     assert discard_empty("alice")
 
-def test_parse_myquota():
+
+def test_parse_myquota() -> None:
     """Test that parse_myquota provides expected output."""
     stdout = """FILESYSTEM   SPACE_USED   SPACE_QUOTA   SPACE_PCT   INODE_USED   INODE_QUOTA   INODE_PCT
 home         1.90GiB      40.00GiB      4.7%        44.00        1.00M         0.0%
@@ -74,7 +81,8 @@ cscratch1    12.00KiB     20.00TiB      0.0%        3.00         10.00M        0
         },
     ]
 
-def test_constructor_config(config, mocker):
+
+def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a SiteMoveVerifier can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = SiteMoveVerifier(config, logger_mock)
@@ -93,7 +101,8 @@ def test_constructor_config(config, mocker):
     assert p.work_timeout_seconds == 30
     assert p.logger == logger_mock
 
-def test_do_status(config, mocker):
+
+def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the SiteMoveVerifier has additional state to offer."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.site_move_verifier.run", new_callable=MagicMock)
@@ -127,7 +136,8 @@ def test_do_status(config, mocker):
         ]
     }
 
-def test_do_status_myquota_fails(config, mocker):
+
+def test_do_status_myquota_fails(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the SiteMoveVerifier has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.site_move_verifier.run", new_callable=MagicMock)
@@ -140,8 +150,9 @@ def test_do_status_myquota_fails(config, mocker):
     p = SiteMoveVerifier(config, logger_mock)
     assert p._do_status() == {"quota": []}
 
+
 @pytest.mark.asyncio
-async def test_site_move_verifier_logs_configuration(mocker):
+async def test_site_move_verifier_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the SiteMoveVerifier logs its configuration."""
     logger_mock = mocker.MagicMock()
     site_move_verifier_config = {
@@ -169,7 +180,7 @@ async def test_site_move_verifier_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("site_move_verifier 'logme-testing-site_move_verifier' is configured:"),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-site_move_verifier'),
         call('DEST_ROOT_PATH = /path/to/some/archive/destination'),
         call('DEST_SITE = NERSC'),
@@ -190,8 +201,9 @@ async def test_site_move_verifier_logs_configuration(mocker):
     ]
     logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
 
+
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch):
+async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify SiteMoveVerifier component behavior when run as a script.
 
@@ -206,29 +218,32 @@ async def test_script_main(config, mocker, monkeypatch):
     mock_event_loop.assert_called()
     mock_work_loop.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_site_move_verifier_run(config, mocker):
+async def test_site_move_verifier_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the SiteMoveVerifier does the work the site_move_verifier should do."""
     logger_mock = mocker.MagicMock()
     p = SiteMoveVerifier(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_site_move_verifier_run_exception(config, mocker):
+async def test_site_move_verifier_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the SiteMoveVerifier."""
     logger_mock = mocker.MagicMock()
     p = SiteMoveVerifier(config, logger_mock)
-    p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
+    p.last_work_end_timestamp = ""
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
     assert p.last_work_end_timestamp
 
+
 @pytest.mark.asyncio
-async def test_site_move_verifier_do_work_pop_exception(config, mocker):
+async def test_site_move_verifier_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -238,8 +253,9 @@ async def test_site_move_verifier_do_work_pop_exception(config, mocker):
         await p._do_work()
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
+
 @pytest.mark.asyncio
-async def test_site_move_verifier_do_work_no_results(config, mocker):
+async def test_site_move_verifier_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._do_work_claim", new_callable=AsyncMock)
@@ -248,8 +264,9 @@ async def test_site_move_verifier_do_work_no_results(config, mocker):
     await p._do_work()
     dwc_mock.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_site_move_verifier_do_work_yes_results(config, mocker):
+async def test_site_move_verifier_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._do_work_claim", new_callable=AsyncMock)
@@ -258,8 +275,9 @@ async def test_site_move_verifier_do_work_yes_results(config, mocker):
     await p._do_work()
     dwc_mock.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_site_move_verifier_do_work_claim_no_result(config, mocker):
+async def test_site_move_verifier_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -272,8 +290,9 @@ async def test_site_move_verifier_do_work_claim_no_result(config, mocker):
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_not_called()
 
+
 @pytest.mark.asyncio
-async def test_site_move_verifier_do_work_claim_yes_result(config, mocker):
+async def test_site_move_verifier_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -288,8 +307,9 @@ async def test_site_move_verifier_do_work_claim_yes_result(config, mocker):
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_called_with(mocker.ANY, {"one": 1})
 
+
 @pytest.mark.asyncio
-async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
+async def test_site_move_verifier_verify_bundle_bad_checksum(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _delete_bundle deletes a completed bundle transfer."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
@@ -320,8 +340,9 @@ async def test_site_move_verifier_verify_bundle_bad_checksum(config, mocker):
         "work_priority_timestamp": mocker.ANY,
     })
 
+
 @pytest.mark.asyncio
-async def test_site_move_verifier_verify_bundle_good_checksum(config, mocker):
+async def test_site_move_verifier_verify_bundle_good_checksum(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _delete_bundle deletes a completed bundle transfer."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)

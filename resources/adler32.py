@@ -2,7 +2,7 @@
 import sys
 from zlib import adler32
 
-BLOCKSIZE = 256*1024*1024
+BLOCKSIZE = 256 * 1024 * 1024
 
 # adapted from: https://gist.github.com/kofemann/2303046
 for fname in sys.argv[1:]:

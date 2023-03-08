@@ -1,6 +1,9 @@
 # test_util.py
 """Module to provide testing utility functions, objects, etc."""
 
+from typing import Any
+
+
 class ObjectLiteral:
     """
     ObjectLiteral transforms named arguments into object attributes.
@@ -11,6 +14,6 @@ class ObjectLiteral:
     Source: https://stackoverflow.com/a/3335732
     """
 
-    def __init__(self, **kwds):
+    def __init__(self, **kwds: Any) -> None:
         """Add attributes to ourself with the provided named arguments."""
         self.__dict__.update(kwds)

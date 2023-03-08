@@ -46,7 +46,8 @@ COMPONENT_NAMES = [
 EXPECTED_CONFIG = {
     "CLIENT_ID": None,
     "CLIENT_SECRET": None,
-    "FILE_CATALOG_REST_TOKEN": None,
+    "FILE_CATALOG_CLIENT_ID": None,
+    "FILE_CATALOG_CLIENT_SECRET": None,
     "FILE_CATALOG_REST_URL": None,
     "LTA_AUTH_OPENID_URL": None,
     "LTA_REST_URL": None,
@@ -66,6 +67,7 @@ PATH_PREFIX_ALLOW_LIST = [
 
 # -----------------------------------------------------------------------------
 
+
 def as_datetime(s: str) -> datetime:
     """Convert a timestamp string into a datetime object."""
     # if Python 3.7+
@@ -75,11 +77,13 @@ def as_datetime(s: str) -> datetime:
     st = strptime(s, "%Y-%m-%dT%H:%M:%S")
     return datetime.fromtimestamp(mktime(st))
 
+
 def display_time(s: Optional[str]) -> str:
     """Make a timestamp string look nice."""
     if s:
         return s.replace("T", " ")
     return "Unknown"
+
 
 def normalize_path(path: str) -> str:
     """Validate and normalize the provided request path."""
@@ -88,6 +92,7 @@ def normalize_path(path: str) -> str:
         if path.startswith(prefix):
             return path
     raise ValueError(f"{path} does not begin with a prefix on the allow-list prefix")
+
 
 def print_catalog_record_as_line(d: Dict[str, Any]) -> None:
     """Print the provided File Catalog record as a stat line."""
@@ -99,11 +104,13 @@ def print_catalog_record_as_line(d: Dict[str, Any]) -> None:
     logical_name = d["logical_name"]
     print(f"{date} | {size} | {uuid} | {logical_name}")
 
+
 def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
     """Print the provided Dict as pretty-print JSON."""
     print(json.dumps(d, indent=4, sort_keys=True))
 
 # -----------------------------------------------------------------------------
+
 
 async def _catalog_get(rc: RestClient, path: str) -> Optional[Any]:
     """Get the File Catalog record (if any) of the provided path."""
@@ -127,6 +134,7 @@ async def _catalog_get(rc: RestClient, path: str) -> Optional[Any]:
     catalog_file = fc_response["files"][0]
     return await rc.request('GET', f'/api/files/{catalog_file["uuid"]}')
 
+
 def _enumerate_path(path: str) -> List[str]:
     """Recursively walk the file system to enumerate files at provided path."""
     # enumerate all of the files on disk to be checked
@@ -134,6 +142,7 @@ def _enumerate_path(path: str) -> List[str]:
     for root, dirs, files in os.walk(path):
         disk_files.extend([os.path.join(root, file) for file in files])
     return disk_files
+
 
 async def _get_bundles_status(rc: RestClient, bundle_uuids: List[str]) -> List[Dict[str, Any]]:
     bundles = []
@@ -147,6 +156,7 @@ async def _get_bundles_status(rc: RestClient, bundle_uuids: List[str]) -> List[D
         bundles.append(bundle)
     return bundles
 
+
 def _get_files_and_size(path: str) -> Tuple[List[str], int]:
     """Recursively walk and add the files of files in the file system."""
     # enumerate all of the files on disk to be checked
@@ -157,6 +167,7 @@ def _get_files_and_size(path: str) -> Tuple[List[str], int]:
         # determine the size of the file
         size += os.path.getsize(disk_file)
     return (disk_files, size)
+
 
 def _get_status_bar(status_list: List[str],
                     status: str,
@@ -195,7 +206,7 @@ def _get_status_bar(status_list: List[str],
         for i in range(0, list_len):
             sb += "?"
     # or if we've reached the final status
-    elif (list_len-status_index) == 1:
+    elif (list_len - status_index) == 1:
         sb += Fore.GREEN
         for i in range(0, list_len):
             sb += "#"
@@ -211,7 +222,7 @@ def _get_status_bar(status_list: List[str],
             sb += Fore.YELLOW
             sb += ">"
         sb += Fore.BLUE
-        for i in range(1, list_len-status_index):
+        for i in range(1, list_len - status_index):
             sb += "_"
     # finish building the status bar
     sb += Style.NORMAL
@@ -260,6 +271,7 @@ def _is_nersc_bundle_record(d: Dict[str, Any]) -> bool:
     return all_good
 
 # -----------------------------------------------------------------------------
+
 
 async def bundle_ls(args: Namespace) -> ExitCode:
     """List all of the Bundle objects in the LTA DB."""
@@ -855,6 +867,7 @@ async def request_update_status(args: Namespace) -> ExitCode:
 
 # -----------------------------------------------------------------------------
 
+
 async def main() -> None:
     """Process a request from the Command Line."""
     # create a dictionary that we can inject dependencies into later if necessary
@@ -1124,7 +1137,10 @@ async def main() -> None:
             # load and inject the dependencies needed by the command
             config = from_environment(EXPECTED_CONFIG)
             di["config"] = config
-            di["fc_rc"] = RestClient(cast(str, config["FILE_CATALOG_REST_URL"]), token=cast(str, config["FILE_CATALOG_REST_TOKEN"]))
+            di["fc_rc"] = ClientCredentialsAuth(address=cast(str, config["FILE_CATALOG_REST_URL"]),
+                                                token_url=cast(str, config["LTA_AUTH_OPENID_URL"]),
+                                                client_id=cast(str, config["FILE_CATALOG_CLIENT_ID"]),
+                                                client_secret=cast(str, config["FILE_CATALOG_CLIENT_SECRET"]))
             di["lta_rc"] = ClientCredentialsAuth(address=cast(str, config["LTA_REST_URL"]),
                                                  token_url=cast(str, config["LTA_AUTH_OPENID_URL"]),
                                                  client_id=cast(str, config["CLIENT_ID"]),

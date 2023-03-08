@@ -5,18 +5,23 @@ import asyncio
 import os
 import socket
 import tracemalloc
-from typing import Dict
+from typing import Any, AsyncGenerator, Callable, cast, Dict, List
 from urllib.parse import quote_plus
 
-from pymongo import MongoClient  # type: ignore
-from pymongo.database import Database  # type: ignore
-import pytest  # type: ignore
-import pytest_asyncio  # type: ignore
-from rest_tools.client import RestClient  # type: ignore
+from pymongo import MongoClient
+from pymongo.database import Database
+import pytest
+from pytest import MonkeyPatch
+import pytest_asyncio
+from pytest_mock import MockerFixture
+from rest_tools.client import RestClient
 from rest_tools.utils import Auth
 from requests.exceptions import HTTPError
 
 from lta.rest_server import boolify, main, start, unique_id
+
+LtaCollection = Database[Dict[str, Any]]
+RestClientFactory = Callable[[str, float], RestClient]
 
 tracemalloc.start(1)
 
@@ -39,8 +44,9 @@ for k in CONFIG:
     if k in os.environ:
         CONFIG[k] = os.environ[k]
 
+
 @pytest.fixture
-def mongo(monkeypatch) -> Database:
+def mongo(monkeypatch: MonkeyPatch) -> LtaCollection:
     """Get a reference to a test instance of a MongoDB Database."""
     mongo_user = quote_plus(CONFIG["LTA_MONGODB_AUTH_USER"])
     mongo_pass = quote_plus(CONFIG["LTA_MONGODB_AUTH_PASS"])
@@ -49,15 +55,16 @@ def mongo(monkeypatch) -> Database:
     lta_mongodb_url = f"mongodb://{mongo_host}"
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
-    client = MongoClient(lta_mongodb_url, port=mongo_port)
+    client: MongoClient[Dict[str, Any]] = MongoClient(lta_mongodb_url, port=mongo_port)
     db = client[CONFIG['LTA_MONGODB_DATABASE_NAME']]
     for collection in db.list_collection_names():
         if 'system' not in collection:
             db.drop_collection(collection)
     return db
 
+
 @pytest.fixture
-def port():
+def port() -> int:
     """Get an ephemeral port number."""
     # https://unix.stackexchange.com/a/132524
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -65,10 +72,11 @@ def port():
     addr = s.getsockname()
     ephemeral_port = addr[1]
     s.close()
-    return ephemeral_port
+    return cast(int, ephemeral_port)
+
 
 @pytest_asyncio.fixture
-async def rest(monkeypatch, port):
+async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClientFactory, None]:
     """Provide RestClient as a test fixture."""
     # setup_function
     monkeypatch.setenv("LTA_AUTH_AUDIENCE", CONFIG["LTA_AUTH_AUDIENCE"])
@@ -80,17 +88,17 @@ async def rest(monkeypatch, port):
     monkeypatch.setenv("WIPACTEL_EXPORT_STDOUT", "TRUE")
     s = start(debug=True)
 
-    def client(role="admin", timeout=0.25):
+    def client(role: str = "admin", timeout: float = 0.25) -> RestClient:
         # But they were, all of them, deceived, for another Token was made.
         # In the land of PyTest, in the fires of Mount Fixture, the Dark Lord
         # Sauron forged in secret a master Token, to control all others. And
         # into this Token he poured his cruelty, his malice and his will to
         # dominate all life. One Token to rule them all.
-        auth = Auth("secret", issuer="LTA")
-        token_data = {
+        auth = Auth("secret", issuer="LTA")  # type: ignore[no-untyped-call]
+        token_data: Dict[str, Any] = {
             # TODO: fill in some token stuff here
         }
-        token = auth.create_token(subject="lta",
+        token = auth.create_token(subject="lta",  # type: ignore[no-untyped-call]
                                   expiration=300,
                                   type="temp",
                                   payload=token_data,
@@ -101,13 +109,14 @@ async def rest(monkeypatch, port):
         yield client
     # teardown_function
     finally:
-        await s.stop()
+        await s.stop()  # type: ignore[no-untyped-call]
         await asyncio.sleep(0.01)
 
 
 # -----------------------------------------------------------------------------
 
-def test_boolify():
+
+def test_boolify() -> None:
     """Test the boolify function."""
     assert not boolify("0")
     assert not boolify("F")
@@ -129,29 +138,26 @@ def test_boolify():
     assert boolify("YES")
     assert boolify("yes")
 
-    assert not boolify(None)
-    assert not boolify(12345)
-    assert not boolify(6.2831853071)
     assert not boolify("alice")
     assert not boolify("bob")
-    assert not boolify({})
-    assert not boolify([])
 
 # -----------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
-async def test_server_reachability(rest):
+async def test_server_reachability(rest: RestClientFactory) -> None:
     """Check that we can reach the server."""
-    r = rest()
+    r = rest()  # type: ignore[call-arg]
     ret = await r.request('GET', '/')
     assert ret == {}
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_transfer_request_fail(rest):
+async def test_transfer_request_fail(rest: RestClientFactory) -> None:
     """Check for bad transfer request handling."""
-    r = rest()
-    request = {'dest': ['bar']}
+    r = rest()  # type: ignore[call-arg]
+    request: Dict[str, Any] = {'dest': ['bar']}
     with pytest.raises(Exception):
         await r.request('POST', '/TransferRequests', request)
 
@@ -192,10 +198,11 @@ async def test_transfer_request_fail(rest):
         await r.request('POST', '/TransferRequests', request)
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_transfer_request_crud(mongo, rest):
+async def test_transfer_request_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for transfer requests."""
-    r = rest(role="system")
+    r = rest(role="system")  # type: ignore[call-arg]
     request = {'source': 'foo', 'dest': 'bar', 'path': 'snafu'}
     ret = await r.request('POST', '/TransferRequests', request)
     uuid = ret['TransferRequest']
@@ -228,10 +235,11 @@ async def test_transfer_request_crud(mongo, rest):
     assert len(ret['results']) == 0
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_transfer_request_pop(rest):
+async def test_transfer_request_pop(rest: RestClientFactory) -> None:
     """Check pop action for transfer requests."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
     request = {
         'source': 'WIPAC',
         'dest': 'NERSC',
@@ -266,8 +274,9 @@ async def test_transfer_request_pop(rest):
     assert not ret['transfer_request']
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_script_main(mocker):
+async def test_script_main(mocker: MockerFixture) -> None:
     """Ensure that main sets up logging, starts a server, and runs the event loop."""
     mock_root_logger = mocker.patch("logging.basicConfig")
     mock_rest_server = mocker.patch("lta.rest_server.start")
@@ -277,10 +286,11 @@ async def test_script_main(mocker):
     mock_rest_server.assert_called()
     mock_event_loop.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_bundles_bulk_crud(mongo, rest):
+async def test_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for bundles."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
     #
     # Create - POST /Bundles/actions/bulk_create
@@ -333,12 +343,13 @@ async def test_bundles_bulk_crud(mongo, rest):
     assert len(results) == 0
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_bundles_actions_bulk_create_errors(rest):
+async def test_bundles_actions_bulk_create_errors(rest: RestClientFactory) -> None:
     """Check error conditions for bulk_create."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
-    request = {}
+    request: Dict[str, Any] = {}
     with pytest.raises(Exception):
         await r.request('POST', '/Bundles/actions/bulk_create', request)
 
@@ -351,12 +362,13 @@ async def test_bundles_actions_bulk_create_errors(rest):
         await r.request('POST', '/Bundles/actions/bulk_create', request)
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_bundles_actions_bulk_delete_errors(rest):
+async def test_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -> None:
     """Check error conditions for bulk_delete."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
-    request = {}
+    request: Dict[str, Any] = {}
     with pytest.raises(Exception):
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
 
@@ -369,12 +381,13 @@ async def test_bundles_actions_bulk_delete_errors(rest):
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
     r.close()
 
-@pytest.mark.asyncio
-async def test_bundles_actions_bulk_update_errors(rest):
-    """Check error conditions for bulk_update."""
-    r = rest('system')
 
-    request = {}
+@pytest.mark.asyncio
+async def test_bundles_actions_bulk_update_errors(rest: RestClientFactory) -> None:
+    """Check error conditions for bulk_update."""
+    r = rest('system')  # type: ignore[call-arg]
+
+    request: Dict[str, Any] = {}
     with pytest.raises(Exception):
         await r.request('POST', '/Bundles/actions/bulk_update', request)
 
@@ -395,10 +408,11 @@ async def test_bundles_actions_bulk_update_errors(rest):
         await r.request('POST', '/Bundles/actions/bulk_update', request)
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_get_bundles_filter(mongo, rest):
+async def test_get_bundles_filter(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that GET /Bundles filters properly by query parameters.."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -515,10 +529,11 @@ async def test_get_bundles_filter(mongo, rest):
     assert len(results) == 1
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_get_bundles_request_filter(mongo, rest):
+async def test_get_bundles_request_filter(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that GET /Bundles filters properly by query parameter request."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -576,19 +591,21 @@ async def test_get_bundles_request_filter(mongo, rest):
     assert len(results) == 2
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_get_bundles_uuid_error(rest):
+async def test_get_bundles_uuid_error(rest: RestClientFactory) -> None:
     """Check that GET /Bundles/UUID returns 404 on not found."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
     with pytest.raises(Exception):
         await r.request('GET', '/Bundles/d4390bcadac74f9dbb49874b444b448d')
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_delete_bundles_uuid(mongo, rest):
+async def test_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that DELETE /Bundles/UUID returns 204, exist or not exist."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -624,10 +641,11 @@ async def test_delete_bundles_uuid(mongo, rest):
     assert not ret
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_patch_bundles_uuid(mongo, rest):
+async def test_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that PATCH /Bundles/UUID does the right thing, every time."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -665,10 +683,11 @@ async def test_patch_bundles_uuid(mongo, rest):
         await r.request('PATCH', '/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_bundles_actions_pop(mongo, rest):
+async def test_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check pop action for bundles."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -764,11 +783,12 @@ async def test_bundles_actions_pop(mongo, rest):
     assert ret['bundle']["path"] == "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_bundles_actions_pop_errors(mongo, rest):
+async def test_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check error handlers for pop action for bundles."""
-    r = rest('system')
-    request = {}
+    r = rest('system')  # type: ignore[call-arg]
+    request: Dict[str, Any] = {}
 
     with pytest.raises(Exception):
         await r.request('POST', '/Bundles/actions/pop?source=AREA-51', request)
@@ -786,10 +806,11 @@ async def test_bundles_actions_pop_errors(mongo, rest):
         await r.request('POST', '/Bundles/actions/pop?status=taping', request)
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_bundles_actions_pop_at_destination(mongo, rest):
+async def test_bundles_actions_pop_at_destination(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check pop action for bundles at destination."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -819,14 +840,15 @@ async def test_bundles_actions_pop_at_destination(mongo, rest):
     assert ret['bundle']["path"] == "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_bundles_actions_bulk_create_huge(mongo, rest):
+async def test_bundles_actions_bulk_create_huge(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check pop action for bundles at destination."""
     NUM_FILES_TO_MAKE_IT_HUGE = 16000  # 16000 file entries ~= 12 MB body data
 
-    r = rest(role='system', timeout=10.0)
+    r = rest(role='system', timeout=10.0)  # type: ignore[call-arg]
 
-    test_data = {
+    test_data: Dict[str, List[Dict[str, Any]]] = {
         'bundles': [
             {
                 "type": "Bundle",
@@ -875,10 +897,11 @@ async def test_bundles_actions_bulk_create_huge(mongo, rest):
     assert ret["count"] == 1
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_metadata_delete_bundle_uuid(mongo, rest):
+async def test_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for metadata."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
     bundle_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
     bundle_uuid1 = "05b7178b-82d0-428c-a0a6-d4add696de62"
     #
@@ -926,10 +949,11 @@ async def test_metadata_delete_bundle_uuid(mongo, rest):
     assert len(results) == 3
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_metadata_single_record(mongo, rest):
+async def test_metadata_single_record(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for metadata."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
     bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
     #
     # Create - POST /Metadata/actions/bulk_create
@@ -963,10 +987,11 @@ async def test_metadata_single_record(mongo, rest):
     assert e.value.response.json()["error"] == "not found"
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_metadata_bulk_crud(mongo, rest):
+async def test_metadata_bulk_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for metadata."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
     bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
     #
     # Create - POST /Metadata/actions/bulk_create
@@ -1005,12 +1030,13 @@ async def test_metadata_bulk_crud(mongo, rest):
     assert len(results) == 0
     r.close()
 
-@pytest.mark.asyncio
-async def test_metadata_actions_bulk_create_errors(rest):
-    """Check error conditions for bulk_create."""
-    r = rest('system')
 
-    request = {}
+@pytest.mark.asyncio
+async def test_metadata_actions_bulk_create_errors(rest: RestClientFactory) -> None:
+    """Check error conditions for bulk_create."""
+    r = rest('system')  # type: ignore[call-arg]
+
+    request: Dict[str, Any] = {}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
@@ -1041,12 +1067,13 @@ async def test_metadata_actions_bulk_create_errors(rest):
     assert e.value.response.json()["error"] == "`files`: (ValueError) [] is forbidden ([[]])"
     r.close()
 
-@pytest.mark.asyncio
-async def test_metadata_actions_bulk_delete_errors(rest):
-    """Check error conditions for bulk_delete."""
-    r = rest('system')
 
-    request = {}
+@pytest.mark.asyncio
+async def test_metadata_actions_bulk_delete_errors(rest: RestClientFactory) -> None:
+    """Check error conditions for bulk_delete."""
+    r = rest('system')  # type: ignore[call-arg]
+
+    request: Dict[str, Any] = {}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
@@ -1065,10 +1092,11 @@ async def test_metadata_actions_bulk_delete_errors(rest):
     assert e.value.response.json()["error"] == "`metadata`: (ValueError) [] is forbidden ([[]])"
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_metadata_delete_errors(rest):
+async def test_metadata_delete_errors(rest: RestClientFactory) -> None:
     """Check error conditions for DELETE /Metadata."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
 
     with pytest.raises(HTTPError) as e:
         await r.request('DELETE', '/Metadata')
@@ -1076,10 +1104,11 @@ async def test_metadata_delete_errors(rest):
     assert e.value.response.json()["error"] == "`bundle_uuid`: (MissingArgumentError) required argument is missing"
     r.close()
 
+
 @pytest.mark.asyncio
-async def test_metadata_results_comprehension(rest):
+async def test_metadata_results_comprehension(rest: RestClientFactory) -> None:
     """Check that our comprehension works."""
-    r = rest('system')
+    r = rest('system')  # type: ignore[call-arg]
     bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
     #
     # Create - POST /Metadata/actions/bulk_create

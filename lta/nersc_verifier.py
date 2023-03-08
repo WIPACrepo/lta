@@ -21,7 +21,8 @@ LOG = logging.getLogger(__name__)
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "FILE_CATALOG_REST_TOKEN": None,
+    "FILE_CATALOG_CLIENT_ID": None,
+    "FILE_CATALOG_CLIENT_SECRET": None,
     "FILE_CATALOG_REST_URL": None,
     "TAPE_BASE_PATH": None,
     "WORK_RETRIES": "3",
@@ -30,6 +31,7 @@ EXPECTED_CONFIG.update({
 
 # maximum number of Metadata UUIDs to work with at a time
 UPDATE_CHUNK_SIZE = 1000
+
 
 class NerscVerifier(Component):
     """
@@ -59,7 +61,8 @@ class NerscVerifier(Component):
         logger - The object the nersc_verifier should use for logging.
         """
         super(NerscVerifier, self).__init__("nersc_verifier", config, logger)
-        self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
+        self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
+        self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
@@ -134,10 +137,10 @@ class NerscVerifier(Component):
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records."""
         # configure a RestClient to talk to the File Catalog
-        fc_rc = RestClient(self.file_catalog_rest_url,
-                           token=self.file_catalog_rest_token,
-                           timeout=self.work_timeout_seconds,
-                           retries=self.work_retries)
+        fc_rc = ClientCredentialsAuth(address=self.file_catalog_rest_url,
+                                      token_url=self.lta_auth_openid_url,
+                                      client_id=self.file_catalog_client_id,
+                                      client_secret=self.file_catalog_client_secret)
         # determine the path where the bundle is stored on hpss
         data_warehouse_path = bundle["path"]
         basename = os.path.basename(bundle["bundle_path"])
@@ -359,6 +362,7 @@ class NerscVerifier(Component):
         # having passed the gauntlet, we indicate the checksums match
         return True
 
+
 def runner() -> None:
     """Configure a NerscVerifier component from the environment and set it running."""
     # obtain our configuration from the environment
@@ -378,10 +382,12 @@ def runner() -> None:
     loop = asyncio.get_event_loop()
     loop.create_task(work_loop(nersc_verifier))
 
+
 def main() -> None:
     """Configure a NerscVerifier component from the environment and set it running."""
     runner()
     asyncio.get_event_loop().run_forever()
+
 
 if __name__ == "__main__":
     main()

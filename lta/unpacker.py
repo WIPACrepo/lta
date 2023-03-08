@@ -11,7 +11,7 @@ import sys
 from typing import Any, cast, Dict, Optional
 from zipfile import ZipFile
 
-from rest_tools.client import RestClient, ClientCredentialsAuth
+from rest_tools.client import ClientCredentialsAuth
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
@@ -27,7 +27,8 @@ LOG = logging.getLogger(__name__)
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "CLEAN_OUTBOX": "TRUE",
-    "FILE_CATALOG_REST_TOKEN": None,
+    "FILE_CATALOG_CLIENT_ID": None,
+    "FILE_CATALOG_CLIENT_SECRET": None,
     "FILE_CATALOG_REST_URL": None,
     "PATH_MAP_JSON": None,
     "UNPACKER_OUTBOX_PATH": None,
@@ -35,6 +36,7 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
 
 class Unpacker(Component):
     """
@@ -58,7 +60,8 @@ class Unpacker(Component):
         """
         super(Unpacker, self).__init__("unpacker", config, logger)
         self.clean_outbox = boolify(config["CLEAN_OUTBOX"])
-        self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
+        self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
+        self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.outbox_path = config["UNPACKER_OUTBOX_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
@@ -189,10 +192,10 @@ class Unpacker(Component):
                                             dest_path: str) -> bool:
         """Update File Catalog record with new Data Warehouse location."""
         # configure a RestClient to talk to the File Catalog
-        fc_rc = RestClient(self.file_catalog_rest_url,
-                           token=self.file_catalog_rest_token,
-                           timeout=self.work_timeout_seconds,
-                           retries=self.work_retries)
+        fc_rc = ClientCredentialsAuth(address=self.file_catalog_rest_url,
+                                      token_url=self.lta_auth_openid_url,
+                                      client_id=self.file_catalog_client_id,
+                                      client_secret=self.file_catalog_client_secret)
         # extract the right variables from the metadata structure
         fc_path = dest_path
         fc_uuid = bundle_file["uuid"]

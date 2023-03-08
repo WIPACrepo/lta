@@ -4,6 +4,7 @@
 import os
 from typing import List
 
+
 def join_smart(items: List[str]) -> str:
     """Join paths together the way Node.js does it."""
     if not items:
@@ -13,6 +14,7 @@ def join_smart(items: List[str]) -> str:
     if items[-1].endswith(os.path.sep):
         normal_path += os.path.sep
     return normal_path
+
 
 def join_smart_url(items: List[str]) -> str:
     """Join URL items together."""

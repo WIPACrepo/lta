@@ -24,13 +24,15 @@ CREATE_CHUNK_SIZE = 1000
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "FILE_CATALOG_CLIENT_ID": None,
+    "FILE_CATALOG_CLIENT_SECRET": None,
     "FILE_CATALOG_PAGE_SIZE": "1000",
-    "FILE_CATALOG_REST_TOKEN": None,
     "FILE_CATALOG_REST_URL": None,
     "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
 
 class Picker(Component):
     """
@@ -50,8 +52,9 @@ class Picker(Component):
         logger - The object the picker should use for logging.
         """
         super(Picker, self).__init__("picker", config, logger)
+        self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
+        self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_page_size = int(config["FILE_CATALOG_PAGE_SIZE"])
-        self.file_catalog_rest_token = config["FILE_CATALOG_REST_TOKEN"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
         self.max_bundle_size = int(config["MAX_BUNDLE_SIZE"])
         self.work_retries = int(config["WORK_RETRIES"])
@@ -114,10 +117,10 @@ class Picker(Component):
                                         tr: TransferRequestType) -> None:
         self.logger.info(f"Processing TransferRequest: {tr}")
         # configure a RestClient to talk to the File Catalog
-        fc_rc = RestClient(self.file_catalog_rest_url,
-                           token=self.file_catalog_rest_token,
-                           timeout=self.work_timeout_seconds,
-                           retries=self.work_retries)
+        fc_rc = ClientCredentialsAuth(address=self.file_catalog_rest_url,
+                                      token_url=self.lta_auth_openid_url,
+                                      client_id=self.file_catalog_client_id,
+                                      client_secret=self.file_catalog_client_secret)
         # figure out which files need to go
         source = tr["source"]
         dest = tr["dest"]
@@ -207,7 +210,7 @@ class Picker(Component):
         NUM_UUIDS = len(spec)
         for i in range(slice_index, NUM_UUIDS, CREATE_CHUNK_SIZE):
             slice_index = i
-            create_slice = spec[slice_index:slice_index+CREATE_CHUNK_SIZE]
+            create_slice = spec[slice_index:(slice_index + CREATE_CHUNK_SIZE)]
             create_body = {
                 "bundle_uuid": bundle_uuid,
                 "files": [x[0] for x in create_slice],  # 0: uuid
@@ -231,6 +234,7 @@ class Picker(Component):
             await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
         except Exception as e:
             self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
+
 
 def runner() -> None:
     """Configure a Picker component from the environment and set it running."""

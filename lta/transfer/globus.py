@@ -20,6 +20,7 @@ PROXY_CONFIG: Dict[str, Optional[str]] = {
 
 logger = logging.getLogger('globus')
 
+
 class SiteGlobusProxy(object):
     """
     Manage site-wide globus proxy.
@@ -82,7 +83,7 @@ class SiteGlobusProxy(object):
             cmd.extend(['-pwstdin', '-valid', f'{int(self.cfg["GLOBUS_PROXY_DURATION"])+1}:0'])
             if 'GLOBUS_PROXY_OUTPUT' in self.cfg and self.cfg['GLOBUS_PROXY_OUTPUT']:
                 cmd.extend(['-out', cast(str, self.cfg['GLOBUS_PROXY_OUTPUT'])])
-            inputbytes = (cast(str, self.cfg['GLOBUS_PROXY_PASSPHRASE'])+'\n').encode('utf-8')
+            inputbytes = (cast(str, self.cfg['GLOBUS_PROXY_PASSPHRASE']) + '\n').encode('utf-8')
             p = subprocess.run(cmd, input=inputbytes, capture_output=True, timeout=60, check=False)
             logger.info('proxy cmd: %r', p.args)
             logger.info('stdout: %s', p.stdout)

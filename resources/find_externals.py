@@ -2,7 +2,8 @@
 
 import sys
 
-def main():
+
+def main() -> None:
     """Discover bundles handled externally."""
     bundles_list = sys.argv[1]
     bundle_uuids = []

@@ -1,16 +1,21 @@
 # test_rate_limiter.py
 """Unit tests for lta/rate_limiter.py."""
 
+from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
 
-import pytest  # type: ignore
-from tornado.web import HTTPError  # type: ignore
+import pytest
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+from tornado.web import HTTPError
 
 from lta.rate_limiter import main, RateLimiter
 
+TestConfig = Dict[str, str]
+
 
 @pytest.fixture
-def config():
+def config() -> TestConfig:
     """Supply a stock RateLimiter component configuration."""
     return {
         "CLIENT_ID": "long-term-archive",
@@ -35,7 +40,8 @@ def config():
         "WORK_TIMEOUT_SECONDS": "30",
     }
 
-def test_constructor_config(config, mocker):
+
+def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a RateLimiter can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = RateLimiter(config, logger_mock)
@@ -59,14 +65,15 @@ def test_constructor_config(config, mocker):
     assert p.logger == logger_mock
 
 
-def test_do_status(config, mocker):
+def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the RateLimiter has no additional state to offer."""
     logger_mock = mocker.MagicMock()
     p = RateLimiter(config, logger_mock)
     assert p._do_status() == {}
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_logs_configuration(mocker):
+async def test_rate_limiter_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the RateLimiter logs its configuration."""
     logger_mock = mocker.MagicMock()
     rate_limiter_config = {
@@ -95,7 +102,7 @@ async def test_rate_limiter_logs_configuration(mocker):
     EXPECTED_LOGGER_CALLS = [
         call("rate_limiter 'logme-testing-rate_limiter' is configured:"),
         call('CLIENT_ID = long-term-archive'),
-        call('CLIENT_SECRET = hunter2'),
+        call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-rate_limiter'),
         call('DEST_SITE = NERSC'),
         call('HEARTBEAT_PATCH_RETRIES = 1'),
@@ -117,8 +124,9 @@ async def test_rate_limiter_logs_configuration(mocker):
     ]
     logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
 
+
 @pytest.mark.asyncio
-async def test_script_main(config, mocker, monkeypatch):
+async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify RateLimiter component behavior when run as a script.
 
@@ -133,29 +141,32 @@ async def test_script_main(config, mocker, monkeypatch):
     mock_event_loop.assert_called()
     mock_work_loop.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_run(config, mocker):
+async def test_rate_limiter_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the RateLimiter does the work the rate_limiter should do."""
     logger_mock = mocker.MagicMock()
     p = RateLimiter(config, logger_mock)
-    p._do_work = AsyncMock()
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_run_exception(config, mocker):
+async def test_rate_limiter_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the RateLimiter."""
     logger_mock = mocker.MagicMock()
     p = RateLimiter(config, logger_mock)
-    p.last_work_end_timestamp = None
-    p._do_work = AsyncMock()
+    p.last_work_end_timestamp = ""
+    p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
     assert p.last_work_end_timestamp
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_do_work_pop_exception(config, mocker):
+async def test_rate_limiter_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -165,8 +176,9 @@ async def test_rate_limiter_do_work_pop_exception(config, mocker):
         await p._do_work()
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_do_work_no_results(config, mocker):
+async def test_rate_limiter_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.rate_limiter.RateLimiter._do_work_claim", new_callable=AsyncMock)
@@ -175,8 +187,9 @@ async def test_rate_limiter_do_work_no_results(config, mocker):
     await p._do_work()
     dwc_mock.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_do_work_yes_results(config, mocker):
+async def test_rate_limiter_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.rate_limiter.RateLimiter._do_work_claim", new_callable=AsyncMock)
@@ -185,8 +198,9 @@ async def test_rate_limiter_do_work_yes_results(config, mocker):
     await p._do_work()
     dwc_mock.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_do_work_claim_no_result(config, mocker):
+async def test_rate_limiter_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -199,8 +213,9 @@ async def test_rate_limiter_do_work_claim_no_result(config, mocker):
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_not_called()
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_do_work_claim_yes_result(config, mocker):
+async def test_rate_limiter_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -215,8 +230,9 @@ async def test_rate_limiter_do_work_claim_yes_result(config, mocker):
     lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_stage_bundle_raises(config, mocker):
+async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim both calls _quarantine_bundle and re-raises when _stage_bundle raises."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
@@ -235,8 +251,9 @@ async def test_rate_limiter_stage_bundle_raises(config, mocker):
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
     qb_mock.assert_called_with(mocker.ANY, {"one": 1}, "LTA DB unavailable; currently safer at home")
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_stage_bundle(config, mocker):
+async def test_rate_limiter_stage_bundle(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _stage_bundle attempts to stage a Bundle."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
@@ -252,8 +269,9 @@ async def test_rate_limiter_stage_bundle(config, mocker):
     move_mock.assert_called()
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_stage_bundle_over_quota(config, mocker):
+async def test_rate_limiter_stage_bundle_over_quota(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _stage_bundle attempts to unclaim a Bundle when over quota."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
@@ -275,8 +293,9 @@ async def test_rate_limiter_stage_bundle_over_quota(config, mocker):
     })
     move_mock.assert_not_called()
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_quarantine_bundle_with_reason(config, mocker):
+async def test_rate_limiter_quarantine_bundle_with_reason(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim attempts to quarantine a Bundle that fails to get deleted."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
@@ -284,8 +303,9 @@ async def test_rate_limiter_quarantine_bundle_with_reason(config, mocker):
     await p._quarantine_bundle(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"}, "Rucio caught fire, then we roasted marshmellows.")
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
 
+
 @pytest.mark.asyncio
-async def test_rate_limiter_unclaim_bundle(config, mocker):
+async def test_rate_limiter_unclaim_bundle(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _unclaim_bundle attempts to update the LTA DB."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
@@ -293,7 +313,8 @@ async def test_rate_limiter_unclaim_bundle(config, mocker):
     await p._unclaim_bundle(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"})
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
 
-def test_get_files_and_size_with_ignore_bad_files(config, mocker):
+
+def test_get_files_and_size_with_ignore_bad_files(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that missing files will not stop the measurement process."""
     BUNDLES_IN_DESTINATION_DIRECTORY = [
         "/path/to/destination/directory/bundle1.zip",

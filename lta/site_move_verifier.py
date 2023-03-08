@@ -34,17 +34,20 @@ MYQUOTA_ARGS = ["/usr/bin/myquota", "-G"]
 
 OLD_MTIME_EPOCH_SEC = 30 * 60  # 30 MINUTES * 60 SEC_PER_MIN
 
+
 def as_nonempty_columns(s: str) -> List[str]:
     """Split the provided string into columns and return the non-empty ones."""
     cols = s.split(" ")
     nonempty = list(filter(discard_empty, cols))
     return nonempty
 
+
 def discard_empty(s: str) -> bool:
     """Return true if the provided string is non-empty."""
     if s:
         return True
     return False
+
 
 def parse_myquota(s: str) -> List[Dict[str, str]]:
     """Split the provided string into columns and return the non-empty ones."""

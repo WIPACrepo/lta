@@ -5,11 +5,12 @@ import hashlib
 from typing import Dict
 import zlib
 
+
 # Adapted from sha512sum below; smh .tobytes()
 def adler32sum(filename: str) -> str:
     """Compute the adler32 checksum of the data in the specified file."""
     value = 1
-    b = bytearray(128*1024)
+    b = bytearray(128 * 1024)
     mv = memoryview(b)
     with open(filename, 'rb', buffering=0) as f:
         # Known issue with MyPy: https://github.com/python/typeshed/issues/2166
@@ -22,7 +23,7 @@ def adler32sum(filename: str) -> str:
 def sha512sum(filename: str) -> str:
     """Compute the SHA512 hash of the data in the specified file."""
     h = hashlib.sha512()
-    b = bytearray(128*1024)
+    b = bytearray(128 * 1024)
     mv = memoryview(b)
     with open(filename, 'rb', buffering=0) as f:
         # Known issue with MyPy: https://github.com/python/typeshed/issues/2166
@@ -36,7 +37,7 @@ def lta_checksums(filename: str) -> Dict[str, str]:
     """Compute the adler32 and SHA512 hash of the data in the specified file."""
     value = 1
     h = hashlib.sha512()
-    b = bytearray(128*1024)
+    b = bytearray(128 * 1024)
     mv = memoryview(b)
     with open(filename, 'rb', buffering=0) as f:
         # Known issue with MyPy: https://github.com/python/typeshed/issues/2166
