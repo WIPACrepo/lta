@@ -92,11 +92,13 @@ export NS_PHONE_HOME=False
 #   2 site-move-verifier, 0 retrievers, 2 nersc-mover, 2 nersc-verifiers
 # Only the last 3 need HSI
 #export NS_DESIRED="nersc-mover:4 nersc-verifier:4 nersc-retriever:1 site-move-verifier:6 train:4 deleter:4 deleter-nersc-return:1"
-export NS_DESIRED="pipe0-nersc-mover:4 pipe0-nersc-verifier:4 nersc-retriever:0 pipe0-site-move-verifier:6 train:5 pipe0-nersc-deleter:5 deleter-nersc-return:0"
+#export NS_DESIRED="pipe0-nersc-mover:4 pipe0-nersc-verifier:4 nersc-retriever:0 pipe0-site-move-verifier:5 train:5 pipe0-nersc-deleter:5 deleter-nersc-return:0"
+#export NS_DESIRED="pipe0-nersc-mover:2 pipe0-nersc-verifier:2 nersc-retriever:1 pipe0-site-move-verifier:2 train:2 pipe0-nersc-deleter:2 deleter-nersc-return:1 pipe1-gridftp-replicator:1 pipe1-deleter:1"
+export NS_DESIRED="pipe0-nersc-mover:2 pipe0-nersc-verifier:2 nersc-retriever:3 pipe0-site-move-verifier:2 train:2 pipe0-nersc-deleter:2 deleter-nersc-return:1 pipe1-gridftp-replicator:4"
 # Not all slurm jobs use the hsi facility.  site-move-verifier is one that does not, and
 #  presumably its counterpart used during retrieving will also not be.  So, make a list
 #  of those that DO.
-export HSI_MODULES="pipe0-nersc-mover|pipe0-nersc-verifier|pipe0-nersc-retriever|train"
+export HSI_MODULES="pipe0-nersc-mover|pipe0-nersc-verifier|pipe0-nersc-retriever|train|nersc-retriever"
 
 ###
 # Functions follow

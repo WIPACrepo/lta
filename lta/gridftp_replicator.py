@@ -4,6 +4,7 @@
 import asyncio
 import logging
 import os
+import random
 import sys
 from typing import Any, Dict, Optional
 
@@ -29,7 +30,8 @@ EXPECTED_CONFIG.update({
     # "GLOBUS_PROXY_PASSPHRASE": None,
     # "GLOBUS_PROXY_VOMS_ROLE": None,
     # "GLOBUS_PROXY_VOMS_VO": None,
-    "GRIDFTP_DEST_URL": None,
+    # "GRIDFTP_DEST_URL": None,
+    "GRIDFTP_DEST_URLS": None,  # URLs delimited with semi-colons ;
     "GRIDFTP_TIMEOUT": "1200",
     "USE_FULL_BUNDLE_PATH": "FALSE",
     "WORK_RETRIES": "3",
@@ -59,7 +61,7 @@ class GridFTPReplicator(Component):
         logger - The object the replicator should use for logging.
         """
         super(GridFTPReplicator, self).__init__("replicator", config, logger)
-        self.gridftp_dest_url = config["GRIDFTP_DEST_URL"]
+        self.gridftp_dest_urls = config["GRIDFTP_DEST_URLS"].split(";")
         self.gridftp_timeout = int(config["GRIDFTP_TIMEOUT"])
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
@@ -142,12 +144,13 @@ class GridFTPReplicator(Component):
         sgp = SiteGlobusProxy()
         sgp.update_proxy()
         # tell GridFTP to 'put' our file to the destination
+        gridftp_dest_url = random.choice(self.gridftp_dest_urls)
         basename = os.path.basename(bundle_path)
         if self.use_full_bundle_path:
             dest_path = bundle["path"]  # /data/exp/IceCube/2015/filtered/level2/0320
-            dest_url = join_smart_url([self.gridftp_dest_url, dest_path, basename])
+            dest_url = join_smart_url([gridftp_dest_url, dest_path, basename])
         else:
-            dest_url = join_smart_url([self.gridftp_dest_url, basename])
+            dest_url = join_smart_url([gridftp_dest_url, basename])
         self.logger.info(f'Sending {bundle_path} to {dest_url}')
         try:
             GridFTP.put(dest_url,
