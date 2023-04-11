@@ -111,3 +111,6 @@ venv.bak/
 /keycloak-client-secret
 /local-secret
 /service-token*
+
+# Patrick development ergonomics
+/suru
