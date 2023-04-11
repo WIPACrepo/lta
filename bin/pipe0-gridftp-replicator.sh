@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-deftarget="1"
-if [[  "$1" != "" ]]
-  then
-    if [[ "$1" == "2" || "$1" == "3" || "$1" == "4" ]]
-      then
-        deftarget="$1"
-      fi
-  fi
+# deftarget="1"
+# if [[  "$1" != "" ]]
+#   then
+#     if [[ "$1" == "2" || "$1" == "3" || "$1" == "4" ]]
+#       then
+#         deftarget="$1"
+#       fi
+#   fi
 export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
 export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-gridftp-replicator"}
@@ -16,7 +16,8 @@ export GLOBUS_PROXY_DURATION=${GLOBUS_PROXY_DURATION:="72"}
 #export GLOBUS_PROXY_PASSPHRASE=${GLOBUS_PROXY_PASSPHRASE:="hunter2"}  # http://bash.org/?244321
 #export GLOBUS_PROXY_VOMS_ROLE=${GLOBUS_PROXY_VOMS_ROLE:=""}
 #export GLOBUS_PROXY_VOMS_VO=${GLOBUS_PROXY_VOMS_VO:=""}
-export GRIDFTP_DEST_URL=${GRIDFTP_DEST_URL:="gsiftp://dtn0${deftarget}.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta"}
+# export GRIDFTP_DEST_URL=${GRIDFTP_DEST_URL:="gsiftp://dtn0${deftarget}.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta"}
+export GRIDFTP_DEST_URLS=${GRIDFTP_DEST_URLS:="gsiftp://dtn01.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta;gsiftp://dtn02.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta;gsiftp://dtn03.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta;gsiftp://dtn04.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta"}
 export GRIDFTP_TIMEOUT=${GRIDFTP_TIMEOUT:="43200"}  # 43200 sec = 12 hours
 export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
 export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="30"}
