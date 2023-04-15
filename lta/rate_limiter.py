@@ -98,7 +98,9 @@ class RateLimiter(Component):
         work_claimed = True
         while work_claimed:
             work_claimed = await self._do_work_claim()
-            work_claimed &= not self.run_once_and_die
+            # if we are configured to run once and die, then die
+            if self.run_once_and_die:
+                sys.exit()
         self.logger.info("Ending work on Bundles.")
 
     @wtt.spanned()

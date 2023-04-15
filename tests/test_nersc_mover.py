@@ -23,9 +23,6 @@ def config() -> TestConfig:
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-nersc-mover",
         "DEST_SITE": "NERSC",
-        "HEARTBEAT_PATCH_RETRIES": "3",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "taping",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -34,6 +31,7 @@ def config() -> TestConfig:
         "MAX_COUNT": "5",
         "RSE_BASE_PATH": "/path/to/rse",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "TAPE_BASE_PATH": "/path/to/hpss",
         "WORK_RETRIES": "3",
@@ -65,7 +63,6 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a NerscMover can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = NerscMover(config, logger_mock)
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-nersc-mover"
     assert p.work_sleep_duration_seconds == 60
@@ -76,7 +73,6 @@ def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFix
     """Ensure that sleep seconds can also be provided as an integer."""
     logger_mock = mocker.MagicMock()
     p = NerscMover(config, logger_mock)
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-nersc-mover"
     assert p.work_sleep_duration_seconds == 60
@@ -123,9 +119,6 @@ async def test_nersc_mover_logs_configuration(mocker: MockerFixture) -> None:
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-nersc-mover",
         "DEST_SITE": "NERSC",
-        "HEARTBEAT_PATCH_RETRIES": "1",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "taping",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -134,6 +127,7 @@ async def test_nersc_mover_logs_configuration(mocker: MockerFixture) -> None:
         "OUTPUT_STATUS": "verifying",
         "RSE_BASE_PATH": "/log/me/path/to/rse",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "TAPE_BASE_PATH": "/log/me/path/to/hpss",
         "WORK_RETRIES": "5",
@@ -147,9 +141,6 @@ async def test_nersc_mover_logs_configuration(mocker: MockerFixture) -> None:
         call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-nersc-mover'),
         call('DEST_SITE = NERSC'),
-        call('HEARTBEAT_PATCH_RETRIES = 1'),
-        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
-        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = taping'),
         call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
@@ -158,6 +149,7 @@ async def test_nersc_mover_logs_configuration(mocker: MockerFixture) -> None:
         call('OUTPUT_STATUS = verifying'),
         call('RSE_BASE_PATH = /log/me/path/to/rse'),
         call('RUN_ONCE_AND_DIE = False'),
+        call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = WIPAC'),
         call('TAPE_BASE_PATH = /log/me/path/to/hpss'),
         call('WORK_RETRIES = 5'),

@@ -25,15 +25,13 @@ def config() -> TestConfig:
         "COMPONENT_NAME": "testing-site_move_verifier",
         "DEST_ROOT_PATH": "/path/to/rse",
         "DEST_SITE": "NERSC",
-        "HEARTBEAT_PATCH_RETRIES": "3",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "transferring",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "taping",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "USE_FULL_BUNDLE_PATH": "FALSE",
         "WORK_RETRIES": "3",
@@ -89,9 +87,6 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     assert p.name == "testing-site_move_verifier"
     assert p.dest_root_path == "/path/to/rse"
     assert p.dest_site == "NERSC"
-    assert p.heartbeat_patch_retries == 3
-    assert p.heartbeat_patch_timeout_seconds == 30
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
     assert p.output_status == "taping"
@@ -161,15 +156,13 @@ async def test_site_move_verifier_logs_configuration(mocker: MockerFixture) -> N
         "COMPONENT_NAME": "logme-testing-site_move_verifier",
         "DEST_ROOT_PATH": "/path/to/some/archive/destination",
         "DEST_SITE": "NERSC",
-        "HEARTBEAT_PATCH_RETRIES": "1",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "transferring",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "OUTPUT_STATUS": "taping",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "USE_FULL_BUNDLE_PATH": "FALSE",
         "WORK_RETRIES": "5",
@@ -184,15 +177,13 @@ async def test_site_move_verifier_logs_configuration(mocker: MockerFixture) -> N
         call('COMPONENT_NAME = logme-testing-site_move_verifier'),
         call('DEST_ROOT_PATH = /path/to/some/archive/destination'),
         call('DEST_SITE = NERSC'),
-        call('HEARTBEAT_PATCH_RETRIES = 1'),
-        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
-        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = transferring'),
         call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('OUTPUT_STATUS = taping'),
         call('RUN_ONCE_AND_DIE = False'),
+        call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = WIPAC'),
         call('USE_FULL_BUNDLE_PATH = FALSE'),
         call('WORK_RETRIES = 5'),

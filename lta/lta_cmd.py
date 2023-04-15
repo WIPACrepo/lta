@@ -15,7 +15,7 @@ import sys
 from time import mktime, strptime
 from typing import Any, cast, Dict, List, Optional, Tuple
 
-import colorama  # type: ignore
+import colorama
 import hurry.filesize  # type: ignore
 from rest_tools.client import ClientCredentialsAuth, RestClient
 import urllib

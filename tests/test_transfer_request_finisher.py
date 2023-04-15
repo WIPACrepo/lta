@@ -22,9 +22,6 @@ def config() -> TestConfig:
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-transfer_request_finisher",
         "DEST_SITE": "NERSC",
-        "HEARTBEAT_PATCH_RETRIES": "3",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "deleted",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -32,6 +29,7 @@ def config() -> TestConfig:
         "OUTPUT_STATUS": "finished",
         "RUCIO_PASSWORD": "hunter2",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "TRANSFER_CONFIG_PATH": "examples/rucio.json",
         "WORK_RETRIES": "3",
@@ -45,9 +43,6 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     logger_mock = mocker.MagicMock()
     p = TransferRequestFinisher(config, logger_mock)
     assert p.name == "testing-transfer_request_finisher"
-    assert p.heartbeat_patch_retries == 3
-    assert p.heartbeat_patch_timeout_seconds == 30
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
     assert p.source_site == "WIPAC"
@@ -73,9 +68,6 @@ async def test_transfer_request_finisher_logs_configuration(mocker: MockerFixtur
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-transfer_request_finisher",
         "DEST_SITE": "NERSC",
-        "HEARTBEAT_PATCH_RETRIES": "1",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "deleted",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -83,6 +75,7 @@ async def test_transfer_request_finisher_logs_configuration(mocker: MockerFixtur
         "OUTPUT_STATUS": "finished",
         "RUCIO_PASSWORD": "hunter3-electric-boogaloo",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "TRANSFER_CONFIG_PATH": "examples/rucio.json",
         "WORK_RETRIES": "5",
@@ -96,9 +89,6 @@ async def test_transfer_request_finisher_logs_configuration(mocker: MockerFixtur
         call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-transfer_request_finisher'),
         call('DEST_SITE = NERSC'),
-        call('HEARTBEAT_PATCH_RETRIES = 1'),
-        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
-        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = deleted'),
         call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
@@ -106,6 +96,7 @@ async def test_transfer_request_finisher_logs_configuration(mocker: MockerFixtur
         call('OUTPUT_STATUS = finished'),
         call('RUCIO_PASSWORD = hunter3-electric-boogaloo'),
         call('RUN_ONCE_AND_DIE = False'),
+        call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = WIPAC'),
         call('TRANSFER_CONFIG_PATH = examples/rucio.json'),
         call('WORK_RETRIES = 5'),

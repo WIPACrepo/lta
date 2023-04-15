@@ -11,9 +11,6 @@ export GLOBUS_PROXY_VOMS_VO=${GLOBUS_PROXY_VOMS_VO:="icecube"}
 voms-proxy-init
 export GRIDFTP_DEST_URL=${GRIDFTP_DEST_URL:="gsiftp://gridftp.zeuthen.desy.de:2811/pnfs/ifh.de/acs/icecube/archive/"}
 export GRIDFTP_TIMEOUT=${GRIDFTP_TIMEOUT:="43200"}  # 43200 sec = 12 hours
-export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
-export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="30"}
-export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"}
 export INPUT_STATUS=${INPUT_STATUS:="staged"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu/auth/realms/IceCube"}
@@ -21,6 +18,7 @@ export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 # export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="transferring"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="False"}
+export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="FALSE"}
 export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
 export USE_FULL_BUNDLE_PATH=${USE_FULL_BUNDLE_PATH:="TRUE"}
 export WIPACTEL_EXPORT_STDOUT=${WIPACTEL_EXPORT_STDOUT:="FALSE"}

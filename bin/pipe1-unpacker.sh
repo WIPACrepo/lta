@@ -6,9 +6,6 @@ export DEST_SITE=${DEST_SITE:="WIPAC"}
 export FILE_CATALOG_CLIENT_ID=${FILE_CATALOG_CLIENT_ID:="file-catalog"}
 export FILE_CATALOG_CLIENT_SECRET=${FILE_CATALOG_CLIENT_SECRET:="$(<file-catalog-client-secret)"}
 export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="https://file-catalog.icecube.wisc.edu"}
-export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
-export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="5"}
-export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"}
 export INPUT_STATUS=${INPUT_STATUS:="unpacking"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu/auth/realms/IceCube"}
@@ -17,6 +14,7 @@ export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="completed"}
 export PATH_MAP_JSON=${PATH_MAP_JSON:="path_map.json"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="FALSE"}
+export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="FALSE"}
 export SOURCE_SITE=${SOURCE_SITE:="NERSC"}
 export UNPACKER_OUTBOX_PATH=${UNPACKER_OUTBOX_PATH:="/data/user/jadelta/ltatemp/unpacker_work"}
 export UNPACKER_WORKBOX_PATH=${UNPACKER_WORKBOX_PATH:="/data/user/jadelta/ltatemp/welcome_home"}

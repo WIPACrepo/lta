@@ -20,15 +20,13 @@ COMMON_CONFIG: Dict[str, Optional[str]] = {
     "CLIENT_SECRET": None,
     "COMPONENT_NAME": None,
     "DEST_SITE": None,
-    "HEARTBEAT_PATCH_RETRIES": "3",
-    "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
-    "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
     "INPUT_STATUS": None,
     "LOG_LEVEL": "NOTSET",
     "LTA_AUTH_OPENID_URL": None,
     "LTA_REST_URL": None,
     "OUTPUT_STATUS": None,
     "RUN_ONCE_AND_DIE": "False",
+    "RUN_UNTIL_NO_WORK": "False",
     "SOURCE_SITE": None,
     "WORK_SLEEP_DURATION_SECONDS": "60",
 }
@@ -79,14 +77,12 @@ class Component:
         self.client_id = config["CLIENT_ID"]
         self.client_secret = config["CLIENT_SECRET"]
         self.dest_site = config["DEST_SITE"]
-        self.heartbeat_patch_retries = int(config["HEARTBEAT_PATCH_RETRIES"])
-        self.heartbeat_patch_timeout_seconds = float(config["HEARTBEAT_PATCH_TIMEOUT_SECONDS"])
-        self.heartbeat_sleep_duration_seconds = float(config["HEARTBEAT_SLEEP_DURATION_SECONDS"])
         self.input_status = config["INPUT_STATUS"]
         self.lta_auth_openid_url = config["LTA_AUTH_OPENID_URL"]
         self.lta_rest_url = config["LTA_REST_URL"]
         self.output_status = config["OUTPUT_STATUS"]
         self.run_once_and_die = boolify(config["RUN_ONCE_AND_DIE"])
+        self.run_until_no_work = boolify(config["RUN_UNTIL_NO_WORK"])
         self.source_site = config["SOURCE_SITE"]
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
         # record some default state
@@ -117,8 +113,8 @@ class Component:
         # stop the work cycle stopwatch
         self.last_work_end_timestamp = datetime.utcnow().isoformat()
         self.logger.info(f"Ending {self.type} work cycle")
-        # if we are configured to run once and die, then die
-        if self.run_once_and_die:
+        # if we are configured to run until no work, then die
+        if self.run_until_no_work:
             sys.exit()
 
     def validate_config(self, config: Dict[str, str]) -> None:

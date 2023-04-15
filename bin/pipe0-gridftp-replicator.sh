@@ -19,9 +19,6 @@ export GLOBUS_PROXY_DURATION=${GLOBUS_PROXY_DURATION:="72"}
 # export GRIDFTP_DEST_URL=${GRIDFTP_DEST_URL:="gsiftp://dtn0${deftarget}.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta"}
 export GRIDFTP_DEST_URLS=${GRIDFTP_DEST_URLS:="gsiftp://dtn01.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta;gsiftp://dtn02.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta;gsiftp://dtn03.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta;gsiftp://dtn04.nersc.gov:2811/global/cscratch1/sd/icecubed/jade-disk/lta"}
 export GRIDFTP_TIMEOUT=${GRIDFTP_TIMEOUT:="43200"}  # 43200 sec = 12 hours
-export HEARTBEAT_PATCH_RETRIES=${HEARTBEAT_PATCH_RETRIES:="3"}
-export HEARTBEAT_PATCH_TIMEOUT_SECONDS=${HEARTBEAT_PATCH_TIMEOUT_SECONDS:="30"}
-export HEARTBEAT_SLEEP_DURATION_SECONDS=${HEARTBEAT_SLEEP_DURATION_SECONDS:="30"}
 export INPUT_STATUS=${INPUT_STATUS:="staged"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu/auth/realms/IceCube"}
@@ -29,6 +26,7 @@ export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 # export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="transferring"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="True"}
+export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="FALSE"}
 export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
 export USE_FULL_BUNDLE_PATH=${USE_FULL_BUNDLE_PATH:="FALSE"}
 export WIPACTEL_EXPORT_STDOUT=${WIPACTEL_EXPORT_STDOUT:="FALSE"}
