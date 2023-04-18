@@ -24,13 +24,13 @@ After logging into the `icecubed` account, we'll need to get a copy of the
 LTA software at NERSC:
 
     cd ~
-    mkdir -p slurm-logs
     git clone https://github.com/WIPACrepo/lta.git
 
 Next we need to configure the Python virutal environment and install the
 Python dependencies of LTA:
 
     cd ~/lta
+    mkdir slurm-logs
     ${HOME}/py310/bin/python3.10 -m venv env
     source env/bin/activate
     pip install --upgrade pip
@@ -43,4 +43,9 @@ keycloak and talk to the LTA REST service.
     echo -n "$YOUR_CLIENT_SECRET_HERE" >keycloak-client-secret
     chmod 400 keycloak-client-secret
 
-## Setting up LTA at NERSC
+## Using scrontab
+NERSC has a crontab service integrated into their slurm queue called
+[scrontab](https://docs.nersc.gov/jobs/workflow/scrontab/)
+
+The file can be viewed with `scrontab -l` and edited with `scrontab -e`.
+An example scrontab is provided in the nersc directory in this repository.

@@ -39,7 +39,7 @@ JOB_LIMITS = {
     "pipe0-nersc-mover": 10,
     "pipe0-nersc-verifier": 10,
     "pipe0-site-move-verifier": 10,
-    "total": 32,
+    "total": 15,
 }
 
 # JOB_PRIORITY indicates a priority order for job types when creating
