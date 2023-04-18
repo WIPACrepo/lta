@@ -32,7 +32,7 @@ googleapis-common-protos==1.56.2
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.53.0
+grpcio==1.54.0
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -100,7 +100,7 @@ six==1.16.0
     # via thrift
 thrift==0.16.0
     # via opentelemetry-exporter-jaeger-thrift
-tornado==6.2
+tornado==6.3
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
