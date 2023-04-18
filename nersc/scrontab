@@ -1,0 +1,6 @@
+#SCRON -q cron
+#SCRON -A m1093
+#SCRON -t 00:30:00
+#SCRON -o /global/homes/i/icecubed/lta/scrontab-log.out
+#SCRON --open-mode=append
+*/10 * * * * /global/homes/i/icecubed/lta/resources/nersc-controller.sh

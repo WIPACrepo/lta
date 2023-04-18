@@ -22,9 +22,6 @@ def config() -> TestConfig:
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-rate_limiter",
         "DEST_SITE": "NERSC",
-        "HEARTBEAT_PATCH_RETRIES": "3",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_PATH": "/path/to/icecube/bundler/outbox",
         "INPUT_STATUS": "created",
         "LOG_LEVEL": "DEBUG",
@@ -34,6 +31,7 @@ def config() -> TestConfig:
         "OUTPUT_QUOTA": "12094627905536",  # 11 TiB
         "OUTPUT_STATUS": "staged",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
@@ -47,9 +45,6 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     p = RateLimiter(config, logger_mock)
     assert p.name == "testing-rate_limiter"
     assert p.dest_site == "NERSC"
-    assert p.heartbeat_patch_retries == 3
-    assert p.heartbeat_patch_timeout_seconds == 30
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.input_path == "/path/to/icecube/bundler/outbox"
     assert p.input_status == "created"
     assert p.lta_auth_openid_url == "localhost:12345"
@@ -81,9 +76,6 @@ async def test_rate_limiter_logs_configuration(mocker: MockerFixture) -> None:
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-rate_limiter",
         "DEST_SITE": "NERSC",
-        "HEARTBEAT_PATCH_RETRIES": "1",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_PATH": "/path/to/icecube/bundler/outbox",
         "INPUT_STATUS": "created",
         "LOG_LEVEL": "DEBUG",
@@ -93,6 +85,7 @@ async def test_rate_limiter_logs_configuration(mocker: MockerFixture) -> None:
         "OUTPUT_QUOTA": "12094627905536",  # 11 TiB
         "OUTPUT_STATUS": "staged",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
@@ -105,9 +98,6 @@ async def test_rate_limiter_logs_configuration(mocker: MockerFixture) -> None:
         call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-rate_limiter'),
         call('DEST_SITE = NERSC'),
-        call('HEARTBEAT_PATCH_RETRIES = 1'),
-        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
-        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_PATH = /path/to/icecube/bundler/outbox'),
         call('INPUT_STATUS = created'),
         call('LOG_LEVEL = DEBUG'),
@@ -117,6 +107,7 @@ async def test_rate_limiter_logs_configuration(mocker: MockerFixture) -> None:
         call('OUTPUT_QUOTA = 12094627905536'),
         call('OUTPUT_STATUS = staged'),
         call('RUN_ONCE_AND_DIE = False'),
+        call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = WIPAC'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),

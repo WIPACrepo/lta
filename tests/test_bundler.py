@@ -29,9 +29,6 @@ def config() -> TestConfig:
         "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
         "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_REST_URL": "localhost:12346",
-        "HEARTBEAT_PATCH_RETRIES": "3",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "specified",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -43,6 +40,7 @@ def config() -> TestConfig:
         "MYSQL_USER": "jade-user",
         "OUTPUT_STATUS": "created",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
@@ -73,7 +71,6 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a Bundler can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-bundler"
@@ -85,7 +82,6 @@ def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFix
     """Ensure that sleep seconds can also be provided as an integer."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-bundler"
@@ -140,9 +136,6 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
         "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
         "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
-        "HEARTBEAT_PATCH_RETRIES": "1",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "specified",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -154,6 +147,7 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
         "MYSQL_USER": "logme-jade-user",
         "OUTPUT_STATUS": "created",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
@@ -171,9 +165,6 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
         call('FILE_CATALOG_CLIENT_ID = file-catalog-client-id'),
         call('FILE_CATALOG_CLIENT_SECRET = [秘密]'),
         call('FILE_CATALOG_REST_URL = http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
-        call('HEARTBEAT_PATCH_RETRIES = 1'),
-        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
-        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = specified'),
         call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
@@ -185,6 +176,7 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
         call('MYSQL_USER = logme-jade-user'),
         call('OUTPUT_STATUS = created'),
         call('RUN_ONCE_AND_DIE = False'),
+        call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = WIPAC'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
@@ -367,7 +359,7 @@ async def test_bundler_do_work_bundle_once_and_die(config: TestConfig, mocker: M
     sys_exit_mock = mocker.patch("sys.exit")
     p = Bundler(once, logger_mock)
     await p._do_work()
-    sys_exit_mock.assert_not_called()
+    sys_exit_mock.assert_called()
 
 
 def test_relpath() -> None:

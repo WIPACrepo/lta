@@ -27,9 +27,6 @@ def config() -> TestConfig:
         "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
         "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
-        "HEARTBEAT_PATCH_RETRIES": "3",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "unpacking",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -37,6 +34,7 @@ def config() -> TestConfig:
         "OUTPUT_STATUS": "completed",
         "PATH_MAP_JSON": "/tmp/lta/testing/path_map.json",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "NERSC",
         "UNPACKER_OUTBOX_PATH": "/tmp/lta/testing/unpacker/outbox",
         "UNPACKER_WORKBOX_PATH": "/tmp/lta/testing/unpacker/workbox",
@@ -81,7 +79,6 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture, path_map_
     """Test that a Unpacker can be constructed with a configuration object and a logging object."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-unpacker"
@@ -93,7 +90,6 @@ def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFix
     """Ensure that sleep seconds can also be provided as an integer."""
     logger_mock = mocker.MagicMock()
     p = Unpacker(config, logger_mock)
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-unpacker"
@@ -167,9 +163,6 @@ async def test_unpacker_logs_configuration(mocker: MockerFixture, path_map_mock:
         "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
         "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
-        "HEARTBEAT_PATCH_RETRIES": "1",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "unpacking",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -177,6 +170,7 @@ async def test_unpacker_logs_configuration(mocker: MockerFixture, path_map_mock:
         "OUTPUT_STATUS": "completed",
         "PATH_MAP_JSON": "logme/tmp/lta/testing/path_map.json",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "NERSC",
         "UNPACKER_OUTBOX_PATH": "logme/tmp/lta/testing/unpacker/outbox",
         "UNPACKER_WORKBOX_PATH": "logme/tmp/lta/testing/unpacker/workbox",
@@ -195,9 +189,6 @@ async def test_unpacker_logs_configuration(mocker: MockerFixture, path_map_mock:
         call('FILE_CATALOG_CLIENT_ID = file-catalog-client-id'),
         call('FILE_CATALOG_CLIENT_SECRET = [秘密]'),
         call('FILE_CATALOG_REST_URL = http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
-        call('HEARTBEAT_PATCH_RETRIES = 1'),
-        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
-        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = unpacking'),
         call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
@@ -205,6 +196,7 @@ async def test_unpacker_logs_configuration(mocker: MockerFixture, path_map_mock:
         call('OUTPUT_STATUS = completed'),
         call('PATH_MAP_JSON = logme/tmp/lta/testing/path_map.json'),
         call('RUN_ONCE_AND_DIE = False'),
+        call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = NERSC'),
         call('UNPACKER_OUTBOX_PATH = logme/tmp/lta/testing/unpacker/outbox'),
         call('UNPACKER_WORKBOX_PATH = logme/tmp/lta/testing/unpacker/workbox'),
@@ -324,7 +316,7 @@ async def test_unpacker_do_work_bundle_once_and_die(config: TestConfig, mocker: 
     sys_exit_mock = mocker.patch("sys.exit")
     p = Unpacker(once, logger_mock)
     await p._do_work()
-    sys_exit_mock.assert_not_called()
+    sys_exit_mock.assert_called()
 
 
 @pytest.mark.asyncio

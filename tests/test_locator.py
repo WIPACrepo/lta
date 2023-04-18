@@ -29,9 +29,6 @@ def config() -> TestConfig:
         "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_PAGE_SIZE": "1000",
         "FILE_CATALOG_REST_URL": "localhost:12346",
-        "HEARTBEAT_PATCH_RETRIES": "3",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "ethereal",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -39,6 +36,7 @@ def config() -> TestConfig:
         "LTA_SITE_CONFIG": "examples/site.json",
         "OUTPUT_STATUS": "located",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "NERSC",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
@@ -70,7 +68,6 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
     assert p.file_catalog_rest_url == "localhost:12346"
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-locator"
     assert p.work_sleep_duration_seconds == 60
@@ -82,7 +79,6 @@ def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFix
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
     assert p.file_catalog_rest_url == "localhost:12346"
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-locator"
     assert p.work_sleep_duration_seconds == 60
@@ -133,9 +129,6 @@ async def test_locator_logs_configuration(mocker: MockerFixture) -> None:
         "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
         "FILE_CATALOG_PAGE_SIZE": "1000",
         "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
-        "HEARTBEAT_PATCH_RETRIES": "1",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "ethereal",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -143,6 +136,7 @@ async def test_locator_logs_configuration(mocker: MockerFixture) -> None:
         "LTA_SITE_CONFIG": "examples/site.json",
         "OUTPUT_STATUS": "located",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "NERSC",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
@@ -159,9 +153,6 @@ async def test_locator_logs_configuration(mocker: MockerFixture) -> None:
         call('FILE_CATALOG_CLIENT_SECRET = [秘密]'),
         call('FILE_CATALOG_PAGE_SIZE = 1000'),
         call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
-        call('HEARTBEAT_PATCH_RETRIES = 1'),
-        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
-        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = ethereal'),
         call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
@@ -169,6 +160,7 @@ async def test_locator_logs_configuration(mocker: MockerFixture) -> None:
         call('LTA_SITE_CONFIG = examples/site.json'),
         call('OUTPUT_STATUS = located'),
         call('RUN_ONCE_AND_DIE = False'),
+        call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = NERSC'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),

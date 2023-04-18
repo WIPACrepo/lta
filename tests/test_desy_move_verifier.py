@@ -24,15 +24,13 @@ def config() -> TestConfig:
         "DEST_SITE": "DESY",
         "GRIDFTP_DEST_URL": "gsiftp://icecube.wisc.edu:7654/path/to/nowhere",
         "GRIDFTP_TIMEOUT": "1200",
-        "HEARTBEAT_PATCH_RETRIES": "3",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "30",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "60",
         "INPUT_STATUS": "transferring",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "taping",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "TRANSFER_CONFIG_PATH": "examples/rucio.json",
         "WORK_RETRIES": "3",
@@ -50,9 +48,6 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     assert p.dest_site == "DESY"
     assert p.gridftp_dest_url == "gsiftp://icecube.wisc.edu:7654/path/to/nowhere"
     assert p.gridftp_timeout == 1200
-    assert p.heartbeat_patch_retries == 3
-    assert p.heartbeat_patch_timeout_seconds == 30
-    assert p.heartbeat_sleep_duration_seconds == 60
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
     assert p.output_status == "taping"
@@ -82,15 +77,13 @@ async def test_desy_move_verifier_logs_configuration(mocker: MockerFixture) -> N
         "DEST_SITE": "DESY",
         "GRIDFTP_DEST_URL": "gsiftp://icecube.wisc.edu:7654/path/to/nowhere",
         "GRIDFTP_TIMEOUT": "1200",
-        "HEARTBEAT_PATCH_RETRIES": "1",
-        "HEARTBEAT_PATCH_TIMEOUT_SECONDS": "20",
-        "HEARTBEAT_SLEEP_DURATION_SECONDS": "30",
         "INPUT_STATUS": "transferring",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "taping",
         "RUN_ONCE_AND_DIE": "False",
+        "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
@@ -106,15 +99,13 @@ async def test_desy_move_verifier_logs_configuration(mocker: MockerFixture) -> N
         call('DEST_SITE = DESY'),
         call('GRIDFTP_DEST_URL = gsiftp://icecube.wisc.edu:7654/path/to/nowhere'),
         call('GRIDFTP_TIMEOUT = 1200'),
-        call('HEARTBEAT_PATCH_RETRIES = 1'),
-        call('HEARTBEAT_PATCH_TIMEOUT_SECONDS = 20'),
-        call('HEARTBEAT_SLEEP_DURATION_SECONDS = 30'),
         call('INPUT_STATUS = transferring'),
         call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = localhost:12347'),
         call('OUTPUT_STATUS = taping'),
         call('RUN_ONCE_AND_DIE = False'),
+        call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = WIPAC'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
