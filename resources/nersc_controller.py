@@ -123,8 +123,12 @@ def count_jobs_by_name(sacct: JsonObj) -> JsonObj:
             continue
         if job["job_state"] not in JOB_STATES:
             continue
-        # since it's one of ours, add it to the totals
+        # make sure it's one of the jobs that we care about
+        # (i.e.: ignore 'nersc-controller' and such like)
         name = get_name(job["name"])
+        if name not in JOB_PRIORITY:
+            continue
+        # since it's one of ours, add it to the totals
         result[name] = result[name] + 1
         if name in HSI_JOBS:
             result["hsi"] = result["hsi"] + 1
