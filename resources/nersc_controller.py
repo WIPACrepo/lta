@@ -16,9 +16,10 @@ EXPECTED_CONFIG: KeySpec = {
     "LOG_LEVEL": "DEBUG",
     "LOG_PATH": "/global/homes/i/icecubed/lta/nersc_controller.log",
     "LTA_BIN_DIR": "/global/homes/i/icecubed/lta/bin",
-    "SACCT_PATH": "/opt/esslurm/bin/sacct",
-    "SBATCH_PATH": "/opt/esslurm/bin/sbatch",
+    "SACCT_PATH": "/usr/bin/sacct",
+    "SBATCH_PATH": "/usr/bin/sbatch",
     "SLURM_LOG_DIR": "/global/homes/i/icecubed/lta/slurm-logs",
+    "SQUEUE_PATH": "/usr/bin/squeue",
 }
 
 # HSI_JOBS is a list of jobs that use the HPSS tape system;
@@ -50,6 +51,18 @@ JOB_PRIORITY = [
     "pipe0-nersc-verifier",
     "pipe0-nersc-mover",
     "pipe0-site-move-verifier",
+]
+
+# JOB_STATES are the states of a job in the slurm queue that count as
+# "active" jobs. We're not worried about cancelled, completed, etc.
+# jobs, but rather those that are consuming resources or may soon do
+# so in the future.
+JOB_STATES = [
+    "PENDING",    # PD
+    "RUNNING",    # R
+    "REQUIRED",   # RQ
+    "RESIZING",   # RS
+    "SUSPENDED",  # S
 ]
 
 LOG = logging.getLogger(__name__)
@@ -103,6 +116,14 @@ def count_jobs_by_name(sacct: JsonObj) -> JsonObj:
     # for each job, add them up by name
     jobs = sacct["jobs"]
     for job in jobs:
+        # make sure it's one of our active jobs
+        if job["account"] != 'm1093':
+            continue
+        if job["user_name"] != 'icecubed':
+            continue
+        if job["job_state"] not in JOB_STATES:
+            continue
+        # since it's one of ours, add it to the totals
         name = get_name(job["name"])
         result[name] = result[name] + 1
         if name in HSI_JOBS:
@@ -110,6 +131,7 @@ def count_jobs_by_name(sacct: JsonObj) -> JsonObj:
         result["total"] = result["total"] + 1
 
     # return the job count to the caller
+    LOG.info(f"job_counts: {result=}")
     return result
 
 
@@ -147,22 +169,51 @@ async def do_work(context: Context) -> None:
     LOG.debug("All done checking slurm and scheduling jobs.")
 
 
+# def get_active_jobs(context: Context) -> JsonObj:
+#     """Check the slurm queue for currently running jobs."""
+#     LOG.info("Checking slurm queue for currently running jobs")
+#     sacct_path = context["SACCT_PATH"]
+
+#     # run the sacct command to determine our jobs currently running in the slurm queue
+#     #     sacct_path             The path to the 'sacct' command
+#     #     --account=m1093        IceCube's project (m1093) at NERSC
+#     #     --json                 Please give me the output in JSON format (easy to parse)
+#     #     --state=PD,R,RQ,RS,S   Give me the jobs in the following states:
+#     #                                PD = PENDING
+#     #                                R  = RUNNING
+#     #                                RQ = REQUEUED
+#     #                                RS = RESIZING
+#     #                                S  = SUSPENDED
+#     args = [sacct_path, "--account=m1093", "--json", "--state=PD,R,RQ,RS,S"]
+#     LOG.info(f"Running command: {args}")
+#     completed_process = run(args, stdout=PIPE, stderr=PIPE)
+
+#     # if our command failed
+#     if completed_process.returncode != 0:
+#         LOG.error("Command to check the slurm queue failed")
+#         LOG.info(f"Command: {completed_process.args}")
+#         LOG.info(f"returncode: {completed_process.returncode}")
+#         LOG.info(f"stdout: {str(completed_process.stdout)}")
+#         LOG.info(f"stderr: {str(completed_process.stderr)}")
+#         raise FailedCommandException(f"{completed_process.args}")
+
+#     # otherwise, we succeeded; output is on stdout
+#     # {"jobs": [{ ... }, { ... }]}
+#     result = completed_process.stdout.decode("utf-8")
+#     sacct_output = json.loads(result)
+
+#     return cast(JsonObj, sacct_output)
+
+
 def get_active_jobs(context: Context) -> JsonObj:
     """Check the slurm queue for currently running jobs."""
     LOG.info("Checking slurm queue for currently running jobs")
-    sacct_path = context["SACCT_PATH"]
+    squeue_path = context["SQUEUE_PATH"]
 
-    # run the sacct command to determine our jobs currently running in the slurm queue
-    #     sacct_path             The path to the 'sacct' command
-    #     --account=m1093        IceCube's project (m1093) at NERSC
+    # run the squeue command to determine our jobs currently running in the slurm queue
+    #     squeue_path            The path to the 'squeue' command
     #     --json                 Please give me the output in JSON format (easy to parse)
-    #     --state=PD,R,RQ,RS,S   Give me the jobs in the following states:
-    #                                PD = PENDING
-    #                                R  = RUNNING
-    #                                RQ = REQUEUED
-    #                                RS = RESIZING
-    #                                S  = SUSPENDED
-    args = [sacct_path, "--account=m1093", "--json", "--state=PD,R,RQ,RS,S"]
+    args = [squeue_path, "--json"]
     LOG.info(f"Running command: {args}")
     completed_process = run(args, stdout=PIPE, stderr=PIPE)
 
@@ -222,6 +273,7 @@ def main_sync() -> None:
         "SACCT_PATH": cast(str, config["SACCT_PATH"]),
         "SBATCH_PATH": cast(str, config["SBATCH_PATH"]),
         "SLURM_LOG_DIR": cast(str, config["SLURM_LOG_DIR"]),
+        "SQUEUE_PATH": cast(str, config["SQUEUE_PATH"]),
     }
 
     asyncio.run(main(context))
