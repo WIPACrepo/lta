@@ -127,6 +127,7 @@ def count_jobs_by_name(sacct: JsonObj) -> JsonObj:
         # (i.e.: ignore 'nersc-controller' and such like)
         name = get_name(job["name"])
         if name not in JOB_PRIORITY:
+            LOG.warning(f"Ignoring job {name=}")
             continue
         # since it's one of ours, add it to the totals
         result[name] = result[name] + 1
