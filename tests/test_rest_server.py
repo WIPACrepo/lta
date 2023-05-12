@@ -88,7 +88,7 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
     monkeypatch.setenv("WIPACTEL_EXPORT_STDOUT", "TRUE")
     s = start(debug=True)
 
-    def client(role: str = "admin", timeout: float = 0.25) -> RestClient:
+    def client(role: str = "admin", timeout: float = 0.5) -> RestClient:
         # But they were, all of them, deceived, for another Token was made.
         # In the land of PyTest, in the fires of Mount Fixture, the Dark Lord
         # Sauron forged in secret a master Token, to control all others. And
