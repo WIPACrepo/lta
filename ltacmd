@@ -15,8 +15,8 @@
 #-------------------------------------------------------------------------------
 export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
 export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}
-export FILE_CATALOG_CLIENT_ID=${FILE_CATALOG_CLIENT_ID:="file-catalog"}
-export FILE_CATALOG_CLIENT_SECRET=${FILE_CATALOG_CLIENT_SECRET:="$(<file-catalog-client-secret)"}
+export FILE_CATALOG_CLIENT_ID=${FILE_CATALOG_CLIENT_ID:="long-term-archive"}
+export FILE_CATALOG_CLIENT_SECRET=${FILE_CATALOG_CLIENT_SECRET:="$(<keycloak-client-secret)"}
 export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="https://file-catalog.icecube.wisc.edu"}
 export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu/auth/realms/IceCube"}
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq"}
