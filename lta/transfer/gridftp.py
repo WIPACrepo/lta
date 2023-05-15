@@ -171,7 +171,12 @@ class GridFTP(object):
         return None
 
     @classmethod
-    def put(cls, address: str, data: Optional[str] = None, filename: Optional[str] = None, request_timeout: Optional[int] = None) -> None:
+    def put(cls,
+            address: str,
+            data: Optional[str] = None,
+            filename: Optional[str] = None,
+            request_timeout: Optional[int] = None,
+            debug: Optional[bool] = False) -> None:
         """
         Do a GridFTP put request.
 
@@ -182,6 +187,7 @@ class GridFTP(object):
             data (str): the data to put
             filename (str): filename for data to put
             request_timeout (float): timeout in seconds
+            debug (bool): add -dbg flag for debug output to stderr
 
         Raises:
             Exception for failure
@@ -201,6 +207,8 @@ class GridFTP(object):
             raise Exception('Neither data or filename is defined')
 
         cmd = ['globus-url-copy', '-cd', src, address]
+        if debug:
+            cmd = ['globus-url-copy', '-dbg', '-cd', src, address]
 
         if request_timeout is None:
             timeout = cls._timeout
