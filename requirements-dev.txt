@@ -48,7 +48,7 @@ googleapis-common-protos==1.56.2
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.54.0
+grpcio==1.54.2
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -161,7 +161,7 @@ tomli==2.0.1
     #   coverage
     #   mypy
     #   pytest
-tornado==6.3.1
+tornado==6.3.2
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
