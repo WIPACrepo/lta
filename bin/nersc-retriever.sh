@@ -13,7 +13,7 @@ export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 # export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="staged"}
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION="python"
-export RSE_BASE_PATH=${RSE_BASE_PATH:="/global/cscratch1/sd/icecubed/jade-disk/lta"}
+export RSE_BASE_PATH=${RSE_BASE_PATH:="/pscratch/sd/i/icecubed"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="True"}
 export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="FALSE"}
 export SOURCE_SITE=${SOURCE_SITE:="NERSC"}
