@@ -7,7 +7,7 @@ export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
 export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-deleter-return"}
 export DEST_SITE=${DEST_SITE:="WIPAC"}
-export DISK_BASE_PATH=${DISK_BASE_PATH:="/global/cscratch1/sd/icecubed/jade-disk/lta"}
+export DISK_BASE_PATH=${DISK_BASE_PATH:="/pscratch/sd/i/icecubed"}
 # export INPUT_STATUS=${INPUT_STATUS:="detached"}
 export INPUT_STATUS=${INPUT_STATUS:="completed"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
