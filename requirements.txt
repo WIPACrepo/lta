@@ -23,7 +23,9 @@ coloredlogs==15.0.1
 cryptography==40.0.2
     # via pyjwt
 deprecated==1.2.13
-    # via opentelemetry-api
+    # via
+    #   opentelemetry-api
+    #   opentelemetry-exporter-otlp-proto-http
 dnspython==2.3.0
     # via pymongo
 future==0.18.3
@@ -32,7 +34,7 @@ googleapis-common-protos==1.56.2
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.54.2
+grpcio==1.55.0
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -44,30 +46,34 @@ importlib-metadata==6.0.1
     # via opentelemetry-api
 motor==3.1.2
     # via lta (setup.py)
-opentelemetry-api==1.17.0
+opentelemetry-api==1.18.0
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
     #   wipac-telemetry
-opentelemetry-exporter-jaeger==1.17.0
+opentelemetry-exporter-jaeger==1.18.0
     # via wipac-telemetry
-opentelemetry-exporter-jaeger-proto-grpc==1.17.0
+opentelemetry-exporter-jaeger-proto-grpc==1.18.0
     # via opentelemetry-exporter-jaeger
-opentelemetry-exporter-jaeger-thrift==1.17.0
+opentelemetry-exporter-jaeger-thrift==1.18.0
     # via opentelemetry-exporter-jaeger
-opentelemetry-exporter-otlp-proto-http==1.17.0
-    # via wipac-telemetry
-opentelemetry-proto==1.17.0
+opentelemetry-exporter-otlp-proto-common==1.18.0
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.17.0
+opentelemetry-exporter-otlp-proto-http==1.18.0
+    # via wipac-telemetry
+opentelemetry-proto==1.18.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-common
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-sdk==1.18.0
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
     #   opentelemetry-exporter-otlp-proto-http
     #   wipac-telemetry
-opentelemetry-semantic-conventions==0.38b0
+opentelemetry-semantic-conventions==0.39b0
     # via opentelemetry-sdk
 prometheus-client==0.16.0
     # via lta (setup.py)
@@ -88,7 +94,7 @@ pypng==0.20220715.0
     # via qrcode
 qrcode==7.4.2
     # via wipac-rest-tools
-requests==2.30.0
+requests==2.31.0
     # via
     #   opentelemetry-exporter-otlp-proto-http
     #   requests-futures
@@ -106,7 +112,7 @@ tornado==6.3.2
     #   wipac-rest-tools
 types-cryptography==3.3.23.2
     # via pyjwt
-typing-extensions==4.5.0
+typing-extensions==4.6.0
     # via
     #   opentelemetry-sdk
     #   qrcode
