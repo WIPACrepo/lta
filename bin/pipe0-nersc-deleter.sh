@@ -5,7 +5,7 @@ export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
 export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-pipe0-nersc-deleter"}
 export DEST_SITE=${DEST_SITE:="NERSC"}
-export DISK_BASE_PATH=${DISK_BASE_PATH:="/pscratch/sd/i/icecubed"}
+export DISK_BASE_PATH=${DISK_BASE_PATH:="/global/cfs/cdirs/icecubed"}
 export INPUT_STATUS=${INPUT_STATUS:="source-deleted"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu/auth/realms/IceCube"}
