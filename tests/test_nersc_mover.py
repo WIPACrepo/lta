@@ -23,6 +23,7 @@ def config() -> TestConfig:
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "testing-nersc-mover",
         "DEST_SITE": "NERSC",
+        "HPSS_AVAIL_PATH": "/path/to/hpss_avail.py",
         "INPUT_STATUS": "taping",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -119,6 +120,7 @@ async def test_nersc_mover_logs_configuration(mocker: MockerFixture) -> None:
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
         "COMPONENT_NAME": "logme-testing-nersc-mover",
         "DEST_SITE": "NERSC",
+        "HPSS_AVAIL_PATH": "/log/me/path/to/hpss_avail.py",
         "INPUT_STATUS": "taping",
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
@@ -141,6 +143,7 @@ async def test_nersc_mover_logs_configuration(mocker: MockerFixture) -> None:
         call('CLIENT_SECRET = [秘密]'),
         call('COMPONENT_NAME = logme-testing-nersc-mover'),
         call('DEST_SITE = NERSC'),
+        call('HPSS_AVAIL_PATH = /log/me/path/to/hpss_avail.py'),
         call('INPUT_STATUS = taping'),
         call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),

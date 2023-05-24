@@ -8,6 +8,7 @@ export DEST_SITE=${DEST_SITE:="NERSC"}
 export FILE_CATALOG_CLIENT_ID=${FILE_CATALOG_CLIENT_ID:="file-catalog"}
 export FILE_CATALOG_CLIENT_SECRET=${FILE_CATALOG_CLIENT_SECRET:="$(<file-catalog-client-secret)"}
 export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="https://file-catalog.icecube.wisc.edu"}
+export HPSS_AVAIL_PATH=${HPSS_AVAIL_PATH:="/usr/bin/hpss_avail.py"}
 export INPUT_STATUS=${INPUT_STATUS:="verifying"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu/auth/realms/IceCube"}
