@@ -34,7 +34,7 @@ googleapis-common-protos==1.56.2
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.55.0
+grpcio==1.54.2
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -112,7 +112,7 @@ tornado==6.3.2
     #   wipac-rest-tools
 types-cryptography==3.3.23.2
     # via pyjwt
-typing-extensions==4.6.0
+typing-extensions==4.6.1
     # via
     #   opentelemetry-sdk
     #   qrcode
@@ -120,14 +120,14 @@ typing-extensions==4.6.0
     #   wipac-telemetry
 urllib3==2.0.2
     # via requests
-wipac-dev-tools==1.6.15
+wipac-dev-tools==1.6.16
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
     #   wipac-telemetry
 wipac-rest-tools==1.4.18
     # via lta (setup.py)
-wipac-telemetry==0.2.6
+wipac-telemetry==0.2.7
     # via lta (setup.py)
 wrapt==1.15.0
     # via deprecated
