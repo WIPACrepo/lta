@@ -95,7 +95,7 @@ class NerscVerifier(Component):
         """Claim a bundle and perform work on it."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
-        args = ["/usr/common/software/bin/hpss_avail", "archive"]
+        args = [self.hpss_avail_path, "archive"]
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
