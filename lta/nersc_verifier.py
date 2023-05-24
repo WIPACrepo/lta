@@ -24,6 +24,7 @@ EXPECTED_CONFIG.update({
     "FILE_CATALOG_CLIENT_ID": None,
     "FILE_CATALOG_CLIENT_SECRET": None,
     "FILE_CATALOG_REST_URL": None,
+    "HPSS_AVAIL_PATH": "/usr/bin/hpss_avail.py",
     "TAPE_BASE_PATH": None,
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
@@ -64,6 +65,7 @@ class NerscVerifier(Component):
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
+        self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])

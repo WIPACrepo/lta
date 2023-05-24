@@ -21,6 +21,7 @@ LOG = logging.getLogger(__name__)
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "HPSS_AVAIL_PATH": "/usr/bin/hpss_avail.py",
     "MAX_COUNT": None,
     "RSE_BASE_PATH": None,
     "TAPE_BASE_PATH": None,
@@ -57,6 +58,7 @@ class NerscMover(Component):
         logger - The object the nersc_mover should use for logging.
         """
         super(NerscMover, self).__init__("nersc_mover", config, logger)
+        self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.max_count = int(config["MAX_COUNT"])
         self.rse_base_path = config["RSE_BASE_PATH"]
         self.tape_base_path = config["TAPE_BASE_PATH"]
@@ -88,7 +90,7 @@ class NerscMover(Component):
         """Claim a bundle and perform work on it."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
-        args = ["/usr/common/software/bin/hpss_avail", "archive"]
+        args = [self.hpss_avail_path, "archive"]
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work

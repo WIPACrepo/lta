@@ -21,6 +21,7 @@ LOG = logging.getLogger(__name__)
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "HPSS_AVAIL_PATH": "/usr/bin/hpss_avail.py",
     "RSE_BASE_PATH": None,
     "TAPE_BASE_PATH": None,
     "WORK_RETRIES": "3",
@@ -56,6 +57,7 @@ class NerscRetriever(Component):
         logger - The object the nersc_retriever should use for logging.
         """
         super(NerscRetriever, self).__init__("nersc_retriever", config, logger)
+        self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.rse_base_path = config["RSE_BASE_PATH"]
         self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
@@ -86,7 +88,7 @@ class NerscRetriever(Component):
         """Claim a bundle and perform work on it."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
-        args = ["/usr/common/software/bin/hpss_avail", "archive"]
+        args = [self.hpss_avail_path, "archive"]
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work

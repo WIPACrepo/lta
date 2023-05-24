@@ -6,6 +6,7 @@ export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
 export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-nersc-retriever"}
 export DEST_SITE=${DEST_SITE:="WIPAC"}
+export HPSS_AVAIL_PATH=${HPSS_AVAIL_PATH:="/usr/bin/hpss_avail.py"}
 export INPUT_STATUS=${INPUT_STATUS:="located"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu/auth/realms/IceCube"}
