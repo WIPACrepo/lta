@@ -9,14 +9,14 @@ jobs:
     outputs:
       matrix: ${{ steps.py3_versions.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Python Versions
         id: py3_versions
         run: |
           minmin_maxmax=$(grep -P "\(\(\d+, ?\d+\), ?\(\d+, ?\d+\)\)" -oh setup.py | sed 's/[^0-9]/ /g')
           IFS=', ' read -r -a array <<< "$minmin_maxmax"
           min_thru_max_series=$(for i in `seq ${array[1]} ${array[3]}`; do printf "'3.$i',"; done | rev | cut -c 2- | rev)
-          echo "matrix={\"py3_versions\":[$(echo $min_thru_max_series)]}\"" >> $GITHUB_OUTPUT
+          echo "matrix={\"py3_versions\":[$(echo $min_thru_max_series)]}" >> $GITHUB_OUTPUT
           echo $min_thru_max_series
         
   pip-install:
@@ -29,8 +29,8 @@ jobs:
       matrix: ${{ fromJSON(needs.gather-py3-versions.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.py3_versions }}
       - run: |
