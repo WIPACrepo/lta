@@ -28,7 +28,7 @@ colorama==0.4.6
     #   lta (setup.py)
 coloredlogs==15.0.1
     # via wipac-telemetry
-coverage[toml]==7.2.5
+coverage[toml]==7.2.6
     # via pytest-cov
 crayons==0.4.0
     # via pycycle
@@ -50,7 +50,7 @@ googleapis-common-protos==1.56.2
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.55.0
+grpcio==1.54.2
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -177,7 +177,7 @@ types-requests==2.31.0.0
     # via lta (setup.py)
 types-urllib3==1.26.25.13
     # via types-requests
-typing-extensions==4.6.0
+typing-extensions==4.6.1
     # via
     #   mypy
     #   opentelemetry-sdk
@@ -186,14 +186,14 @@ typing-extensions==4.6.0
     #   wipac-telemetry
 urllib3==2.0.2
     # via requests
-wipac-dev-tools==1.6.15
+wipac-dev-tools==1.6.16
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
     #   wipac-telemetry
 wipac-rest-tools==1.4.18
     # via lta (setup.py)
-wipac-telemetry==0.2.6
+wipac-telemetry==0.2.7
     # via lta (setup.py)
 wrapt==1.15.0
     # via deprecated

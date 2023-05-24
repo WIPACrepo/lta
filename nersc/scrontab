@@ -1,6 +1,36 @@
+# Welcome to scrontab, Slurm's cron-like interface.
+#
+# Edit this file to submit recurring jobs to be run by Slurm.
+#
+# Note that jobs will be run based on the Slurm controller's
+# time and timezone.
+#
+# Lines must either be valid entries, comments (start with '#'),
+# or blank.
+#
+# Lines starting with #SCRON will be parsed for options to use
+# with the next cron line. E.g., "#SCRON --time 1" would request
+# a one minute timelimit be applied. See the sbatch man page for
+# options, although note that not all options are supported here.
+#
+# For example, the following line (when uncommented) would request
+# a job be run at 5am each day.
+# 0 5 * * * /my/script/to/run
+#
+# min hour day-of-month month day-of-week command
+
+# run LTA controller script every 10 minutes
 #SCRON -q cron
 #SCRON -A m1093
 #SCRON -t 00:30:00
 #SCRON -o /global/homes/i/icecubed/lta/scrontab-log.out
 #SCRON --open-mode=append
 */10 * * * * /global/homes/i/icecubed/lta/resources/nersc-controller.sh
+
+# every day at 2 AM, clean up two week old SLURM logs
+#SCRON -q cron
+#SCRON -A m1093
+#SCRON -t 00:15:00
+#SCRON -o /global/homes/i/icecubed/lta/slurm-clean.out
+#SCRON --open-mode=append
+0 2 * * * cd /global/homes/i/icecubed/lta/slurm-logs; find . -type f -mtime 14 -exec mv {} .. \;
