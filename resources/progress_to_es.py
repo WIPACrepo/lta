@@ -9,7 +9,6 @@ import logging
 from pprint import pprint
 
 from elasticsearch import AsyncElasticsearch
-import elasticsearch.exceptions
 from lta.lta_tools import from_environment
 from rest_tools.client import ClientCredentialsAuth
 
@@ -102,7 +101,6 @@ class Collect:
             else:
                 # otherwise, this was the last bunch, we're done
                 finished = True
-
 
 
 def main():
