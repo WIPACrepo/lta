@@ -14,10 +14,10 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 # install Long Term Archive (LTA) code
-COPY README.md requirements.txt requirements-monitoring.txt setup.cfg setup.py /usr/src/lta/
+COPY README.md setup.cfg setup.py /usr/src/lta/
 COPY lta /usr/src/lta/lta
 COPY resources /usr/src/lta/resources
-RUN pip install --no-cache-dir -r /usr/src/lta/requirements.txt -r /usr/src/lta/requirements-monitoring.txt
+RUN pip install --no-cache-dir .[monitoring]
 
 RUN useradd -m -U app
 USER app
