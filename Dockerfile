@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
 COPY README.md setup.cfg setup.py /usr/src/lta/
 COPY lta /usr/src/lta/lta
 COPY resources /usr/src/lta/resources
-RUN pip install --no-cache-dir .[monitoring]
+RUN pip install --no-cache-dir /usr/src/lta[monitoring]
 
 RUN useradd -m -U app
 USER app
