@@ -107,7 +107,7 @@ packaging==23.1
     # via pytest
 pluggy==1.0.0
     # via pytest
-prometheus-client==0.16.0
+prometheus-client==0.17.0
     # via lta (setup.py)
 protobuf==3.20.3
     # via
@@ -177,7 +177,7 @@ types-requests==2.31.0.0
     # via lta (setup.py)
 types-urllib3==1.26.25.13
     # via types-requests
-typing-extensions==4.6.1
+typing-extensions==4.6.2
     # via
     #   mypy
     #   opentelemetry-sdk
@@ -191,7 +191,7 @@ wipac-dev-tools==1.6.16
     #   lta (setup.py)
     #   wipac-rest-tools
     #   wipac-telemetry
-wipac-rest-tools==1.4.18
+wipac-rest-tools==1.4.19
     # via lta (setup.py)
 wipac-telemetry==0.2.7
     # via lta (setup.py)
