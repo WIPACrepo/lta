@@ -13,6 +13,8 @@ Context = Dict[str, Any]
 JsonObj = Dict[str, Any]
 
 EXPECTED_CONFIG: KeySpec = {
+    "JOB_TIME": "12:00:00",
+    "JOB_TIME_MIN": "6:00:00",
     "LOG_LEVEL": "DEBUG",
     "LOG_PATH": "/global/homes/i/icecubed/lta/nersc_controller.log",
     "LTA_BIN_DIR": "/global/homes/i/icecubed/lta/bin",
@@ -80,6 +82,8 @@ class FailedCommandException(Exception):
 def add_job_to_slurm_queue(context: Context, name: str) -> None:
     """Add a new job to the slurm queue."""
     LOG.info(f"Scheduling job type '{name}' in the slurm queue")
+    job_time = context["JOB_TIME"]
+    job_time_min = context["JOB_TIME_MIN"]
     lta_bin_dir = context["LTA_BIN_DIR"]
     sbatch_path = context["SBATCH_PATH"]
     slurm_log_dir = context["SLURM_LOG_DIR"]
@@ -89,8 +93,10 @@ def add_job_to_slurm_queue(context: Context, name: str) -> None:
     #     --account=m1093        IceCube's project (m1093) at NERSC
     #     --output=slurm.log     The log file used by the job
     #     --qos=xfer             Add the job to the xfer queue
+    #     --time=HH:MM:SS        Time limit for the job
+    #     --time-min=HH:MM:SS    Minimum time for the job
     #     name.sh                The script to be run in the slurm queue
-    args = [sbatch_path, "--account=m1093", f"--output={slurm_log_dir}/slurm-{name}-%j.out", "--qos=xfer", f"{lta_bin_dir}/{name}.sh"]
+    args = [sbatch_path, "--account=m1093", f"--output={slurm_log_dir}/slurm-{name}-%j.out", "--qos=xfer", f"--time={job_time}", f"--time-min={job_time_min}", f"{lta_bin_dir}/{name}.sh"]
     LOG.info(f"Running command: {args}")
     completed_process = run(args, stdout=PIPE, stderr=PIPE)
 
@@ -272,6 +278,8 @@ def main_sync() -> None:
     LOG.info("Starting synchronous code")
 
     context: Context = {
+        "JOB_TIME": cast(str, config["JOB_TIME"]),
+        "JOB_TIME_MIN": cast(str, config["JOB_TIME_MIN"]),
         "LOG_LEVEL": cast(str, config["LOG_LEVEL"]),
         "LOG_PATH": cast(str, config["LOG_PATH"]),
         "LTA_BIN_DIR": cast(str, config["LTA_BIN_DIR"]),

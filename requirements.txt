@@ -75,7 +75,7 @@ opentelemetry-sdk==1.18.0
     #   wipac-telemetry
 opentelemetry-semantic-conventions==0.39b0
     # via opentelemetry-sdk
-prometheus-client==0.16.0
+prometheus-client==0.17.0
     # via lta (setup.py)
 protobuf==3.20.3
     # via
@@ -112,7 +112,7 @@ tornado==6.3.2
     #   wipac-rest-tools
 types-cryptography==3.3.23.2
     # via pyjwt
-typing-extensions==4.6.1
+typing-extensions==4.6.2
     # via
     #   opentelemetry-sdk
     #   qrcode
@@ -125,7 +125,7 @@ wipac-dev-tools==1.6.16
     #   lta (setup.py)
     #   wipac-rest-tools
     #   wipac-telemetry
-wipac-rest-tools==1.4.18
+wipac-rest-tools==1.4.19
     # via lta (setup.py)
 wipac-telemetry==0.2.7
     # via lta (setup.py)
