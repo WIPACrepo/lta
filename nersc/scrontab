@@ -27,10 +27,10 @@
 #SCRON --open-mode=append
 */10 * * * * /global/homes/i/icecubed/lta/resources/nersc-controller.sh
 
-# every day at 2 AM, clean up two week old SLURM logs
+# every day at 2 AM, clean up week old SLURM logs
 #SCRON -q cron
 #SCRON -A m1093
 #SCRON -t 00:15:00
 #SCRON -o /global/homes/i/icecubed/lta/slurm-clean.out
 #SCRON --open-mode=append
-0 2 * * * cd /global/homes/i/icecubed/lta/slurm-logs; find . -type f -mtime 14 -exec mv {} .. \;
+0 2 * * * cd /global/homes/i/icecubed/lta/slurm-logs; find . -type f -mtime 7 -delete

@@ -6,6 +6,8 @@ cd ${HOME}/lta
 source env/bin/activate
 
 # run the controller script
+export JOB_TIME=${JOB_TIME:="12:00:00"}
+export JOB_TIME_MIN=${JOB_TIME_MIN:="6:00:00"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LOG_PATH=${LOG_PATH:="${HOME}/lta/nersc_controller.log"}
 export LTA_BIN_DIR=${LTA_BIN_DIR:="${HOME}/lta/bin"}
