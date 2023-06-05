@@ -170,6 +170,7 @@ class Collect:
             for t in done:
                 await t
 
+
 def main():
     config = from_environment({
         'CLIENT_ID': 'long-term-archive',
@@ -195,8 +196,6 @@ def main():
                         help='do not ingest into ES, just print')
     parser.add_argument('--log-level', default='info', choices=['debug', 'info', 'warning', 'error'])
     args = parser.parse_args()
-    if not args:
-        parser.error('no condor history files or collectors')
 
     logging.basicConfig(level=getattr(logging, args.log_level.upper()), format='%(asctime)s %(levelname)s %(name)s : %(message)s')
 
@@ -204,7 +203,7 @@ def main():
         rest_client = None
     else:
         if not config['CLIENT_SECRET']:
-            raise ArgumentError('env variable CLIENT_SECRET is required')
+            parser.error('env variable CLIENT_SECRET is required')
         rest_client = ClientCredentialsAuth(
             address=config['FILE_CATALOG_URL'],
             token_url=config['OPENID_URL'],
