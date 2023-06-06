@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
 import shutil
 import sys
 from typing import Any, Dict, Optional
@@ -177,6 +178,9 @@ class Bundler(Component):
                                      bundle_file_path: str,
                                      metadata_file_path: str,
                                      file_count: int) -> None:
+        # 0. Remove an existing bundle, if we are re-trying
+        Path(bundle_file_path).unlink(missing_ok=True)
+
         # 2. Create a ZIP bundle by writing constituent files to it
         bundle_uuid = bundle["uuid"]
         request_path = bundle["path"]
@@ -224,6 +228,9 @@ class Bundler(Component):
                                     bundle: BundleType,
                                     metadata_file_path: str,
                                     file_count: int) -> None:
+        # 0. Remove an existing manifest, if we are re-trying
+        Path(metadata_file_path).unlink(missing_ok=True)
+
         # 1. Create a manifest of the bundle, including all metadata
         bundle_uuid = bundle["uuid"]
         self.logger.info(f"Bundle metadata file will be created at: {metadata_file_path}")
