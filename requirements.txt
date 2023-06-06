@@ -20,7 +20,7 @@ colorama==0.4.6
     # via lta (setup.py)
 coloredlogs==15.0.1
     # via wipac-telemetry
-cryptography==40.0.2
+cryptography==41.0.1
     # via pyjwt
 deprecated==1.2.14
     # via
@@ -110,7 +110,7 @@ tornado==6.3.2
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
-typing-extensions==4.6.2
+typing-extensions==4.6.3
     # via
     #   opentelemetry-sdk
     #   qrcode
