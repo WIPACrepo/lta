@@ -68,13 +68,19 @@ class Collect:
         elif self.bundle_mode and catalog_file.get('lta', {}).get('date_archived', None):
             create_date = catalog_file['lta']['date_archived']
 
+        season = 'unknown'
+        if name.startswith('/data/exp') and len(name_parts) > 3:
+            s = name_parts[3][:4]
+            if s.isdigit():
+                season = s
+
         doc.update({
             '@timestamp': es_date_formatter(catalog_file['meta_modify_date']),
             '@date': es_date_formatter(create_date),
             'sim': name.startswith('/data/sim'),
             'exp': name.startswith('/data/exp'),
             'type': type,
-            'season': name_parts[3] if len(name_parts) > 3 else 'unknown',
+            'season': season,
             'size': int(catalog_file['file_size']['$numberLong'] if isinstance(catalog_file['file_size'], dict) else catalog_file['file_size']),
         })
         if self.dryrun:
@@ -115,6 +121,8 @@ class Collect:
             query_dict['meta_modify_date'] = {'$lte': self.end_date}
         query_json = json.dumps(query_dict)
         keys = "create_date|meta_modify_date|file_size|locations|logical_name|uuid"
+        if self.bundle_mode:
+            keys += "|lta"
         start = 0
         limit = 500
         finished = False
