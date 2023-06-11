@@ -130,7 +130,7 @@ pymongo==4.3.3
     #   motor
 pypng==0.20220715.0
     # via qrcode
-pytest==7.3.1
+pytest==7.3.2
     # via
     #   lta (setup.py)
     #   pycycle
@@ -182,7 +182,7 @@ typing-extensions==4.6.3
     #   qrcode
     #   wipac-dev-tools
     #   wipac-telemetry
-urllib3==2.0.2
+urllib3==2.0.3
     # via requests
 wipac-dev-tools==1.6.16
     # via
