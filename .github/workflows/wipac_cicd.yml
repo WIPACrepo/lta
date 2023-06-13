@@ -3,6 +3,16 @@ name: Profile MongoDB Queries
 on: [push]
 
 jobs:
+
+  flake8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.py_version }}
+      - uses: WIPACrepo/wipac-dev-flake8-action@v1.0
+
   py-setup:
     runs-on: ubuntu-latest
     steps:
@@ -28,7 +38,6 @@ jobs:
           base-keywords: "WIPAC IceCube"
 
   py-versions:
-    needs: [py-setup]
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.versions.outputs.matrix }}
@@ -37,8 +46,26 @@ jobs:
       - id: versions
         uses: WIPACrepo/wipac-dev-py-versions-action@v2.1
 
+  pip-install:
+    needs: [py-setup, py-versions]
+    runs-on: ubuntu-latest
+
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.py3_versions }}
+      - run: |
+          pip install --upgrade pip wheel setuptools
+          pip install --editable .
+
   profile:
-    needs: [py-versions]
+    needs: [py-setup, py-versions]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
