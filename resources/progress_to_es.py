@@ -100,7 +100,7 @@ class Collect:
             return not any(loc.get('archive', False) and loc.get('site', None) == 'NERSC' for loc in catalog_file['locations'])
 
     async def run(self):
-        # we want files at NERSC that are not contained within archives
+        # we want files at NERSC
         query_dict = {
             "locations.site": {
                 "$eq": "NERSC"
