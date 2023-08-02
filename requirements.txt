@@ -20,7 +20,7 @@ colorama==0.4.6
     # via lta (setup.py)
 coloredlogs==15.0.1
     # via wipac-telemetry
-cryptography==41.0.1
+cryptography==41.0.3
     # via pyjwt
 deprecated==1.2.14
     # via
