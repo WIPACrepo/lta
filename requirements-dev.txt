@@ -167,7 +167,7 @@ tomli==2.0.1
     #   coverage
     #   mypy
     #   pytest
-tornado==6.3.2
+tornado==6.3.3
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
