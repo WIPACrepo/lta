@@ -257,5 +257,9 @@ async def test_deleter_quarantine_bundle_with_reason(config: TestConfig, mocker:
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     p = Deleter(config, logger_mock)
-    await p._quarantine_bundle(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"}, "Rucio caught fire, then we roasted marshmellows.")
+    await p._quarantine_bundle(lta_rc_mock, {
+            "status": "completed",
+            "uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"
+        },
+        "Rucio caught fire, then we roasted marshmellows.")
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
