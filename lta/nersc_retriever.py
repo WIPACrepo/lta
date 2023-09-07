@@ -171,6 +171,7 @@ class NerscRetriever(Component):
             bundle_id = bundle["uuid"]
             right_now = now()
             patch_body = {
+                "original_status": bundle["status"],
                 "status": "quarantined",
                 "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hsi Command Failed - {completed_process.args} - {completed_process.returncode} - {str(completed_process.stdout)} - {str(completed_process.stderr)}",
                 "work_priority_timestamp": right_now,

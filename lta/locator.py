@@ -231,6 +231,7 @@ class Locator(Component):
         self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
         right_now = now()
         patch_body = {
+            "original_status": tr["status"],
             "status": "quarantined",
             "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
             "work_priority_timestamp": right_now,
