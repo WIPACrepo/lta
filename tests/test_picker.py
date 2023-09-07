@@ -283,7 +283,7 @@ async def test_picker_do_work_transfer_request_fc_exception(config: TestConfig, 
 @pytest.mark.asyncio
 async def test_picker_do_work_transfer_request_fc_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_transfer_request raises an exception when the LTA DB refuses to create an empty list."""
-    QUARANTINE = {'status': 'quarantined', 'reason': mocker.ANY, 'work_priority_timestamp': mocker.ANY}
+    QUARANTINE = {'original_status': 'ethereal', 'status': 'quarantined', 'reason': mocker.ANY, 'work_priority_timestamp': mocker.ANY}
     logger_mock = mocker.MagicMock()
     p = Picker(config, logger_mock)
     lta_rc_mock = mocker.MagicMock()
@@ -292,6 +292,7 @@ async def test_picker_do_work_transfer_request_fc_no_results(config: TestConfig,
     tr_uuid = uuid1().hex
     tr = {
         "uuid": tr_uuid,
+        "status": "ethereal",
         "source": "wipac",
         "dest": "nersc",
         "path": "/tmp/this/is/just/a/test",

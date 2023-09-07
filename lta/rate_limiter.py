@@ -142,6 +142,7 @@ class RateLimiter(Component):
         self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
         right_now = now()
         patch_body = {
+            "original_status": bundle["status"],
             "status": "quarantined",
             "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
             "work_priority_timestamp": right_now,

@@ -122,6 +122,7 @@ class NerscMover(Component):
             bundle_id = bundle["uuid"]
             right_now = now()
             patch_body = {
+                "original_status": bundle["status"],
                 "status": "quarantined",
                 "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Exception during execution: {e}",
                 "work_priority_timestamp": right_now,

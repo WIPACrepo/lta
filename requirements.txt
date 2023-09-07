@@ -5,28 +5,30 @@
 #    pip-compile --output-file=requirements.txt
 #
 backoff==2.2.1
-    # via opentelemetry-exporter-otlp-proto-http
+    # via
+    #   opentelemetry-exporter-otlp-proto-common
+    #   opentelemetry-exporter-otlp-proto-http
 binpacking==1.5.2
     # via lta (setup.py)
 cachetools==5.3.1
     # via wipac-rest-tools
-certifi==2023.5.7
+certifi==2023.7.22
     # via requests
 cffi==1.15.1
     # via cryptography
-charset-normalizer==3.1.0
+charset-normalizer==3.2.0
     # via requests
 colorama==0.4.6
     # via lta (setup.py)
 coloredlogs==15.0.1
     # via wipac-telemetry
-cryptography==41.0.1
+cryptography==41.0.3
     # via pyjwt
 deprecated==1.2.14
     # via
     #   opentelemetry-api
     #   opentelemetry-exporter-otlp-proto-http
-dnspython==2.3.0
+dnspython==2.4.2
     # via pymongo
 future==0.18.3
     # via binpacking
@@ -34,7 +36,7 @@ googleapis-common-protos==1.56.2
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.54.2
+grpcio==1.57.0
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -42,40 +44,40 @@ hurry-filesize==0.9
     # via lta (setup.py)
 idna==3.4
     # via requests
-importlib-metadata==6.0.1
+importlib-metadata==6.8.0
     # via opentelemetry-api
-motor==3.1.2
+motor==3.3.1
     # via lta (setup.py)
-opentelemetry-api==1.18.0
+opentelemetry-api==1.20.0
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
     #   wipac-telemetry
-opentelemetry-exporter-jaeger==1.18.0
+opentelemetry-exporter-jaeger==1.20.0
     # via wipac-telemetry
-opentelemetry-exporter-jaeger-proto-grpc==1.18.0
+opentelemetry-exporter-jaeger-proto-grpc==1.20.0
     # via opentelemetry-exporter-jaeger
-opentelemetry-exporter-jaeger-thrift==1.18.0
+opentelemetry-exporter-jaeger-thrift==1.20.0
     # via opentelemetry-exporter-jaeger
-opentelemetry-exporter-otlp-proto-common==1.18.0
+opentelemetry-exporter-otlp-proto-common==1.20.0
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-http==1.18.0
+opentelemetry-exporter-otlp-proto-http==1.20.0
     # via wipac-telemetry
-opentelemetry-proto==1.18.0
+opentelemetry-proto==1.20.0
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.18.0
+opentelemetry-sdk==1.20.0
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
     #   opentelemetry-exporter-otlp-proto-http
     #   wipac-telemetry
-opentelemetry-semantic-conventions==0.39b0
+opentelemetry-semantic-conventions==0.41b0
     # via opentelemetry-sdk
-prometheus-client==0.17.0
+prometheus-client==0.17.1
     # via lta (setup.py)
 protobuf==3.20.3
     # via
@@ -84,9 +86,9 @@ protobuf==3.20.3
     #   wipac-telemetry
 pycparser==2.21
     # via cffi
-pyjwt[crypto]==2.7.0
+pyjwt[crypto]==2.8.0
     # via wipac-rest-tools
-pymongo==4.3.3
+pymongo==4.5.0
     # via
     #   lta (setup.py)
     #   motor
@@ -100,36 +102,38 @@ requests==2.31.0
     #   requests-futures
     #   wipac-dev-tools
     #   wipac-rest-tools
-requests-futures==1.0.0
+requests-futures==1.0.1
     # via wipac-rest-tools
 six==1.16.0
     # via thrift
 thrift==0.16.0
     # via opentelemetry-exporter-jaeger-thrift
-tornado==6.3.2
+tornado==6.3.3
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
-typing-extensions==4.6.3
+typing-extensions==4.7.1
     # via
     #   opentelemetry-sdk
     #   qrcode
     #   wipac-dev-tools
     #   wipac-telemetry
-urllib3==2.0.3
-    # via requests
+urllib3==2.0.4
+    # via
+    #   requests
+    #   wipac-rest-tools
 wipac-dev-tools==1.6.16
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
     #   wipac-telemetry
-wipac-rest-tools==1.4.20
+wipac-rest-tools==1.5.3
     # via lta (setup.py)
 wipac-telemetry==0.2.7
     # via lta (setup.py)
 wrapt==1.15.0
     # via deprecated
-zipp==3.15.0
+zipp==3.16.2
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
