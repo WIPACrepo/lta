@@ -360,11 +360,10 @@ async def test_nersc_verifier_do_work_claim_exception_caught(config: TestConfig,
     p = NerscVerifier(config, logger_mock)
     assert not await p._do_work_claim()
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/45ae2ad39c664fda86e5981be0976d9c', mocker.ANY)
-    vbih_mock.assert_called_with(mocker.ANY, {
-            "uuid": "45ae2ad39c664fda86e5981be0976d9c",
-            "status": "verifying",
-            "one": 1,
-        })
+    vbih_mock.assert_called_with(
+        mocker.ANY,
+        {"uuid": "45ae2ad39c664fda86e5981be0976d9c", "status": "verifying", "one": 1}
+    )
 
 
 @pytest.mark.asyncio

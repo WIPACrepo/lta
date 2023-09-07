@@ -319,10 +319,10 @@ async def test_nersc_mover_do_work_claim_write_bundle_raise_exception(config: Te
     p = NerscMover(config, logger_mock)
     assert not await p._do_work_claim()
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
-    wbth_mock.assert_called_with(mocker.ANY, {
-            "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5",
-            "status": "taping",
-        })
+    wbth_mock.assert_called_with(
+        mocker.ANY,
+        {"uuid": "8f03a920-49d6-446b-811e-830e3f7942f5", "status": "taping"}
+    )
 
 
 @pytest.mark.asyncio

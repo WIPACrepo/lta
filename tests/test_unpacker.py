@@ -325,10 +325,11 @@ async def test_unpacker_quarantine_bundle_with_reason(config: TestConfig, mocker
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
-    await p._quarantine_bundle(lta_rc_mock, {
-            "uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003",
-            "status": "unpacking",
-        }, "Rucio caught fire, then we roasted marshmellows.")
+    await p._quarantine_bundle(
+        lta_rc_mock,
+        {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", "status": "unpacking"},
+        "Rucio caught fire, then we roasted marshmellows."
+    )
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
 
 
@@ -339,10 +340,11 @@ async def test_unpacker_quarantine_bundle_with_reason_raises(config: TestConfig,
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     lta_rc_mock.request.side_effect = Exception("Marshmellows were poisoned")
     p = Unpacker(config, logger_mock)
-    await p._quarantine_bundle(lta_rc_mock, {
-            "uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003",
-            "status": "unpacking",
-        }, "Rucio caught fire, then we roasted marshmellows.")
+    await p._quarantine_bundle(
+        lta_rc_mock,
+        {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", "status": "unpacking"},
+        "Rucio caught fire, then we roasted marshmellows."
+    )
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
 
 
