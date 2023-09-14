@@ -11,7 +11,7 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
-from lta.bundler import Bundler, main
+from lta.bundler import Bundler, main_sync
 
 TestConfig = Dict[str, str]
 
@@ -39,6 +39,7 @@ def config() -> TestConfig:
         "MYSQL_PORT": "23306",
         "MYSQL_USER": "jade-user",
         "OUTPUT_STATUS": "created",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
@@ -104,9 +105,9 @@ def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
 
 
 @pytest.mark.asyncio
-async def test_script_main(config: TestConfig,
-                           mocker: MockerFixture,
-                           monkeypatch: MonkeyPatch) -> None:
+async def test_script_main_sync(config: TestConfig,
+                                mocker: MockerFixture,
+                                monkeypatch: MonkeyPatch) -> None:
     """
     Verify Bundler component behavior when run as a script.
 
@@ -115,11 +116,14 @@ async def test_script_main(config: TestConfig,
     """
     for key in config.keys():
         monkeypatch.setenv(key, config[key])
-    mock_event_loop = mocker.patch("asyncio.get_event_loop")
-    mock_work_loop = mocker.patch("lta.bundler.work_loop")
-    main()
-    mock_event_loop.assert_called()
-    mock_work_loop.assert_called()
+    mock_run = mocker.patch("asyncio.run")
+    mock_main = mocker.patch("lta.bundler.main")
+    mock_shs = mocker.patch("lta.bundler.start_http_server")
+    main_sync()
+    mock_shs.assert_called()
+    mock_main.assert_called()
+    mock_run.assert_called()
+    await mock_run.call_args.args[0]
 
 
 @pytest.mark.asyncio
@@ -146,6 +150,7 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
         "MYSQL_PORT": "23306",
         "MYSQL_USER": "logme-jade-user",
         "OUTPUT_STATUS": "created",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
@@ -175,6 +180,7 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
         call('MYSQL_PORT = 23306'),
         call('MYSQL_USER = logme-jade-user'),
         call('OUTPUT_STATUS = created'),
+        call('PROMETHEUS_METRICS_PORT = 8080'),
         call('RUN_ONCE_AND_DIE = False'),
         call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = WIPAC'),

@@ -8,11 +8,12 @@ import shutil
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
+from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
-from wipac_dev_tools import from_environment
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
+from .lta_tools import from_environment
 from .lta_types import BundleType
 
 Logger = logging.Logger
@@ -207,12 +208,19 @@ class RateLimiter(Component):
         return True
 
 
-def runner() -> None:
+async def main(rate_limiter: RateLimiter) -> None:
+    """Execute the work loop of the RateLimiter component."""
+    LOG.info("Starting asynchronous code")
+    await work_loop(rate_limiter)
+    LOG.info("Ending asynchronous code")
+
+
+def main_sync() -> None:
     """Configure a RateLimiter component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
     # configure logging for the application
-    log_level = getattr(logging, str(config["LOG_LEVEL"]).upper())
+    log_level = getattr(logging, config["LOG_LEVEL"].upper())
     logging.basicConfig(
         format="{asctime} [{threadName}] {levelname:5} ({filename}:{lineno}) - {message}",
         level=log_level,
@@ -220,18 +228,14 @@ def runner() -> None:
         style="{",
     )
     # create our RateLimiter service
-    rate_limiter = RateLimiter(config, LOG)  # type: ignore[arg-type]
+    LOG.info("Starting synchronous code")
+    rate_limiter = RateLimiter(config, LOG)
     # let's get to work
-    rate_limiter.logger.info("Adding tasks to asyncio loop")
-    loop = asyncio.get_event_loop()
-    loop.create_task(work_loop(rate_limiter))
-
-
-def main() -> None:
-    """Configure a RateLimiter component from the environment and set it running."""
-    runner()
-    asyncio.get_event_loop().run_forever()
+    metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
+    start_http_server(metrics_port)
+    asyncio.run(main(rate_limiter))
+    LOG.info("Ending synchronous code")
 
 
 if __name__ == "__main__":
-    main()
+    main_sync()

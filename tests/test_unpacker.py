@@ -33,6 +33,7 @@ def config() -> TestConfig:
         "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "completed",
         "PATH_MAP_JSON": "/tmp/lta/testing/path_map.json",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "NERSC",
@@ -126,7 +127,9 @@ async def test_script_main_sync(config: TestConfig,
         monkeypatch.setenv(key, config[key])
     mock_run = mocker.patch("asyncio.run")
     mock_main = mocker.patch("lta.unpacker.main")
+    mock_prometheus = mocker.patch("lta.unpacker.start_http_server")
     main_sync()
+    mock_prometheus.assert_called_with(8080)
     mock_main.assert_called()
     mock_run.assert_called()
     await mock_run.call_args.args[0]
@@ -169,6 +172,7 @@ async def test_unpacker_logs_configuration(mocker: MockerFixture, path_map_mock:
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "OUTPUT_STATUS": "completed",
         "PATH_MAP_JSON": "logme/tmp/lta/testing/path_map.json",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "NERSC",
@@ -195,6 +199,7 @@ async def test_unpacker_logs_configuration(mocker: MockerFixture, path_map_mock:
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('OUTPUT_STATUS = completed'),
         call('PATH_MAP_JSON = logme/tmp/lta/testing/path_map.json'),
+        call('PROMETHEUS_METRICS_PORT = 8080'),
         call('RUN_ONCE_AND_DIE = False'),
         call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = NERSC'),

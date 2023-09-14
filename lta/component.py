@@ -25,6 +25,7 @@ COMMON_CONFIG: Dict[str, Optional[str]] = {
     "LTA_AUTH_OPENID_URL": None,
     "LTA_REST_URL": None,
     "OUTPUT_STATUS": None,
+    "PROMETHEUS_METRICS_PORT": "8080",
     "RUN_ONCE_AND_DIE": "False",
     "RUN_UNTIL_NO_WORK": "False",
     "SOURCE_SITE": None,

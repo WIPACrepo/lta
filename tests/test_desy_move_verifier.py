@@ -9,7 +9,7 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
-from lta.desy_move_verifier import main, DesyMoveVerifier
+from lta.desy_move_verifier import main_sync, DesyMoveVerifier
 
 TestConfig = Dict[str, str]
 
@@ -29,6 +29,7 @@ def config() -> TestConfig:
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "taping",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
@@ -82,6 +83,7 @@ async def test_desy_move_verifier_logs_configuration(mocker: MockerFixture) -> N
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "localhost:12347",
         "OUTPUT_STATUS": "taping",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
@@ -104,6 +106,7 @@ async def test_desy_move_verifier_logs_configuration(mocker: MockerFixture) -> N
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = localhost:12347'),
         call('OUTPUT_STATUS = taping'),
+        call('PROMETHEUS_METRICS_PORT = 8080'),
         call('RUN_ONCE_AND_DIE = False'),
         call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = WIPAC'),
@@ -116,7 +119,7 @@ async def test_desy_move_verifier_logs_configuration(mocker: MockerFixture) -> N
 
 
 @pytest.mark.asyncio
-async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
+async def test_script_main_sync(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify DesyMoveVerifier component behavior when run as a script.
 
@@ -125,11 +128,14 @@ async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatc
     """
     for key in config.keys():
         monkeypatch.setenv(key, config[key])
-    mock_event_loop = mocker.patch("asyncio.get_event_loop")
-    mock_work_loop = mocker.patch("lta.desy_move_verifier.work_loop")
-    main()
-    mock_event_loop.assert_called()
-    mock_work_loop.assert_called()
+    mock_run = mocker.patch("asyncio.run")
+    mock_main = mocker.patch("lta.desy_move_verifier.main")
+    mock_shs = mocker.patch("lta.desy_move_verifier.start_http_server")
+    main_sync()
+    mock_shs.assert_called()
+    mock_main.assert_called()
+    mock_run.assert_called()
+    await mock_run.call_args.args[0]
 
 
 @pytest.mark.asyncio

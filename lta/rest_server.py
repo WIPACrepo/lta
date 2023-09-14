@@ -14,6 +14,7 @@ from urllib.parse import quote_plus
 from uuid import uuid1
 
 from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
+from prometheus_client import start_http_server
 import pymongo
 from pymongo import MongoClient
 from rest_tools.utils.json_util import json_decode
@@ -37,7 +38,10 @@ EXPECTED_CONFIG = {
     'LTA_MONGODB_PORT': '27017',
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
+    'PROMETHEUS_METRICS_PORT': '8090',
 }
+
+LOG = logging.getLogger(__name__)
 
 # -----------------------------------------------------------------------------
 
@@ -727,8 +731,18 @@ def start(debug: bool = False) -> RestServer:
     return server
 
 
-def main() -> None:
+async def main() -> None:
+    """Just loop forever while the REST server processes requests."""
+    while True:
+        LOG.info("Sleeping for 60 seconds")
+        await asyncio.sleep(60)
+
+
+def main_sync() -> None:
     """Configure logging and start a LTA DB service."""
+    # obtain our configuration from the environment
+    config = from_environment(EXPECTED_CONFIG)
+    # configure logging for the application
     log_level = getattr(logging, os.getenv("LOG_LEVEL", default="DEBUG"))
     logging.basicConfig(
         format="{asctime} [{threadName}] {levelname:5} ({filename}:{lineno}) - {message}",
@@ -737,9 +751,10 @@ def main() -> None:
         style="{",
     )
     start(debug=True)
-    loop = asyncio.get_event_loop()
-    loop.run_forever()
+    metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
+    start_http_server(metrics_port)
+    asyncio.run(main())
 
 
 if __name__ == '__main__':
-    main()
+    main_sync()

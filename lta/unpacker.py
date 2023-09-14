@@ -11,6 +11,7 @@ import sys
 from typing import Any, cast, Dict, Optional
 from zipfile import ZipFile
 
+from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth
 import wipac_telemetry.tracing_tools as wtt
 
@@ -374,6 +375,8 @@ def main_sync() -> None:
     LOG.info("Starting synchronous code")
     unpacker = Unpacker(config, LOG)
     # let's get to work
+    metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
+    start_http_server(metrics_port)
     asyncio.run(main(unpacker))
     LOG.info("Ending synchronous code")
 

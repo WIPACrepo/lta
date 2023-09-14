@@ -8,11 +8,12 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 from binpacking import to_constant_volume  # type: ignore
+from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
-from wipac_dev_tools import from_environment
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
+from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
 
 Logger = logging.Logger
@@ -239,12 +240,19 @@ class Picker(Component):
             self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
 
 
-def runner() -> None:
+async def main(picker: Picker) -> None:
+    """Execute the work loop of the Picker component."""
+    LOG.info("Starting asynchronous code")
+    await work_loop(picker)
+    LOG.info("Ending asynchronous code")
+
+
+def main_sync() -> None:
     """Configure a Picker component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
     # configure logging for the application
-    log_level = getattr(logging, str(config["LOG_LEVEL"]).upper())
+    log_level = getattr(logging, config["LOG_LEVEL"].upper())
     logging.basicConfig(
         format="{asctime} [{threadName}] {levelname:5} ({filename}:{lineno}) - {message}",
         level=log_level,
@@ -252,18 +260,14 @@ def runner() -> None:
         style="{",
     )
     # create our Picker service
-    picker = Picker(config, LOG)  # type: ignore[arg-type]
+    LOG.info("Starting synchronous code")
+    picker = Picker(config, LOG)
     # let's get to work
-    picker.logger.info("Adding tasks to asyncio loop")
-    loop = asyncio.get_event_loop()
-    loop.create_task(work_loop(picker))
-
-
-def main() -> None:
-    """Configure a Picker component from the environment and set it running."""
-    runner()
-    asyncio.get_event_loop().run_forever()
+    metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
+    start_http_server(metrics_port)
+    asyncio.run(main(picker))
+    LOG.info("Ending synchronous code")
 
 
 if __name__ == "__main__":
-    main()
+    main_sync()

@@ -12,7 +12,7 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
-from lta.locator import as_lta_record, main, Locator
+from lta.locator import as_lta_record, main_sync, Locator
 
 TestConfig = Dict[str, str]
 
@@ -35,6 +35,7 @@ def config() -> TestConfig:
         "LTA_REST_URL": "localhost:12347",
         "LTA_SITE_CONFIG": "examples/site.json",
         "OUTPUT_STATUS": "located",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "NERSC",
@@ -100,7 +101,7 @@ def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
 
 
 @pytest.mark.asyncio
-async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
+async def test_script_main_sync(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify Locator component behavior when run as a script.
 
@@ -109,11 +110,14 @@ async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatc
     """
     for key in config.keys():
         monkeypatch.setenv(key, config[key])
-    mock_event_loop = mocker.patch("asyncio.get_event_loop")
-    mock_work_loop = mocker.patch("lta.locator.work_loop")
-    main()
-    mock_event_loop.assert_called()
-    mock_work_loop.assert_called()
+    mock_run = mocker.patch("asyncio.run")
+    mock_main = mocker.patch("lta.locator.main")
+    mock_shs = mocker.patch("lta.locator.start_http_server")
+    main_sync()
+    mock_shs.assert_called()
+    mock_main.assert_called()
+    mock_run.assert_called()
+    await mock_run.call_args.args[0]
 
 
 @pytest.mark.asyncio
@@ -135,6 +139,7 @@ async def test_locator_logs_configuration(mocker: MockerFixture) -> None:
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "LTA_SITE_CONFIG": "examples/site.json",
         "OUTPUT_STATUS": "located",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "NERSC",
@@ -159,6 +164,7 @@ async def test_locator_logs_configuration(mocker: MockerFixture) -> None:
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('LTA_SITE_CONFIG = examples/site.json'),
         call('OUTPUT_STATUS = located'),
+        call('PROMETHEUS_METRICS_PORT = 8080'),
         call('RUN_ONCE_AND_DIE = False'),
         call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = NERSC'),

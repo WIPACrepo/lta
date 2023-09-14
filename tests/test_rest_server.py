@@ -18,7 +18,7 @@ from rest_tools.client import RestClient
 from rest_tools.utils import Auth
 from requests.exceptions import HTTPError
 
-from lta.rest_server import boolify, main, start, unique_id
+from lta.rest_server import boolify, main_sync, start, unique_id
 
 LtaCollection = Database[Dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
@@ -38,6 +38,7 @@ CONFIG = {
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
     'OTEL_EXPORTER_OTLP_ENDPOINT': 'localhost:4317',
+    'PROMETHEUS_METRICS_PORT': '8090',
     'WIPACTEL_EXPORT_STDOUT': 'TRUE',
 }
 for k in CONFIG:
@@ -85,6 +86,7 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+    monkeypatch.setenv("PROMETHEUS_METRICS_PORT", "8090")
     monkeypatch.setenv("WIPACTEL_EXPORT_STDOUT", "TRUE")
     s = start(debug=True)
 
@@ -276,15 +278,20 @@ async def test_transfer_request_pop(rest: RestClientFactory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_script_main(mocker: MockerFixture) -> None:
+async def test_script_main_sync(mocker: MockerFixture) -> None:
     """Ensure that main sets up logging, starts a server, and runs the event loop."""
     mock_root_logger = mocker.patch("logging.basicConfig")
     mock_rest_server = mocker.patch("lta.rest_server.start")
-    mock_event_loop = mocker.patch("asyncio.get_event_loop")
-    main()
-    mock_root_logger.assert_called()
+    mock_run = mocker.patch("asyncio.run")
+    mock_main = mocker.patch("lta.rest_server.main")
+    mock_shs = mocker.patch("lta.rest_server.start_http_server")
+    main_sync()
+    mock_shs.assert_called()
+    mock_main.assert_called()
+    mock_run.assert_called()
     mock_rest_server.assert_called()
-    mock_event_loop.assert_called()
+    mock_root_logger.assert_called()
+    await mock_run.call_args.args[0]
 
 
 @pytest.mark.asyncio

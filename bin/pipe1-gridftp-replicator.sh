@@ -17,6 +17,7 @@ export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc
 export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 # export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="transferring"}
+export PROMETHEUS_METRICS_PORT=${PROMETHEUS_METRICS_PORT:="8080"}
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION="python"
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="True"}
 export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="FALSE"}
