@@ -34,7 +34,7 @@ colorama==0.4.6
     # via lta (setup.py)
 coloredlogs==15.0.1
     # via wipac-telemetry
-cryptography==41.0.3
+cryptography==41.0.4
     # via pyjwt
 deprecated==1.2.14
     # via
@@ -136,13 +136,13 @@ tornado==6.3.3
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
-typing-extensions==4.7.1
+typing-extensions==4.8.0
     # via
     #   opentelemetry-sdk
     #   qrcode
     #   wipac-dev-tools
     #   wipac-telemetry
-urllib3==2.0.4
+urllib3==2.0.5
     # via
     #   elasticsearch
     #   requests
@@ -162,7 +162,7 @@ yarl==1.9.2
     # via
     #   aiohttp
     #   elasticsearch
-zipp==3.16.2
+zipp==3.17.0
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
