@@ -8,7 +8,7 @@ from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, List, Optional
 
-from prometheus_client import start_http_server
+from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 import wipac_telemetry.tracing_tools as wtt
 
@@ -28,6 +28,11 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
+# prometheus metrics
+failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
+load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
+success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class NerscRetriever(Component):
@@ -76,12 +81,15 @@ class NerscRetriever(Component):
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
+        load_level = -1
         work_claimed = True
         while work_claimed:
+            load_level += 1
             work_claimed = await self._do_work_claim()
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
+        load_gauge.labels(component='nersc_retriever', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
     @wtt.spanned()
@@ -116,8 +124,10 @@ class NerscRetriever(Component):
         # process the Bundle that we were given
         try:
             await self._read_bundle_from_hpss(lta_rc, bundle)
+            success_counter.labels(component='nersc_retriever', level='bundle', type='work').inc()
             return True
         except Exception as e:
+            failure_counter.labels(component='nersc_retriever', level='bundle', type='exception').inc()
             bundle_id = bundle["uuid"]
             right_now = now()
             patch_body = {

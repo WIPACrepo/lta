@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-from prometheus_client import start_http_server
+from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 import wipac_telemetry.tracing_tools as wtt
 
@@ -31,6 +31,11 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
     "WORKBOX_PATH": None,
 })
+
+# prometheus metrics
+failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
+load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
+success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class DesyMoveVerifier(Component):
@@ -68,12 +73,15 @@ class DesyMoveVerifier(Component):
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
+        load_level = -1
         work_claimed = True
         while work_claimed:
+            load_level += 1
             work_claimed = await self._do_work_claim()
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
+        load_gauge.labels(component='desy_move_verifier', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
     @wtt.spanned()
@@ -100,7 +108,9 @@ class DesyMoveVerifier(Component):
         # process the Bundle that we were given
         try:
             await self._verify_bundle(lta_rc, bundle)
+            success_counter.labels(component='desy_move_verifier', level='bundle', type='work').inc()
         except Exception as e:
+            failure_counter.labels(component='desy_move_verifier', level='bundle', type='exception').inc()
             await self._quarantine_bundle(lta_rc, bundle, f"{e}")
             raise e
         # if we were successful at processing work, let the caller know

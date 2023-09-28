@@ -6,7 +6,7 @@ import logging
 import sys
 from typing import Any, Dict, Optional, Union
 
-from prometheus_client import start_http_server
+from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 import wipac_telemetry.tracing_tools as wtt
 
@@ -23,6 +23,11 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
+# prometheus metrics
+failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
+load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
+success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class TransferRequestFinisher(Component):
@@ -60,12 +65,15 @@ class TransferRequestFinisher(Component):
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
+        load_level = -1
         work_claimed = True
         while work_claimed:
+            load_level += 1
             work_claimed = await self._do_work_claim()
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
+        load_gauge.labels(component='transfer_request_finisher', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
     @wtt.spanned()
@@ -144,6 +152,7 @@ class TransferRequestFinisher(Component):
         }
         self.logger.info(f"PATCH /TransferRequests/{request_uuid} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/TransferRequests/{request_uuid}', patch_body)
+        success_counter.labels(component='transfer_request_finisher', level='transfer_request', type='work').inc()
         # update each of the constituent bundles to status "finished"
         for bundle_id in results:
             patch_body = {
@@ -156,6 +165,7 @@ class TransferRequestFinisher(Component):
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+            success_counter.labels(component='transfer_request_finisher', level='bundle', type='work').inc()
 
 
 async def main(transfer_request_finisher: TransferRequestFinisher) -> None:

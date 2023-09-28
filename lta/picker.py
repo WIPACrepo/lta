@@ -8,7 +8,7 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 from binpacking import to_constant_volume  # type: ignore
-from prometheus_client import start_http_server
+from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 import wipac_telemetry.tracing_tools as wtt
 
@@ -33,6 +33,11 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
+# prometheus metrics
+failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
+load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
+success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class Picker(Component):
@@ -73,12 +78,15 @@ class Picker(Component):
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on TransferRequests.")
+        load_level = -1
         work_claimed = True
         while work_claimed:
+            load_level += 1
             work_claimed = await self._do_work_claim()
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
+        load_gauge.labels(component='picker', level='transfer_request', type='work').set(load_level)
         self.logger.info("Ending work on TransferRequests.")
 
     @wtt.spanned()
@@ -105,7 +113,9 @@ class Picker(Component):
         # process the TransferRequest that we were given
         try:
             await self._do_work_transfer_request(lta_rc, tr)
+            success_counter.labels(component='picker', level='transfer_request', type='work').inc()
         except Exception as e:
+            failure_counter.labels(component='picker', level='transfer_request', type='exception').inc()
             self.logger.info(f"There was an error while processing the transfer request: {e}")
             self.logger.info("Will now attempt to send the transfer request to 'quarantined' status.")
             await self._quarantine_transfer_request(lta_rc, tr, f"{e}")
