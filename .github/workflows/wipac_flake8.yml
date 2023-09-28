@@ -1,0 +1,11 @@
+name: 'WIPAC Dev Flake8 (Custom)'
+description: 'GitHub Action Package for Running Flake8'
+runs:
+  using: "composite"
+  steps:
+    - run: pip install --upgrade pip
+      shell: bash
+    - run: pip install flake8
+      shell: bash
+    - run: flake8 . --ignore=E203,E226,E228,E231,E402,E501,W503,W504 --benchmark
+      shell: bash
