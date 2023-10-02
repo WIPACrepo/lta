@@ -12,6 +12,7 @@ export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export OUTPUT_PATH=${OUTPUT_PATH:="/mnt/lfss/jade-lta/bundler_todesy"}
 export OUTPUT_QUOTA=${OUTPUT_QUOTA:="2199023255552"}  # 2 TiB
 export OUTPUT_STATUS=${OUTPUT_STATUS:="staged"}
+export PROMETHEUS_METRICS_PORT=${PROMETHEUS_METRICS_PORT:="8080"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="False"}
 export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="FALSE"}
 export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}

@@ -34,7 +34,7 @@ coverage[toml]==7.3.1
     # via pytest-cov
 crayons==0.4.0
     # via pycycle
-cryptography==41.0.3
+cryptography==41.0.4
     # via pyjwt
 deprecated==1.2.14
     # via
@@ -52,7 +52,7 @@ googleapis-common-protos==1.56.2
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.57.0
+grpcio==1.58.0
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -132,7 +132,7 @@ pymongo==4.5.0
     #   motor
 pypng==0.20220715.0
     # via qrcode
-pytest==7.4.1
+pytest==7.4.2
     # via
     #   lta (setup.py)
     #   pycycle
@@ -173,18 +173,18 @@ tornado==6.3.3
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
-types-requests==2.31.0.2
+types-requests==2.31.0.6
     # via lta (setup.py)
 types-urllib3==1.26.25.14
     # via types-requests
-typing-extensions==4.7.1
+typing-extensions==4.8.0
     # via
     #   mypy
     #   opentelemetry-sdk
     #   qrcode
     #   wipac-dev-tools
     #   wipac-telemetry
-urllib3==2.0.4
+urllib3==2.0.5
     # via
     #   requests
     #   wipac-rest-tools
@@ -199,7 +199,7 @@ wipac-telemetry==0.2.7
     # via lta (setup.py)
 wrapt==1.15.0
     # via deprecated
-zipp==3.16.2
+zipp==3.17.0
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:

@@ -8,12 +8,13 @@ import random
 import sys
 from typing import Any, Dict, Optional
 
+from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
-from wipac_dev_tools import from_environment
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .joiner import join_smart_url
+from .lta_tools import from_environment
 from .lta_types import BundleType
 from .rest_server import boolify
 from .transfer.globus import SiteGlobusProxy
@@ -37,6 +38,11 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
+# prometheus metrics
+failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
+load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
+success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class GridFTPReplicator(Component):
@@ -79,12 +85,15 @@ class GridFTPReplicator(Component):
     async def _do_work(self) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
+        load_level = -1
         work_claimed = True
         while work_claimed:
+            load_level += 1
             work_claimed = await self._do_work_claim()
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
+        load_gauge.labels(component='gridftp_replicator', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
     @wtt.spanned()
@@ -111,7 +120,9 @@ class GridFTPReplicator(Component):
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
+            success_counter.labels(component='gridftp_replicator', level='bundle', type='work').inc()
         except Exception as e:
+            failure_counter.labels(component='gridftp_replicator', level='bundle', type='exception').inc()
             await self._quarantine_bundle(lta_rc, bundle, f"{e}")
             return False
         # if we were successful at processing work, let the caller know
@@ -173,12 +184,19 @@ class GridFTPReplicator(Component):
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
 
-def runner() -> None:
+async def main(gridftp_replicator: GridFTPReplicator) -> None:
+    """Execute the work loop of the GridFTPReplicator component."""
+    LOG.info("Starting asynchronous code")
+    await work_loop(gridftp_replicator)
+    LOG.info("Ending asynchronous code")
+
+
+def main_sync() -> None:
     """Configure a GridFTPReplicator component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
     # configure logging for the application
-    log_level = getattr(logging, str(config["LOG_LEVEL"]).upper())
+    log_level = getattr(logging, config["LOG_LEVEL"].upper())
     logging.basicConfig(
         format="{asctime} [{threadName}] {levelname:5} ({filename}:{lineno}) - {message}",
         level=log_level,
@@ -186,18 +204,14 @@ def runner() -> None:
         style="{",
     )
     # create our GridFTPReplicator service
-    replicator = GridFTPReplicator(config, LOG)  # type: ignore[arg-type]
+    LOG.info("Starting synchronous code")
+    gridftp_replicator = GridFTPReplicator(config, LOG)
     # let's get to work
-    replicator.logger.info("Adding tasks to asyncio loop")
-    loop = asyncio.get_event_loop()
-    loop.create_task(work_loop(replicator))
-
-
-def main() -> None:
-    """Configure a GridFTPReplicator component from the environment and set it running."""
-    runner()
-    asyncio.get_event_loop().run_forever()
+    metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
+    start_http_server(metrics_port)
+    asyncio.run(main(gridftp_replicator))
+    LOG.info("Ending synchronous code")
 
 
 if __name__ == "__main__":
-    main()
+    main_sync()

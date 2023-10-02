@@ -13,6 +13,7 @@ export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 # export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="completed"}
 export PATH_MAP_JSON=${PATH_MAP_JSON:="path_map.json"}
+export PROMETHEUS_METRICS_PORT=${PROMETHEUS_METRICS_PORT:="8080"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="FALSE"}
 export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="FALSE"}
 export SOURCE_SITE=${SOURCE_SITE:="NERSC"}

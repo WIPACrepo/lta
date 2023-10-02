@@ -13,6 +13,7 @@ export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export MAX_COUNT=${MAX_COUNT:="2"}
 # export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="verifying"}
+export PROMETHEUS_METRICS_PORT=${PROMETHEUS_METRICS_PORT:="8080"}
 export RSE_BASE_PATH=${RSE_BASE_PATH:="/global/cfs/cdirs/icecubed"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="FALSE"}
 export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="TRUE"}

@@ -1,6 +1,18 @@
 # test_nersc_mover.py
 """Unit tests for lta/nersc_mover.py."""
 
+# -----------------------------------------------------------------------------
+# reset prometheus registry for unit tests
+from prometheus_client import REGISTRY
+collectors = list(REGISTRY._collector_to_names.keys())
+for collector in collectors:
+    REGISTRY.unregister(collector)
+from prometheus_client import gc_collector, platform_collector, process_collector
+process_collector.ProcessCollector()
+platform_collector.PlatformCollector()
+gc_collector.GCCollector()
+# -----------------------------------------------------------------------------
+
 from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
 
@@ -9,7 +21,7 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
-from lta.nersc_mover import main, NerscMover
+from lta.nersc_mover import main_sync, NerscMover
 from .test_util import ObjectLiteral
 
 TestConfig = Dict[str, str]
@@ -28,8 +40,9 @@ def config() -> TestConfig:
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "localhost:12347",
-        "OUTPUT_STATUS": "verifying",
         "MAX_COUNT": "5",
+        "OUTPUT_STATUS": "verifying",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RSE_BASE_PATH": "/path/to/rse",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
@@ -95,7 +108,7 @@ def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
 
 
 @pytest.mark.asyncio
-async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
+async def test_script_main_sync(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify NerscMover component behavior when run as a script.
 
@@ -104,11 +117,14 @@ async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatc
     """
     for key in config.keys():
         monkeypatch.setenv(key, config[key])
-    mock_event_loop = mocker.patch("asyncio.get_event_loop")
-    mock_work_loop = mocker.patch("lta.nersc_mover.work_loop")
-    main()
-    mock_event_loop.assert_called()
-    mock_work_loop.assert_called()
+    mock_run = mocker.patch("asyncio.run")
+    mock_main = mocker.patch("lta.nersc_mover.main")
+    mock_shs = mocker.patch("lta.nersc_mover.start_http_server")
+    main_sync()
+    mock_shs.assert_called()
+    mock_main.assert_called()
+    mock_run.assert_called()
+    await mock_run.call_args.args[0]
 
 
 @pytest.mark.asyncio
@@ -127,6 +143,7 @@ async def test_nersc_mover_logs_configuration(mocker: MockerFixture) -> None:
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "MAX_COUNT": "9001",
         "OUTPUT_STATUS": "verifying",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RSE_BASE_PATH": "/log/me/path/to/rse",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
@@ -150,6 +167,7 @@ async def test_nersc_mover_logs_configuration(mocker: MockerFixture) -> None:
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('MAX_COUNT = 9001'),
         call('OUTPUT_STATUS = verifying'),
+        call('PROMETHEUS_METRICS_PORT = 8080'),
         call('RSE_BASE_PATH = /log/me/path/to/rse'),
         call('RUN_ONCE_AND_DIE = False'),
         call('RUN_UNTIL_NO_WORK = False'),

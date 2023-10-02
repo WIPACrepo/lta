@@ -1,6 +1,18 @@
 # test_picker.py
 """Unit tests for lta/picker.py."""
 
+# -----------------------------------------------------------------------------
+# reset prometheus registry for unit tests
+from prometheus_client import REGISTRY
+collectors = list(REGISTRY._collector_to_names.keys())
+for collector in collectors:
+    REGISTRY.unregister(collector)
+from prometheus_client import gc_collector, platform_collector, process_collector
+process_collector.ProcessCollector()
+platform_collector.PlatformCollector()
+gc_collector.GCCollector()
+# -----------------------------------------------------------------------------
+
 from secrets import token_hex
 from typing import Any, Dict, List, Union
 from unittest.mock import AsyncMock, call, MagicMock
@@ -11,7 +23,7 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
-from lta.picker import CREATE_CHUNK_SIZE, main, Picker
+from lta.picker import CREATE_CHUNK_SIZE, main_sync, Picker
 
 TestConfig = Dict[str, str]
 
@@ -34,8 +46,9 @@ def config() -> TestConfig:
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "localhost:12347",
-        "OUTPUT_STATUS": "specified",
         "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
+        "OUTPUT_STATUS": "specified",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
@@ -101,7 +114,7 @@ def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
 
 
 @pytest.mark.asyncio
-async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
+async def test_script_main_sync(config: TestConfig, mocker: MockerFixture, monkeypatch: MonkeyPatch) -> None:
     """
     Verify Picker component behavior when run as a script.
 
@@ -110,11 +123,14 @@ async def test_script_main(config: TestConfig, mocker: MockerFixture, monkeypatc
     """
     for key in config.keys():
         monkeypatch.setenv(key, config[key])
-    mock_event_loop = mocker.patch("asyncio.get_event_loop")
-    mock_work_loop = mocker.patch("lta.picker.work_loop")
-    main()
-    mock_event_loop.assert_called()
-    mock_work_loop.assert_called()
+    mock_run = mocker.patch("asyncio.run")
+    mock_main = mocker.patch("lta.picker.main")
+    mock_shs = mocker.patch("lta.picker.start_http_server")
+    main_sync()
+    mock_shs.assert_called()
+    mock_main.assert_called()
+    mock_run.assert_called()
+    await mock_run.call_args.args[0]
 
 
 @pytest.mark.asyncio
@@ -136,6 +152,7 @@ async def test_picker_logs_configuration(mocker: MockerFixture) -> None:
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
         "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
         "OUTPUT_STATUS": "specified",
+        "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
         "RUN_UNTIL_NO_WORK": "False",
         "SOURCE_SITE": "WIPAC",
@@ -160,6 +177,7 @@ async def test_picker_logs_configuration(mocker: MockerFixture) -> None:
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
         call('MAX_BUNDLE_SIZE = 107374182400'),
         call('OUTPUT_STATUS = specified'),
+        call('PROMETHEUS_METRICS_PORT = 8080'),
         call('RUN_ONCE_AND_DIE = False'),
         call('RUN_UNTIL_NO_WORK = False'),
         call('SOURCE_SITE = WIPAC'),
