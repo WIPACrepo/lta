@@ -506,6 +506,46 @@ async def catalog_display(args: Namespace) -> ExitCode:
     return EXIT_OK
 
 
+async def catalog_path(args: Namespace) -> ExitCode:
+    """Display records by path from the File Catalog."""
+    # if the user didn't specify a path
+    if not args.path:
+        print(f"Missing path")
+        return EXIT_ERROR
+    
+    # if the user specified a site
+    site = "WIPAC"
+    if args.site:
+        site = args.site
+
+    # ask the file catalog about the records
+    query_dict = {
+        "locations.site": {
+            "$eq": site,
+        },
+        "locations.path": {
+            "$regex": f"^{args.path}"
+        },
+        # this isn't going to work; searching 'logical_name' by regular expression
+        # "logical_name": {
+        #     "$regex": f"^{args.path}"
+        # }
+    }
+
+    # if the user asked us to also query the logical_name field
+    if args.logical_name:
+        query_dict["logical_name"] = {
+            "$regex": f"^{args.path}"
+        }
+
+    query_json = json.dumps(query_dict)
+    fc_response = await args.di["fc_rc"].request('GET', f'/api/files?query={query_json}')
+    for catalog_file in fc_response["files"]:
+        print(catalog_file)
+
+    return EXIT_OK
+
+
 async def catalog_stats(args: Namespace) -> ExitCode:
     """Query for the bundles archived at NERSC."""
     exit_code = EXIT_OK
@@ -968,6 +1008,19 @@ async def main() -> None:
     parser_catalog_display.add_argument("--uuid",
                                         help="Catalog UUID to be displayed")
     parser_catalog_display.set_defaults(func=catalog_display)
+
+    # define a subparser for the 'catalog path' subcommand
+    parser_catalog_path = catalog_subparser.add_parser('path', help='show file catalog records starting with path')
+    parser_catalog_path.add_argument("--logical-name",
+                                     help="query the logical_name key",
+                                     action="store_true")
+    parser_catalog_path.add_argument("--path",
+                                     help="Data Warehouse path prefix",
+                                     required=True)
+    parser_catalog_path.add_argument("--site",
+                                     help="site to search for records",
+                                     default="WIPAC")
+    parser_catalog_path.set_defaults(func=catalog_path)
 
     # define a subparser for the 'catalog query' subcommand
     parser_catalog_query = catalog_subparser.add_parser('query', help='run a query on the catalog')
