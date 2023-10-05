@@ -24,9 +24,9 @@ certifi==2023.7.22
     # via
     #   elasticsearch
     #   requests
-cffi==1.15.1
+cffi==1.16.0
     # via cryptography
-charset-normalizer==3.2.0
+charset-normalizer==3.3.0
     # via
     #   aiohttp
     #   requests
@@ -54,7 +54,7 @@ googleapis-common-protos==1.56.2
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.58.0
+grpcio==1.59.0
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -142,19 +142,19 @@ typing-extensions==4.8.0
     #   qrcode
     #   wipac-dev-tools
     #   wipac-telemetry
-urllib3==2.0.5
+urllib3==2.0.6
     # via
     #   elasticsearch
     #   requests
     #   wipac-rest-tools
-wipac-dev-tools==1.6.16
+wipac-dev-tools==1.7.0
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
     #   wipac-telemetry
 wipac-rest-tools==1.5.3
     # via lta (setup.py)
-wipac-telemetry==0.2.7
+wipac-telemetry==0.3.0
     # via lta (setup.py)
 wrapt==1.15.0
     # via deprecated

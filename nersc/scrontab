@@ -33,4 +33,4 @@
 #SCRON -t 00:15:00
 #SCRON -o /global/homes/i/icecubed/lta/slurm-clean.out
 #SCRON --open-mode=append
-0 2 * * * cd /global/homes/i/icecubed/lta/slurm-logs; find . -type f -mtime 7 -delete
+0 2 * * * find /global/homes/i/icecubed/lta/slurm-logs -type f -mtime +7 -delete
