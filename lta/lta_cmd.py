@@ -510,9 +510,9 @@ async def catalog_path(args: Namespace) -> ExitCode:
     """Display records by path from the File Catalog."""
     # if the user didn't specify a path
     if not args.path:
-        print(f"Missing path")
+        print("Missing path")
         return EXIT_ERROR
-    
+
     # if the user specified a site
     site = "WIPAC"
     if args.site:
