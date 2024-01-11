@@ -223,8 +223,9 @@ def get_active_jobs(context: Context) -> JsonObj:
 
     # run the squeue command to determine our jobs currently running in the slurm queue
     #     squeue_path            The path to the 'squeue' command
+    #     --me                   Equivalent to --user=<my username>. (see only my jobs)
     #     --json                 Please give me the output in JSON format (easy to parse)
-    args = [squeue_path, "--json"]
+    args = [squeue_path, "--me", "--json"]
     LOG.info(f"Running command: {args}")
     completed_process = run(args, stdout=PIPE, stderr=PIPE)
 
