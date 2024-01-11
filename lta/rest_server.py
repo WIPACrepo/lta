@@ -64,22 +64,6 @@ response_counter = Counter('lta_responses', 'LTA DB responses', ['method', 'resp
 
 # -----------------------------------------------------------------------------
 
-# if bool(os.environ.get('CI_TEST_ENV', False)):
-    # def lta_auth(**_auth: Any) -> Callable[..., Any]:
-        # def make_wrapper(method: Callable[..., Any]) -> Any:
-            # async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-                # # warn the user about authentication being disabled in testing
-                # logging.warning("TESTING: auth disabled")
-                # # ensure that the code provided at least one required authentication role
-                # # note: if the handler doesn't need auth; don't apply an auth decorator!
-                # roles = _auth.get('roles', [])
-                # if not roles:
-                    # raise Exception("No roles provided to lta_auth decorator!")
-                # # go ahead and run the handler
-                # return await method(self, *args, **kwargs)
-            # return wrapper
-        # return make_wrapper
-# else:
 lta_auth = keycloak_role_auth
 
 # -----------------------------------------------------------------------------
