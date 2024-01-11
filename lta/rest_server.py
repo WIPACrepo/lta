@@ -18,7 +18,7 @@ from prometheus_client import Counter, start_http_server
 import pymongo
 from pymongo import MongoClient
 from rest_tools.utils.json_util import json_decode
-from rest_tools.server import RestHandler, RestHandlerSetup, RestServer
+from rest_tools.server import RestHandler, RestHandlerSetup, RestServer, ArgumentHandler, ArgumentSource
 from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
 from wipac_dev_tools import from_environment
@@ -28,6 +28,7 @@ DELETE_CHUNK_SIZE = 1000
 
 EXPECTED_CONFIG = {
     'LOG_LEVEL': 'DEBUG',
+    'CI_TEST': 'FALSE',
     'LTA_AUTH_AUDIENCE': 'long-term-archive',
     'LTA_AUTH_OPENID_URL': '',
     'LTA_MAX_BODY_SIZE': '16777216',  # 16 MB is the limit of MongoDB documents
@@ -63,23 +64,23 @@ response_counter = Counter('lta_responses', 'LTA DB responses', ['method', 'resp
 
 # -----------------------------------------------------------------------------
 
-if bool(os.environ.get('CI_TEST_ENV', False)):
-    def lta_auth(**_auth: Any) -> Callable[..., Any]:
-        def make_wrapper(method: Callable[..., Any]) -> Any:
-            async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-                # warn the user about authentication being disabled in testing
-                logging.warning("TESTING: auth disabled")
-                # ensure that the code provided at least one required authentication role
-                # note: if the handler doesn't need auth; don't apply an auth decorator!
-                roles = _auth.get('roles', [])
-                if not roles:
-                    raise Exception("No roles provided to lta_auth decorator!")
-                # go ahead and run the handler
-                return await method(self, *args, **kwargs)
-            return wrapper
-        return make_wrapper
-else:
-    lta_auth = keycloak_role_auth
+# if bool(os.environ.get('CI_TEST_ENV', False)):
+    # def lta_auth(**_auth: Any) -> Callable[..., Any]:
+        # def make_wrapper(method: Callable[..., Any]) -> Any:
+            # async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+                # # warn the user about authentication being disabled in testing
+                # logging.warning("TESTING: auth disabled")
+                # # ensure that the code provided at least one required authentication role
+                # # note: if the handler doesn't need auth; don't apply an auth decorator!
+                # roles = _auth.get('roles', [])
+                # if not roles:
+                    # raise Exception("No roles provided to lta_auth decorator!")
+                # # go ahead and run the handler
+                # return await method(self, *args, **kwargs)
+            # return wrapper
+        # return make_wrapper
+# else:
+lta_auth = keycloak_role_auth
 
 # -----------------------------------------------------------------------------
 
@@ -403,8 +404,16 @@ class MetadataActionsBulkCreateHandler(BaseLTAHandler):
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_create."""
         request_counter.labels(method='POST', route='/Metadata/actions/bulk_create').inc()
-        bundle_uuid = self.get_argument("bundle_uuid", type=str)
-        files = self.get_argument("files", type=list, forbiddens=[[]])
+        argo = ArgumentHandler(ArgumentSource.JSON_BODY_ARGUMENTS, self)
+        argo.add_argument('bundle_uuid', type=str)
+        argo.add_argument("files", type=list)
+        args = argo.parse_args()
+        bundle_uuid = args.bundle_uuid
+        files = args.files
+        if not bundle_uuid:
+            raise tornado.web.HTTPError(400, reason='bundle_uuid must not be empty')
+        if not files:
+            raise tornado.web.HTTPError(400, reason='files must not be empty')
 
         documents = []
         for file_catalog_uuid in files:
@@ -437,7 +446,12 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_delete."""
         request_counter.labels(method='POST', route='/Metadata/actions/bulk_delete').inc()
-        metadata = self.get_argument("metadata", type=list, forbiddens=[[]])
+        argo = ArgumentHandler(ArgumentSource.JSON_BODY_ARGUMENTS, self)
+        argo.add_argument("metadata", type=list)
+        args = argo.parse_args()
+        metadata = args.metadata
+        if not metadata:
+            raise tornado.web.HTTPError(400, reason='metadata must not be empty')
 
         count = 0
         slice_index = 0
@@ -491,7 +505,9 @@ class MetadataHandler(BaseLTAHandler):
     async def delete(self) -> None:
         """Handle DELETE /Metadata?bundle_uuid={uuid}."""
         request_counter.labels(method='DELETE', route='/Metadata?bundle_uuid={uuid}').inc()
-        bundle_uuid = self.get_argument("bundle_uuid", type=str)
+        bundle_uuid = self.get_argument("bundle_uuid", None)
+        if not bundle_uuid:
+            raise tornado.web.HTTPError(400, reason='bundle_uuid must not be empty')
         query = {"bundle_uuid": bundle_uuid}
         logging.debug(f"MONGO-START: db.Metadata.delete_many(filter={query})")
         await self.db.Metadata.delete_many(filter=query)
@@ -662,7 +678,7 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
     async def post(self) -> None:
         """Handle POST /TransferRequests/actions/pop."""
         request_counter.labels(method='POST', route='/TransferRequests/actions/pop').inc()
-        source = self.get_argument("source", type=str)
+        source = self.get_argument("source")
         pop_body = json_decode(self.request.body)
         if 'claimant' not in pop_body:
             response_counter.labels(method='POST', response='400', route='/TransferRequests/actions/pop').inc()
@@ -766,11 +782,18 @@ def start(debug: bool = False) -> RestServer:
         else:
             logging.info(f"{name} = NOT SPECIFIED")
 
-    args = RestHandlerSetup({  # type: ignore
-        "auth": {
+    if config["CI_TEST"] == "TRUE":
+        auth = {
+            "secret": "secret",
+        }
+    else:
+        auth = {
             "audience": config["LTA_AUTH_AUDIENCE"],
-            "openid_url": config["LTA_AUTH_OPENID_URL"],
-        },
+            "openid_url": config["LTA_AUTH_OPENID_URL"]
+        }
+
+    args = RestHandlerSetup({  # type: ignore
+        "auth": auth,
         "debug": debug
     })
     # configure access to MongoDB as a backing store

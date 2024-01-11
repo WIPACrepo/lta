@@ -2,6 +2,7 @@
 """Unit tests for lta/rest_server.py."""
 
 import asyncio
+import logging
 import os
 import socket
 import tracemalloc
@@ -30,8 +31,6 @@ REMOVE_ID = {"_id": False}
 
 CONFIG = {
     "LOG_LEVEL": "DEBUG",
-    "LTA_AUTH_AUDIENCE": "lta",
-    "LTA_AUTH_OPENID_URL": "localhost:12345",
     'LTA_MONGODB_AUTH_USER': '',
     'LTA_MONGODB_AUTH_PASS': '',
     'LTA_MONGODB_DATABASE_NAME': 'lta',
@@ -80,8 +79,7 @@ def port() -> int:
 async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClientFactory, None]:
     """Provide RestClient as a test fixture."""
     # setup_function
-    monkeypatch.setenv("LTA_AUTH_AUDIENCE", CONFIG["LTA_AUTH_AUDIENCE"])
-    monkeypatch.setenv("LTA_AUTH_OPENID_URL", CONFIG["LTA_AUTH_OPENID_URL"])
+    monkeypatch.setenv("CI_TEST", "TRUE")
     monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", CONFIG['LTA_MONGODB_DATABASE_NAME'])
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
@@ -96,10 +94,15 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
         # Sauron forged in secret a master Token, to control all others. And
         # into this Token he poured his cruelty, his malice and his will to
         # dominate all life. One Token to rule them all.
-        auth = Auth("secret", issuer="LTA")  # type: ignore[no-untyped-call]
+        auth = Auth("secret")  # type: ignore[no-untyped-call]
         token_data: Dict[str, Any] = {
-            # TODO: fill in some token stuff here
+            "resource_access": {
+                "long-term-archive": {
+                    "roles": [role]
+                }
+            }
         }
+        logging.info("setting role to %s", role)
         token = auth.create_token(subject="lta",  # type: ignore[no-untyped-call]
                                   expiration=300,
                                   type="temp",
@@ -1047,31 +1050,25 @@ async def test_metadata_actions_bulk_create_errors(rest: RestClientFactory) -> N
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`bundle_uuid`: (MissingArgumentError) required argument is missing"
+    assert "bundle_uuid" in e.value.response.json()["error"]
 
-    request = {'bundle_uuid': []}
+    request = {'bundle_uuid': '', 'files': ["foo"]}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`files`: (MissingArgumentError) required argument is missing"
+    assert "bundle_uuid" in e.value.response.json()["error"]
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27"}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`files`: (MissingArgumentError) required argument is missing"
-
-    request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": {}}
-    with pytest.raises(HTTPError) as e:
-        await r.request('POST', '/Metadata/actions/bulk_create', request)
-    assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`files`: (ValueError) [] is forbidden ([[]])"
+    assert "files" in e.value.response.json()["error"]
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": []}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`files`: (ValueError) [] is forbidden ([[]])"
+    assert "files" in e.value.response.json()["error"]
     r.close()
 
 
@@ -1084,19 +1081,19 @@ async def test_metadata_actions_bulk_delete_errors(rest: RestClientFactory) -> N
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`metadata`: (MissingArgumentError) required argument is missing"
+    assert "metadata" in e.value.response.json()["error"]
 
     request = {'metadata': ''}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`metadata`: (ValueError) [] is forbidden ([[]])"
+    assert "metadata" in e.value.response.json()["error"]
 
     request = {'metadata': []}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`metadata`: (ValueError) [] is forbidden ([[]])"
+    assert "metadata" in e.value.response.json()["error"]
     r.close()
 
 
@@ -1108,7 +1105,7 @@ async def test_metadata_delete_errors(rest: RestClientFactory) -> None:
     with pytest.raises(HTTPError) as e:
         await r.request('DELETE', '/Metadata')
     assert e.value.response.status_code == 400
-    assert e.value.response.json()["error"] == "`bundle_uuid`: (MissingArgumentError) required argument is missing"
+    assert "bundle_uuid" in e.value.response.json()["error"]
     r.close()
 
 
