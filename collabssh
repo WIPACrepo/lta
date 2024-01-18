@@ -4,5 +4,5 @@
 # Use direct login to ssh to perlmutter with the icecubed collaboration account
 # See: https://docs.nersc.gov/accounts/collaboration_accounts/#direct-login
 
-sshproxy.sh -c icecubed
+./sshproxy.sh -c icecubed
 ssh -i ${HOME}/.ssh/icecubed icecubed@perlmutter-p1.nersc.gov
