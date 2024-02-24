@@ -817,13 +817,6 @@ def start(debug: bool = False) -> RestServer:
 
 
 async def main() -> None:
-    """Just loop forever while the REST server processes requests."""
-    while True:
-        LOG.info("Sleeping for 60 seconds")
-        await asyncio.sleep(60)
-
-
-def main_sync() -> None:
     """Configure logging and start a LTA DB service."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
@@ -838,8 +831,8 @@ def main_sync() -> None:
     start(debug=True)
     metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
     start_http_server(metrics_port)
-    asyncio.run(main())
+    await asyncio.Event().wait()
 
 
 if __name__ == '__main__':
-    main_sync()
+    asyncio.run(main())
