@@ -4,15 +4,11 @@
 #
 #    pip-compile --output-file=requirements.txt
 #
-backoff==2.2.1
-    # via
-    #   opentelemetry-exporter-otlp-proto-common
-    #   opentelemetry-exporter-otlp-proto-http
 binpacking==1.5.2
     # via lta (setup.py)
 cachetools==5.3.2
     # via wipac-rest-tools
-certifi==2023.11.17
+certifi==2024.2.2
     # via requests
 cffi==1.16.0
     # via cryptography
@@ -22,21 +18,21 @@ colorama==0.4.6
     # via lta (setup.py)
 coloredlogs==15.0.1
     # via wipac-telemetry
-cryptography==41.0.7
+cryptography==42.0.5
     # via pyjwt
 deprecated==1.2.14
     # via
     #   opentelemetry-api
     #   opentelemetry-exporter-otlp-proto-http
-dnspython==2.4.2
+dnspython==2.6.1
     # via pymongo
-future==0.18.3
+future==1.0.0
     # via binpacking
 googleapis-common-protos==1.59.1
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.60.0
+grpcio==1.62.0
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -48,7 +44,7 @@ importlib-metadata==6.11.0
     # via opentelemetry-api
 motor==3.3.2
     # via lta (setup.py)
-opentelemetry-api==1.22.0
+opentelemetry-api==1.23.0
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
@@ -61,25 +57,25 @@ opentelemetry-exporter-jaeger-proto-grpc==1.21.0
     # via opentelemetry-exporter-jaeger
 opentelemetry-exporter-jaeger-thrift==1.21.0
     # via opentelemetry-exporter-jaeger
-opentelemetry-exporter-otlp-proto-common==1.22.0
+opentelemetry-exporter-otlp-proto-common==1.23.0
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-http==1.22.0
+opentelemetry-exporter-otlp-proto-http==1.23.0
     # via wipac-telemetry
-opentelemetry-proto==1.22.0
+opentelemetry-proto==1.23.0
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.22.0
+opentelemetry-sdk==1.23.0
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
     #   opentelemetry-exporter-otlp-proto-http
     #   wipac-telemetry
-opentelemetry-semantic-conventions==0.43b0
+opentelemetry-semantic-conventions==0.44b0
     # via opentelemetry-sdk
-prometheus-client==0.19.0
+prometheus-client==0.20.0
     # via lta (setup.py)
-protobuf==4.25.2
+protobuf==4.25.3
     # via
     #   googleapis-common-protos
     #   opentelemetry-proto
@@ -87,10 +83,8 @@ protobuf==4.25.2
 pycparser==2.21
     # via cffi
 pyjwt[crypto]==2.8.0
-    # via
-    #   pyjwt
-    #   wipac-rest-tools
-pymongo==4.6.1
+    # via wipac-rest-tools
+pymongo==4.6.2
     # via
     #   lta (setup.py)
     #   motor
@@ -120,11 +114,11 @@ typing-extensions==4.9.0
     #   qrcode
     #   wipac-dev-tools
     #   wipac-telemetry
-urllib3==2.1.0
+urllib3==2.2.1
     # via
     #   requests
     #   wipac-rest-tools
-wipac-dev-tools==1.8.2
+wipac-dev-tools==1.9.1
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
