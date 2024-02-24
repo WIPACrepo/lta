@@ -9,11 +9,11 @@ from datetime import datetime
 import logging
 import os
 import sys
-from typing import Any, Callable, cast, Dict, Optional
+from typing import Any, cast, Dict, Optional
 from urllib.parse import quote_plus
 from uuid import uuid1
 
-from motor.motor_tornado import MotorClient, MotorDatabase  # type: ignore
+from motor.motor_tornado import MotorClient, MotorDatabase
 from prometheus_client import Counter, start_http_server
 import pymongo
 from pymongo import MongoClient

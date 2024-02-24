@@ -7,6 +7,7 @@ import os
 import socket
 import tracemalloc
 from typing import Any, AsyncGenerator, Callable, cast, Dict, List
+from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
 
 from pymongo import MongoClient
@@ -283,18 +284,20 @@ async def test_transfer_request_pop(rest: RestClientFactory) -> None:
 @pytest.mark.asyncio
 async def test_script_main(mocker: MockerFixture) -> None:
     """Ensure that main sets up logging, starts a server, and runs the event loop."""
-    mock_root_logger = mocker.patch("logging.basicConfig")
-    mock_rest_server = mocker.patch("lta.rest_server.start")
-    mock_run = mocker.patch("asyncio.run")
-    mock_main = mocker.patch("lta.rest_server.main")
-    mock_shs = mocker.patch("lta.rest_server.start_http_server")
+    mock_basicConfig = mocker.patch("logging.basicConfig")
+    mock_start = mocker.patch("lta.rest_server.start")
+    mock_start_http_server = mocker.patch("lta.rest_server.start_http_server")
+    mock_Event = AsyncMock(spec=asyncio.Event)
+    mock_asyncio_event = mocker.patch("asyncio.Event")
+    mock_asyncio_event.return_value = mock_Event
+
     await main()
-    mock_shs.assert_called()
-    mock_main.assert_called()
-    mock_run.assert_called()
-    mock_rest_server.assert_called()
-    mock_root_logger.assert_called()
-    await mock_run.call_args.args[0]
+
+    mock_Event.wait.assert_called()
+    mock_asyncio_event.assert_called()
+    mock_start_http_server.assert_called()
+    mock_start.assert_called()
+    mock_basicConfig.assert_called()
 
 
 @pytest.mark.asyncio
