@@ -19,7 +19,7 @@ from rest_tools.client import RestClient
 from rest_tools.utils import Auth
 from requests.exceptions import HTTPError
 
-from lta.rest_server import boolify, main_sync, start, unique_id
+from lta.rest_server import boolify, main, start, unique_id
 
 LtaCollection = Database[Dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
@@ -281,14 +281,14 @@ async def test_transfer_request_pop(rest: RestClientFactory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_script_main_sync(mocker: MockerFixture) -> None:
+async def test_script_main(mocker: MockerFixture) -> None:
     """Ensure that main sets up logging, starts a server, and runs the event loop."""
     mock_root_logger = mocker.patch("logging.basicConfig")
     mock_rest_server = mocker.patch("lta.rest_server.start")
     mock_run = mocker.patch("asyncio.run")
     mock_main = mocker.patch("lta.rest_server.main")
     mock_shs = mocker.patch("lta.rest_server.start_http_server")
-    main_sync()
+    await main()
     mock_shs.assert_called()
     mock_main.assert_called()
     mock_run.assert_called()
