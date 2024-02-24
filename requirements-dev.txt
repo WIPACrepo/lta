@@ -169,6 +169,8 @@ tornado==6.4
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
+types-colorama==0.4.15.20240205
+    # via lta (setup.py)
 types-requests==2.31.0.20240218
     # via lta (setup.py)
 typing-extensions==4.9.0
