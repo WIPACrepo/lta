@@ -1,4 +1,49 @@
 # Changelog
+
+<!--next-version-placeholder-->
+
+## v0.41.34 (2024-04-22)
+
+### Other
+
+* Bump wipac-rest-tools ([#280](https://github.com/WIPACrepo/lta/issues/280)) ([`1494e0b`](https://github.com/WIPACrepo/lta/commit/1494e0bab17b4d4ddaf18363ba335951a0a1c08c))
+* Try another semantic release fix ([`758c605`](https://github.com/WIPACrepo/lta/commit/758c60557080d6b77b4601e5efdc5e6c75bd771c))
+* Fix up ci actions ([#278](https://github.com/WIPACrepo/lta/issues/278)) ([`7824614`](https://github.com/WIPACrepo/lta/commit/7824614eb4e85c7cf7287387398e5c17d0e5c758))
+* Use github container registry ([#276](https://github.com/WIPACrepo/lta/issues/276)) ([`ff88925`](https://github.com/WIPACrepo/lta/commit/ff889252b6583fcbbec987b844e240558622d9be))
+* Fix monitoring script syntax ([#277](https://github.com/WIPACrepo/lta/issues/277)) ([`187bb14`](https://github.com/WIPACrepo/lta/commit/187bb1413a7bb3dddf2da38c8a36bbfb6b48db4e))
+* Update to more modern tornado asyncio wait syntax ([#275](https://github.com/WIPACrepo/lta/issues/275)) ([`42b64d4`](https://github.com/WIPACrepo/lta/commit/42b64d446dcff1011671696e010426432f1928ff))
+* Paths and Pins ([#274](https://github.com/WIPACrepo/lta/issues/274)) ([`7c5cd53`](https://github.com/WIPACrepo/lta/commit/7c5cd53e065829d261622c394ed2e37739adc9d7))
+* Fix tests ([#273](https://github.com/WIPACrepo/lta/issues/273)) ([`c9f9323`](https://github.com/WIPACrepo/lta/commit/c9f9323531740eab03232803818cde1ba903b943))
+* Modify nersc_controller to avoid getting OOM killed ([#272](https://github.com/WIPACrepo/lta/issues/272)) ([`6fa23c5`](https://github.com/WIPACrepo/lta/commit/6fa23c5e76a5fccae9250ea979046dec022c6d8c))
+* Ltacmd catalog path ([#270](https://github.com/WIPACrepo/lta/issues/270)) ([`1d39a31`](https://github.com/WIPACrepo/lta/commit/1d39a31d5d1901c51e0f7c60fed8d39c4f21ee2d))
+* Update scrontab to prune slurm logs ([#269](https://github.com/WIPACrepo/lta/issues/269)) ([`c53611b`](https://github.com/WIPACrepo/lta/commit/c53611b304f99290b4cd858418e89469542f3ab3))
+* Metrics Reporting with Prometheus ([#268](https://github.com/WIPACrepo/lta/issues/268)) ([`9a638a0`](https://github.com/WIPACrepo/lta/commit/9a638a034f2d353c40758e56ba44bcfaaf16bf5c))
+* Save status to original_status when moving to quarantine ([#267](https://github.com/WIPACrepo/lta/issues/267)) ([`126867e`](https://github.com/WIPACrepo/lta/commit/126867e9ae8ae16163bc786229bb299ccb42cfa3))
+* Progress monitor ([#257](https://github.com/WIPACrepo/lta/issues/257)) ([`52e86ff`](https://github.com/WIPACrepo/lta/commit/52e86ff176dad5511ec0ae253e9e254c1d997016))
+* Bundler removes broken files of previous attempts ([#261](https://github.com/WIPACrepo/lta/issues/261)) ([`d11e1df`](https://github.com/WIPACrepo/lta/commit/d11e1df15c8e4963d006a3397da2e3ca891567fd))
+* Bump py-versions CI release v2.1 ([#259](https://github.com/WIPACrepo/lta/issues/259)) ([`bf64bb1`](https://github.com/WIPACrepo/lta/commit/bf64bb182b24401e71ab56c0fd1fba5c2670ac3e))
+* Request minimum and maximum time for slurm jobs at NERSC ([#258](https://github.com/WIPACrepo/lta/issues/258)) ([`3e2df4f`](https://github.com/WIPACrepo/lta/commit/3e2df4fcabb6d9226cc06860247fbf12533749ca))
+* Nersc-verifier should use configured hpss_avail path ([#256](https://github.com/WIPACrepo/lta/issues/256)) ([`a2ab4cd`](https://github.com/WIPACrepo/lta/commit/a2ab4cd5e8d6950e1f88c18a875648152066d539))
+* LTA should use the long-term-archive client secret ([#255](https://github.com/WIPACrepo/lta/issues/255)) ([`2888a26`](https://github.com/WIPACrepo/lta/commit/2888a26ff677f9dc74af5a6194608499dcf92c4c))
+* Updated call to hpss_avail command for Perlmutter ([#254](https://github.com/WIPACrepo/lta/issues/254)) ([`be05c3d`](https://github.com/WIPACrepo/lta/commit/be05c3d78316d8fd7a0b6f289abaf2b0f8d10058))
+* Added scrontab job to clean Slurm logs ([#253](https://github.com/WIPACrepo/lta/issues/253)) ([`462224c`](https://github.com/WIPACrepo/lta/commit/462224c0d557994e461f402a1c70a7def8cccf5a))
+* Update LTA configuration to use Community File System instead of Perlmutter Scratch ([#252](https://github.com/WIPACrepo/lta/issues/252)) ([`c334d15`](https://github.com/WIPACrepo/lta/commit/c334d15e1ea89da98b79544cfe978b535b61feba))
+* Cori Scratch is dead, long live Perlmutter Scratch ([#250](https://github.com/WIPACrepo/lta/issues/250)) ([`8f6a12b`](https://github.com/WIPACrepo/lta/commit/8f6a12b8daafe31b01f025cfb36a08b4910774fd))
+* Add -debug flag to grid-proxy-init ([#249](https://github.com/WIPACrepo/lta/issues/249)) ([`5c4cf50`](https://github.com/WIPACrepo/lta/commit/5c4cf502e432808bafa3896ca587c3251bc4041b))
+* Add Globus tools like globus-url-copy to Docker containers ([#248](https://github.com/WIPACrepo/lta/issues/248)) ([`006880c`](https://github.com/WIPACrepo/lta/commit/006880c6a6b1aa959656343c604ad83a958ba96c))
+* Update File Catalog creds supplied to ltacmd ([#247](https://github.com/WIPACrepo/lta/issues/247)) ([`fae7161`](https://github.com/WIPACrepo/lta/commit/fae7161efc88c40110d5931c3c0b35d66367a2ce))
+* Small changes that didn't make the last commit ([#246](https://github.com/WIPACrepo/lta/issues/246)) ([`048487f`](https://github.com/WIPACrepo/lta/commit/048487f8f99c041d11d2593120cdbfa6aca7c468))
+* Create new controller script for NERSC ([#245](https://github.com/WIPACrepo/lta/issues/245)) ([`a030f8f`](https://github.com/WIPACrepo/lta/commit/a030f8fc47d9d9c8ce5decb7482b4462abcb9ad1))
+* New Auth Deployment ([#244](https://github.com/WIPACrepo/lta/issues/244)) ([`3418b5a`](https://github.com/WIPACrepo/lta/commit/3418b5a5dbf91d46543bc6cd78b54a4dd70371f9))
+* Support new authentication for File Catalog ([#243](https://github.com/WIPACrepo/lta/issues/243)) ([`406945c`](https://github.com/WIPACrepo/lta/commit/406945cf5cb0f51a37a7c9b2b880a98192b6a668))
+* Modified auth configuration; fixed logging ([#242](https://github.com/WIPACrepo/lta/issues/242)) ([`ec23977`](https://github.com/WIPACrepo/lta/commit/ec23977b2e738a4f92577b1306c0a5a9337efab4))
+* Update LTA authentication ([#241](https://github.com/WIPACrepo/lta/issues/241)) ([`96f7cbf`](https://github.com/WIPACrepo/lta/commit/96f7cbfd83a5207905fe337c2bbd06f5bbe5e408))
+* Fix the return path ([#240](https://github.com/WIPACrepo/lta/issues/240)) ([`54fe5fa`](https://github.com/WIPACrepo/lta/commit/54fe5fadc5235cd7bcf184a8cf1a639ec3deb9d4))
+* Modify parameters for small transfer requests ([#235](https://github.com/WIPACrepo/lta/issues/235)) ([`95913b2`](https://github.com/WIPACrepo/lta/commit/95913b29b1c82119693fd086df56d4d877584133))
+* Jadetools from lta-vm-2 ([#234](https://github.com/WIPACrepo/lta/issues/234)) ([`6c3bc11`](https://github.com/WIPACrepo/lta/commit/6c3bc11d1a06a82772e8c7149ad8c3308f977340))
+* Use better event loop management ([#233](https://github.com/WIPACrepo/lta/issues/233)) ([`bc5267b`](https://github.com/WIPACrepo/lta/commit/bc5267bba716d34a8499b9c42aab9f53371cb0df))
+* Make explicit dependency on pyjwt with crypto ([`ae48e62`](https://github.com/WIPACrepo/lta/commit/ae48e6206b4a2da51167799cbd0aaabdc4e04680))
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
