@@ -87,7 +87,7 @@ class Collect:
             pprint(doc)
         else:
             try:
-                await self.es.index(index=self.index_name, id=catalog_file['uuid'], document=doc)
+                await self.es.index(self.index_name, doc, id=catalog_file['uuid'])
             except Exception:
                 pprint(doc)
                 pprint(catalog_file)
