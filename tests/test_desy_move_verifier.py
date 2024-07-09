@@ -177,22 +177,24 @@ async def test_desy_move_verifier_run_exception(config: TestConfig, mocker: Mock
 async def test_desy_move_verifier_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = DesyMoveVerifier(config, logger_mock)
     with pytest.raises(HTTPError):
-        await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+        await p._do_work(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
 async def test_desy_move_verifier_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
+    lta_rc_mock = AsyncMock()
     dwc_mock = mocker.patch("lta.desy_move_verifier.DesyMoveVerifier._do_work_claim", new_callable=AsyncMock)
     dwc_mock.return_value = False
     p = DesyMoveVerifier(config, logger_mock)
-    await p._do_work()
+    await p._do_work(lta_rc_mock)
     dwc_mock.assert_called()
 
 
@@ -200,10 +202,11 @@ async def test_desy_move_verifier_do_work_no_results(config: TestConfig, mocker:
 async def test_desy_move_verifier_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
+    lta_rc_mock = AsyncMock()
     dwc_mock = mocker.patch("lta.desy_move_verifier.DesyMoveVerifier._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
     p = DesyMoveVerifier(config, logger_mock)
-    await p._do_work()
+    await p._do_work(lta_rc_mock)
     dwc_mock.assert_called()
 
 
@@ -211,14 +214,15 @@ async def test_desy_move_verifier_do_work_yes_results(config: TestConfig, mocker
 async def test_desy_move_verifier_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": None
     }
     vb_mock = mocker.patch("lta.desy_move_verifier.DesyMoveVerifier._verify_bundle", new_callable=AsyncMock)
     p = DesyMoveVerifier(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_not_called()
 
 
@@ -226,16 +230,17 @@ async def test_desy_move_verifier_do_work_claim_no_result(config: TestConfig, mo
 async def test_desy_move_verifier_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": {
             "one": 1,
         },
     }
     vb_mock = mocker.patch("lta.desy_move_verifier.DesyMoveVerifier._verify_bundle", new_callable=AsyncMock)
     p = DesyMoveVerifier(config, logger_mock)
-    assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    assert await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 

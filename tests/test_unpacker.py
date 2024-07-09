@@ -251,12 +251,13 @@ async def test_unpacker_run_exception(config: TestConfig, mocker: MockerFixture,
 async def test_unpacker_do_work_pop_exception(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = Unpacker(config, logger_mock)
     with pytest.raises(HTTPError):
-        await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
+        await p._do_work(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -266,20 +267,21 @@ async def test_unpacker_do_work_no_results(config: TestConfig, mocker: MockerFix
     claim_mock = mocker.patch("lta.unpacker.Unpacker._do_work_claim", new_callable=AsyncMock)
     claim_mock.return_value = False
     p = Unpacker(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
 
 
 @pytest.mark.asyncio
 async def test_unpacker_do_work_claim_no_results(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
     """Test that _do_work_claim returns False when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": None
     }
     p = Unpacker(config, logger_mock)
-    assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
+    assert not await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -289,14 +291,15 @@ async def test_unpacker_do_work_yes_results(config: TestConfig, mocker: MockerFi
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
     }
     logger_mock = mocker.MagicMock()
-    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    request_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": BUNDLE_OBJ,
     }
     dwb_mock = mocker.patch("lta.unpacker.Unpacker._do_work_bundle", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
-    assert await p._do_work_claim()
-    request_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
+    assert await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
     dwb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ)
 
 
@@ -307,8 +310,9 @@ async def test_unpacker_do_work_raise_exception(config: TestConfig, mocker: Mock
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
     }
     logger_mock = mocker.MagicMock()
-    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    request_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": BUNDLE_OBJ,
     }
     dwb_mock = mocker.patch("lta.unpacker.Unpacker._do_work_bundle", new_callable=AsyncMock)
@@ -316,8 +320,8 @@ async def test_unpacker_do_work_raise_exception(config: TestConfig, mocker: Mock
     qb_mock = mocker.patch("lta.unpacker.Unpacker._quarantine_bundle", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
     with pytest.raises(Exception):
-        await p._do_work_claim()
-    request_mock.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
+        await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
     dwb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ)
     qb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ, "LTA DB started on fire again")
 
@@ -332,7 +336,7 @@ async def test_unpacker_do_work_bundle_once_and_die(config: TestConfig, mocker: 
     claim_mock.return_value = False
     sys_exit_mock = mocker.patch("sys.exit")
     p = Unpacker(once, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     sys_exit_mock.assert_called()
 
 

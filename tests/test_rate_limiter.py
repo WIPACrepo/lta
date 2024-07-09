@@ -178,12 +178,13 @@ async def test_rate_limiter_run_exception(config: TestConfig, mocker: MockerFixt
 async def test_rate_limiter_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = RateLimiter(config, logger_mock)
     with pytest.raises(HTTPError):
-        await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+        await p._do_work(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -193,7 +194,7 @@ async def test_rate_limiter_do_work_no_results(config: TestConfig, mocker: Mocke
     dwc_mock = mocker.patch("lta.rate_limiter.RateLimiter._do_work_claim", new_callable=AsyncMock)
     dwc_mock.return_value = False
     p = RateLimiter(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
 
@@ -204,7 +205,7 @@ async def test_rate_limiter_do_work_yes_results(config: TestConfig, mocker: Mock
     dwc_mock = mocker.patch("lta.rate_limiter.RateLimiter._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
     p = RateLimiter(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
 
@@ -212,14 +213,15 @@ async def test_rate_limiter_do_work_yes_results(config: TestConfig, mocker: Mock
 async def test_rate_limiter_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": None
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
     p = RateLimiter(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_not_called()
 
 
@@ -227,16 +229,17 @@ async def test_rate_limiter_do_work_claim_no_result(config: TestConfig, mocker: 
 async def test_rate_limiter_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": {
             "one": 1,
         },
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
     p = RateLimiter(config, logger_mock)
-    assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    assert not await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
@@ -244,8 +247,9 @@ async def test_rate_limiter_do_work_claim_yes_result(config: TestConfig, mocker:
 async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim both calls _quarantine_bundle and re-raises when _stage_bundle raises."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": {
             "one": 1,
         },
@@ -255,8 +259,8 @@ async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: Mock
     sb_mock.side_effect = Exception("LTA DB unavailable; currently safer at home")
     p = RateLimiter(config, logger_mock)
     with pytest.raises(Exception):
-        await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
+        await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
     qb_mock.assert_called_with(mocker.ANY, {"one": 1}, "LTA DB unavailable; currently safer at home")
 

@@ -210,7 +210,7 @@ async def test_nersc_mover_do_work_no_results(config: TestConfig, mocker: Mocker
     dwc_mock = mocker.patch("lta.nersc_mover.NerscMover._do_work_claim", new_callable=AsyncMock)
     dwc_mock.return_value = False
     p = NerscMover(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
 
@@ -221,7 +221,7 @@ async def test_nersc_mover_do_work_yes_results(config: TestConfig, mocker: Mocke
     dwc_mock = mocker.patch("lta.nersc_mover.NerscMover._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
     p = NerscMover(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
 
@@ -237,7 +237,7 @@ async def test_nersc_mover_hpss_not_available(config: TestConfig, mocker: Mocker
         stderr="some text on stderr",
     )
     p = NerscMover(config, logger_mock)
-    assert not await p._do_work_claim()
+    assert not await p._do_work_claim(AsyncMock())
 
 
 @pytest.mark.asyncio
@@ -251,14 +251,15 @@ async def test_nersc_mover_do_work_pop_exception(config: TestConfig, mocker: Moc
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
         HTTPError(500, "LTA DB on fire. Again.")
     ]
     p = NerscMover(config, logger_mock)
     with pytest.raises(HTTPError):
-        await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+        await p._do_work(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -272,16 +273,17 @@ async def test_nersc_mover_do_work_claim_no_result(config: TestConfig, mocker: M
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
         {
             "bundle": None
         }
     ]
     wbth_mock = mocker.patch("lta.nersc_mover.NerscMover._write_bundle_to_hpss", new_callable=AsyncMock)
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
     wbth_mock.assert_not_called()
 
 
@@ -296,8 +298,9 @@ async def test_nersc_mover_do_work_claim_yes_result(config: TestConfig, mocker: 
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
         {
             "bundle": {
                 "one": 1,
@@ -306,8 +309,8 @@ async def test_nersc_mover_do_work_claim_yes_result(config: TestConfig, mocker: 
     ]
     wbth_mock = mocker.patch("lta.nersc_mover.NerscMover._write_bundle_to_hpss", new_callable=AsyncMock)
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
     wbth_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
@@ -322,8 +325,9 @@ async def test_nersc_mover_do_work_claim_write_bundle_raise_exception(config: Te
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
         {
             "bundle": {
                 "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5",
@@ -335,8 +339,8 @@ async def test_nersc_mover_do_work_claim_write_bundle_raise_exception(config: Te
     wbth_mock = mocker.patch("lta.nersc_mover.NerscMover._write_bundle_to_hpss", new_callable=AsyncMock)
     wbth_mock.side_effect = Exception("BAD THING HAPPEN!")
     p = NerscMover(config, logger_mock)
-    assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
+    assert not await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
     wbth_mock.assert_called_with(
         mocker.ANY,
         {"uuid": "8f03a920-49d6-446b-811e-830e3f7942f5", "status": "taping"}
@@ -354,8 +358,9 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config: TestConfig, mocker
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    request_mock.side_effect = [
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -367,9 +372,9 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config: TestConfig, mocker
     ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=AsyncMock)
     ehc_mock.return_value = False
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim()
+    await p._do_work_claim(lta_rc_mock)
     ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'])
-    request_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -383,8 +388,9 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mock
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    request_mock.side_effect = [
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -396,9 +402,9 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mock
     ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=AsyncMock)
     ehc_mock.side_effect = [True, False]
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim()
+    await p._do_work_claim(lta_rc_mock)
     ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
-    request_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -412,8 +418,9 @@ async def test_nersc_mover_write_bundle_to_hpss(config: TestConfig, mocker: Mock
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    request_mock.side_effect = [
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -428,9 +435,9 @@ async def test_nersc_mover_write_bundle_to_hpss(config: TestConfig, mocker: Mock
     ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=AsyncMock)
     ehc_mock.side_effect = [True, True]
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim()
+    await p._do_work_claim(lta_rc_mock)
     ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
-    request_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -452,8 +459,9 @@ async def test_nersc_mover_execute_hsi_command_failed(config: TestConfig, mocker
             stderr="some text on stderr",
         )
     ]
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -466,8 +474,8 @@ async def test_nersc_mover_execute_hsi_command_failed(config: TestConfig, mocker
         },
     ]
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
+    await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -485,9 +493,9 @@ async def test_nersc_mover_execute_hsi_command_success(config: TestConfig, mocke
         ObjectLiteral(returncode=0),
         ObjectLiteral(returncode=0)
     ]
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
         {
             "bundle": {
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
@@ -500,5 +508,5 @@ async def test_nersc_mover_execute_hsi_command_success(config: TestConfig, mocke
         },
     ]
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
+    await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)

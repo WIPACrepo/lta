@@ -168,12 +168,13 @@ async def test_transfer_request_finisher_run_exception(config: TestConfig, mocke
 async def test_transfer_request_finisher_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = TransferRequestFinisher(config, logger_mock)
     with pytest.raises(HTTPError):
-        await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
+        await p._do_work(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -183,7 +184,7 @@ async def test_transfer_request_finisher_do_work_no_results(config: TestConfig, 
     dwc_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._do_work_claim", new_callable=AsyncMock)
     dwc_mock.return_value = False
     p = TransferRequestFinisher(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
 
@@ -194,7 +195,7 @@ async def test_transfer_request_finisher_do_work_yes_results(config: TestConfig,
     dwc_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
     p = TransferRequestFinisher(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
 
@@ -202,14 +203,15 @@ async def test_transfer_request_finisher_do_work_yes_results(config: TestConfig,
 async def test_transfer_request_finisher_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": None
     }
     utr_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._update_transfer_request", new_callable=AsyncMock)
     p = TransferRequestFinisher(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
     utr_mock.assert_not_called()
 
 
@@ -217,16 +219,17 @@ async def test_transfer_request_finisher_do_work_claim_no_result(config: TestCon
 async def test_transfer_request_finisher_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": {
             "one": 1,
         },
     }
     utr_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._update_transfer_request", new_callable=AsyncMock)
     p = TransferRequestFinisher(config, logger_mock)
-    assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    assert not await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
     utr_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 

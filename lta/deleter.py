@@ -8,7 +8,7 @@ import sys
 from typing import Any, Dict, Optional
 
 from prometheus_client import Counter, Gauge, start_http_server
-from rest_tools.client import ClientCredentialsAuth, RestClient
+from rest_tools.client import RestClient
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
@@ -63,14 +63,14 @@ class Deleter(Component):
         return EXPECTED_CONFIG
 
     @wtt.spanned()
-    async def _do_work(self) -> None:
+    async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
         load_level = -1
         work_claimed = True
         while work_claimed:
             load_level += 1
-            work_claimed = await self._do_work_claim()
+            work_claimed = await self._do_work_claim(lta_rc)
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
@@ -78,16 +78,9 @@ class Deleter(Component):
         self.logger.info("Ending work on Bundles.")
 
     @wtt.spanned()
-    async def _do_work_claim(self) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be deleted
-        # configure a RestClient to talk to the LTA DB
-        lta_rc = ClientCredentialsAuth(address=self.lta_rest_url,
-                                       token_url=self.lta_auth_openid_url,
-                                       client_id=self.client_id,
-                                       client_secret=self.client_secret,
-                                       timeout=self.work_timeout_seconds,
-                                       retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to delete.")
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"

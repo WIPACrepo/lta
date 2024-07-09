@@ -191,7 +191,7 @@ async def test_nersc_verifier_hpss_not_available(config: TestConfig, mocker: Moc
         stderr="some text on stderr",
     )
     p = NerscVerifier(config, logger_mock)
-    assert not await p._do_work_claim()
+    assert not await p._do_work_claim(AsyncMock())
 
 
 @pytest.mark.asyncio
@@ -213,12 +213,13 @@ async def test_nersc_verifier_do_work_pop_exception(config: TestConfig, mocker: 
             stderr="some text on stderr",
         ),
     ]
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = NerscVerifier(config, logger_mock)
     with pytest.raises(HTTPError):
-        await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+        await p._do_work(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -228,7 +229,7 @@ async def test_nersc_verifier_do_work_no_results(config: TestConfig, mocker: Moc
     dwc_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._do_work_claim", new_callable=AsyncMock)
     dwc_mock.return_value = False
     p = NerscVerifier(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
 
@@ -239,7 +240,7 @@ async def test_nersc_verifier_do_work_yes_results(config: TestConfig, mocker: Mo
     dwc_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
     p = NerscVerifier(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     assert dwc_mock.call_count == 3
 
 
@@ -262,14 +263,15 @@ async def test_nersc_verifier_do_work_claim_no_result(config: TestConfig, mocker
             stderr="some text on stderr",
         ),
     ]
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": None
     }
     vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=AsyncMock)
     p = NerscVerifier(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_not_called()
 
 
@@ -292,8 +294,9 @@ async def test_nersc_verifier_do_work_claim_yes_result(config: TestConfig, mocke
             stderr="some text on stderr",
         ),
     ]
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": {
             "one": 1,
         },
@@ -301,8 +304,8 @@ async def test_nersc_verifier_do_work_claim_yes_result(config: TestConfig, mocke
     vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=AsyncMock)
     vbih_mock.return_value = False
     p = NerscVerifier(config, logger_mock)
-    assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    assert await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
@@ -325,8 +328,9 @@ async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config:
             stderr="some text on stderr",
         ),
     ]
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": {
             "one": 1,
         },
@@ -336,8 +340,8 @@ async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config:
     abtfc_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._add_bundle_to_file_catalog", new_callable=AsyncMock)
     ubild_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._update_bundle_in_lta_db", new_callable=AsyncMock)
     p = NerscVerifier(config, logger_mock)
-    assert await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    assert await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
     abtfc_mock.assert_called_with(mocker.ANY, {"one": 1})
     ubild_mock.assert_called_with(mocker.ANY, {"one": 1})
@@ -362,8 +366,9 @@ async def test_nersc_verifier_do_work_claim_exception_caught(config: TestConfig,
             stderr="some text on stderr",
         ),
     ]
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = [
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
         {
             "bundle": {
                 "uuid": "45ae2ad39c664fda86e5981be0976d9c",
@@ -376,8 +381,8 @@ async def test_nersc_verifier_do_work_claim_exception_caught(config: TestConfig,
     vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=AsyncMock)
     vbih_mock.side_effect = Exception("Database totally on fire, guys")
     p = NerscVerifier(config, logger_mock)
-    assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("PATCH", '/Bundles/45ae2ad39c664fda86e5981be0976d9c', mocker.ANY)
+    assert not await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/45ae2ad39c664fda86e5981be0976d9c', mocker.ANY)
     vbih_mock.assert_called_with(
         mocker.ANY,
         {"uuid": "45ae2ad39c664fda86e5981be0976d9c", "status": "verifying", "one": 1}
