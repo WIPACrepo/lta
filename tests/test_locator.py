@@ -214,12 +214,13 @@ async def test_locator_run_exception(config: TestConfig, mocker: MockerFixture) 
 async def test_locator_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = Locator(config, logger_mock)
     with pytest.raises(HTTPError):
-        await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=NERSC&dest=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+        await p._do_work(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/TransferRequests/actions/pop?source=NERSC&dest=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
 
 
 @pytest.mark.asyncio
@@ -229,7 +230,7 @@ async def test_locator_do_work_no_results(config: TestConfig, mocker: MockerFixt
     dwc_mock = mocker.patch("lta.locator.Locator._do_work_claim", new_callable=AsyncMock)
     dwc_mock.return_value = False
     p = Locator(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
 
@@ -240,7 +241,7 @@ async def test_locator_do_work_yes_results(config: TestConfig, mocker: MockerFix
     dwc_mock = mocker.patch("lta.locator.Locator._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
     p = Locator(config, logger_mock)
-    await p._do_work()
+    await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
 
@@ -248,14 +249,15 @@ async def test_locator_do_work_yes_results(config: TestConfig, mocker: MockerFix
 async def test_locator_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "transfer_request": None
     }
     dwtr_mock = mocker.patch("lta.locator.Locator._do_work_transfer_request", new_callable=AsyncMock)
     p = Locator(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=NERSC&dest=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/TransferRequests/actions/pop?source=NERSC&dest=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_not_called()
 
 
@@ -263,16 +265,17 @@ async def test_locator_do_work_claim_no_result(config: TestConfig, mocker: Mocke
 async def test_locator_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the TransferRequest it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "transfer_request": {
             "one": 1,
         },
     }
     dwtr_mock = mocker.patch("lta.locator.Locator._do_work_transfer_request", new_callable=AsyncMock)
     p = Locator(config, logger_mock)
-    await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=NERSC&dest=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/TransferRequests/actions/pop?source=NERSC&dest=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
@@ -280,8 +283,9 @@ async def test_locator_do_work_claim_yes_result(config: TestConfig, mocker: Mock
 async def test_locator_do_work_claim_exception_when_processing(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the TransferRequest it gets from the LTA DB."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "transfer_request": {
             "one": 1,
         },
@@ -291,8 +295,8 @@ async def test_locator_do_work_claim_exception_when_processing(config: TestConfi
     qtr_mock = mocker.patch("lta.locator.Locator._quarantine_transfer_request", new_callable=AsyncMock)
     p = Locator(config, logger_mock)
     with pytest.raises(Exception):
-        await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/TransferRequests/actions/pop?source=NERSC&dest=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
+        await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/TransferRequests/actions/pop?source=NERSC&dest=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
     qtr_mock.assert_called_with(mocker.ANY, {"one": 1}, "lta db crashed like launchpad mcquack")
 

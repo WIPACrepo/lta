@@ -230,35 +230,38 @@ async def test_bundler_run_exception(config: TestConfig, mocker: MockerFixture) 
 async def test_bundler_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.side_effect = HTTPError(500, "LTA DB on fire. Again.")
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
     p = Bundler(config, logger_mock)
     with pytest.raises(HTTPError):
-        await p._do_work()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
+        await p._do_work(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
 
 
 @pytest.mark.asyncio
 async def test_bundler_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
     claim_mock.return_value = False
     p = Bundler(config, logger_mock)
-    await p._do_work()
+    await p._do_work(lta_rc_mock)
 
 
 @pytest.mark.asyncio
 async def test_bundler_do_work_claim_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim returns False when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.return_value = {
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
         "bundle": None
     }
     p = Bundler(config, logger_mock)
-    assert not await p._do_work_claim()
-    lta_rc_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
+    assert not await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -268,14 +271,15 @@ async def test_bundler_do_work_yes_results(config: TestConfig, mocker: MockerFix
         "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
     }
     logger_mock = mocker.MagicMock()
-    request_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    request_mock.return_value = {
-        "bundle": BUNDLE_OBJ,
+    lta_rc_mock = AsyncMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.return_value = {
+        "bundle": BUNDLE_OBJ
     }
     dwb_mock = mocker.patch("lta.bundler.Bundler._do_work_bundle", new_callable=AsyncMock)
     p = Bundler(config, logger_mock)
-    assert await p._do_work_claim()
-    request_mock.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
+    assert await p._do_work_claim(lta_rc_mock)
+    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
     dwb_mock.assert_called_with(mocker.ANY, mocker.ANY, BUNDLE_OBJ)
 
 
@@ -372,11 +376,12 @@ async def test_bundler_do_work_bundle_once_and_die(config: TestConfig, mocker: M
     once = config.copy()
     once["RUN_ONCE_AND_DIE"] = "True"
     logger_mock = mocker.MagicMock()
+    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
     claim_mock.return_value = False
     sys_exit_mock = mocker.patch("sys.exit")
     p = Bundler(once, logger_mock)
-    await p._do_work()
+    await p._do_work(lta_rc_mock)
     sys_exit_mock.assert_called()
 
 

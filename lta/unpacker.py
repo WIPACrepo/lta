@@ -12,7 +12,7 @@ from typing import Any, cast, Dict, Optional
 from zipfile import ZipFile
 
 from prometheus_client import Counter, Gauge, start_http_server
-from rest_tools.client import ClientCredentialsAuth
+from rest_tools.client import ClientCredentialsAuth, RestClient
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
@@ -85,14 +85,14 @@ class Unpacker(Component):
         return EXPECTED_CONFIG
 
     @wtt.spanned()
-    async def _do_work(self) -> None:
+    async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
         load_level = -1
         work_claimed = True
         while work_claimed:
             load_level += 1
-            work_claimed = await self._do_work_claim()
+            work_claimed = await self._do_work_claim(lta_rc)
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
@@ -100,16 +100,9 @@ class Unpacker(Component):
         self.logger.info("Ending work on Bundles.")
 
     @wtt.spanned()
-    async def _do_work_claim(self) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be unpacked
-        # configure a RestClient to talk to the LTA DB
-        lta_rc = ClientCredentialsAuth(address=self.lta_rest_url,
-                                       token_url=self.lta_auth_openid_url,
-                                       client_id=self.client_id,
-                                       client_secret=self.client_secret,
-                                       timeout=self.work_timeout_seconds,
-                                       retries=self.work_retries)
         self.logger.info("Asking the LTA DB for a Bundle to unpack.")
         pop_body = {
             "claimant": f"{self.name}-{self.instance_uuid}"
@@ -132,7 +125,7 @@ class Unpacker(Component):
         return True
 
     @wtt.spanned()
-    async def _do_work_bundle(self, lta_rc: ClientCredentialsAuth, bundle: BundleType) -> None:
+    async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""
         # 0. Get our ducks in a row about what we're doing here
         bundle_file = os.path.basename(bundle["bundle_path"])
@@ -284,7 +277,7 @@ class Unpacker(Component):
 
     @wtt.spanned()
     async def _quarantine_bundle(self,
-                                 lta_rc: ClientCredentialsAuth,
+                                 lta_rc: RestClient,
                                  bundle: BundleType,
                                  reason: str) -> None:
         """Quarantine the supplied bundle using the supplied reason."""
@@ -347,7 +340,7 @@ class Unpacker(Component):
         return cast(Dict[str, Any], metadata_dict)
 
     @wtt.spanned()
-    async def _update_bundle_in_lta_db(self, lta_rc: ClientCredentialsAuth, bundle: BundleType) -> bool:
+    async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is unpacked."""
         bundle_id = bundle["uuid"]
         patch_body = {

@@ -10,6 +10,7 @@ import sys
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
+from rest_tools.client import ClientCredentialsAuth, RestClient
 import wipac_telemetry.tracing_tools as wtt
 
 from .lta_const import drain_semaphore_filename
@@ -29,7 +30,9 @@ COMMON_CONFIG: Dict[str, Optional[str]] = {
     "RUN_ONCE_AND_DIE": "False",
     "RUN_UNTIL_NO_WORK": "False",
     "SOURCE_SITE": None,
+    "WORK_RETRIES": "3",
     "WORK_SLEEP_DURATION_SECONDS": "60",
+    "WORK_TIMEOUT_SECONDS": "30",
 }
 
 LOGGING_DENY_LIST = ["CLIENT_SECRET", "FILE_CATALOG_CLIENT_SECRET"]
@@ -85,7 +88,9 @@ class Component:
         self.run_once_and_die = boolify(config["RUN_ONCE_AND_DIE"])
         self.run_until_no_work = boolify(config["RUN_UNTIL_NO_WORK"])
         self.source_site = config["SOURCE_SITE"]
+        self.work_retries = int(config["WORK_RETRIES"])
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
+        self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         # record some default state
         timestamp = datetime.utcnow().isoformat()
         self.last_work_begin_timestamp = timestamp
@@ -102,11 +107,18 @@ class Component:
     async def run(self) -> None:
         """Perform the Component's work cycle."""
         self.logger.info(f"Starting {self.type} work cycle")
+        # obtain a RestClient to talk to the LTA REST service (LTA DB)
+        lta_rc = ClientCredentialsAuth(address=self.lta_rest_url,
+                                       token_url=self.lta_auth_openid_url,
+                                       client_id=self.client_id,
+                                       client_secret=self.client_secret,
+                                       timeout=self.work_timeout_seconds,
+                                       retries=self.work_retries)
         # start the work cycle stopwatch
         self.last_work_begin_timestamp = datetime.utcnow().isoformat()
         # perform the work
         try:
-            await self._do_work()
+            await self._do_work(lta_rc)
         except Exception as e:
             # ut oh, something went wrong; log about it
             self.logger.error(f"Error occurred during the {self.type} work cycle")
@@ -142,7 +154,7 @@ class Component:
         """Override this to return expected configuration."""
         raise NotImplementedError()
 
-    async def _do_work(self) -> None:
+    async def _do_work(self, lta_rc: RestClient) -> None:
         """Override this to provide work cycle behavior."""
         raise NotImplementedError()
 

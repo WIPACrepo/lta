@@ -8,7 +8,7 @@ binpacking==1.5.2
     # via lta (setup.py)
 cachetools==5.3.3
     # via wipac-rest-tools
-certifi==2024.2.2
+certifi==2024.7.4
     # via requests
 cffi==1.16.0
     # via cryptography
@@ -18,7 +18,7 @@ colorama==0.4.6
     # via lta (setup.py)
 coloredlogs==15.0.1
     # via wipac-telemetry
-cryptography==42.0.5
+cryptography==42.0.8
     # via pyjwt
 deprecated==1.2.14
     # via
@@ -32,7 +32,7 @@ googleapis-common-protos==1.59.1
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.62.2
+grpcio==1.64.1
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -40,16 +40,17 @@ hurry-filesize==0.9
     # via lta (setup.py)
 idna==3.7
     # via requests
-importlib-metadata==7.0.0
+importlib-metadata==7.1.0
     # via opentelemetry-api
-motor==3.4.0
+motor==3.5.0
     # via lta (setup.py)
-opentelemetry-api==1.24.0
+opentelemetry-api==1.25.0
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
     #   wipac-telemetry
 opentelemetry-exporter-jaeger==1.21.0
     # via wipac-telemetry
@@ -57,21 +58,21 @@ opentelemetry-exporter-jaeger-proto-grpc==1.21.0
     # via opentelemetry-exporter-jaeger
 opentelemetry-exporter-jaeger-thrift==1.21.0
     # via opentelemetry-exporter-jaeger
-opentelemetry-exporter-otlp-proto-common==1.24.0
+opentelemetry-exporter-otlp-proto-common==1.25.0
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-http==1.24.0
+opentelemetry-exporter-otlp-proto-http==1.25.0
     # via wipac-telemetry
-opentelemetry-proto==1.24.0
+opentelemetry-proto==1.25.0
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.24.0
+opentelemetry-sdk==1.25.0
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
     #   opentelemetry-exporter-otlp-proto-http
     #   wipac-telemetry
-opentelemetry-semantic-conventions==0.45b0
+opentelemetry-semantic-conventions==0.46b0
     # via opentelemetry-sdk
 prometheus-client==0.20.0
     # via lta (setup.py)
@@ -84,7 +85,7 @@ pycparser==2.22
     # via cffi
 pyjwt[crypto]==2.8.0
     # via wipac-rest-tools
-pymongo==4.6.3
+pymongo==4.8.0
     # via
     #   lta (setup.py)
     #   motor
@@ -92,7 +93,7 @@ pypng==0.20220715.0
     # via qrcode
 qrcode==7.4.2
     # via wipac-rest-tools
-requests==2.31.0
+requests==2.32.3
     # via
     #   opentelemetry-exporter-otlp-proto-http
     #   requests-futures
@@ -104,32 +105,32 @@ six==1.16.0
     # via thrift
 thrift==0.20.0
     # via opentelemetry-exporter-jaeger-thrift
-tornado==6.4
+tornado==6.4.1
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
-typing-extensions==4.11.0
+typing-extensions==4.12.2
     # via
     #   opentelemetry-sdk
     #   qrcode
     #   wipac-dev-tools
     #   wipac-telemetry
-urllib3==2.2.1
+urllib3==2.2.2
     # via
     #   requests
     #   wipac-rest-tools
-wipac-dev-tools==1.9.1
+wipac-dev-tools==1.10.6
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
     #   wipac-telemetry
-wipac-rest-tools==1.7.2
+wipac-rest-tools==1.7.6
     # via lta (setup.py)
 wipac-telemetry==0.3.0
     # via lta (setup.py)
 wrapt==1.16.0
     # via deprecated
-zipp==3.18.1
+zipp==3.19.2
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
