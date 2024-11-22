@@ -185,7 +185,7 @@ def main():
         'CLIENT_SECRET': '',
         'OPENID_URL': 'https://keycloak.icecube.wisc.edu/auth/realms/IceCube',
         'FILE_CATALOG_URL': 'https://file-catalog.icecube.wisc.edu',
-        'ES_ADDRESS': 'http://elk-1.icecube.wisc.edu:9200',
+        'ES_ADDRESS': 'https://elastic.icecube.aq',
         'ES_INDEX': 'long-term-archive',
         'ES_TIMEOUT': 60.,
         'START_DATE': '',
@@ -203,9 +203,21 @@ def main():
     parser.add_argument('-n', '--dry-run', default=False, action='store_true',
                         help='do not ingest into ES, just print')
     parser.add_argument('--log-level', default='info', choices=['debug', 'info', 'warning', 'error'])
+    parser.add_argument('--es_client_id',default=None,
+                        help='ES oauth2 client id')
+    parser.add_argument('--es_client_secret',default=None,
+                        help='ES oauth2 client secret')
+    parser.add_argument('--token_url',default=None,
+                        help='ES oauth2 realm token url')
     args = parser.parse_args()
 
     logging.basicConfig(level=getattr(logging, args.log_level.upper()), format='%(asctime)s %(levelname)s %(name)s : %(message)s')
+
+    es_api = ClientCredentialsAuth(address='https://elasticsearch.icecube.aq',
+                            token_url=args.token_url,
+                            client_secret=args.es_client_secret,
+                            client_id=args.es_client_id)
+    es_token = es_api.make_access_token()
 
     if args.from_file:
         rest_client = None
@@ -225,6 +237,7 @@ def main():
         request_timeout=config['ES_TIMEOUT'],
         retry_on_timeout=True,
         max_retries=2,
+        bearer_auth=es_token,
     )
 
     c = Collect(

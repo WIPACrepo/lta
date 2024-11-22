@@ -36,7 +36,7 @@ deprecated==1.2.14
     #   opentelemetry-exporter-otlp-proto-http
 dnspython==2.6.1
     # via pymongo
-elasticsearch[async]==7.9.1
+elasticsearch[async]==8.16.0
     # via lta (setup.py)
 frozenlist==1.4.1
     # via
