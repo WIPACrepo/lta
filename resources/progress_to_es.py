@@ -214,10 +214,10 @@ def main():
     logging.basicConfig(level=getattr(logging, args.log_level.upper()), format='%(asctime)s %(levelname)s %(name)s : %(message)s')
 
     es_api = ClientCredentialsAuth(
-            address=config['ES_ADDRESS'],
-            token_url=args.token_url,
-            client_secret=args.es_client_secret,
-            client_id=args.es_client_id
+        address=config['ES_ADDRESS'],
+        token_url=args.token_url,
+        client_secret=args.es_client_secret,
+        client_id=args.es_client_id
     )
     es_token = es_api.make_access_token()
 
