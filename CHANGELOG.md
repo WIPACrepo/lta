@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v0.42.3 (2024-11-27)
+
+### Other
+
+* Update ES script to new 8.16 cluster ([#282](https://github.com/WIPACrepo/lta/issues/282)) ([`6cae521`](https://github.com/WIPACrepo/lta/commit/6cae521cc14378214e61e59a1949514d54c25818))
+
 ## v0.42.2 (2024-07-10)
 
 ### Other
