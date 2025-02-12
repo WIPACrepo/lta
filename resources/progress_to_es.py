@@ -187,6 +187,8 @@ def main():
         'FILE_CATALOG_URL': 'https://file-catalog.icecube.wisc.edu',
         'ES_ADDRESS': 'https://elastic.icecube.aq',
         'ES_INDEX': 'long-term-archive',
+        'ES_CLIENT_ID': 'elasticsearch',
+        'ES_CLIENT_SECRET': '',
         'ES_TIMEOUT': 60.,
         'START_DATE': '',
         'END_DATE': '',
@@ -203,21 +205,15 @@ def main():
     parser.add_argument('-n', '--dry-run', default=False, action='store_true',
                         help='do not ingest into ES, just print')
     parser.add_argument('--log-level', default='info', choices=['debug', 'info', 'warning', 'error'])
-    parser.add_argument('--es_client_id',default=None,
-                        help='ES oauth2 client id')
-    parser.add_argument('--es_client_secret',default=None,
-                        help='ES oauth2 client secret')
-    parser.add_argument('--token_url',default=None,
-                        help='ES oauth2 realm token url')
     args = parser.parse_args()
 
     logging.basicConfig(level=getattr(logging, args.log_level.upper()), format='%(asctime)s %(levelname)s %(name)s : %(message)s')
 
     es_api = ClientCredentialsAuth(
         address=config['ES_ADDRESS'],
-        token_url=args.token_url,
-        client_secret=args.es_client_secret,
-        client_id=args.es_client_id
+        token_url=config['OPENID_URL'],
+        client_secret=config['ES_CLIENT_SECRET'],
+        client_id=config['ES_CLIENT_ID']
     )
     es_token = es_api.make_access_token()
 
