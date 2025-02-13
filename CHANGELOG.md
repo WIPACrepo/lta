@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v0.42.5 (2025-02-13)
+
+### Other
+
+* Remove old Mongo versions from strategy matrix ([#284](https://github.com/WIPACrepo/lta/issues/284)) ([`f39d7b3`](https://github.com/WIPACrepo/lta/commit/f39d7b3af0435d84ff4d21bd720af13c20e3dee0))
+
 ## v0.42.4 (2025-02-13)
 
 ### Other
