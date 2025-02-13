@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v0.42.4 (2025-02-13)
+
+### Other
+
+* Elasticsearch token url ([#283](https://github.com/WIPACrepo/lta/issues/283)) ([`77b31c6`](https://github.com/WIPACrepo/lta/commit/77b31c62db04dde72a2e02323aa110d337217c02))
+
 ## v0.42.3 (2024-11-27)
 
 ### Other
