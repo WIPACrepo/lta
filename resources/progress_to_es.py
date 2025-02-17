@@ -87,7 +87,7 @@ class Collect:
             pprint(doc)
         else:
             try:
-                await self.es.index(self.index_name, doc, id=catalog_file['uuid'])
+                await self.es.index(index=self.index_name, body=doc, id=catalog_file['uuid'])
             except Exception:
                 pprint(doc)
                 pprint(catalog_file)
@@ -231,10 +231,10 @@ def main():
 
     es_client = AsyncElasticsearch(
         config['ES_ADDRESS'],
-        timeout=config['ES_TIMEOUT'],
         request_timeout=config['ES_TIMEOUT'],
         retry_on_timeout=True,
         max_retries=2,
+        sniff_on_connection_fail=True,
         bearer_auth=es_token,
     )
 
