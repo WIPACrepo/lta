@@ -69,7 +69,7 @@ jobs:
       fail-fast: false
       matrix:
         py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
-        mongodb-version: [3.6, 4.0, 4.2, 4.4, 5.0, 6.0]
+        mongodb-version: [4.2, 4.4, 5.0, 6.0]
     steps:
       - uses: actions/checkout@v3
 
