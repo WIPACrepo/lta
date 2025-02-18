@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v0.42.6 (2025-02-18)
+
+### Other
+
+* Elasticsearch 8.15 package ([#285](https://github.com/WIPACrepo/lta/issues/285)) ([`4ff9ea3`](https://github.com/WIPACrepo/lta/commit/4ff9ea3c22c1449ea54fdae14b549828b35dfc29))
+
 ## v0.42.5 (2025-02-13)
 
 ### Other
