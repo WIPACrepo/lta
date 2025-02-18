@@ -20,7 +20,7 @@ cachetools==5.5.1
     # via wipac-rest-tools
 certifi==2025.1.31
     # via
-    #   elasticsearch
+    #   elastic-transport
     #   requests
 cffi==1.17.1
     # via cryptography
@@ -39,7 +39,9 @@ deprecated==1.2.18
     #   opentelemetry-semantic-conventions
 dnspython==2.7.0
     # via pymongo
-elasticsearch[async]==7.9.1
+elastic-transport==8.17.0
+    # via elasticsearch
+elasticsearch[async]==8.15.1
     # via lta (setup.py)
 frozenlist==1.5.0
     # via
@@ -144,10 +146,10 @@ typing-extensions==4.12.2
     #   wipac-telemetry
 urllib3==2.3.0
     # via
-    #   elasticsearch
+    #   elastic-transport
     #   requests
     #   wipac-rest-tools
-wipac-dev-tools==1.15.1
+wipac-dev-tools==1.15.2
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
@@ -159,9 +161,7 @@ wipac-telemetry==0.3.1
 wrapt==1.17.2
     # via deprecated
 yarl==1.18.3
-    # via
-    #   aiohttp
-    #   elasticsearch
+    # via aiohttp
 zipp==3.21.0
     # via importlib-metadata
 
