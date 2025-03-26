@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v0.42.7 (2025-03-26)
+
+### Other
+
+* Run progress_to_es.py on a bson db backup ([#286](https://github.com/WIPACrepo/lta/issues/286)) ([`3b57f32`](https://github.com/WIPACrepo/lta/commit/3b57f324c27d2db5e7ac6bf73cb6a6f3bfb08d0e))
+
 ## v0.42.6 (2025-02-18)
 
 ### Other
