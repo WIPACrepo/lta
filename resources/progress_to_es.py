@@ -24,6 +24,7 @@ import gzip
 import logging
 from pprint import pprint
 
+import bson
 from elasticsearch import AsyncElasticsearch
 from lta.lta_tools import from_environment
 from rest_tools.client import ClientCredentialsAuth
@@ -149,10 +150,15 @@ class Collect:
 
     async def from_file(self, filename):
         tasks = set()
-        with gzip.open(filename, 'r') as f:
-            for line in f:
-                catalog_file = json.loads(line)
+        if 'bson' in filename:
+            file_iter = bson.decode_file_iter
+        else:
+            def file_iter(f):
+                for line in f:
+                    yield json.loads(line)
 
+        with gzip.open(filename, 'r') as f:
+            for catalog_file in file_iter(f):
                 if self.exclude_file(catalog_file):
                     logging.debug('skipping file: %s', catalog_file['logical_name'])
                     continue
