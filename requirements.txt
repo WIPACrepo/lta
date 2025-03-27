@@ -6,7 +6,7 @@
 #
 binpacking==1.5.2
     # via lta (setup.py)
-cachetools==5.5.1
+cachetools==5.5.2
     # via wipac-rest-tools
 certifi==2025.1.31
     # via requests
@@ -18,7 +18,7 @@ colorama==0.4.6
     # via lta (setup.py)
 coloredlogs==15.0.1
     # via wipac-telemetry
-cryptography==44.0.1
+cryptography==44.0.2
     # via pyjwt
 deprecated==1.2.18
     # via
@@ -33,7 +33,7 @@ googleapis-common-protos==1.56.1
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-grpcio==1.70.0
+grpcio==1.71.0
     # via opentelemetry-exporter-jaeger-proto-grpc
 humanfriendly==10.0
     # via coloredlogs
@@ -41,11 +41,11 @@ hurry-filesize==0.9
     # via lta (setup.py)
 idna==3.10
     # via requests
-importlib-metadata==8.5.0
+importlib-metadata==8.6.1
     # via opentelemetry-api
 motor==3.7.0
     # via lta (setup.py)
-opentelemetry-api==1.30.0
+opentelemetry-api==1.31.1
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
@@ -59,25 +59,25 @@ opentelemetry-exporter-jaeger-proto-grpc==1.21.0
     # via opentelemetry-exporter-jaeger
 opentelemetry-exporter-jaeger-thrift==1.21.0
     # via opentelemetry-exporter-jaeger
-opentelemetry-exporter-otlp-proto-common==1.30.0
+opentelemetry-exporter-otlp-proto-common==1.31.1
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-http==1.30.0
+opentelemetry-exporter-otlp-proto-http==1.31.1
     # via wipac-telemetry
-opentelemetry-proto==1.30.0
+opentelemetry-proto==1.31.1
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.30.0
+opentelemetry-sdk==1.31.1
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
     #   opentelemetry-exporter-otlp-proto-http
     #   wipac-telemetry
-opentelemetry-semantic-conventions==0.51b0
+opentelemetry-semantic-conventions==0.52b1
     # via opentelemetry-sdk
 prometheus-client==0.21.1
     # via lta (setup.py)
-protobuf==5.29.3
+protobuf==5.29.4
     # via
     #   googleapis-common-protos
     #   opentelemetry-proto
@@ -86,7 +86,7 @@ pycparser==2.22
     # via cffi
 pyjwt[crypto]==2.10.1
     # via wipac-rest-tools
-pymongo==4.11.1
+pymongo==4.11.3
     # via
     #   lta (setup.py)
     #   motor
@@ -108,7 +108,7 @@ tornado==6.4.2
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
-typing-extensions==4.12.2
+typing-extensions==4.13.0
     # via
     #   opentelemetry-sdk
     #   wipac-dev-tools
@@ -117,12 +117,12 @@ urllib3==2.3.0
     # via
     #   requests
     #   wipac-rest-tools
-wipac-dev-tools==1.15.2
+wipac-dev-tools==1.15.6
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
     #   wipac-telemetry
-wipac-rest-tools==1.8.5
+wipac-rest-tools==1.8.6
     # via lta (setup.py)
 wipac-telemetry==0.3.1
     # via lta (setup.py)
