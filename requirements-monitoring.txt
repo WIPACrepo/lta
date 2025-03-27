@@ -103,7 +103,7 @@ opentelemetry-semantic-conventions==0.52b1
     # via opentelemetry-sdk
 prometheus-client==0.21.1
     # via lta (setup.py)
-propcache==0.3.0
+propcache==0.3.1
     # via
     #   aiohttp
     #   yarl
@@ -138,7 +138,7 @@ tornado==6.4.2
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
-typing-extensions==4.12.2
+typing-extensions==4.13.0
     # via
     #   multidict
     #   opentelemetry-sdk

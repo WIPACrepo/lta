@@ -173,7 +173,7 @@ types-colorama==0.4.15.20240311
     # via lta (setup.py)
 types-requests==2.32.0.20250306
     # via lta (setup.py)
-typing-extensions==4.12.2
+typing-extensions==4.13.0
     # via
     #   mypy
     #   opentelemetry-sdk

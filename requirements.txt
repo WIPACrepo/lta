@@ -108,7 +108,7 @@ tornado==6.4.2
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
-typing-extensions==4.12.2
+typing-extensions==4.13.0
     # via
     #   opentelemetry-sdk
     #   wipac-dev-tools
