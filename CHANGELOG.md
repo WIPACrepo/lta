@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v0.42.8 (2025-03-27)
+
+### Other
+
+* Add architecture request to sbatch call in NERSC controller ([#287](https://github.com/WIPACrepo/lta/issues/287)) ([`0a16778`](https://github.com/WIPACrepo/lta/commit/0a16778340680d666cb58bc32a3d802ffd8481f1))
+
 ## v0.42.7 (2025-03-26)
 
 ### Other
