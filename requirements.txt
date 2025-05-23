@@ -104,7 +104,7 @@ six==1.17.0
     # via thrift
 thrift==0.21.0
     # via opentelemetry-exporter-jaeger-thrift
-tornado==6.4.2
+tornado==6.5.1
     # via
     #   lta (setup.py)
     #   wipac-rest-tools
