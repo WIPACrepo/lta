@@ -92,7 +92,7 @@ pymongo==4.11.3
     #   motor
 qrcode==8.0
     # via wipac-rest-tools
-requests==2.32.3
+requests==2.32.4
     # via
     #   opentelemetry-exporter-otlp-proto-http
     #   requests-futures

@@ -143,7 +143,7 @@ pytest-mock==3.14.0
     # via lta (setup.py)
 qrcode==8.0
     # via wipac-rest-tools
-requests==2.32.3
+requests==2.32.4
     # via
     #   lta (setup.py)
     #   opentelemetry-exporter-otlp-proto-http
