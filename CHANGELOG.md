@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v0.42.9 (2025-06-18)
+
+### Other
+
+* Update CI/CD workflow for Docker image ([#293](https://github.com/WIPACrepo/lta/issues/293)) ([`9cd9e00`](https://github.com/WIPACrepo/lta/commit/9cd9e00c792a26c9e8d744fce14c993252db9ffb))
+
 ## v0.42.8 (2025-03-27)
 
 ### Other
