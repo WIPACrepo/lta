@@ -3,7 +3,7 @@ FROM python:3.10-bullseye
 # install globus GridFTP tools like globus-url-copy
 RUN wget -q -O - \
     https://dist.eugridpma.info/distribution/igtf/current/GPG-KEY-EUGridPMA-RPM-4 \
-    | sudo tee /etc/apt/trusted.gpg.d/GPG-KEY-EUGridPMA-RPM-4.asc
+    | tee /etc/apt/trusted.gpg.d/GPG-KEY-EUGridPMA-RPM-4.asc
 
 RUN echo "deb http://dist.eugridpma.info/distribution/igtf/current igtf accredited" >> /etc/apt/sources.list
 
