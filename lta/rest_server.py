@@ -59,7 +59,7 @@ TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 # -----------------------------------------------------------------------------
 
 # these are the indexes we expect in our backing MongoDB
-MONGO_INDEXES: List[Tuple[str, str, str, Optional[bool]]] = [
+MONGO_INDEXES: List[Tuple[str, str, str, Optional[bool]]] = [  # noqa: E241
     # (collection,       field,                     index_name,                                        unique)
     ("Bundles",          "create_timestamp",        "bundles_create_timestamp_index",                  False),
     ("Bundles",          "request",                 "bundles_request_index",                           None),
