@@ -3,4 +3,4 @@
 
 [flake8]
 ignore = E203,E226,E228,E231,E501,W503,W504
-exclude = bin,doc,env,jadetools,tests
+exclude = bin,doc,env,lta/lta_cmd.py,jadetools,resources,tests
