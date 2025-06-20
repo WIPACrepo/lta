@@ -59,22 +59,22 @@ TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 # -----------------------------------------------------------------------------
 
 # these are the indexes we expect in our backing MongoDB
-MONGO_INDEXES: List[Tuple[str, str, str, Optional[bool]]] = [  # noqa: E241
+MONGO_INDEXES: List[Tuple[str, str, str, Optional[bool]]] = [
     # (collection,       field,                     index_name,                                        unique)
-    ("Bundles",          "create_timestamp",        "bundles_create_timestamp_index",                  False),
-    ("Bundles",          "request",                 "bundles_request_index",                           None),
-    ("Bundles",          "source",                  "bundles_source_index",                            None),
-    ("Bundles",          "status",                  "bundles_status_index",                            None),
-    ("Bundles",          "uuid",                    "bundles_uuid_index",                              True),
-    ("Bundles",          "verified",                "bundles_verified_index",                          None),
-    ("Bundles",          "work_priority_timestamp", "bundles_work_priority_timestamp_index",           False),
+    ("Bundles",          "create_timestamp",        "bundles_create_timestamp_index",                  False),  # noqa: E241
+    ("Bundles",          "request",                 "bundles_request_index",                           None),   # noqa: E241
+    ("Bundles",          "source",                  "bundles_source_index",                            None),   # noqa: E241
+    ("Bundles",          "status",                  "bundles_status_index",                            None),   # noqa: E241
+    ("Bundles",          "uuid",                    "bundles_uuid_index",                              True),   # noqa: E241
+    ("Bundles",          "verified",                "bundles_verified_index",                          None),   # noqa: E241
+    ("Bundles",          "work_priority_timestamp", "bundles_work_priority_timestamp_index",           False),  # noqa: E241
 
-    ("Metadata",         "bundle_uuid",             "metadata_bundle_uuid_index",                      None),
-    ("Metadata",         "uuid",                    "metadata_uuid_index",                             True),
+    ("Metadata",         "bundle_uuid",             "metadata_bundle_uuid_index",                      None),   # noqa: E241
+    ("Metadata",         "uuid",                    "metadata_uuid_index",                             True),   # noqa: E241
 
-    ("TransferRequests", "create_timestamp",        "transfer_requests_create_timestamp_index",        False),
-    ("TransferRequests", "uuid",                    "transfer_requests_uuid_index",                    True),
-    ("TransferRequests", "work_priority_timestamp", "transfer_requests_work_priority_timestamp_index", False),
+    ("TransferRequests", "create_timestamp",        "transfer_requests_create_timestamp_index",        False),  # noqa: E241
+    ("TransferRequests", "uuid",                    "transfer_requests_uuid_index",                    True),   # noqa: E241
+    ("TransferRequests", "work_priority_timestamp", "transfer_requests_work_priority_timestamp_index", False),  # noqa: E241
 ]
 
 # -----------------------------------------------------------------------------
