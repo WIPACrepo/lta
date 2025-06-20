@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=78.1", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lta"
+description = "Long Term Archive"
+readme = "README.md"
+keywords = [
+    'IceCube',
+    'WIPAC',
+]
+classifiers = [
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13'
+]
+requires-python = ">=3.9, <3.14"
+dependencies = [
+    'binpacking',
+    'colorama',
+    'hurry.filesize',
+    'motor',
+    'prometheus-client',
+    'pymongo',
+    'tornado',
+    'wipac-dev-tools',
+    'wipac-rest-tools',
+    'wipac-telemetry',
+]
+dynamic = ["version"]
+license-files = ["LICENSE"]
+license = "MIT"
+
+[[project.authors]]
+name = "WIPAC Developers"
+email = "developers@icecube.wisc.edu"
+
+[project.optional-dependencies]
+dev = [
+    'flake8',
+    'mypy',
+    'pycycle',
+    'pytest',
+    'pytest-asyncio',
+    'pytest-cov',
+    'pytest-mock',
+    'requests',
+    'types-colorama',
+    'types-requests',
+]
+monitoring = [
+    'elasticsearch[async]<8.16',
+]
+
+[project.urls]
+Homepage = "https://github.com/WIPACrepo/lta"
+Tracker = "https://github.com/WIPACrepo/lta/issues"
+Source = "https://github.com/WIPACrepo/lta"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+[tool.setuptools.packages.find]
+namespaces = false
+exclude = ["test", "tests", "doc", "docs", "resource", "resources", "example", "examples"]
+
+[tool.setuptools_scm]

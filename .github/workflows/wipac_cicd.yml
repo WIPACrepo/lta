@@ -1,48 +1,52 @@
-name: Profile MongoDB Queries
+name: "CI/CD"
 
 on: [push]
 
 jobs:
-
-  flake8:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v3
-      - uses: WIPACrepo/wipac-dev-flake8-action@v1.0
-
-  py-setup:
-    runs-on: ubuntu-latest
-    steps:
-      # dependabot can't access normal secrets
-      #   & don't run non-branch triggers (like tags)
-      #   & we don't want to trigger an update on PR's merge to main/master/default (which is a branch)
-      # IOW: only for non-dependabot branches
-      - if: |
-          github.actor != 'dependabot[bot]' &&
-          github.ref_type == 'branch' &&
-          format('refs/heads/{0}', github.event.repository.default_branch) != github.ref
-        name: checkout (only for non-dependabot non-default branches)
-        uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-      - if: |
-          github.actor != 'dependabot[bot]' &&
-          github.ref_type == 'branch' &&
-          format('refs/heads/{0}', github.event.repository.default_branch) != github.ref
-        name: wipac-dev-py-setup-action (only for non-dependabot non-default branches)
-        uses: WIPACrepo/wipac-dev-py-setup-action@v1.11
-        with:
-          base-keywords: "WIPAC IceCube"
-
   py-versions:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.versions.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
       - id: versions
-        uses: WIPACrepo/wipac-dev-py-versions-action@v2.1
+        uses: WIPACrepo/wipac-dev-py-versions-action@v2.6
+
+  flake8:
+    needs: [ py-versions ]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.py3 }}
+      - uses: WIPACrepo/wipac-dev-flake8-action@v1.3
+        with:
+          max-complexity: 10  # ideal is ~10-15
+
+  py-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          ref: ${{ github.ref }}  # dont lock to sha (action needs to push)
+      - uses: WIPACrepo/wipac-dev-py-setup-action@v5.0
+        with:
+          python_min: 3.9
+          pypi_name: wipac-long-term-archive
+          author: WIPAC Developers
+          author_email: developers@icecube.wisc.edu
+          keywords_comma: "archive, data, IceCube, WIPAC"
+          auto_mypy_option: True
 
   pip-install:
     needs: [py-setup, py-versions]
