@@ -86,3 +86,4 @@ namespaces = false
 exclude = ["test", "tests", "doc", "docs", "resource", "resources", "example", "examples"]
 
 [tool.setuptools_scm]
+write_to = "lta/version.py"
