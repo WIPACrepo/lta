@@ -14,9 +14,10 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 # install Long Term Archive (LTA) code
-COPY README.md setup.cfg setup.py /usr/src/lta/
+COPY README.md pyproject.toml setup.py /usr/src/lta/
 COPY lta /usr/src/lta/lta
 COPY resources /usr/src/lta/resources
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir /usr/src/lta[monitoring]
 
 RUN useradd -m -U app
