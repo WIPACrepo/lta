@@ -3,32 +3,34 @@ requires = ["setuptools>=78.1", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lta"
+name = "wipac-long-term-archive"
 description = "Long Term Archive"
 readme = "README.md"
 keywords = [
-    'IceCube',
-    'WIPAC',
+  'archive',
+  'data',
+  'IceCube',
+  'WIPAC'
 ]
 classifiers = [
-    'Programming Language :: Python :: 3.9',
-    'Programming Language :: Python :: 3.10',
-    'Programming Language :: Python :: 3.11',
-    'Programming Language :: Python :: 3.12',
-    'Programming Language :: Python :: 3.13'
+  'Programming Language :: Python :: 3.9',
+  'Programming Language :: Python :: 3.10',
+  'Programming Language :: Python :: 3.11',
+  'Programming Language :: Python :: 3.12',
+  'Programming Language :: Python :: 3.13'
 ]
 requires-python = ">=3.9, <3.14"
 dependencies = [
-    'binpacking',
-    'colorama',
-    'hurry.filesize',
-    'motor',
-    'prometheus-client',
-    'pymongo',
-    'tornado',
-    'wipac-dev-tools',
-    'wipac-rest-tools',
-    'wipac-telemetry',
+  'binpacking',
+  'colorama',
+  'hurry.filesize',
+  'motor',
+  'prometheus-client',
+  'pymongo',
+  'tornado',
+  'wipac-dev-tools',
+  'wipac-rest-tools',
+  'wipac-telemetry'
 ]
 dynamic = ["version"]
 license-files = ["LICENSE"]
@@ -40,23 +42,36 @@ email = "developers@icecube.wisc.edu"
 
 [project.optional-dependencies]
 dev = [
-    'flake8',
-    'mypy',
-    'pycycle',
-    'pytest',
-    'pytest-asyncio',
-    'pytest-cov',
-    'pytest-mock',
-    'requests',
-    'types-colorama',
-    'types-requests',
+  'flake8',
+  'mypy',
+  'pycycle',
+  'pytest',
+  'pytest-asyncio',
+  'pytest-cov',
+  'pytest-mock',
+  'requests',
+  'types-colorama',
+  'types-requests'
 ]
 monitoring = [
-    'elasticsearch[async]<8.16',
+  'elasticsearch[async]<8.16'
+]
+mypy = [
+  'elasticsearch[async]<8.16',
+  'flake8',
+  'mypy',
+  'pycycle',
+  'pytest',
+  'pytest-asyncio',
+  'pytest-cov',
+  'pytest-mock',
+  'requests',
+  'types-colorama',
+  'types-requests'
 ]
 
 [project.urls]
-Homepage = "https://github.com/WIPACrepo/lta"
+Homepage = "https://pypi.org/project/wipac-long-term-archive/"
 Tracker = "https://github.com/WIPACrepo/lta/issues"
 Source = "https://github.com/WIPACrepo/lta"
 
