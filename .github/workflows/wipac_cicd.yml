@@ -55,10 +55,10 @@ jobs:
         with:
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           ref: ${{ github.ref }}  # dont lock to sha (action needs to push)
-      - uses: WIPACrepo/wipac-dev-py-setup-action@mode
+      - uses: WIPACrepo/wipac-dev-py-setup-action@v5.1
         with:
           mode: PACKAGING
-          python_min: 3.9
+          python_min: 3.10
           author: WIPAC Developers
           author_email: developers@icecube.wisc.edu
           keywords_comma: "archive, data, IceCube, WIPAC"
@@ -83,7 +83,9 @@ jobs:
       matrix: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.py3_versions }}
@@ -100,7 +102,9 @@ jobs:
         py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
         mongodb-version: [4.2, 4.4, 5.0, 6.0]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
 
       - name: Start MongoDB v${{ matrix.mongodb-version }}
         uses: supercharge/mongodb-github-action@1.9.0
