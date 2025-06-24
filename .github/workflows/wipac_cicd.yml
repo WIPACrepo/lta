@@ -55,8 +55,9 @@ jobs:
         with:
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           ref: ${{ github.ref }}  # dont lock to sha (action needs to push)
-      - uses: WIPACrepo/wipac-dev-py-setup-action@v5.0
+      - uses: WIPACrepo/wipac-dev-py-setup-action@mode
         with:
+          mode: PACKAGING
           python_min: 3.9
           pypi_name: wipac-lta
           author: WIPAC Developers
@@ -64,14 +65,14 @@ jobs:
           keywords_comma: "archive, data, IceCube, WIPAC"
           auto_mypy_option: True
 
-  py-dependencies:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          ref: ${{ github.ref }}  # dont lock to sha (action needs to push)
-      - uses: WIPACrepo/wipac-dev-py-dependencies-action@v3.0
+  # py-dependencies:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+  #         ref: ${{ github.ref }}  # dont lock to sha (action needs to push)
+  #     - uses: WIPACrepo/wipac-dev-py-dependencies-action@v3.0
 
   pip-install:
     needs: [ py-setup, py-versions ]
