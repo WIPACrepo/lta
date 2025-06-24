@@ -9,7 +9,7 @@ from datetime import datetime
 import logging
 import os
 import sys
-from typing import Any, cast, Dict, List, Optional, Tuple
+from typing import Any, cast, Dict, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
@@ -735,7 +735,7 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
         existing_indexes = collection.index_information()
         if index_name not in existing_indexes:
             logging.info(f"Creating index for {mongo_db}.{collection_name}.{field}")
-            kwargs = {"name": index_name}
+            kwargs: dict[str, Union[str, bool]] = {"name": index_name}
             if unique is not None:
                 kwargs["unique"] = unique
             collection.create_index(field, **kwargs)
@@ -758,6 +758,7 @@ def start(debug: bool = False) -> RestServer:
         else:
             logging.info(f"{name} = NOT SPECIFIED")
 
+    auth: dict[str, Union[str, int, float, bool]] = {}
     if config["CI_TEST"] == "TRUE":
         auth = {
             "secret": "secret",
@@ -782,7 +783,7 @@ def start(debug: bool = False) -> RestServer:
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
     ensure_mongo_indexes(lta_mongodb_url, mongo_db)
-    motor_client = MotorClient(lta_mongodb_url)
+    motor_client: MotorClient = MotorClient(lta_mongodb_url)
     args['db'] = motor_client[mongo_db]
 
     # See: https://github.com/WIPACrepo/rest-tools/issues/2

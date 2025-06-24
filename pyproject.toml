@@ -76,7 +76,7 @@ Tracker = "https://github.com/WIPACrepo/lta/issues"
 Source = "https://github.com/WIPACrepo/lta"
 
 [tool.mypy]
-exclude = ["doc"]
+exclude = ["doc", "resources"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
