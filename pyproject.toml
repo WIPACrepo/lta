@@ -3,7 +3,7 @@ requires = ["setuptools>=78.1", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wipac-long-term-archive"
+name = "wipac-lta"
 description = "Long Term Archive"
 readme = "README.md"
 keywords = [
@@ -71,7 +71,7 @@ mypy = [
 ]
 
 [project.urls]
-Homepage = "https://pypi.org/project/wipac-long-term-archive/"
+Homepage = "https://pypi.org/project/wipac-lta/"
 Tracker = "https://github.com/WIPACrepo/lta/issues"
 Source = "https://github.com/WIPACrepo/lta"
 
