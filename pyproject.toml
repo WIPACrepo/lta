@@ -75,6 +75,9 @@ Homepage = "https://pypi.org/project/wipac-lta/"
 Tracker = "https://github.com/WIPACrepo/lta/issues"
 Source = "https://github.com/WIPACrepo/lta"
 
+[tool.mypy]
+exclude = ["doc"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 
