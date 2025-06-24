@@ -3,7 +3,7 @@ requires = ["setuptools>=78.1", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wipac-lta"
+name = "lta"
 description = "Long Term Archive"
 readme = "README.md"
 keywords = [
