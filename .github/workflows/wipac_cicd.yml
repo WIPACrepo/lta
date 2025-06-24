@@ -55,10 +55,10 @@ jobs:
         with:
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           ref: ${{ github.ref }}  # dont lock to sha (action needs to push)
-      - uses: WIPACrepo/wipac-dev-py-setup-action@fix-py-min-310
+      - uses: WIPACrepo/wipac-dev-py-setup-action@v5.1
         with:
           mode: PACKAGING
-          python_min: 3.10
+          python_min: "3.10"
           author: WIPAC Developers
           author_email: developers@icecube.wisc.edu
           keywords_comma: "archive, data, IceCube, WIPAC"
