@@ -9,7 +9,7 @@ from datetime import datetime
 import logging
 import os
 import sys
-from typing import Any, cast, Dict, Optional
+from typing import Any, cast, Dict, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
@@ -55,6 +55,27 @@ LTA_AUTH_ROLES = ["system"]
 MOST_RECENT_FIRST = [("timestamp", pymongo.DESCENDING)]
 REMOVE_ID = {"_id": False}
 TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
+
+# -----------------------------------------------------------------------------
+
+# these are the indexes we expect in our backing MongoDB
+MONGO_INDEXES: List[Tuple[str, str, str, Optional[bool]]] = [
+    # (collection,       field,                     index_name,                                        unique)
+    ("Bundles",          "create_timestamp",        "bundles_create_timestamp_index",                  False),  # noqa: E241
+    ("Bundles",          "request",                 "bundles_request_index",                           None),   # noqa: E241
+    ("Bundles",          "source",                  "bundles_source_index",                            None),   # noqa: E241
+    ("Bundles",          "status",                  "bundles_status_index",                            None),   # noqa: E241
+    ("Bundles",          "uuid",                    "bundles_uuid_index",                              True),   # noqa: E241
+    ("Bundles",          "verified",                "bundles_verified_index",                          None),   # noqa: E241
+    ("Bundles",          "work_priority_timestamp", "bundles_work_priority_timestamp_index",           False),  # noqa: E241
+
+    ("Metadata",         "bundle_uuid",             "metadata_bundle_uuid_index",                      None),   # noqa: E241
+    ("Metadata",         "uuid",                    "metadata_uuid_index",                             True),   # noqa: E241
+
+    ("TransferRequests", "create_timestamp",        "transfer_requests_create_timestamp_index",        False),  # noqa: E241
+    ("TransferRequests", "uuid",                    "transfer_requests_uuid_index",                    True),   # noqa: E241
+    ("TransferRequests", "work_priority_timestamp", "transfer_requests_work_priority_timestamp_index", False),  # noqa: E241
+]
 
 # -----------------------------------------------------------------------------
 
@@ -708,46 +729,17 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     client: MongoClient[Dict[str, Any]] = MongoClient(mongo_url)
     db = client[mongo_db]
     logging.info(f"Creating indexes in MongoDB database: {mongo_db}")
-    # Bundle.uuid
-    if 'bundles_create_timestamp_index' not in db.Bundles.index_information():
-        logging.info(f"Creating index for {mongo_db}.Bundles.create_timestamp")
-        db.Bundles.create_index('create_timestamp', name='bundles_create_timestamp_index', unique=False)
-    if 'bundles_work_priority_timestamp_index' not in db.Bundles.index_information():
-        logging.info(f"Creating index for {mongo_db}.Bundles.work_priority_timestamp")
-        db.Bundles.create_index('work_priority_timestamp', name='bundles_work_priority_timestamp_index', unique=False)
-    if 'bundles_uuid_index' not in db.Bundles.index_information():
-        logging.info(f"Creating index for {mongo_db}.Bundles.uuid")
-        db.Bundles.create_index('uuid', name='bundles_uuid_index', unique=True)
-    if 'bundles_request_index' not in db.Bundles.index_information():
-        logging.info(f"Creating index for {mongo_db}.Bundles.request")
-        db.Bundles.create_index('request', name='bundles_request_index')
-    if 'bundles_status_index' not in db.Bundles.index_information():
-        logging.info(f"Creating index for {mongo_db}.Bundles.status")
-        db.Bundles.create_index('status', name='bundles_status_index')
-    if 'bundles_source_index' not in db.Bundles.index_information():
-        logging.info(f"Creating index for {mongo_db}.Bundles.source")
-        db.Bundles.create_index('source', name='bundles_source_index')
-    if 'bundles_verified_index' not in db.Bundles.index_information():
-        logging.info(f"Creating index for {mongo_db}.Bundles.verified")
-        db.Bundles.create_index('verified', name='bundles_verified_index')
-    # Metadata.bundle_uuid - Looking up metadata records by bundle's UUID
-    if 'metadata_bundle_uuid_index' not in db.Metadata.index_information():
-        logging.info(f"Creating index for {mongo_db}.Metadata.bundle_uuid")
-        db.Metadata.create_index('bundle_uuid', name='metadata_bundle_uuid_index')
-    # Metadata.uuid - Deleting metadata records by their UUIDs
-    if 'metadata_uuid_index' not in db.Metadata.index_information():
-        logging.info(f"Creating index for {mongo_db}.Metadata.uuid")
-        db.Metadata.create_index('uuid', name='metadata_uuid_index', unique=True)
-    # TransferRequests.uuid
-    if 'transfer_requests_create_timestamp_index' not in db.TransferRequests.index_information():
-        logging.info(f"Creating index for {mongo_db}.TransferRequests.create_timestamp")
-        db.TransferRequests.create_index('create_timestamp', name='transfer_requests_create_timestamp_index', unique=False)
-    if 'transfer_requests_work_priority_timestamp_index' not in db.TransferRequests.index_information():
-        logging.info(f"Creating index for {mongo_db}.TransferRequests.work_priority_timestamp")
-        db.TransferRequests.create_index('work_priority_timestamp', name='transfer_requests_work_priority_timestamp_index', unique=False)
-    if 'transfer_requests_uuid_index' not in db.TransferRequests.index_information():
-        logging.info(f"Creating index for {mongo_db}.TransferRequests.uuid")
-        db.TransferRequests.create_index('uuid', name='transfer_requests_uuid_index', unique=True)
+
+    for collection_name, field, index_name, unique in MONGO_INDEXES:
+        collection = getattr(db, collection_name)
+        existing_indexes = collection.index_information()
+        if index_name not in existing_indexes:
+            logging.info(f"Creating index for {mongo_db}.{collection_name}.{field}")
+            kwargs: dict[str, Union[str, bool]] = {"name": index_name}
+            if unique is not None:
+                kwargs["unique"] = unique
+            collection.create_index(field, **kwargs)
+
     logging.info("Done creating indexes in MongoDB.")
 
 
@@ -766,6 +758,7 @@ def start(debug: bool = False) -> RestServer:
         else:
             logging.info(f"{name} = NOT SPECIFIED")
 
+    auth: dict[str, Union[str, int, float, bool]] = {}
     if config["CI_TEST"] == "TRUE":
         auth = {
             "secret": "secret",
@@ -790,7 +783,7 @@ def start(debug: bool = False) -> RestServer:
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
     ensure_mongo_indexes(lta_mongodb_url, mongo_db)
-    motor_client = MotorClient(lta_mongodb_url)
+    motor_client: MotorClient = MotorClient(lta_mongodb_url)
     args['db'] = motor_client[mongo_db]
 
     # See: https://github.com/WIPACrepo/rest-tools/issues/2

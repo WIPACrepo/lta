@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# build-docker
+
+set -euo pipefail
+
+# create a unique(-ish) build tag for this build
+BUILD_TAG="$(date +%Y%m%d%H%M%S)"
+
+docker buildx build $@ \
+    --file Dockerfile \
+    --tag long-term-archive:${BUILD_TAG} \
+    .
+
+docker image tag \
+    long-term-archive:${BUILD_TAG} \
+    long-term-archive:latest
