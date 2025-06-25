@@ -12,7 +12,7 @@ jobs:
         with:
           ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
       - id: versions
-        uses: WIPACrepo/wipac-dev-mongo-versions-action@fix-requirements
+        uses: WIPACrepo/wipac-dev-mongo-versions-action@v1
         with:
           mongo_min: "5.0"
 
@@ -107,7 +107,7 @@ jobs:
           pip install --editable .
 
   profile:
-    needs: [mongo-versions, py-setup, py-versions]
+    needs: [ mongo-versions, py-setup, py-versions ]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
