@@ -26,6 +26,7 @@ dependencies = [
   'hurry.filesize',
   'motor',
   'prometheus-client',
+  'pycurl',
   'pymongo',
   'tornado',
   'wipac-dev-tools',
