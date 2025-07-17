@@ -275,7 +275,7 @@ class Sync:
             ret = await self.http_client.fetch(req)
 
         checksum = ret.headers.get('Digest', None)
-        expected_checksum = sha512sum(path)
+        expected_checksum = sha512sum(Path(path))
         if checksum:
             # we got a checksum back, so compare that directly
             checksum = convert_checksum_from_dcache(checksum)
@@ -381,7 +381,7 @@ class Sync:
         parts = fullpath.parts
         # We assume DEST_BASE_PATH exists
         base_parts = dest_base.parts
-        missing_parts = []
+        missing_parts: list[str] = []
 
         self.rc._get_token()
         token = _decode_if_necessary(self.rc.access_token)
@@ -484,7 +484,7 @@ class Sync:
             ret = await self.http_client.fetch(req)
 
         checksum = ret.headers.get('Digest', None)
-        expected_checksum = sha512sum(dest_path)
+        expected_checksum = sha512sum(Path(dest_path))
         if checksum:
             # we got a checksum back, so compare that directly
             checksum = convert_checksum_from_dcache(checksum)
