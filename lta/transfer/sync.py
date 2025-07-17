@@ -376,7 +376,7 @@ class Sync:
         logging.info('MKDIR -p %s', path)
         dest_base = Path(self.config["DEST_BASE_PATH"])
         #  fullpath = dest_base / path.lstrip('/')
-        fullpath = (Path(self.config["DEST_BASE_PATH"]) / path.lstrip('/')).parent
+        fullpath = Path(self.config["DEST_BASE_PATH"]) / path.lstrip('/')
         # Break into components
         parts = fullpath.parts
         # We assume DEST_BASE_PATH exists
@@ -484,7 +484,7 @@ class Sync:
             ret = await self.http_client.fetch(req)
 
         checksum = ret.headers.get('Digest', None)
-        expected_checksum = sha512sum(Path(dest_path))
+        expected_checksum = sha512sum(Path(src_path))
         if checksum:
             # we got a checksum back, so compare that directly
             checksum = convert_checksum_from_dcache(checksum)
@@ -529,5 +529,5 @@ class Sync:
         Ensures that the parent directory exists, then uploads the
         file to the final location.
         """
-        await self.mkdir_p(dest_path, int(self.config["WORK_TIMEOUT_SECONDS"]))
+        await self.mkdir_p(Path(dest_path).parent, int(self.config["WORK_TIMEOUT_SECONDS"]))
         await self.put_file_src_dest(src_path, dest_path, timeout)

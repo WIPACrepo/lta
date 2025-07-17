@@ -776,8 +776,8 @@ async def test_sync_mkdir_p_need_two_but_fire(config: TestConfig, mocker: Mocker
 
 
 @pytest.mark.asyncio
-async def xtest_sync_put_file_src_dest_bad_checksum(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that the Sync.put_file() method throws a RuntimeError on a mismatched checksum."""
+async def test_sync_put_file_src_dest_bad_checksum(config: TestConfig, mocker: MockerFixture) -> None:
+    """Test that the Sync.put_file_src_dest() method throws a RuntimeError on a mismatched checksum."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
     hc_mock = AsyncMock()
@@ -792,9 +792,67 @@ async def xtest_sync_put_file_src_dest_bad_checksum(config: TestConfig, mocker: 
     )
     hc_mock.fetch.return_value = ret_mock
 
+    stat_mock = mocker.patch("os.stat")
+    stat_mock.return_value = ObjectLiteral(
+        st_size=12345
+    )
+
     with pytest.raises(RuntimeError):
         with NamedTemporaryFile(mode="rb", delete=True) as temp:
             await sync.put_file_src_dest(temp.name, "/fake/temp/files/go/here/temp.txt")
 
     hc_mock.fetch.assert_called_with(mocker.ANY)
     rc_mock._get_token.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_sync_put_file_src_dest_readback_checksum_move(config: TestConfig, mocker: MockerFixture) -> None:
+    """Test that the Sync.put_file_src_dest() method will calculate a readback-checksum and move the file."""
+    rc_mock = MagicMock()
+    rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
+    hc_mock = AsyncMock()
+    sync = Sync(config)
+    sync.rc = rc_mock
+    sync.http_client = hc_mock
+
+    ret_mock = ObjectLiteral(
+        headers={}
+    )
+    hc_mock.fetch.return_value = ret_mock
+
+    stat_mock = mocker.patch("os.stat")
+    stat_mock.return_value = ObjectLiteral(
+        st_size=12345
+    )
+
+    with NamedTemporaryFile(mode="rb", delete=True) as temp:
+        await sync.put_file_src_dest(temp.name, "/fake/temp/files/go/here/temp.txt")
+
+    hc_mock.fetch.assert_called_with(mocker.ANY)
+    rc_mock._get_token.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_sync_put_path(config: TestConfig, mocker: MockerFixture) -> None:
+    """Test that the Sync.put_puth() method will upload a file to the remote."""
+    rc_mock = MagicMock()
+    rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
+    hc_mock = AsyncMock()
+    sync = Sync(config)
+    sync.rc = rc_mock
+    sync.http_client = hc_mock
+
+    mdp_mock = mocker.patch("lta.transfer.sync.Sync.mkdir_p")
+    pfsd_mock = mocker.patch("lta.transfer.sync.Sync.put_file_src_dest")
+
+    await sync.put_path("9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip", "/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109/9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip")
+
+    mdp_mock.assert_called_with(Path("/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109"), 30)
+    pfsd_mock.assert_called_with(
+        "9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip",
+        "/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109/9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip",
+        1200
+    )
+
+    hc_mock.fetch.assert_not_called()
+    rc_mock._get_token.assert_not_called()
