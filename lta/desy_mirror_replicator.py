@@ -1,11 +1,9 @@
 # desy_mirror_replicator.py
 """Module to implement the DesyMirrorReplicator component of the Long Term Archive."""
 
-# TODO: remove unused imports
 import asyncio
 import logging
 import os
-# import random
 import sys
 from typing import Any, Optional
 
@@ -14,12 +12,9 @@ from rest_tools.client import RestClient
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
-# from .joiner import join_smart_url
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .rest_server import boolify
-# from .transfer.globus import SiteGlobusProxy
-# from .transfer.gridftp import GridFTP
 from .transfer.sync import Sync
 
 
@@ -47,7 +42,6 @@ load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level'
 success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
-# TODO: complete comment
 class DesyMirrorReplicator(Component):
     """
     DesyMirrorReplicator is a Long Term Archive component.
@@ -57,8 +51,9 @@ class DesyMirrorReplicator(Component):
     destination at DESY.
 
     It uses the LTA DB to find completed bundles that need to be replicated.
-    It issues ... It updates the Bundle and the
-    corresponding TransferRequest in the LTA DB with a 'transferring' status.
+    It issues a put_path() call to use WebDAV to copy the bundle to DESY. It
+    updates the Bundle and the corresponding TransferRequest in the LTA DB
+    with a 'transferring' status.
     """
     def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
