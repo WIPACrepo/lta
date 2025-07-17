@@ -636,9 +636,8 @@ async def test_sync_sync_dir_empty(config: TestConfig, mocker: MockerFixture) ->
     rc_mock._get_token.assert_called()
 
 
-# TODO: Follow up about this test
 @pytest.mark.asyncio
-async def xtest_sync_sync_dir_remove_failed_uploads(config: TestConfig, mocker: MockerFixture) -> None:
+async def test_sync_sync_dir_remove_failed_uploads(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.sync_dir() will attempt to remove failed uploads."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -648,24 +647,207 @@ async def xtest_sync_sync_dir_remove_failed_uploads(config: TestConfig, mocker: 
     sync.http_client = hc_mock
 
     gc_mock = mocker.patch("lta.transfer.sync.Sync.get_children")
-    gc_mock.return_value = {
-        "_upload_SomeFile.txt": {
-            "name": "_upload_SomeFile.txt",
-            "type": DirObject.File,
-            "size": 12345,
-        }
-    }
+    gc_mock.side_effect = [
+        {
+            "sync": {
+                "name": "sync",
+                "type": DirObject.Directory,
+            }
+        },
+        {
+            "_upload_SomeFile.txt": {
+                "name": "_upload_SomeFile.txt",
+                "type": DirObject.File,
+                "size": 12345,
+            }
+        },
+    ]
     glc_mock = mocker.patch("lta.transfer.sync.Sync.get_local_children")
     tg_mock = mocker.patch("asyncio.TaskGroup.create_task")
+    rmf_mock = mocker.patch("lta.transfer.sync.Sync.rmfile")
 
     await sync.sync_dir(Path("/fake/path/to/sync"))
 
+    rmf_mock.assert_called()
     tg_mock.assert_called()
     gc_mock.assert_called()
     glc_mock.assert_called()
 
-    hc_mock.fetch.assert_called_with(mocker.ANY)
-    rc_mock._get_token.assert_called()
+    hc_mock.fetch.assert_not_called()
+    rc_mock._get_token.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sync_sync_dir_fix_directory_to_file(config: TestConfig, mocker: MockerFixture) -> None:
+    """Test that the Sync.sync_dir() will fix a remote directory by replacement with a local file."""
+    rc_mock = MagicMock()
+    rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
+    hc_mock = AsyncMock()
+
+    gc_mock = mocker.patch("lta.transfer.sync.Sync.get_children")
+    gc_mock.side_effect = [
+        {
+            "sync": {
+                "name": "sync",
+                "type": DirObject.Directory,
+            }
+        },
+        {
+            "actually_a_file.txt": {
+                "name": "actually_a_file.txt",
+                "type": DirObject.Directory,
+            }
+        },
+        Exception("Nope"),
+    ]
+    glc_mock = mocker.patch("lta.transfer.sync.Sync.get_local_children")
+    glc_mock.side_effect = [
+        {
+            "actually_a_file.txt": {
+                "name": "actually_a_file.txt",
+                "type": DirObject.File,
+                "size": 23456,
+            }
+        },
+        Exception("Nope"),
+    ]
+    pf_mock = mocker.patch("lta.transfer.sync.Sync.put_file")
+    rf_mock = mocker.patch("lta.transfer.sync.Sync.rmfile")
+    rt_mock = mocker.patch("lta.transfer.sync.Sync.rmtree")
+    stat_mock = mocker.patch("lta.transfer.sync.Path.stat")
+
+    sync = Sync(config)
+    sync.rc = rc_mock
+    sync.http_client = hc_mock
+    await sync.sync_dir(Path("/fake/path/to/sync"))
+
+    rt_mock.assert_called()
+    rf_mock.assert_not_called()
+    pf_mock.assert_called()
+    glc_mock.assert_called()
+    gc_mock.assert_called()
+
+    hc_mock.fetch.assert_not_called()
+    rc_mock._get_token.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sync_sync_dir_verify_existing_file(config: TestConfig, mocker: MockerFixture) -> None:
+    """Test that the Sync.sync_dir() will verify an existing file of the same size."""
+    rc_mock = MagicMock()
+    rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
+    hc_mock = AsyncMock()
+
+    gc_mock = mocker.patch("lta.transfer.sync.Sync.get_children")
+    gc_mock.side_effect = [
+        {
+            "sync": {
+                "name": "sync",
+                "type": DirObject.Directory,
+            }
+        },
+        {
+            "already_here.txt": {
+                "name": "already_here.txt",
+                "type": DirObject.File,
+                "size": 4294967295,
+            }
+        },
+        Exception("Nope"),
+    ]
+    glc_mock = mocker.patch("lta.transfer.sync.Sync.get_local_children")
+    glc_mock.side_effect = [
+        {
+            "already_here.txt": {
+                "name": "already_here.txt",
+                "type": DirObject.File,
+                "size": 4294967295,
+            }
+        },
+        Exception("Nope"),
+    ]
+    pf_mock = mocker.patch("lta.transfer.sync.Sync.put_file")
+    rf_mock = mocker.patch("lta.transfer.sync.Sync.rmfile")
+    rt_mock = mocker.patch("lta.transfer.sync.Sync.rmtree")
+    stat_mock = mocker.patch("lta.transfer.sync.Path.stat")
+
+    sync = Sync(config)
+    sync.rc = rc_mock
+    sync.http_client = hc_mock
+    await sync.sync_dir(Path("/fake/path/to/sync"))
+
+    rt_mock.assert_not_called()
+    rf_mock.assert_not_called()
+    pf_mock.assert_not_called()
+    glc_mock.assert_called()
+    gc_mock.assert_called()
+
+    hc_mock.fetch.assert_not_called()
+    rc_mock._get_token.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sync_sync_dir_will_sync_missing_dir(config: TestConfig, mocker: MockerFixture) -> None:
+    """Test that the Sync.sync_dir() will synchronize a local directory to remote."""
+    rc_mock = MagicMock()
+    rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
+    hc_mock = AsyncMock()
+
+    gc_mock = mocker.patch("lta.transfer.sync.Sync.get_children")
+    gc_mock.side_effect = [
+        {
+            "sync": {
+                "name": "sync",
+                "type": DirObject.Directory,
+            }
+        },
+        {
+            "some_other_dir": {
+                "name": "some_other_dir",
+                "type": DirObject.Directory,
+            }
+        },
+        Exception("Nope"),
+    ]
+    glc_mock = mocker.patch("lta.transfer.sync.Sync.get_local_children")
+    glc_mock.side_effect = [
+        {
+            "some_other_dir": {
+                "name": "some_other_dir",
+                "type": DirObject.Directory,
+            },
+            "sync_me_plz": {
+                "name": "sync_me_plz",
+                "type": DirObject.Directory,
+            }
+        },
+        Exception("Nope"),
+    ]
+    pf_mock = mocker.patch("lta.transfer.sync.Sync.put_file")
+    rf_mock = mocker.patch("lta.transfer.sync.Sync.rmfile")
+    rt_mock = mocker.patch("lta.transfer.sync.Sync.rmtree")
+    stat_mock = mocker.patch("lta.transfer.sync.Path.stat")
+
+    sync = Sync(config)
+    sync.rc = rc_mock
+    sync.http_client = hc_mock
+
+    # what's that in the unit test?
+    # it's a bird!
+    # it's a plane!
+    # no, it's Recursive Mock Man!
+    real_sync_dir = sync.sync_dir
+    with mocker.patch.object(sync, "sync_dir"):
+        await real_sync_dir(Path("/fake/path/to/sync"))
+
+    rt_mock.assert_not_called()
+    rf_mock.assert_not_called()
+    pf_mock.assert_not_called()
+    glc_mock.assert_called()
+    gc_mock.assert_called()
+
+    hc_mock.fetch.assert_not_called()
+    rc_mock._get_token.assert_not_called()
 
 
 @pytest.mark.asyncio
