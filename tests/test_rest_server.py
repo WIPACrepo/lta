@@ -106,7 +106,6 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
         logging.info("setting role to %s", role)
         token = auth.create_token(subject="lta",  # type: ignore[no-untyped-call]
                                   expiration=300,
-                                  type="temp",
                                   payload=token_data,
                                   headers=None)
         return RestClient(f'http://localhost:{port}', token=token, timeout=timeout, retries=0)
