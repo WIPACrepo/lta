@@ -71,7 +71,7 @@ jobs:
       - uses: WIPACrepo/wipac-dev-py-setup-action@v5.1
         with:
           mode: PACKAGING
-          python_min: "3.10"
+          python_min: "3.11"  # asyncio.TaskGroup
           author: WIPAC Developers
           author_email: developers@icecube.wisc.edu
           keywords_comma: "archive, data, IceCube, WIPAC"

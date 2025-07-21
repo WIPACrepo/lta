@@ -19,13 +19,14 @@ classifiers = [
   'Programming Language :: Python :: 3.12',
   'Programming Language :: Python :: 3.13'
 ]
-requires-python = ">=3.10, <3.14"
+requires-python = ">=3.11, <3.14"
 dependencies = [
   'binpacking',
   'colorama',
   'hurry.filesize',
   'motor',
   'prometheus-client',
+  'pycurl',
   'pymongo',
   'tornado',
   'wipac-dev-tools',
