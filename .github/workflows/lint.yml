@@ -31,6 +31,9 @@ jobs:
         with:
           python-version: ${{ matrix.py3 }}
       - run: |
+          echo "Running flake8"
+          pip install --upgrade pip
+          pip install .[dev]
           flake8 lta
           flake8 tests --ignore=E402,E501
 
@@ -49,5 +52,8 @@ jobs:
         with:
           python-version: ${{ matrix.py3 }}
       - run: |
+          echo "Running mypy"
+          pip install --upgrade pip
+          pip install .[dev]
           mypy --strict --allow-subclassing-any --namespace-packages lta
           mypy --strict --allow-subclassing-any tests
