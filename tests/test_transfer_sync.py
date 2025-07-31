@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import AsyncMock, MagicMock
 
+import pycurl
 import pytest
 from pytest_mock import MockerFixture
 from tornado.httpclient import HTTPError
@@ -65,19 +66,15 @@ def test_bind_setup_curl() -> None:
         "LOG_LEVEL": "NOT_DEBUG"
     })
     curl_mock = MagicMock()
-    curl_mock.CAPATH = "CAPATH"
-    curl_mock.VERBOSE = "VERBOSE"
     setup_curl1(curl_mock)
-    curl_mock.setopt.assert_called_with("CAPATH", '/etc/grid-security/certificates')
+    curl_mock.setopt.assert_called_with(pycurl.CAPATH, '/etc/grid-security/certificates')
 
     setup_curl2 = bind_setup_curl({
         "LOG_LEVEL": "DEBUG"
     })
     curl_mock = MagicMock()
-    curl_mock.CAPATH = "CAPATH"
-    curl_mock.VERBOSE = "VERBOSE"
     setup_curl2(curl_mock)
-    curl_mock.setopt.assert_called_with("VERBOSE", True)
+    curl_mock.setopt.assert_called_with(pycurl.VERBOSE, True)
 
 
 def test_decode_if_necessary() -> None:
@@ -721,7 +718,7 @@ async def test_sync_sync_dir_fix_directory_to_file(config: TestConfig, mocker: M
     sync.http_client = hc_mock
     await sync.sync_dir(Path("/fake/path/to/sync"))
 
-    stat_mock.assert_called()
+    stat_mock.assert_not_called()
     rt_mock.assert_called()
     rf_mock.assert_not_called()
     pf_mock.assert_called()
