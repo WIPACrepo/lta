@@ -8,7 +8,7 @@ from functools import wraps
 import hashlib
 import logging
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 import xml.etree.ElementTree as ET
 
 import pycurl
@@ -29,11 +29,11 @@ class DirObject(Enum):
     File = 2
 
 
-def bind_setup_curl(config: dict[str, str]):
-    def setup_curl(c):
-        c.setopt(c.CAPATH, '/etc/grid-security/certificates')
+def bind_setup_curl(config: dict[str, str]) -> Callable[[pycurl.Curl], None]:
+    def setup_curl(c: pycurl.Curl) -> None:
+        c.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
         if config["LOG_LEVEL"].lower() == 'debug':
-            c.setopt(c.VERBOSE, True)
+            c.setopt(pycurl.VERBOSE, True)
     return setup_curl
 
 

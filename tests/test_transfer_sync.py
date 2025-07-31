@@ -580,7 +580,7 @@ def test_sync_get_local_children_dir_and_file(config: TestConfig, mocker: Mocker
     local2.stat.return_value = stat_mock
 
     iterdir_mock = mocker.patch("lta.transfer.sync.Path.iterdir")
-    iterdir_mock.return_value = [ local1, local2 ]
+    iterdir_mock.return_value = [local1, local2]
 
     local_children = sync.get_local_children(Path("/fake/path/does/not/really/exist"))
     assert local_children == {
@@ -606,7 +606,7 @@ def test_sync_get_local_children_skip_run_directories(config: TestConfig, mocker
     run_dir.name = "Run_1122334455"
 
     iterdir_mock = mocker.patch("lta.transfer.sync.Path.iterdir")
-    iterdir_mock.return_value = [ run_dir ]
+    iterdir_mock.return_value = [run_dir]
 
     local_children = sync.get_local_children(Path("/fake/path/does/not/really/exist"))
     assert local_children == {}
@@ -721,6 +721,7 @@ async def test_sync_sync_dir_fix_directory_to_file(config: TestConfig, mocker: M
     sync.http_client = hc_mock
     await sync.sync_dir(Path("/fake/path/to/sync"))
 
+    stat_mock.assert_called()
     rt_mock.assert_called()
     rf_mock.assert_not_called()
     pf_mock.assert_called()
@@ -776,6 +777,7 @@ async def test_sync_sync_dir_verify_existing_file(config: TestConfig, mocker: Mo
     sync.http_client = hc_mock
     await sync.sync_dir(Path("/fake/path/to/sync"))
 
+    stat_mock.assert_not_called()
     rt_mock.assert_not_called()
     rf_mock.assert_not_called()
     pf_mock.assert_not_called()
@@ -840,6 +842,7 @@ async def test_sync_sync_dir_will_sync_missing_dir(config: TestConfig, mocker: M
     with mocker.patch.object(sync, "sync_dir"):
         await real_sync_dir(Path("/fake/path/to/sync"))
 
+    stat_mock.assert_not_called()
     rt_mock.assert_not_called()
     rf_mock.assert_not_called()
     pf_mock.assert_not_called()
@@ -876,7 +879,7 @@ async def test_sync_mkdir_p_base_path_missing(config: TestConfig, mocker: Mocker
     sync.rc = rc_mock
     sync.http_client = hc_mock
 
-    hc_mock.fetch.side_effect = [ HTTPError(404) ] * 20
+    hc_mock.fetch.side_effect = [HTTPError(404)] * 20
 
     with pytest.raises(Exception):
         await sync.mkdir_p("/fake/path/to/create/with/parents")
@@ -916,12 +919,12 @@ async def test_sync_mkdir_p_need_two(config: TestConfig, mocker: MockerFixture) 
 
     hc_mock.fetch.side_effect = [
         # checking
-        HTTPError(404), # /fake/path/to/create/with/parents  not found
-        HTTPError(405), # /fake/path/to/create/with  not allowed
-        {},             # /fake/path/to/create  found
+        HTTPError(404),  # /fake/path/to/create/with/parents  not found
+        HTTPError(405),  # /fake/path/to/create/with  not allowed
+        {},              # /fake/path/to/create  found
         # creating
-        HTTPError(409), # /fake/path/to/create/with  conflict
-        {},             # /fake/path/to/create/with/parents  created
+        HTTPError(409),  # /fake/path/to/create/with  conflict
+        {},              # /fake/path/to/create/with/parents  created
     ]
 
     await sync.mkdir_p("/fake/path/to/create/with/parents")
@@ -942,12 +945,12 @@ async def test_sync_mkdir_p_need_two_but_fire(config: TestConfig, mocker: Mocker
 
     hc_mock.fetch.side_effect = [
         # checking
-        HTTPError(404), # /fake/path/to/create/with/parents  not found
-        HTTPError(405), # /fake/path/to/create/with  not allowed
-        {},             # /fake/path/to/create  found
+        HTTPError(404),  # /fake/path/to/create/with/parents  not found
+        HTTPError(405),  # /fake/path/to/create/with  not allowed
+        {},              # /fake/path/to/create  found
         # creating
-        HTTPError(409), # /fake/path/to/create/with  conflict
-        HTTPError(500), # /fake/path/to/create/with/parents  fire started
+        HTTPError(409),  # /fake/path/to/create/with  conflict
+        HTTPError(500),  # /fake/path/to/create/with/parents  fire started
     ]
 
     with pytest.raises(Exception):

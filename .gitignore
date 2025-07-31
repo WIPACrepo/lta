@@ -103,6 +103,9 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+# WIPAC CI ignores
+stderr.txt
+
 # LTA project specific ignores
 .lta-*
 /dump
