@@ -9,7 +9,7 @@ from datetime import datetime
 import logging
 import os
 import sys
-from typing import Any, cast, Dict, List, Optional, Tuple, Union
+from typing import Any, cast, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
@@ -47,7 +47,7 @@ LOG = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
 
 AFTER = pymongo.ReturnDocument.AFTER
-ALL_DOCUMENTS: Dict[str, Any] = {"uuid": {"$exists": True}}
+ALL_DOCUMENTS: dict[str, Any] = {"uuid": {"$exists": True}}
 FIRST_IN_FIRST_OUT = [("work_priority_timestamp", pymongo.ASCENDING)]
 LOGGING_DENY_LIST = ["LTA_MONGODB_AUTH_PASS"]
 LTA_AUTH_PREFIX = "resource_access.long-term-archive.roles"
@@ -107,12 +107,15 @@ def unique_id() -> str:
 # -----------------------------------------------------------------------------
 
 
+DatabaseType = dict[str, Any]
+
+
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
 
     def initialize(  # type: ignore[override]
             self,
-            db: MotorDatabase,
+            db: MotorDatabase[DatabaseType],
             *args: Any,
             **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
@@ -125,7 +128,7 @@ class BaseLTAHandler(RestHandler):
 class BundlesActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_create."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_create."""
         request_counter.labels(method='POST', route='/Bundles/actions/bulk_create').inc()
@@ -167,7 +170,7 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
 class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_delete."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_delete."""
         request_counter.labels(method='POST', route='/Bundles/actions/bulk_delete').inc()
@@ -199,7 +202,7 @@ class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
 class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_update."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_update."""
         request_counter.labels(method='POST', route='/Bundles/actions/bulk_update').inc()
@@ -238,7 +241,7 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
 class BundlesHandler(BaseLTAHandler):
     """BundlesHandler handles collection level routes for Bundles."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self) -> None:
         """Handle GET /Bundles."""
         request_counter.labels(method='GET', route='/Bundles').inc()
@@ -247,7 +250,7 @@ class BundlesHandler(BaseLTAHandler):
         status = self.get_query_argument("status", default=None)
         verified = self.get_query_argument("verified", default=None)
 
-        query: Dict[str, Any] = {
+        query: dict[str, Any] = {
             "uuid": {"$exists": True},
         }
         if location:
@@ -259,7 +262,7 @@ class BundlesHandler(BaseLTAHandler):
         if verified:
             query["verified"] = boolify(verified)
 
-        projection: Dict[str, bool] = {
+        projection: dict[str, bool] = {
             "_id": False,
             "uuid": True,
         }
@@ -281,7 +284,7 @@ class BundlesHandler(BaseLTAHandler):
 class BundlesActionsPopHandler(BaseLTAHandler):
     """BundlesActionsPopHandler handles /Bundles/actions/pop."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Bundles/actions/pop."""
         request_counter.labels(method='POST', route='/Bundles/actions/pop').inc()
@@ -334,7 +337,7 @@ class BundlesActionsPopHandler(BaseLTAHandler):
 class BundlesSingleHandler(BaseLTAHandler):
     """BundlesSingleHandler handles object level routes for Bundles."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self, bundle_id: str) -> None:
         """Handle GET /Bundles/{uuid}."""
         request_counter.labels(method='GET', route='/Bundles/{uuid}').inc()
@@ -352,7 +355,7 @@ class BundlesSingleHandler(BaseLTAHandler):
         self.write(ret)
         response_counter.labels(method='GET', response='200', route='/Bundles/{uuid}').inc()
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def patch(self, bundle_id: str) -> None:
         """Handle PATCH /Bundles/{uuid}."""
         request_counter.labels(method='PATCH', route='/Bundles/{uuid}').inc()
@@ -375,7 +378,7 @@ class BundlesSingleHandler(BaseLTAHandler):
         self.write(ret)
         response_counter.labels(method='PATCH', response='200', route='/Bundles/{uuid}').inc()
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def delete(self, bundle_id: str) -> None:
         """Handle DELETE /Bundles/{uuid}."""
         request_counter.labels(method='DELETE', route='/Bundles/{uuid}').inc()
@@ -405,7 +408,7 @@ class MainHandler(BaseLTAHandler):
 class MetadataActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Metadata/actions/bulk_create."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_create."""
         request_counter.labels(method='POST', route='/Metadata/actions/bulk_create').inc()
@@ -447,7 +450,7 @@ class MetadataActionsBulkCreateHandler(BaseLTAHandler):
 class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
     """Handler for /Metadata/actions/bulk_delete."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_delete."""
         request_counter.labels(method='POST', route='/Metadata/actions/bulk_delete').inc()
@@ -477,19 +480,19 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
 class MetadataHandler(BaseLTAHandler):
     """MetadataHandler handles collection level routes for Metadata."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self) -> None:
         """Handle GET /Metadata."""
         request_counter.labels(method='GET', route='/Metadata').inc()
         bundle_uuid = self.get_query_argument("bundle_uuid", default=None)
-        limit = int(cast(str, self.get_query_argument("limit", default="1000")))
-        skip = int(cast(str, self.get_query_argument("skip", default="0")))
+        limit = int(self.get_query_argument("limit", default="1000"))
+        skip = int(self.get_query_argument("skip", default="0"))
 
-        query: Dict[str, Any] = {
+        query: dict[str, Any] = {
             "bundle_uuid": bundle_uuid,
         }
 
-        projection: Dict[str, bool] = {"_id": False}
+        projection: dict[str, bool] = {"_id": False}
 
         results = []
         logging.debug(f"MONGO-START: db.Metadata.find(filter={query}, projection={projection}, limit={limit}, skip={skip})")
@@ -506,7 +509,7 @@ class MetadataHandler(BaseLTAHandler):
         self.write(ret)
         response_counter.labels(method='GET', response='200', route='/Metadata').inc()
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def delete(self) -> None:
         """Handle DELETE /Metadata?bundle_uuid={uuid}."""
         request_counter.labels(method='DELETE', route='/Metadata?bundle_uuid={uuid}').inc()
@@ -525,7 +528,7 @@ class MetadataHandler(BaseLTAHandler):
 class MetadataSingleHandler(BaseLTAHandler):
     """MetadataSingleHandler handles object level routes for Metadata."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self, metadata_id: str) -> None:
         """Handle GET /Metadata/{uuid}."""
         request_counter.labels(method='GET', route='/Metadata/{uuid}').inc()
@@ -540,7 +543,7 @@ class MetadataSingleHandler(BaseLTAHandler):
         self.write(ret)
         response_counter.labels(method='GET', response='200', route='/Metadata/{uuid}').inc()
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def delete(self, metadata_id: str) -> None:
         """Handle DELETE /Metadata/{uuid}."""
         request_counter.labels(method='DELETE', route='/Metadata/{uuid}').inc()
@@ -558,7 +561,7 @@ class MetadataSingleHandler(BaseLTAHandler):
 class TransferRequestsHandler(BaseLTAHandler):
     """TransferRequestsHandler is a BaseLTAHandler that handles TransferRequests routes."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self) -> None:
         """Handle GET /TransferRequests."""
         request_counter.labels(method='GET', route='/TransferRequests').inc()
@@ -571,7 +574,7 @@ class TransferRequestsHandler(BaseLTAHandler):
         self.write({'results': ret})
         response_counter.labels(method='GET', response='200', route='/TransferRequests').inc()
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /TransferRequests."""
         request_counter.labels(method='POST', route='/TransferRequests').inc()
@@ -625,7 +628,7 @@ class TransferRequestsHandler(BaseLTAHandler):
 class TransferRequestSingleHandler(BaseLTAHandler):
     """TransferRequestSingleHandler is a BaseLTAHandler that handles routes related to single TransferRequest objects."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self, request_id: str) -> None:
         """Handle GET /TransferRequests/{uuid}."""
         request_counter.labels(method='GET', route='/TransferRequests/{uuid}').inc()
@@ -639,7 +642,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         self.write(ret)
         response_counter.labels(method='GET', response='200', route='/TransferRequests/{uuid}').inc()
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def patch(self, request_id: str) -> None:
         """Handle PATCH /TransferRequests/{uuid}."""
         request_counter.labels(method='PATCH', route='/TransferRequests/{uuid}').inc()
@@ -663,7 +666,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         self.write({})
         response_counter.labels(method='PATCH', response='200', route='/TransferRequests/{uuid}').inc()
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def delete(self, request_id: str) -> None:
         """Handle DELETE /TransferRequests/{uuid}."""
         request_counter.labels(method='DELETE', route='/TransferRequests/{uuid}').inc()
@@ -679,7 +682,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
 class TransferRequestActionsPopHandler(BaseLTAHandler):
     """TransferRequestActionsPopHandler handles /TransferRequests/actions/pop."""
 
-    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /TransferRequests/actions/pop."""
         request_counter.labels(method='POST', route='/TransferRequests/actions/pop').inc()
@@ -726,7 +729,7 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
 def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     """Ensure that necessary indexes exist in MongoDB."""
     logging.info(f"Configuring MongoDB client at: {mongo_url}")
-    client: MongoClient[Dict[str, Any]] = MongoClient(mongo_url)
+    client: MongoClient[dict[str, Any]] = MongoClient(mongo_url)
     db = client[mongo_db]
     logging.info(f"Creating indexes in MongoDB database: {mongo_db}")
 
@@ -783,7 +786,7 @@ def start(debug: bool = False) -> RestServer:
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
     ensure_mongo_indexes(lta_mongodb_url, mongo_db)
-    motor_client: MotorClient = MotorClient(lta_mongodb_url)
+    motor_client: MotorClient[DatabaseType] = MotorClient(lta_mongodb_url)
     args['db'] = motor_client[mongo_db]
 
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
