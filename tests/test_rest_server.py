@@ -22,7 +22,7 @@ from requests.exceptions import HTTPError
 
 from lta.rest_server import boolify, main, start, unique_id
 
-LtaCollection = Database[Dict[str, Any]]  # type: ignore
+LtaCollection = Database[Dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
 
 tracemalloc.start(1)

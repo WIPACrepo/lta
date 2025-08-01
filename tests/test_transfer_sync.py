@@ -2,6 +2,7 @@
 """Unit tests for lta/transfer/sync.py."""
 
 import asyncio
+from asyncio import Task
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -13,13 +14,15 @@ from pytest_mock import MockerFixture
 from tornado.httpclient import HTTPError
 
 from lta.transfer.sync import (
+    _as_task,
     bind_setup_curl,
     _decode_if_necessary,
     convert_checksum_from_dcache,
     sha512sum,
     connection_semaphore,
-    Sync,
     DirObject,
+    ParallelAsync,
+    Sync,
 )
 from .test_util import ObjectLiteral
 
@@ -104,17 +107,17 @@ def test_sha512sum_tempfile() -> None:
 
 
 @pytest.mark.asyncio
-async def test_connection_semaphore_limits_concurrency():
+async def test_connection_semaphore_limits_concurrency() -> None:
     """Test that the connection_semaphore decorator limits concurrency of async class methods."""
-    class TestClass:
-        def __init__(self, max_concurrent):
+    class TestClass(ParallelAsync):
+        def __init__(self, max_concurrent: int):
             self._semaphore = asyncio.Semaphore(max_concurrent)
             self.started = 0
             self.running = 0
             self.max_observed = 0
 
         @connection_semaphore
-        async def do_work(self, delay: float):
+        async def do_work(self, delay: float) -> str:
             # Increment counters
             self.started += 1
             self.running += 1
@@ -130,8 +133,8 @@ async def test_connection_semaphore_limits_concurrency():
     instance = TestClass(max_concurrent=2)
 
     # Launch 5 tasks in parallel
-    tasks = [
-        asyncio.create_task(instance.do_work(0.1))
+    tasks: list[Task[str]] = [
+        asyncio.create_task(_as_task(instance.do_work(0.1)))
         for _ in range(5)
     ]
 
@@ -145,7 +148,7 @@ async def test_connection_semaphore_limits_concurrency():
     assert instance.max_observed == 2
 
 
-def test_sync_constructor_missing():
+def test_sync_constructor_missing() -> None:
     """Test the constructor of Sync."""
     with pytest.raises(KeyError):
         Sync({})
