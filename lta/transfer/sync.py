@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any, Awaitable, Callable, cast, Concatenate, Coroutine, Optional, ParamSpec, TypeVar, Union
 import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element
 
 import pycurl
 from rest_tools.client import ClientCredentialsAuth
@@ -144,7 +145,12 @@ class Sync(ParallelAsync):
         content = ret.body.decode('utf-8')
         logging.debug(content)
         root = ET.fromstring(content)
-        children = {}
+        children = self._process_children(fullpath, root)
+        return children
+
+    def _process_children(self, fullpath: Path, root: Element) -> DataDict:
+        """Process the children into a data dictionary."""
+        children: DataDict = {}
         for e in root.findall('.//d:response', XMLNS):
             # sometimes e.find() returns None
             href = e.find('./d:href', XMLNS)
@@ -177,7 +183,6 @@ class Sync(ParallelAsync):
                         if locality is not None and locality.text is not None:
                             data['tape'] = 'ONLINE' not in locality.text
                 children[path.name] = data
-
         return children
 
     @connection_semaphore
