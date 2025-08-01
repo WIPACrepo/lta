@@ -8,14 +8,19 @@ from functools import wraps
 import hashlib
 import logging
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any, Awaitable, Callable, cast, Concatenate, Coroutine, Optional, ParamSpec, TypeVar, Union
 import xml.etree.ElementTree as ET
 
 import pycurl
 from rest_tools.client import ClientCredentialsAuth
 from tornado.httpclient import AsyncHTTPClient, HTTPError, HTTPRequest
 
-AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
+DataDict = dict[str, Any]
+
+P = ParamSpec("P")
+R = TypeVar("R")
+T = TypeVar("T", bound="ParallelAsync")
+TaskReturn = TypeVar("TaskReturn")
 
 XMLNS = {
     'd': 'DAV:',
@@ -29,12 +34,24 @@ class DirObject(Enum):
     File = 2
 
 
+def _as_task(task: Awaitable[TaskReturn]) -> Coroutine[Any, Any, TaskReturn]:
+    """Cast a typical async call to one of the types expected by `asyncio.TaskGroup`."""
+    return cast(Coroutine[Any, Any, TaskReturn], task)
+
+
 def bind_setup_curl(config: dict[str, str]) -> Callable[[pycurl.Curl], None]:
     def setup_curl(c: pycurl.Curl) -> None:
         c.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
         if config["LOG_LEVEL"].lower() == 'debug':
             c.setopt(pycurl.VERBOSE, True)
     return setup_curl
+
+
+def convert_checksum_from_dcache(checksum: str) -> str:
+    """DCache returns a binary checksum, but we want the hex digest"""
+    if checksum.startswith('sha-512='):
+        checksum = checksum[8:]
+    return base64.b64decode(checksum).hex()
 
 
 def _decode_if_necessary(value: Optional[Union[str, bytes]]) -> Optional[str]:
@@ -45,13 +62,6 @@ def _decode_if_necessary(value: Optional[Union[str, bytes]]) -> Optional[str]:
     if isinstance(value, bytes):
         return value.decode("utf-8")
     raise TypeError(f"Expected str or bytes or None, got {type(value).__name__}")
-
-
-def convert_checksum_from_dcache(checksum: str) -> str:
-    """DCache returns a binary checksum, but we want the hex digest"""
-    if checksum.startswith('sha-512='):
-        checksum = checksum[8:]
-    return base64.b64decode(checksum).hex()
 
 
 def sha512sum(filename: Path, blocksize: int = 1024 * 1024 * 2) -> str:
@@ -68,21 +78,29 @@ def sha512sum(filename: Path, blocksize: int = 1024 * 1024 * 2) -> str:
     return h.hexdigest()
 
 
-def connection_semaphore(func):
+class ParallelAsync:
+    def __init__(self, max_parallel: int):
+        self._semaphore = asyncio.Semaphore(max_parallel)
+
+
+def connection_semaphore(func: Callable[Concatenate[T, P], Awaitable[R]]) -> Callable[Concatenate[T, P], Awaitable[R]]:
     @wraps(func)
-    async def inner(self, *args, **kwargs):
+    async def inner(self: T, *args: P.args, **kwargs: P.kwargs) -> R:
         async with self._semaphore:
             return await func(self, *args, **kwargs)
-    return inner
+    return cast(Callable[Concatenate[T, P], Awaitable[R]], inner)
 
 
-class Sync:
+class Sync(ParallelAsync):
     """
     Sync is a transfer implementation using WebDAV to copy files to DESY.
 
     Original code by David Schultz; gently adapted for LTA by Patrick Meade.
     """
     def __init__(self, config: dict[str, str]):
+        # self._semaphore = asyncio.Semaphore(int(config["MAX_PARALLEL"]))
+        super().__init__(int(config["MAX_PARALLEL"]))
+
         self.config = config
 
         self.rc = ClientCredentialsAuth(
@@ -94,21 +112,20 @@ class Sync:
             retries=int(config["WORK_RETRIES"]),
         )
 
+        AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
         self.http_client = AsyncHTTPClient(max_clients=100, defaults={
             'allow_nonstandard_methods': True,
             'connect_timeout': 0,
             'prepare_curl_callback': bind_setup_curl(self.config),
         })
 
-        self._semaphore = asyncio.Semaphore(int(config["MAX_PARALLEL"]))
-
-    async def run(self):
+    async def run(self) -> None:
         # await self.sync_dir(Path(ENV.SRC_DIRECTORY))
         raise NotImplementedError("Directory sync is not used for LTA; please call `await sync.put_path(src_path, dest_path)` instead")
 
     @connection_semaphore
-    async def get_children(self, path):
-        fullpath = Path(self.config["DEST_BASE_PATH"]) / path.lstrip('/')
+    async def get_children(self, path_str: str) -> DataDict:
+        fullpath = Path(self.config["DEST_BASE_PATH"]) / path_str.lstrip('/')
         self.rc._get_token()
         token = _decode_if_necessary(self.rc.access_token)
         headers = {
@@ -129,7 +146,12 @@ class Sync:
         root = ET.fromstring(content)
         children = {}
         for e in root.findall('.//d:response', XMLNS):
-            path = Path(e.find('./d:href', XMLNS).text)
+            # sometimes e.find() returns None
+            href = e.find('./d:href', XMLNS)
+            if href is None or href.text is None:
+                continue
+            # href.text is a str, so wrap it up in a Path object
+            path = Path(href.text)
             if path != fullpath:
                 data = {'name': path.name, 'type': DirObject.Directory}
                 proplist = e.findall('./d:propstat/d:prop', XMLNS)
@@ -143,7 +165,7 @@ class Sync:
                     if isdir is not None and isdir.text == 'FALSE':
                         data['type'] = DirObject.File
                         size = props.find('./d:getcontentlength', XMLNS)
-                        if size is not None:
+                        if size is not None and size.text is not None:
                             data['size'] = int(size.text)
                         checksums = props.find('./ns2:Checksums', XMLNS)
                         if checksums is not None and checksums.text:
@@ -152,14 +174,14 @@ class Sync:
                                 for c in checksums.text.split(';')
                             }
                         locality = props.find('./ns1:FileLocality', XMLNS)
-                        if locality is not None:
+                        if locality is not None and locality.text is not None:
                             data['tape'] = 'ONLINE' not in locality.text
                 children[path.name] = data
 
         return children
 
     @connection_semaphore
-    async def get_file(self, path, timeout=1200):
+    async def get_file(self, path: str, timeout:int = 1200) -> None:
         fullpath = Path(self.config["DEST_BASE_PATH"]) / path.lstrip('/')
         self.rc._get_token()
         token = _decode_if_necessary(self.rc.access_token)
@@ -167,17 +189,20 @@ class Sync:
             'Authorization': f'bearer {token}',
         }
         with open(path, 'wb') as f:
+            def write_callback(data: bytes) -> None:
+                f.write(data)
+
             req = HTTPRequest(
                 method='GET',
                 url=f'{self.config["DEST_URL"]}{fullpath}',
                 headers=headers,
                 request_timeout=timeout,
-                streaming_callback=f.write,
+                streaming_callback=write_callback,
             )
             await self.http_client.fetch(req)
 
     @connection_semaphore
-    async def rmfile(self, path: str, timeout=600):
+    async def rmfile(self, path: str, timeout: int = 600) -> None:
         logging.info('RMFILE %s', path)
         fullpath = Path(self.config["DEST_BASE_PATH"]) / path.lstrip('/')
         self.rc._get_token()
@@ -193,7 +218,8 @@ class Sync:
         )
         await self.http_client.fetch(req)
 
-    async def rmtree(self, path: Path, timeout=600):
+    @connection_semaphore
+    async def rmtree(self, path: Path, timeout: int = 600) -> None:
         logging.info('RMTREE %s', path)
         ret = await self.get_children(str(path.parent))
         if path.name not in ret:
@@ -205,13 +231,13 @@ class Sync:
             async with asyncio.TaskGroup() as tg:
                 for child in children.values():
                     if child['type'] == DirObject.File:
-                        tg.create_task(self.rmfile(str(path / child['name'])))
+                        tg.create_task(_as_task(self.rmfile(str(path / child['name']), timeout)))
                     else:
-                        tg.create_task(self.rmtree(path / child['name']))
+                        tg.create_task(_as_task(self.rmtree(path / child['name'], timeout)))
             await self.rmfile(str(path))
 
     @connection_semaphore
-    async def mkdir(self, path, timeout=60):
+    async def mkdir(self, path: str, timeout: int = 60) -> None:
         logging.info('MKDIR %s', path)
         fullpath = Path(self.config["DEST_BASE_PATH"]) / path.lstrip('/')
         self.rc._get_token()
@@ -228,7 +254,7 @@ class Sync:
         await self.http_client.fetch(req)
 
     @connection_semaphore
-    async def put_file(self, path: str, timeout=1200):
+    async def put_file(self, path: str, timeout: int = 1200) -> None:
         """
         Uploads file to a tmp name first, checks the checksum, then
         moves it to the final location.
@@ -247,23 +273,23 @@ class Sync:
         }
 
         with open(path, 'rb') as f:
-            def seek(offset, _origin):
+            def seek(offset: int, _origin: int) -> int:
                 try:
                     f.seek(offset)
                     return pycurl.SEEKFUNC_OK
                 except Exception:
                     return pycurl.SEEKFUNC_FAIL
 
-            def cb(c):
+            def cb(c: pycurl.Curl) -> None:
                 setup_curl = bind_setup_curl(self.config)
                 setup_curl(c)
                 if filesize >= 2000000000:
-                    c.unsetopt(c.INFILESIZE)
-                    c.setopt(c.INFILESIZE_LARGE, filesize)
+                    c.unsetopt(pycurl.INFILESIZE)
+                    c.setopt(pycurl.INFILESIZE_LARGE, filesize)
                 else:
-                    c.setopt(c.INFILESIZE, filesize)
-                c.setopt(c.READDATA, f)
-                c.setopt(c.SEEKFUNCTION, seek)
+                    c.setopt(pycurl.INFILESIZE, filesize)
+                c.setopt(pycurl.READDATA, f)
+                c.setopt(pycurl.SEEKFUNCTION, seek)
 
             req = HTTPRequest(
                 method='PUT',
@@ -314,13 +340,13 @@ class Sync:
         )
         await self.http_client.fetch(req)
 
-    def get_local_children(self, path: Path):
+    def get_local_children(self, path: Path) -> DataDict:
         children = {}
         for p in path.iterdir():
             if p.name.startswith("Run") and '_' in p.name:
                 logging.debug('skipping versioned run directory')
                 continue
-            data: dict[str, Any] = {
+            data: DataDict = {
                 'name': p.name,
                 'type': DirObject.Directory if p.is_dir() else DirObject.File,
             }
@@ -329,7 +355,7 @@ class Sync:
             children[p.name] = data
         return children
 
-    async def sync_dir(self, path: Path):
+    async def sync_dir(self, path: Path) -> None:
         logging.info("SYNC %s", path)
         # check if dir exists
         ret = await self.get_children(str(path.parent))
@@ -348,7 +374,7 @@ class Sync:
         async with asyncio.TaskGroup() as tg:
             for name in sorted(children):
                 if name.startswith('_upload_'):
-                    tg.create_task(self.rmfile(str(path / name)))
+                    tg.create_task(_as_task(self.rmfile(str(path / name))))
 
         # now upload as necessary
         async with asyncio.TaskGroup() as tg:
@@ -367,12 +393,12 @@ class Sync:
                     logging.info('missing from dest: %s', path / name)
 
                 if expected_children[name]['type'] == DirObject.Directory:
-                    tg.create_task(self.sync_dir(path / name))
+                    tg.create_task(_as_task(self.sync_dir(path / name)))
                 else:
-                    tg.create_task(self.put_file(str(path / name)))
+                    tg.create_task(_as_task(self.put_file(str(path / name))))
 
     @connection_semaphore
-    async def mkdir_p(self, path: str, timeout=60):
+    async def mkdir_p(self, path: str, timeout: int = 60) -> None:
         logging.info('MKDIR -p %s', path)
         dest_base = Path(self.config["DEST_BASE_PATH"])
         #  fullpath = dest_base / path.lstrip('/')
@@ -437,7 +463,7 @@ class Sync:
                     raise Exception(f'Error creating directory {current}: {e}')
 
     @connection_semaphore
-    async def put_file_src_dest(self, src_path: str, dest_path: str, timeout=1200):
+    async def put_file_src_dest(self, src_path: str, dest_path: str, timeout: int = 1200) -> None:
         """
         Uploads file to a tmp name first, checks the checksum, then
         moves it to the final location.
@@ -456,23 +482,23 @@ class Sync:
         }
 
         with open(src_path, 'rb') as f:
-            def seek(offset, _origin):
+            def seek(offset: int, _origin: int) -> int:
                 try:
                     f.seek(offset)
                     return pycurl.SEEKFUNC_OK
                 except Exception:
                     return pycurl.SEEKFUNC_FAIL
 
-            def cb(c):
+            def cb(c: pycurl.Curl) -> None:
                 setup_curl = bind_setup_curl(self.config)
                 setup_curl(c)
                 if filesize >= 2000000000:
-                    c.unsetopt(c.INFILESIZE)
-                    c.setopt(c.INFILESIZE_LARGE, filesize)
+                    c.unsetopt(pycurl.INFILESIZE)
+                    c.setopt(pycurl.INFILESIZE_LARGE, filesize)
                 else:
-                    c.setopt(c.INFILESIZE, filesize)
-                c.setopt(c.READDATA, f)
-                c.setopt(c.SEEKFUNCTION, seek)
+                    c.setopt(pycurl.INFILESIZE, filesize)
+                c.setopt(pycurl.READDATA, f)
+                c.setopt(pycurl.SEEKFUNCTION, seek)
 
             req = HTTPRequest(
                 method='PUT',
@@ -524,10 +550,11 @@ class Sync:
         await self.http_client.fetch(req)
 
     @connection_semaphore
-    async def put_path(self, src_path: str, dest_path: str, timeout=1200):
+    async def put_path(self, src_path: str, dest_path: str, timeout: int = 1200) -> None:
         """
         Ensures that the parent directory exists, then uploads the
         file to the final location.
         """
-        await self.mkdir_p(Path(dest_path).parent, int(self.config["WORK_TIMEOUT_SECONDS"]))
+        dest_dir = str(Path(dest_path).parent)
+        await self.mkdir_p(dest_dir, int(self.config["WORK_TIMEOUT_SECONDS"]))
         await self.put_file_src_dest(src_path, dest_path, timeout)
