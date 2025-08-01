@@ -167,26 +167,32 @@ class Sync(ParallelAsync):
                 else:
                     props = None
                 if props:
-                    isdir = props.find('./d:iscollection', XMLNS)
-                    if isdir is not None and isdir.text == 'FALSE':
-                        data['type'] = DirObject.File
-                        size = props.find('./d:getcontentlength', XMLNS)
-                        if size is not None and size.text is not None:
-                            data['size'] = int(size.text)
-                        checksums = props.find('./ns2:Checksums', XMLNS)
-                        if checksums is not None and checksums.text:
-                            data['checksums'] = {
-                                c.split('=', 1)[0]: convert_checksum_from_dcache(c.split('=', 1)[1])
-                                for c in checksums.text.split(';')
-                            }
-                        locality = props.find('./ns1:FileLocality', XMLNS)
-                        if locality is not None and locality.text is not None:
-                            data['tape'] = 'ONLINE' not in locality.text
+                    data.update(self._process_props(props))
                 children[path.name] = data
         return children
 
+    def _process_props(self, props: Element) -> DataDict:
+        """Process the properties into a data dictionary."""
+        data: DataDict = {}
+        isdir = props.find('./d:iscollection', XMLNS)
+        if isdir is not None and isdir.text == 'FALSE':
+            data['type'] = DirObject.File
+            size = props.find('./d:getcontentlength', XMLNS)
+            if size is not None and size.text is not None:
+                data['size'] = int(size.text)
+            checksums = props.find('./ns2:Checksums', XMLNS)
+            if checksums is not None and checksums.text:
+                data['checksums'] = {
+                    c.split('=', 1)[0]: convert_checksum_from_dcache(c.split('=', 1)[1])
+                    for c in checksums.text.split(';')
+                }
+            locality = props.find('./ns1:FileLocality', XMLNS)
+            if locality is not None and locality.text is not None:
+                data['tape'] = 'ONLINE' not in locality.text
+        return data
+
     @connection_semaphore
-    async def get_file(self, path: str, timeout:int = 1200) -> None:
+    async def get_file(self, path: str, timeout: int = 1200) -> None:
         fullpath = Path(self.config["DEST_BASE_PATH"]) / path.lstrip('/')
         self.rc._get_token()
         token = _decode_if_necessary(self.rc.access_token)
