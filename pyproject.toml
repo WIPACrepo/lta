@@ -52,6 +52,7 @@ dev = [
   'pytest-mock',
   'requests',
   'types-colorama',
+  'types-pycurl',
   'types-requests'
 ]
 monitoring = [
@@ -68,6 +69,7 @@ mypy = [
   'pytest-mock',
   'requests',
   'types-colorama',
+  'types-pycurl',
   'types-requests'
 ]
 

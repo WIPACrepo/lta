@@ -2,23 +2,27 @@
 """Unit tests for lta/transfer/sync.py."""
 
 import asyncio
+from asyncio import Task
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import AsyncMock, MagicMock
 
+import pycurl
 import pytest
 from pytest_mock import MockerFixture
 from tornado.httpclient import HTTPError
 
 from lta.transfer.sync import (
+    _as_task,
     bind_setup_curl,
     _decode_if_necessary,
     convert_checksum_from_dcache,
     sha512sum,
     connection_semaphore,
-    Sync,
     DirObject,
+    ParallelAsync,
+    Sync,
 )
 from .test_util import ObjectLiteral
 
@@ -65,19 +69,15 @@ def test_bind_setup_curl() -> None:
         "LOG_LEVEL": "NOT_DEBUG"
     })
     curl_mock = MagicMock()
-    curl_mock.CAPATH = "CAPATH"
-    curl_mock.VERBOSE = "VERBOSE"
     setup_curl1(curl_mock)
-    curl_mock.setopt.assert_called_with("CAPATH", '/etc/grid-security/certificates')
+    curl_mock.setopt.assert_called_with(pycurl.CAPATH, '/etc/grid-security/certificates')
 
     setup_curl2 = bind_setup_curl({
         "LOG_LEVEL": "DEBUG"
     })
     curl_mock = MagicMock()
-    curl_mock.CAPATH = "CAPATH"
-    curl_mock.VERBOSE = "VERBOSE"
     setup_curl2(curl_mock)
-    curl_mock.setopt.assert_called_with("VERBOSE", True)
+    curl_mock.setopt.assert_called_with(pycurl.VERBOSE, True)
 
 
 def test_decode_if_necessary() -> None:
@@ -107,17 +107,17 @@ def test_sha512sum_tempfile() -> None:
 
 
 @pytest.mark.asyncio
-async def test_connection_semaphore_limits_concurrency():
+async def test_connection_semaphore_limits_concurrency() -> None:
     """Test that the connection_semaphore decorator limits concurrency of async class methods."""
-    class TestClass:
-        def __init__(self, max_concurrent):
+    class TestClass(ParallelAsync):
+        def __init__(self, max_concurrent: int):
             self._semaphore = asyncio.Semaphore(max_concurrent)
             self.started = 0
             self.running = 0
             self.max_observed = 0
 
         @connection_semaphore
-        async def do_work(self, delay: float):
+        async def do_work(self, delay: float) -> str:
             # Increment counters
             self.started += 1
             self.running += 1
@@ -133,8 +133,8 @@ async def test_connection_semaphore_limits_concurrency():
     instance = TestClass(max_concurrent=2)
 
     # Launch 5 tasks in parallel
-    tasks = [
-        asyncio.create_task(instance.do_work(0.1))
+    tasks: list[Task[str]] = [
+        asyncio.create_task(_as_task(instance.do_work(0.1)))
         for _ in range(5)
     ]
 
@@ -148,7 +148,7 @@ async def test_connection_semaphore_limits_concurrency():
     assert instance.max_observed == 2
 
 
-def test_sync_constructor_missing():
+def test_sync_constructor_missing() -> None:
     """Test the constructor of Sync."""
     with pytest.raises(KeyError):
         Sync({})
@@ -580,7 +580,7 @@ def test_sync_get_local_children_dir_and_file(config: TestConfig, mocker: Mocker
     local2.stat.return_value = stat_mock
 
     iterdir_mock = mocker.patch("lta.transfer.sync.Path.iterdir")
-    iterdir_mock.return_value = [ local1, local2 ]
+    iterdir_mock.return_value = [local1, local2]
 
     local_children = sync.get_local_children(Path("/fake/path/does/not/really/exist"))
     assert local_children == {
@@ -606,7 +606,7 @@ def test_sync_get_local_children_skip_run_directories(config: TestConfig, mocker
     run_dir.name = "Run_1122334455"
 
     iterdir_mock = mocker.patch("lta.transfer.sync.Path.iterdir")
-    iterdir_mock.return_value = [ run_dir ]
+    iterdir_mock.return_value = [run_dir]
 
     local_children = sync.get_local_children(Path("/fake/path/does/not/really/exist"))
     assert local_children == {}
@@ -721,6 +721,7 @@ async def test_sync_sync_dir_fix_directory_to_file(config: TestConfig, mocker: M
     sync.http_client = hc_mock
     await sync.sync_dir(Path("/fake/path/to/sync"))
 
+    stat_mock.assert_not_called()
     rt_mock.assert_called()
     rf_mock.assert_not_called()
     pf_mock.assert_called()
@@ -776,6 +777,7 @@ async def test_sync_sync_dir_verify_existing_file(config: TestConfig, mocker: Mo
     sync.http_client = hc_mock
     await sync.sync_dir(Path("/fake/path/to/sync"))
 
+    stat_mock.assert_not_called()
     rt_mock.assert_not_called()
     rf_mock.assert_not_called()
     pf_mock.assert_not_called()
@@ -840,6 +842,7 @@ async def test_sync_sync_dir_will_sync_missing_dir(config: TestConfig, mocker: M
     with mocker.patch.object(sync, "sync_dir"):
         await real_sync_dir(Path("/fake/path/to/sync"))
 
+    stat_mock.assert_not_called()
     rt_mock.assert_not_called()
     rf_mock.assert_not_called()
     pf_mock.assert_not_called()
@@ -876,7 +879,7 @@ async def test_sync_mkdir_p_base_path_missing(config: TestConfig, mocker: Mocker
     sync.rc = rc_mock
     sync.http_client = hc_mock
 
-    hc_mock.fetch.side_effect = [ HTTPError(404) ] * 20
+    hc_mock.fetch.side_effect = [HTTPError(404)] * 20
 
     with pytest.raises(Exception):
         await sync.mkdir_p("/fake/path/to/create/with/parents")
@@ -916,12 +919,12 @@ async def test_sync_mkdir_p_need_two(config: TestConfig, mocker: MockerFixture) 
 
     hc_mock.fetch.side_effect = [
         # checking
-        HTTPError(404), # /fake/path/to/create/with/parents  not found
-        HTTPError(405), # /fake/path/to/create/with  not allowed
-        {},             # /fake/path/to/create  found
+        HTTPError(404),  # /fake/path/to/create/with/parents  not found
+        HTTPError(405),  # /fake/path/to/create/with  not allowed
+        {},              # /fake/path/to/create  found
         # creating
-        HTTPError(409), # /fake/path/to/create/with  conflict
-        {},             # /fake/path/to/create/with/parents  created
+        HTTPError(409),  # /fake/path/to/create/with  conflict
+        {},              # /fake/path/to/create/with/parents  created
     ]
 
     await sync.mkdir_p("/fake/path/to/create/with/parents")
@@ -942,12 +945,12 @@ async def test_sync_mkdir_p_need_two_but_fire(config: TestConfig, mocker: Mocker
 
     hc_mock.fetch.side_effect = [
         # checking
-        HTTPError(404), # /fake/path/to/create/with/parents  not found
-        HTTPError(405), # /fake/path/to/create/with  not allowed
-        {},             # /fake/path/to/create  found
+        HTTPError(404),  # /fake/path/to/create/with/parents  not found
+        HTTPError(405),  # /fake/path/to/create/with  not allowed
+        {},              # /fake/path/to/create  found
         # creating
-        HTTPError(409), # /fake/path/to/create/with  conflict
-        HTTPError(500), # /fake/path/to/create/with/parents  fire started
+        HTTPError(409),  # /fake/path/to/create/with  conflict
+        HTTPError(500),  # /fake/path/to/create/with/parents  fire started
     ]
 
     with pytest.raises(Exception):
@@ -1029,7 +1032,7 @@ async def test_sync_put_path(config: TestConfig, mocker: MockerFixture) -> None:
 
     await sync.put_path("9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip", "/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109/9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip")
 
-    mdp_mock.assert_called_with(Path("/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109"), 30)
+    mdp_mock.assert_called_with("/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109", 30)
     pfsd_mock.assert_called_with(
         "9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip",
         "/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109/9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip",

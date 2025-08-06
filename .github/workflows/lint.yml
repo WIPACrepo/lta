@@ -1,0 +1,59 @@
+# lint.yml
+
+name: "Lint"
+
+on: [push]
+
+jobs:
+  py-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.versions.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
+      - id: versions
+        uses: WIPACrepo/wipac-dev-py-versions-action@v2.6
+
+  flake8:
+    needs: [ py-versions ]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.py3 }}
+      - run: |
+          echo "Running flake8"
+          pip install --upgrade pip
+          pip install .[dev]
+          flake8 lta
+          flake8 tests --ignore=E402,E501
+
+  mypy:
+    needs: [ py-versions ]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.py3 }}
+      - run: |
+          echo "Running mypy"
+          pip install --upgrade pip
+          pip install .[dev]
+          mypy --strict --allow-subclassing-any --namespace-packages lta
+          mypy --strict --allow-subclassing-any tests

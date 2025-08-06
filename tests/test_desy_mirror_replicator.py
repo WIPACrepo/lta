@@ -13,7 +13,7 @@ platform_collector.PlatformCollector()
 gc_collector.GCCollector()
 # -----------------------------------------------------------------------------
 
-from typing import Dict
+from typing import Awaitable, Callable, cast, Concatenate, ParamSpec, TypeVar
 from unittest.mock import AsyncMock, call, MagicMock
 
 import pytest
@@ -23,7 +23,7 @@ from tornado.web import HTTPError
 
 from lta.desy_mirror_replicator import main_sync, DesyMirrorReplicator
 
-TestConfig = Dict[str, str]
+TestConfig = dict[str, str]
 
 
 @pytest.fixture
@@ -58,9 +58,9 @@ def config() -> TestConfig:
 def test_bind_setup_curl() -> None:
     """Test that we can bind and call a callback with the bound value."""
     # define a function to create a callback with a bound config parameter
-    def bind_callback(config: dict[str, str]):
+    def bind_callback(config: dict[str, str]) -> Callable[[str], str]:
         # create the callback function using the bound parameter
-        def callback(name) -> str:
+        def callback(name: str) -> str:
             message = f"{config['message']} {name}!"
             return message
         # return the callback function
@@ -80,21 +80,25 @@ async def test_object_decorator() -> None:
     """Test that a decorator can use object fields for itself."""
     from functools import wraps
 
-    def my_decorator(func):
+    P = ParamSpec("P")
+    R = TypeVar("R", bound="str")
+    T = TypeVar("T", bound="MyClass")
+
+    def my_decorator(func: Callable[Concatenate[T, P], Awaitable[R]]) -> Callable[Concatenate[T, P], Awaitable[R]]:
         @wraps(func)
-        async def inner(self, *args, **kwargs):
+        async def inner(self: T, *args: P.args, **kwargs: P.kwargs) -> str:
             message = "[ "
             message = message + await func(self, *args, **kwargs)
             message = message + " ]"
             return message
-        return inner
+        return cast(Callable[Concatenate[T, P], Awaitable[R]], inner)
 
     class MyClass:
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
 
         @my_decorator
-        async def get_title(self):
+        async def get_title(self) -> str:
             return self.name
 
     alice = MyClass("Alice")

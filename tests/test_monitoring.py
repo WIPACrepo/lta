@@ -22,7 +22,7 @@ def monitor(mocker: MockerFixture, monkeypatch: MonkeyPatch) -> AsyncMock:
 
     rc = mocker.patch('lta.monitoring.RestClient')
     rc.return_value.request = AsyncMock()
-    return rc.return_value.request
+    return cast(AsyncMock, rc.return_value.request)
 
 
 @pytest.fixture
