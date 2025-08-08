@@ -16,6 +16,8 @@ import pycurl
 from rest_tools.client import ClientCredentialsAuth
 from tornado.httpclient import AsyncHTTPClient, HTTPError, HTTPRequest
 
+LOG = logging.getLogger(__name__)
+
 DataDict = dict[str, Any]
 
 P = ParamSpec("P")
@@ -484,7 +486,7 @@ class Sync(ParallelAsync):
         uploadpath = fullpath.with_name('_upload_' + fullpath.name)
         self.rc._get_token()
         token = _decode_if_necessary(self.rc.access_token)
-        filesize = Path(dest_path).stat(follow_symlinks=True).st_size
+        filesize = Path(src_path).stat(follow_symlinks=True).st_size
         headers = {
             'Authorization': f'bearer {token}',
             'Content-Length': str(filesize),
@@ -567,5 +569,7 @@ class Sync(ParallelAsync):
         file to the final location.
         """
         dest_dir = str(Path(dest_path).parent)
+        LOG.info(f"Ensuring {dest_dir} exists at destination")
         await self.mkdir_p(dest_dir, int(self.config["WORK_TIMEOUT_SECONDS"]))
+        LOG.info(f"Uploading {src_path} -> {dest_path}")
         await self.put_file_src_dest(src_path, dest_path, timeout)
