@@ -149,6 +149,7 @@ class DesyMirrorReplicator(Component):
         # create Sync to transfer to DESY
         sync = Sync(self.config)
         try:
+            LOG.info(f"Replicating {bundle_path} -> {dest_path}")
             await sync.put_path(bundle_path, dest_path)
         except Exception as e:
             self.logger.error(f'DESY Sync raised an Exception: {e}')
