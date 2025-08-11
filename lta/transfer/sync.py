@@ -493,6 +493,8 @@ class Sync(ParallelAsync):
             'Want-Digest': 'SHA-512',
             'Expect': '100-continue',
         }
+        # give ourselves a minimum of 1 GB/min
+        timeout = max(timeout, int(filesize / 10**9)*60)
 
         with open(src_path, 'rb') as f:
             def seek(offset: int, _origin: int) -> int:
@@ -513,6 +515,7 @@ class Sync(ParallelAsync):
                 c.setopt(pycurl.READDATA, f)
                 c.setopt(pycurl.SEEKFUNCTION, seek)
 
+            LOG.info(f"PUT {self.config["DEST_URL"]}{uploadpath} (timeout={timeout})")
             req = HTTPRequest(
                 method='PUT',
                 url=f'{self.config["DEST_URL"]}{uploadpath}',
