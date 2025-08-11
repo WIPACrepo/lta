@@ -297,7 +297,7 @@ class Sync(ParallelAsync):
                 setup_curl = bind_setup_curl(self.config)
                 setup_curl(c)
                 if filesize >= 2000000000:
-                    c.unsetopt(pycurl.INFILESIZE)
+                    # c.unsetopt(pycurl.INFILESIZE)
                     c.setopt(pycurl.INFILESIZE_LARGE, filesize)
                 else:
                     c.setopt(pycurl.INFILESIZE, filesize)
@@ -506,7 +506,7 @@ class Sync(ParallelAsync):
                 setup_curl = bind_setup_curl(self.config)
                 setup_curl(c)
                 if filesize >= 2000000000:
-                    c.unsetopt(pycurl.INFILESIZE)
+                    # c.unsetopt(pycurl.INFILESIZE)
                     c.setopt(pycurl.INFILESIZE_LARGE, filesize)
                 else:
                     c.setopt(pycurl.INFILESIZE, filesize)
