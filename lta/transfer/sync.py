@@ -515,10 +515,11 @@ class Sync(ParallelAsync):
                 c.setopt(pycurl.READDATA, f)
                 c.setopt(pycurl.SEEKFUNCTION, seek)
 
-            LOG.info(f"PUT {self.config["DEST_URL"]}{uploadpath} (timeout={timeout})")
+            upload_url = f'{self.config["DEST_URL"]}{uploadpath}'
+            LOG.info(f"PUT {upload_url} (timeout={timeout})")
             req = HTTPRequest(
                 method='PUT',
-                url=f'{self.config["DEST_URL"]}{uploadpath}',
+                url=upload_url,
                 headers=headers,
                 request_timeout=timeout,
                 prepare_curl_callback=cb,
