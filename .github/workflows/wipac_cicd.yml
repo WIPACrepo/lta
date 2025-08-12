@@ -12,7 +12,7 @@ jobs:
         with:
           ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
       - id: versions
-        uses: WIPACrepo/wipac-dev-mongo-versions-action@v1
+        uses: WIPACrepo/wipac-dev-mongo-versions-action@v2
         with:
           mongo_min: "5.0"
 
