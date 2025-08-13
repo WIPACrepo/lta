@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# install-osg-certs
+
+docker create --name tmp-osg osg-certs:al9
+docker cp tmp-osg:/etc/grid-security/certificates ./osg-certs
+docker rm tmp-osg
+
+sudo mkdir -p /usr/local/share/ca-certificates/osg
+# Copy only the CA PEMs and rename .pem -> .crt for Debian's updater
+sudo find ./osg-certs -type f -name '*.pem' -exec sh -c '
+  for f in "$@"; do
+    install -m 0644 "$f" "/usr/local/share/ca-certificates/osg/$(basename "${f%.pem}").crt"
+  done
+' sh {} +
+
+sudo update-ca-certificates

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# remove-osg-certs
+
+sudo rm -rf /usr/local/share/ca-certificates/osg
+sudo update-ca-certificates --fresh
