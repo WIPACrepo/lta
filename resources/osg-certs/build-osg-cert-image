@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# build-osg-cert-image
+
+docker build -t osg-certs:al9 .
