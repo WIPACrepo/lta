@@ -574,6 +574,6 @@ class Sync(ParallelAsync):
         """
         dest_dir = str(Path(dest_path).parent)
         LOG.info(f"Ensuring {dest_dir} exists at destination")
-        await self.mkdir_p(dest_dir, int(self.config["WORK_TIMEOUT_SECONDS"]))
+        await self.mkdir_p(dest_dir, timeout)
         LOG.info(f"Uploading {src_path} -> {dest_path}")
         await self.put_file_src_dest(src_path, dest_path, timeout)
