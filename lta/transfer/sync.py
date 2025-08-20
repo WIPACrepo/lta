@@ -493,8 +493,8 @@ class Sync(ParallelAsync):
             'Want-Digest': 'SHA-512',
             'Expect': '100-continue',
         }
-        # give ourselves a minimum of 1 GB/min
-        timeout = max(timeout, int(filesize / 10**9)*60)
+        # give ourselves a minimum of 10 minutes per GB
+        timeout = max(timeout, int(filesize / 10**9)*600)
 
         with open(src_path, 'rb') as f:
             def seek(offset: int, _origin: int) -> int:
