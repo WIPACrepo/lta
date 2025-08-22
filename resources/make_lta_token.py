@@ -43,7 +43,7 @@ def run():
 
     # show me the money!
     rc = ClientCredentialsAuth(
-        address=f"http://localhost:8080/",
+        address="http://localhost:8080/",
         token_url=config["AUTH_OPENID_URL"],
         client_id=config["CLIENT_ID"],
         client_secret=config["CLIENT_SECRET"],

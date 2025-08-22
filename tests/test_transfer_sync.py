@@ -1032,7 +1032,7 @@ async def test_sync_put_path(config: TestConfig, mocker: MockerFixture) -> None:
 
     await sync.put_path("9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip", "/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109/9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip")
 
-    mdp_mock.assert_called_with("/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109", 30)
+    mdp_mock.assert_called_with("/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109", 1200)
     pfsd_mock.assert_called_with(
         "9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip",
         "/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109/9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip",

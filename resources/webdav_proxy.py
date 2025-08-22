@@ -103,16 +103,36 @@ class WebDAVProxy(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_error(502, f"Bad gateway: {e}")
 
-    def do_GET(self): self.do_common()
-    def do_PUT(self): self.do_common()
-    def do_PROPFIND(self): self.do_common()
-    def do_MKCOL(self): self.do_common()
-    def do_DELETE(self): self.do_common()
-    def do_COPY(self): self.do_common()
-    def do_MOVE(self): self.do_common()
-    def do_OPTIONS(self): self.do_common()
-    def do_HEAD(self): self.do_common()
-    def do_POST(self): self.do_common()
+    def do_GET(self):
+        self.do_common()
+
+    def do_PUT(self):
+        self.do_common()
+
+    def do_PROPFIND(self):
+        self.do_common()
+
+    def do_MKCOL(self):
+        self.do_common()
+
+    def do_DELETE(self):
+        self.do_common()
+
+    def do_COPY(self):
+        self.do_common()
+
+    def do_MOVE(self):
+        self.do_common()
+
+    def do_OPTIONS(self):
+        self.do_common()
+
+    def do_HEAD(self):
+        self.do_common()
+
+    def do_POST(self):
+        self.do_common()
+
 
 def run():
     # obtain our configuration from the environment
@@ -134,6 +154,7 @@ def run():
     except KeyboardInterrupt:
         print("Shutting down.")
         server.server_close()
+
 
 if __name__ == "__main__":
     run()
