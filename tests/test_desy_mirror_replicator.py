@@ -403,7 +403,8 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site_raise
     await p._do_work_claim(lta_rc_mock)
     sync_class_mock.return_value.put_path.assert_called_with(
         '/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip',
-        '/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'
+        '/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip',
+        30
     )
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
@@ -431,6 +432,7 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site(confi
     await p._do_work_claim(lta_rc_mock)
     sync_class_mock.return_value.put_path.assert_called_with(
         '/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip',
-        '/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'
+        '/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip',
+        30
     )
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)

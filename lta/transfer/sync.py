@@ -101,7 +101,6 @@ class Sync(ParallelAsync):
     Original code by David Schultz; gently adapted for LTA by Patrick Meade.
     """
     def __init__(self, config: dict[str, str]):
-        # self._semaphore = asyncio.Semaphore(int(config["MAX_PARALLEL"]))
         super().__init__(int(config["MAX_PARALLEL"]))
 
         self.config = config
@@ -494,7 +493,7 @@ class Sync(ParallelAsync):
             'Expect': '100-continue',
         }
         # give ourselves a minimum of 10 minutes per GB
-        timeout = max(timeout, int(filesize / 10**9)*600)
+        timeout = max(timeout, int(filesize / 10**9) * 600)
 
         with open(src_path, 'rb') as f:
             def seek(offset: int, _origin: int) -> int:
@@ -574,6 +573,6 @@ class Sync(ParallelAsync):
         """
         dest_dir = str(Path(dest_path).parent)
         LOG.info(f"Ensuring {dest_dir} exists at destination")
-        await self.mkdir_p(dest_dir, int(self.config["WORK_TIMEOUT_SECONDS"]))
+        await self.mkdir_p(dest_dir, timeout)
         LOG.info(f"Uploading {src_path} -> {dest_path}")
         await self.put_file_src_dest(src_path, dest_path, timeout)

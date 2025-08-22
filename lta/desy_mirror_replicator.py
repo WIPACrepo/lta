@@ -150,7 +150,7 @@ class DesyMirrorReplicator(Component):
         sync = Sync(self.config)
         try:
             LOG.info(f"Replicating {bundle_path} -> {dest_path}")
-            await sync.put_path(bundle_path, dest_path)
+            await sync.put_path(bundle_path, dest_path, int(self.work_timeout_seconds))
         except Exception as e:
             self.logger.error(f'DESY Sync raised an Exception: {e}')
             raise e
