@@ -37,13 +37,19 @@ RUN dnf install -y \
 RUN wget https://dl.fedoraproject.org/pub/epel/9/Everything/x86_64/Packages/v/voms-2.1.2-1.el9.x86_64.rpm \
     && wget https://dl.fedoraproject.org/pub/epel/9/Everything/x86_64/Packages/v/voms-clients-cpp-2.1.2-1.el9.x86_64.rpm \
     && dnf install -y ./voms-2.1.2-1.el9.x86_64.rpm ./voms-clients-cpp-2.1.2-1.el9.x86_64.rpm \
-    && rm voms-2.1.2-1.el9.x86_64.rpm voms-clients-cpp-2.1.2-1.el9.x86_64.rpm \
+    && rm -f voms-2.1.2-1.el9.x86_64.rpm voms-clients-cpp-2.1.2-1.el9.x86_64.rpm \
     && dnf clean all
 
-# install OSG tools
+# NOTE: skipping 'osg-ca-certs' due to conflicts; looks like they finally made it into the main repo after all
+# RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
+#     yum install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
+#     yum install -y osg-ca-certs && \
+#     dnf install -y --allowerasing python3.12 python3.12-pip git curl && \
+#     dnf clean all && yum clean all
+
+# install OSG tools and certs
 RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
     yum install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
-    yum install -y osg-ca-certs && \
     dnf install -y --allowerasing python3.12 python3.12-pip git curl && \
     dnf clean all && yum clean all
 
