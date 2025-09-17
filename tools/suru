@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# suru-lta
+# https://github.com/WIPACrepo/lta
+
+export BROWSER=${BROWSER:="firefox"}  # use 'firefox' if BROWSER isn't set
+
+export CI_TEST_ENV=${CI_TEST_ENV:="TRUE"}  # disable keycloak_role_auth in testing
+
+export LTA_MONGODB_DATABASE_NAME=${LTA_MONGODB_DATABASE_NAME:="lta"}
+export LTA_MONGODB_HOST=${LTA_MONGODB_HOST:="localhost"}
+export LTA_MONGODB_PORT=${LTA_MONGODB_PORT:="27017"}
+
+function clean {
+    rm -fr .coverage
+    rm -fr .mypy_cache
+    rm -fr .pytest_cache
+    rm -fr build
+    rm -fr dist
+    rm -fr htmlcov
+    find lta -name __pycache__ -exec rm -fr {} +
+    find lta -name __init__.pyc -exec rm -fr {} +
+    rm -fr lta.egg-info
+    find resources -name __pycache__ -exec rm -fr {} +
+    find resources -name __init__.pyc -exec rm -fr {} +
+    find tests -name __pycache__ -exec rm -fr {} +
+    find tests -name __init__.pyc -exec rm -fr {} +
+}
+
+function coverage {
+    pytest --cov=lta --cov-report=html --no-cov-on-fail ${2:-'tests'}  # use 'tests' if a module wasn't provided
+    ${BROWSER} --new-tab htmlcov/index.html
+}
+
+function dist {
+    rebuild
+    python3 setup.py sdist bdist_wheel
+}
+
+function lint {
+    flake8 lta
+    mypy --strict --allow-subclassing-any --namespace-packages lta
+    # flake8 resources
+    # mypy --strict --allow-subclassing-any resources
+    flake8 tests --ignore=E402,E501
+    mypy --strict --allow-subclassing-any tests
+}
+
+function lint_cicd {
+    # flake8 --exclude bin,doc,env,jadetools --ignore=E203,E226,E228,E231,E501,W503,W504 .
+    flake8 --exclude bin,doc,env,jadetools --ignore=E402,E501 .
+
+    # FLAGS="--namespace-packages --exclude build"
+    # IT_FLAGS="--install-types --non-interactive"
+    # (mypy $IT_FLAGS $FLAGS . 2>/dev/null) || (echo "no type-packages to install" && mypy $FLAGS .)
+}
+
+function lint_cicd2 {
+    flags="--namespace-packages --exclude build/"
+    it_flags="--install-types --non-interactive"
+
+    # do mypy (may fail the first time if missing 3rd party packages, second time uses mypy cache for 3rd party packages)
+    (mypy $it_flags $flags -v . 2> stderr.txt) || (mypy $flags -v . 2> stderr.txt)
+
+    # show which files were looked at (-v must be used to produce file names)
+    # grep "Found source" stderr.txt | sed "s_.*path='\(.*\)py'.*_\1py_"
+}
+
+function mongo {
+    # docker stop test-mongo
+    # docker pull circleci/mongo:latest-ram
+    # docker run \
+    #     --detach \
+    #     --name test-mongo \
+    #     --network=host \
+    #     --rm \
+    #     circleci/mongo:latest-ram
+    docker stop test-mongo
+    docker pull mongo:latest
+    docker run \
+        --detach \
+        --name test-mongo \
+        --publish 27017:27017 \
+        --rm \
+        --tmpfs /data/db:rw,size=1g \
+        mongo:latest
+}
+
+function outdated {
+    python3 -m tools.outdated
+}
+
+function rebuild {
+    clean
+    lint
+    test
+}
+
+function test {
+    # See: https://docs.pytest.org/en/7.1.x/how-to/usage.html#specifying-which-tests-to-run
+    # $0   $1   $2                  $3
+    # suru test tests/test_files.py test_10_files
+    if [[ ! -z "$3" ]]; then
+        export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} -k $3"
+    fi
+
+    pytest -ra ${2:-'tests'}  # use 'tests' if a module wasn't provided
+}
+
+case "$1" in
+    clean)      clean         ;;
+    coverage)   coverage "$@" ;;  # pass all command line args to coverage function
+    dist)       dist          ;;
+    lint)       lint          ;;
+    lint-cicd)  lint_cicd     ;;
+    lint-cicd2) lint_cicd2    ;;
+    mongo)      mongo         ;;
+    outdated)   outdated      ;;
+    rebuild)    rebuild       ;;
+    test)       test "$@"     ;;  # pass all command line args to test function
+    *)
+        echo "Usage: $0 {clean|coverage|lint|lint-cicd|lint-cicd2|mongo|outdated|rebuild|test}"
+        exit 1
+esac
+
+exit 0

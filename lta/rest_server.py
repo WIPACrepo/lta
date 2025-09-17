@@ -119,7 +119,7 @@ class BaseLTAHandler(RestHandler):
             *args: Any,
             **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
-        super(BaseLTAHandler, self).initialize(*args, **kwargs)  # type: ignore
+        super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.db = db
 
 # -----------------------------------------------------------------------------
