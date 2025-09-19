@@ -1,6 +1,12 @@
 name: "CI/CD"
 
-on: [push]
+on:
+  # only on branch pushes
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - '**'
 
 jobs:
   mongo-versions:
@@ -102,7 +108,9 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.py3_versions }}
-      - run: |
+      - name: "pip install --upgrade pip wheel setuptools"
+        run: |
+          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
           pip install --upgrade pip wheel setuptools
           pip install --editable .
 
@@ -135,6 +143,7 @@ jobs:
           LTA_MONGODB_PORT: 27017
           WIPACTEL_EXPORT_STDOUT: false
         run: |
+          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
           pip install --upgrade pip wheel setuptools pytest
           pip install .[dev]
           resources/enable_profiling.py
