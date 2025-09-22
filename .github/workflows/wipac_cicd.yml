@@ -263,8 +263,16 @@ jobs:
       - name: "docker run --rm"
         run: |
           set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
+          
+          dev_reqs=$( python -c "import tomli; d=tomli.load(open('pyproject.toml','rb')); print(' '.join(d['project']['optional-dependencies']['dev']))" )
+          
           docker run --rm \
-              ${{ env.CI_DOCKER_IMAGE_W_TAG }}
+              --mount type=bind,source="$( realpath ./tests )",target="/app/tests",readonly \
+              ${{ env.CI_DOCKER_IMAGE_W_TAG }} \
+              /bin/bash -c "\
+                pip install $dev_reqs && \
+                pytest -vvvvv --tb=short tests/integration/ \
+              "
 
 
   #############################################################################
