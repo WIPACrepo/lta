@@ -1,6 +1,8 @@
 # Dockerfile
 FROM almalinux:9
 
+ARG PYTHON=3.12
+
 RUN dnf install -y dnf-plugins-core wget && dnf clean all
 
 # install GridFTP tools like globus-url-copy
@@ -44,13 +46,13 @@ RUN wget https://dl.fedoraproject.org/pub/epel/9/Everything/x86_64/Packages/v/vo
 # RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
 #     yum install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
 #     yum install -y osg-ca-certs && \
-#     dnf install -y --allowerasing python3.12 python3.12-pip git curl && \
+#     dnf install -y --allowerasing python${PYTHON} python${PYTHON}-pip git curl && \
 #     dnf clean all && yum clean all
 
 # install OSG tools and certs
 RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
     yum install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
-    dnf install -y --allowerasing python3.12 python3.12-pip git curl && \
+    dnf install -y --allowerasing python${PYTHON} python${PYTHON}-pip git curl && \
     dnf clean all && yum clean all
 
 # copy our project into the container
@@ -65,13 +67,11 @@ COPY README.md pyproject.toml setup.py /app/
 
 RUN chown -R app:app /app
 
-# install our application with dependencies 
+# install our application with dependencies
 USER app
 
 ENV VIRTUAL_ENV=/app/venv
-
-RUN python3.12 -m venv $VIRTUAL_ENV
-
+RUN python${PYTHON} -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN --mount=source=.git,target=.git,type=bind pip install -e .[monitoring]
