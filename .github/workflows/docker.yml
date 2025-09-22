@@ -1,49 +1,28 @@
 name: 'Docker'
 
 on:
-  pull_request:
+  # only on tag pushes
   push:
-    branches:
-      - master
+    branches-ignore:
+      - '**'
     tags:
       - '**'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'an additional tag to publish and possibly overwrite'
+        default: 'dev'
+        required: false
 
 
 jobs:
-  build:
-    name: "Push Docker Image"
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Project
-      uses: actions/checkout@v4
-
-    - name: Docker meta
-      id: docker_meta
-      uses: docker/metadata-action@v5
-      with:
-        # list of Docker images to use as base name for tags
-        images: |
-          ghcr.io/wipacrepo/lta
-        # add git short SHA as Docker tag
-        tag-sha: true
-        tag-semver: |
-            {{major}}
-            {{major}}.{{minor}}
-            {{major}}.{{minor}}.{{patch}}
-
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3
-      if: ${{ github.event_name != 'pull_request' }}
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Push Docker Image
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        tags: ${{ steps.docker_meta.outputs.tags }}
-        labels: ${{ steps.docker_meta.outputs.labels }}
-        push: ${{ github.event_name != 'pull_request' }}
+  image-publish:
+    uses: WIPACrepo/wipac-dev-workflows/.github/workflows/image-publish.yml@v1.14
+    permissions: # for GITHUB_TOKEN
+      packages: write
+    with:
+      image_registry: ghcr.io
+      image_namespace: wipacrepo
+      image_name: lta
+      mode: 'BUILD'
+      extra_build_tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
