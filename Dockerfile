@@ -1,4 +1,6 @@
 # Dockerfile
+ARG PYTHON=3.12
+
 FROM almalinux:9
 
 RUN dnf install -y dnf-plugins-core wget && dnf clean all
@@ -65,13 +67,11 @@ COPY README.md pyproject.toml setup.py /app/
 
 RUN chown -R app:app /app
 
-# install our application with dependencies 
+# install our application with dependencies
 USER app
 
 ENV VIRTUAL_ENV=/app/venv
-
-RUN python3.12 -m venv $VIRTUAL_ENV
-
+RUN python${PYTHON} -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN --mount=source=.git,target=.git,type=bind pip install -e .[monitoring]
