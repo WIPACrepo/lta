@@ -1,7 +1,7 @@
 # Dockerfile
 FROM almalinux:9
 
-ARG PYTHON=${PYTHON}
+ARG PYTHON=3.12
 
 RUN dnf install -y dnf-plugins-core wget && dnf clean all
 
