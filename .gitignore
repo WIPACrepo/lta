@@ -119,4 +119,4 @@ stderr.txt
 /suru
 
 .idea/
-
+*.code-workspace
