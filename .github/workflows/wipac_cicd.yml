@@ -196,7 +196,8 @@ jobs:
           tags: ${{ env.CI_DOCKER_IMAGE_W_TAG }}
 
 
-  # TODO: integration-tests w/ docker build for each python (need to add PYTHON_VER arg tuso Dockerfile)
+  # TODO: integration-tests w/ docker build for each python (need to add PYTHON_VER arg to Dockerfile)
+  #       should run 'test_rest_server.py'
 
 
   #############################################################################
