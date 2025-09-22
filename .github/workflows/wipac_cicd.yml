@@ -258,6 +258,7 @@ jobs:
           tags: ${{ env.CI_DOCKER_IMAGE_W_TAG }}
           build-args: |
             PYTHON=${{ matrix.py3 }}
+          load: true
       # TEST SCRIPT
       - name: "docker run --rm"
         run: |
