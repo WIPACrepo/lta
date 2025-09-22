@@ -274,7 +274,9 @@ jobs:
               ${{ env.CI_DOCKER_IMAGE_W_TAG }} \
               /bin/bash -c "\
                 pip install $dev_reqs && \
+                resources/enable_profiling.py \
                 pytest -vvvvv --tb=short tests/integration/ \
+                resources/profile_queries.py \
               "
 
 
