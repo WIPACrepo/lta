@@ -65,7 +65,7 @@ COPY README.md pyproject.toml setup.py /app/
 
 RUN chown -R app:app /app
 
-# install our application with dependencies 
+# install our application with dependencies
 USER app
 
 ENV VIRTUAL_ENV=/app/venv
@@ -74,7 +74,7 @@ RUN python3.12 -m venv $VIRTUAL_ENV
 
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-RUN --mount=source=.git,target=.git,type=bind pip install -e .[monitoring]
+RUN --mount=source=.git,target=.git,type=bind pip install .[monitoring]
 
 # by default, just show a friendly message
 CMD ["python3", "-c", "print('Hello, LTA!')"]
