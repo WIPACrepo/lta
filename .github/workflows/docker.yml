@@ -25,4 +25,6 @@ jobs:
       image_namespace: wipacrepo
       image_name: lta
       mode: 'BUILD'
+      # only used if build mode(s):
+      build_platforms_csv: 'linux/amd64'
       extra_build_tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
