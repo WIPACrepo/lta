@@ -117,3 +117,6 @@ stderr.txt
 
 # Patrick development ergonomics
 /suru
+
+.idea/
+*.code-workspace
