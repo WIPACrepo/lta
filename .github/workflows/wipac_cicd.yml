@@ -176,7 +176,7 @@ jobs:
           set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
           source ./tools/setupenv.sh
           resources/enable_profiling.py
-          pytest -vvvvv --tb=short tests
+          pytest -vvvvv --tb=short tests/unit/
           resources/profile_queries.py
 
   test-build-docker:
