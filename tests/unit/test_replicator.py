@@ -1,4 +1,4 @@
-# test_replicator.py
+# tests/unit/test_replicator.py
 """
 Unit tests for replicator.GridFTPReplicator.
 
@@ -20,35 +20,35 @@ from unittest.mock import MagicMock
 # --------------------------------------------------------------------------------------
 # "Import" replicator module
 #
-# NOTE - because the replicator uses global variables that intantiate on import,
+# NOTE - because the replicator uses global variables that instantiate on import,
 #        we need to use a fixture with targeted patches
 # --------------------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
-def replicator(monkeypatch: pytest.MonkeyPatch):
+def replicator(monkeypatch: pytest.MonkeyPatch) -> Any:
     """Import lta.gridftp_replicator with Prometheus metrics neutralized."""
 
     class _Counter:
-        def labels(self, **_: Any):
+        def labels(self, **_: Any) -> "._Counter":
             return self
 
-        def inc(self, *a: Any, **k: Any):
+        def inc(self, *a: Any, **k: Any) -> None:
             return None
 
     class _Gauge:
-        def labels(self, **_: Any):
+        def labels(self, **_: Any) -> "._Gauge":
             return self
 
-        def set(self, *a: Any, **k: Any):
+        def set(self, *a: Any, **k: Any) -> None:
             return None
 
-    # Replace real prometheus classes with stubs
+    # Replace real prometheus classes with stubs BEFORE import
     monkeypatch.setattr(prometheus_client, "Counter", lambda *a, **k: _Counter())
     monkeypatch.setattr(prometheus_client, "Gauge", lambda *a, **k: _Gauge())
 
     mod = importlib.import_module("lta.gridftp_replicator")
-    return mod
+    return mod  # typed as Any to keep mypy relaxed in tests
 
 
 # --------------------------------------------------------------------------------------
@@ -108,18 +108,18 @@ class DummyRestClient:
 
 
 @pytest.fixture(autouse=True)
-def no_prometheus(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Neutralize Prometheus metrics to avoid global state conflicts."""
+def no_prometheus(replicator: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neutralize Prometheus metrics to avoid global state conflicts (module-level objects)."""
 
     class _Counter:
-        def labels(self, **_kw: Any) -> _Counter:  # type: ignore[override]
+        def labels(self, **_kw: Any) -> "._Counter":  # type: ignore[override]
             return self
 
         def inc(self, *_a: Any, **_k: Any) -> None:
             return None
 
     class _Gauge:
-        def labels(self, **_kw: Any) -> _Gauge:  # type: ignore[override]
+        def labels(self, **_kw: Any) -> "._Gauge":  # type: ignore[override]
             return self
 
         def set(self, *_a: Any, **_k: Any) -> None:
@@ -131,7 +131,9 @@ def no_prometheus(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def mock_join(monkeypatch: pytest.MonkeyPatch) -> Callable[[list[str]], str]:
+def mock_join(
+    replicator: Any, monkeypatch: pytest.MonkeyPatch
+) -> Callable[[list[str]], str]:
     """Mock join_smart_url to a predictable path joiner."""
 
     def _join(parts: list[str]) -> str:
@@ -142,7 +144,7 @@ def mock_join(monkeypatch: pytest.MonkeyPatch) -> Callable[[list[str]], str]:
 
 
 @pytest.fixture
-def mock_now(monkeypatch: pytest.MonkeyPatch) -> str:
+def mock_now(replicator: Any, monkeypatch: pytest.MonkeyPatch) -> str:
     """Freeze now() to a stable string."""
     ts = "2025-01-01T00:00:00Z"
     monkeypatch.setattr(replicator, "now", lambda: ts)
@@ -150,7 +152,7 @@ def mock_now(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 @pytest.fixture
-def mock_proxy(monkeypatch: pytest.MonkeyPatch) -> Any:
+def mock_proxy(replicator: Any, monkeypatch: pytest.MonkeyPatch) -> Any:
     """Mock SiteGlobusProxy with a no-op update_proxy, without reassigning methods."""
 
     class _DummyProxy:
@@ -163,7 +165,7 @@ def mock_proxy(monkeypatch: pytest.MonkeyPatch) -> Any:
 
 
 @pytest.fixture
-def mock_transfer(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+def mock_transfer(replicator: Any, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     """
     Mock the transfer mechanism, abstracting away GridFTP details.
     Provides `.put` as a MagicMock so future swaps (e.g., to Globus) only need this fixture updated.
@@ -178,7 +180,7 @@ def mock_transfer(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
 # --------------------------------------------------------------------------------------
 
 
-def test_000_expected_config_has_keys() -> None:
+def test_000_expected_config_has_keys(replicator: Any) -> None:
     """replicator.EXPECTED_CONFIG should include keys this component relies on."""
     for key in [
         "GRIDFTP_DEST_URLS",
@@ -190,7 +192,9 @@ def test_000_expected_config_has_keys() -> None:
         assert key in replicator.EXPECTED_CONFIG
 
 
-def test_010_init_parses_config(base_config: dict[str, str], logger: Any) -> None:
+def test_010_init_parses_config(
+    replicator: Any, base_config: dict[str, str], logger: Any
+) -> None:
     """__init__ should parse and coerce config values correctly."""
     rep = replicator.GridFTPReplicator(base_config, logger)
     assert rep.gridftp_dest_urls == [
@@ -204,7 +208,9 @@ def test_010_init_parses_config(base_config: dict[str, str], logger: Any) -> Non
 
 
 @pytest.mark.asyncio
-async def test_020_do_status_empty(base_config: dict[str, str], logger: Any) -> None:
+async def test_020_do_status_empty(
+    replicator: Any, base_config: dict[str, str], logger: Any
+) -> None:
     """_do_status should return an empty dict."""
     rep = replicator.GridFTPReplicator(base_config, logger)
     assert rep._do_status() == {}
@@ -212,6 +218,7 @@ async def test_020_do_status_empty(base_config: dict[str, str], logger: Any) -> 
 
 @pytest.mark.asyncio
 async def test_030_do_work_claim_no_bundle_returns_false(
+    replicator: Any,
     base_config: dict[str, str],
     logger: Any,
     mock_proxy: MagicMock,
@@ -221,13 +228,14 @@ async def test_030_do_work_claim_no_bundle_returns_false(
     rep = replicator.GridFTPReplicator(base_config, logger)
     rc = DummyRestClient(responses=[{"bundle": None}])
 
-    got = await rep._do_work_claim(cast(replicator.RestClient, rc))
+    got = await rep._do_work_claim(cast(Any, rc))
     assert got is False
     assert any(url.startswith("/Bundles/actions/pop") for _, url, _ in rc.calls)
 
 
 @pytest.mark.asyncio
 async def test_040_do_work_claim_success_calls_transfer_and_patch(
+    replicator: Any,
     base_config: dict[str, str],
     logger: Any,
     mock_proxy: MagicMock,
@@ -251,7 +259,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     # Deterministic URL choice
     monkeypatch.setattr(replicator.random, "choice", lambda urls: urls[0])
 
-    ok = await rep._do_work_claim(cast(replicator.RestClient, rc))
+    ok = await rep._do_work_claim(cast(Any, rc))
     assert ok is True
 
     # Transfer called with basename only (USE_FULL_BUNDLE_PATH is FALSE)
@@ -274,6 +282,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
 
 @pytest.mark.asyncio
 async def test_050_do_work_claim_transfer_error_is_logged_but_still_patches_success(
+    replicator: Any,
     base_config: dict[str, str],
     logger: Any,
     mock_proxy: MagicMock,
@@ -304,9 +313,7 @@ async def test_050_do_work_claim_transfer_error_is_logged_but_still_patches_succ
     # Deterministic URL choice
     monkeypatch.setattr(replicator.random, "choice", lambda urls: urls[0])
 
-    ok = await rep._do_work_claim(cast(replicator.RestClient, rc))
-
-    # Because the exception is caught inside _replicate..., this returns True
+    ok = await rep._do_work_claim(cast(Any, rc))
     assert ok is True
 
     # Verify we PATCHed with output_status (success path), not quarantine
@@ -323,6 +330,7 @@ async def test_050_do_work_claim_transfer_error_is_logged_but_still_patches_succ
 
 @pytest.mark.asyncio
 async def test_060_do_work_runs_until_no_work(
+    replicator: Any,
     base_config: dict[str, str],
     logger: Any,
     mock_proxy: MagicMock,
@@ -341,13 +349,16 @@ async def test_060_do_work_runs_until_no_work(
     monkeypatch.setattr(rep, "_do_work_claim", _fake_claim)
     rc = DummyRestClient()
 
-    await rep._do_work(cast(replicator.RestClient, rc))
+    await rep._do_work(cast(Any, rc))
     assert len(claim_calls) == 2
 
 
 @pytest.mark.asyncio
 async def test_070_do_work_respects_run_once_and_die(
-    base_config: dict[str, str], logger: Any, monkeypatch: pytest.MonkeyPatch
+    replicator: Any,
+    base_config: dict[str, str],
+    logger: Any,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """If run_once_and_die is set, _do_work should call sys.exit after one claim attempt."""
     rep = replicator.GridFTPReplicator(base_config, logger)
@@ -367,13 +378,14 @@ async def test_070_do_work_respects_run_once_and_die(
     monkeypatch.setattr(sys, "exit", _fake_exit)
 
     with pytest.raises(SystemExit):
-        await rep._do_work(cast(replicator.RestClient, DummyRestClient()))
+        await rep._do_work(cast(Any, DummyRestClient()))
 
     assert exit_called["flag"] is True
 
 
 @pytest.mark.asyncio
 async def test_080_replication_use_full_bundle_path_true(
+    replicator: Any,
     base_config: dict[str, str],
     logger: Any,
     mock_proxy: MagicMock,
@@ -395,7 +407,7 @@ async def test_080_replication_use_full_bundle_path_true(
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
     monkeypatch.setattr(replicator.random, "choice", lambda urls: urls[0])
 
-    ok = await rep._do_work_claim(cast(replicator.RestClient, rc))
+    ok = await rep._do_work_claim(cast(Any, rc))
     assert ok is True
 
     dest_url: str = mock_transfer.put.call_args[0][0]
@@ -404,6 +416,7 @@ async def test_080_replication_use_full_bundle_path_true(
 
 @pytest.mark.asyncio
 async def test_090_replication_use_full_bundle_path_false(
+    replicator: Any,
     base_config: dict[str, str],
     logger: Any,
     mock_proxy: MagicMock,
@@ -425,7 +438,7 @@ async def test_090_replication_use_full_bundle_path_false(
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
     monkeypatch.setattr(replicator.random, "choice", lambda urls: urls[0])
 
-    ok = await rep._do_work_claim(cast(replicator.RestClient, rc))
+    ok = await rep._do_work_claim(cast(Any, rc))
     assert ok is True
 
     dest_url: str = mock_transfer.put.call_args[0][0]
