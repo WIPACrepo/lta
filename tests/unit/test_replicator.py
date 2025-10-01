@@ -238,7 +238,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
 
 
 @pytest.mark.asyncio
-async def test_050_do_work_claim_exception_quarantines_and_returns_false(
+async def test_050_do_work_claim_transfer_error_is_logged_but_still_patches_success(
     base_config: dict[str, str],
     logger: Any,
     mock_proxy: MagicMock,
@@ -247,7 +247,10 @@ async def test_050_do_work_claim_exception_quarantines_and_returns_false(
     mock_now: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """If transfer raises, the bundle is quarantined and function returns False."""
+    """
+    If transfer raises, _replicate_bundle_to_destination_site catches the exception,
+    logs it, and still issues the PATCH to set the output status (no quarantine).
+    """
     rep = replicator.GridFTPReplicator(base_config, logger)
 
     bundle: dict[str, Any] = {
@@ -257,30 +260,30 @@ async def test_050_do_work_claim_exception_quarantines_and_returns_false(
         "path": "/data/exp/IceCube/2015/baz",
     }
 
+    # POST /pop => returns a bundle; subsequent PATCH ack
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
+
+    # Make the transfer fail, but the component catches it internally
     mock_transfer.put.side_effect = RuntimeError("boom")
+
+    # Deterministic URL choice
     monkeypatch.setattr(replicator.random, "choice", lambda urls: urls[0])
 
     ok = await rep._do_work_claim(rc)
-    assert ok is False
 
-    quarantine_calls = [
-        c
-        for c in rc.calls
-        if c[0] == "PATCH"
-        and c[1] == "/Bundles/B-ERR"
-        and c[2].get("status") == "quarantined"
-    ]
-    assert quarantine_calls
+    # Because the exception is caught inside _replicate..., this returns True
+    assert ok is True
 
-    # Ensure we didn't set output_status after failure
-    assert not any(
-        c
-        for c in rc.calls
-        if c[0] == "PATCH"
-        and c[1] == "/Bundles/B-ERR"
-        and c[2].get("status") == rep.output_status
-    )
+    # Verify we PATCHed with output_status (success path), not quarantine
+    patch_calls = [c for c in rc.calls if c[0] == "PATCH" and c[1] == "/Bundles/B-ERR"]
+    assert patch_calls, "Expected a PATCH to update the Bundle"
+    _, _, body = patch_calls[0]
+    assert body.get("status") == rep.output_status
+    assert body.get("claimed") is False
+    assert body.get("reason") == ""  # per current implementation
+
+    # And ensure no quarantine PATCH was sent
+    assert not any(c for c in patch_calls if c[2].get("status") == "quarantined")
 
 
 @pytest.mark.asyncio
