@@ -30,14 +30,14 @@ def replicator(monkeypatch: pytest.MonkeyPatch) -> Any:
     """Import lta.gridftp_replicator with Prometheus metrics neutralized."""
 
     class _Counter:
-        def labels(self, **_: Any) -> "._Counter":
+        def labels(self, **_: Any) -> Any:
             return self
 
         def inc(self, *a: Any, **k: Any) -> None:
             return None
 
     class _Gauge:
-        def labels(self, **_: Any) -> "._Gauge":
+        def labels(self, **_: Any) -> Any:
             return self
 
         def set(self, *a: Any, **k: Any) -> None:
@@ -105,29 +105,6 @@ class DummyRestClient:
         if self._responses:
             return self._responses.pop(0)
         return {}
-
-
-@pytest.fixture(autouse=True)
-def no_prometheus(replicator: Any, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Neutralize Prometheus metrics to avoid global state conflicts (module-level objects)."""
-
-    class _Counter:
-        def labels(self, **_kw: Any) -> "._Counter":  # type: ignore[override]
-            return self
-
-        def inc(self, *_a: Any, **_k: Any) -> None:
-            return None
-
-    class _Gauge:
-        def labels(self, **_kw: Any) -> "._Gauge":  # type: ignore[override]
-            return self
-
-        def set(self, *_a: Any, **_k: Any) -> None:
-            return None
-
-    monkeypatch.setattr(replicator, "success_counter", _Counter())
-    monkeypatch.setattr(replicator, "failure_counter", _Counter())
-    monkeypatch.setattr(replicator, "load_gauge", _Gauge())
 
 
 @pytest.fixture
