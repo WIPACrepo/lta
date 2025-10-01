@@ -309,7 +309,7 @@ async def test_060_do_work_runs_until_no_work(
     monkeypatch.setattr(rep, "_do_work_claim", _fake_claim)
     rc = DummyRestClient()
 
-    await rep._do_work(rc)
+    await rep._do_work(cast(replicator.RestClient, rc))
     assert len(claim_calls) == 2
 
 
@@ -335,7 +335,7 @@ async def test_070_do_work_respects_run_once_and_die(
     monkeypatch.setattr(sys, "exit", _fake_exit)
 
     with pytest.raises(SystemExit):
-        await rep._do_work(DummyRestClient())
+        await rep._do_work(cast(replicator.RestClient, DummyRestClient()))
 
     assert exit_called["flag"] is True
 
