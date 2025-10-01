@@ -10,7 +10,7 @@ Goals:
 
 import sys
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import pytest
 from unittest.mock import MagicMock
@@ -118,13 +118,16 @@ def mock_now(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 @pytest.fixture
-def mock_proxy(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Mock SiteGlobusProxy.update_proxy (no-op)."""
-    cls = replicator.SiteGlobusProxy
-    inst = cls.__new__(cls)
-    inst.update_proxy = MagicMock()
-    monkeypatch.setattr(replicator, "SiteGlobusProxy", MagicMock(return_value=inst))
-    return inst
+def mock_proxy(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """Mock SiteGlobusProxy with a no-op update_proxy, without reassigning methods."""
+
+    class _DummyProxy:
+        def update_proxy(self) -> None:
+            return None
+
+    # Replace the class in the module so GridFTPReplicator() instantiates this instead
+    monkeypatch.setattr(replicator, "SiteGlobusProxy", _DummyProxy)
+    return _DummyProxy()
 
 
 @pytest.fixture
@@ -186,7 +189,7 @@ async def test_030_do_work_claim_no_bundle_returns_false(
     rep = replicator.GridFTPReplicator(base_config, logger)
     rc = DummyRestClient(responses=[{"bundle": None}])
 
-    got = await rep._do_work_claim(rc)
+    got = await rep._do_work_claim(cast(replicator.RestClient, rc))
     assert got is False
     assert any(url.startswith("/Bundles/actions/pop") for _, url, _ in rc.calls)
 
@@ -216,7 +219,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     # Deterministic URL choice
     monkeypatch.setattr(replicator.random, "choice", lambda urls: urls[0])
 
-    ok = await rep._do_work_claim(rc)
+    ok = await rep._do_work_claim(cast(replicator.RestClient, rc))
     assert ok is True
 
     # Transfer called with basename only (USE_FULL_BUNDLE_PATH is FALSE)
@@ -269,7 +272,7 @@ async def test_050_do_work_claim_transfer_error_is_logged_but_still_patches_succ
     # Deterministic URL choice
     monkeypatch.setattr(replicator.random, "choice", lambda urls: urls[0])
 
-    ok = await rep._do_work_claim(rc)
+    ok = await rep._do_work_claim(cast(replicator.RestClient, rc))
 
     # Because the exception is caught inside _replicate..., this returns True
     assert ok is True
@@ -360,7 +363,7 @@ async def test_080_replication_use_full_bundle_path_true(
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
     monkeypatch.setattr(replicator.random, "choice", lambda urls: urls[0])
 
-    ok = await rep._do_work_claim(rc)
+    ok = await rep._do_work_claim(cast(replicator.RestClient, rc))
     assert ok is True
 
     dest_url: str = mock_transfer.put.call_args[0][0]
@@ -390,7 +393,7 @@ async def test_090_replication_use_full_bundle_path_false(
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
     monkeypatch.setattr(replicator.random, "choice", lambda urls: urls[0])
 
-    ok = await rep._do_work_claim(rc)
+    ok = await rep._do_work_claim(cast(replicator.RestClient, rc))
     assert ok is True
 
     dest_url: str = mock_transfer.put.call_args[0][0]
