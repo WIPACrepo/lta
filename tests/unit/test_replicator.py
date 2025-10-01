@@ -7,16 +7,48 @@ Goals:
 - Avoid touching real Prometheus metrics and networking.
 - Cover success, no-work, error/quarantine, run-once-and-die, and path toggle.
 """
-
+import importlib
 import sys
 from types import SimpleNamespace
 from typing import Any, Callable, cast
 
+import prometheus_client
 import pytest
 from unittest.mock import MagicMock
 
 
-from lta import gridftp_replicator as replicator
+# --------------------------------------------------------------------------------------
+# "Import" replicator module
+#
+# NOTE - because the replicator uses global variables that intantiate on import,
+#        we need to use a fixture with targeted patches
+# --------------------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def replicator(monkeypatch: pytest.MonkeyPatch):
+    """Import lta.gridftp_replicator with Prometheus metrics neutralized."""
+
+    class _Counter:
+        def labels(self, **_: Any):
+            return self
+
+        def inc(self, *a: Any, **k: Any):
+            return None
+
+    class _Gauge:
+        def labels(self, **_: Any):
+            return self
+
+        def set(self, *a: Any, **k: Any):
+            return None
+
+    # Replace real prometheus classes with stubs
+    monkeypatch.setattr(prometheus_client, "Counter", lambda *a, **k: _Counter())
+    monkeypatch.setattr(prometheus_client, "Gauge", lambda *a, **k: _Gauge())
+
+    mod = importlib.import_module("lta.gridftp_replicator")
+    return mod
 
 
 # --------------------------------------------------------------------------------------
