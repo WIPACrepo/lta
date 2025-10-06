@@ -25,9 +25,9 @@ from unittest.mock import MagicMock
 # --------------------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def replicator(monkeypatch: pytest.MonkeyPatch) -> Any:
-    """Import lta.gridftp_replicator with Prometheus metrics neutralized."""
+    """Import lta.gridftp_replicator with Prometheus metrics neutralized (per test)."""
 
     class _Counter:
         def labels(self, **_: Any) -> Any:
@@ -43,12 +43,14 @@ def replicator(monkeypatch: pytest.MonkeyPatch) -> Any:
         def set(self, *a: Any, **k: Any) -> None:
             return None
 
-    # Replace real prometheus classes with stubs BEFORE import
+    # Stub prometheus BEFORE import
     monkeypatch.setattr(prometheus_client, "Counter", lambda *a, **k: _Counter())
     monkeypatch.setattr(prometheus_client, "Gauge", lambda *a, **k: _Gauge())
 
+    # Ensure a fresh import so stubs take effect every time
+    sys.modules.pop("lta.gridftp_replicator", None)
     mod = importlib.import_module("lta.gridftp_replicator")
-    return mod  # typed as Any to keep mypy relaxed in tests
+    return mod
 
 
 # --------------------------------------------------------------------------------------
