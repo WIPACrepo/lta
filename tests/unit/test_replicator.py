@@ -62,23 +62,27 @@ def replicator(monkeypatch: pytest.MonkeyPatch) -> Any:
 def base_config() -> dict[str, str]:
     """Minimal, valid config for replicator.GridFTPReplicator."""
     return {
-        # COMMON_CONFIG used by Component base:
-        "CANCEL_FRACTION_OF_TIMEOUT": "0.75",
+        # ===== Required by COMMON_CONFIG (must be present and non-empty) =====
+        "CLIENT_ID": "test-client-id",
+        "CLIENT_SECRET": "test-client-secret",
         "COMPONENT_NAME": "replicator",
         "DEST_SITE": "DESY",
         "INPUT_STATUS": "completed",
         "LOG_LEVEL": "DEBUG",
-        "MAX_CLAIM_WORK": "1",
-        "RUN_ONCE_AND_DIE": "FALSE",
-        "SOURCE_SITE": "WIPAC",
-        "WORKBOX_PATH": "/tmp",
+        "LTA_AUTH_OPENID_URL": "https://auth.local/oidc/token",
+        "LTA_REST_URL": "https://lta.local/api",
+        "OUTPUT_STATUS": "transferring",
         "PROMETHEUS_METRICS_PORT": "9102",
-        # Module-specific:
+        "RUN_ONCE_AND_DIE": "FALSE",
+        "RUN_UNTIL_NO_WORK": "FALSE",
+        "SOURCE_SITE": "WIPAC",
+        "WORK_RETRIES": "3",
+        "WORK_SLEEP_DURATION_SECONDS": "0.01",  # keep tests snappy
+        "WORK_TIMEOUT_SECONDS": "30",
+        # ===== Module-specific for GridFTPReplicator =====
         "GRIDFTP_DEST_URLS": "gsiftp://dest.example.org:2811/data;gsiftp://alt.example.org:2811/data",
         "GRIDFTP_TIMEOUT": "1200",
         "USE_FULL_BUNDLE_PATH": "FALSE",
-        "WORK_RETRIES": "3",
-        "WORK_TIMEOUT_SECONDS": "30",
     }
 
 
