@@ -120,3 +120,5 @@ stderr.txt
 
 .idea/
 *.code-workspace
+
+version.py
