@@ -89,6 +89,7 @@ jobs:
   #############################################################################
 
   py-setup:
+    if: ${{ github.actor != 'dependabot[bot]' }} # dependabot cannot access PAT
     needs: [
       # linters so we don't waste compute on faulty code...
       flake8,
