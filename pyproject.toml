@@ -62,10 +62,10 @@ dev = [
     'types-requests',
 ]
 monitoring = [
-    'elasticsearch[async]<8.16',
+    'elasticsearch[async]<9.2',
 ]
 mypy = [
-    'elasticsearch[async]<8.16',
+    'elasticsearch[async]<9.2',
     'flake8',
     'mypy',
     'pycycle',
