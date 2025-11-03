@@ -129,7 +129,7 @@ jobs:
           file: Dockerfile
           tags: lta:py-dep-this
           load: true
-      - uses: WIPACrepo/wipac-dev-py-dependencies-action@v3.2
+      - uses: WIPACrepo/wipac-dev-py-dependencies-action@v3.4
 
 
   ############################################################################
