@@ -3,6 +3,7 @@
 
 # fmt:off
 
+
 def drain_semaphore_filename(component: str) -> str:
     """Obtain the canonical drain semaphore filename for the specified component name."""
     return f".lta-{component}-drain"
