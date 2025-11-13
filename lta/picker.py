@@ -1,6 +1,8 @@
 # picker.py
 """Module to implement the Picker component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import json
 import logging

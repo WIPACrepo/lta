@@ -1,6 +1,8 @@
 # component.py
 """Module to implement an abstract base Component for the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 from datetime import datetime
 from logging import Logger

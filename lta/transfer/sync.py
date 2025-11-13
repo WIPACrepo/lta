@@ -1,6 +1,8 @@
 # sync.py
 """Transfer implementation using WebDAV to copy files to DESY."""
 
+# fmt:off
+
 import asyncio
 import base64
 from enum import Enum

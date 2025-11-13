@@ -1,6 +1,8 @@
 # nersc_mover.py
 """Module to implement the NerscMover component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import logging
 import os

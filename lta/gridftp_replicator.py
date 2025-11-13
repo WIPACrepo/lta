@@ -1,6 +1,8 @@
 # gridftp_replicator.py
 """Module to implement the GridFTPReplicator component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import logging
 import os

@@ -1,6 +1,8 @@
 # lta_const.py
 """Central catalog of LTA constants and constant functions."""
 
+# fmt:off
+
 
 def drain_semaphore_filename(component: str) -> str:
     """Obtain the canonical drain semaphore filename for the specified component name."""

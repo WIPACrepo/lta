@@ -1,6 +1,8 @@
 # lta_tools.py
 """Module with some tools for components of the Long Term Archive."""
 
+# fmt:off
+
 import os
 from typing import cast, Dict, Optional
 

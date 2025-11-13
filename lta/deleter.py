@@ -1,6 +1,8 @@
 # deleter.py
 """Module to implement the Deleter component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import logging
 import os

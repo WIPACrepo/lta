@@ -1,6 +1,8 @@
 # rate_limiter.py
 """Module to implement the RateLimiter component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import logging
 import os

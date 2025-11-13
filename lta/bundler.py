@@ -1,6 +1,8 @@
 # bundler.py
 """Module to implement the Bundler component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import json
 import logging

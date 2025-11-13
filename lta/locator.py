@@ -1,6 +1,8 @@
 # locator.py
 """Module to implement the Locator component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import json
 import logging
