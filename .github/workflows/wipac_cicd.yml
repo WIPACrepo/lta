@@ -125,7 +125,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # optimization: ask the action if it would proceed before building our expensive images
-      - uses: WIPACrepo/wipac-dev-py-dependencies-action@no-artifact
+      - uses: WIPACrepo/wipac-dev-py-dependencies-action@v3.4
         id: pydep-precheck
         with:
           only_precheck: true
@@ -146,7 +146,7 @@ jobs:
           tags: lta:py-dep-this
           load: true
       - if: ${{ steps.pydep-precheck.outputs.do_generation == 'true' }}
-        uses: WIPACrepo/wipac-dev-py-dependencies-action@no-artifact
+        uses: WIPACrepo/wipac-dev-py-dependencies-action@v3.4
 
 
   ############################################################################
