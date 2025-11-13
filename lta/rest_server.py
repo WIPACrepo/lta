@@ -4,6 +4,8 @@ Long Term Archive REST API server.
 Run with `python -m lta.rest_server`.
 """
 
+# fmt:off
+
 import asyncio
 from datetime import datetime
 import logging

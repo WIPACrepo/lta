@@ -1,6 +1,8 @@
 # joiner.py
 """Module to implement the DesyVerifier component of the Long Term Archive."""
 
+# fmt:off
+
 import os
 from typing import List
 

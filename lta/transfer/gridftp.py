@@ -1,6 +1,8 @@
 # gridftp.py
 """Module provides an interface to GridFTP command-line interface."""
 
+# fmt:off
+
 from collections import namedtuple
 from datetime import datetime
 import hashlib

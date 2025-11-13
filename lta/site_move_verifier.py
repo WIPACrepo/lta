@@ -1,6 +1,8 @@
 # site_move_verifier.py
 """Module to implement the SiteMoveVerifier component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import logging
 import os

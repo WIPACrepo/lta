@@ -1,6 +1,8 @@
 # unpacker.py
 """Module to implement the Unpacker component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import json
 import logging

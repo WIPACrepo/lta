@@ -4,6 +4,8 @@ Command line utility for Long Term Archive.
 Run with `python -m lta.lta_cmd $@`.
 """
 
+# fmt:off
+
 import argparse
 import asyncio
 from datetime import datetime, timedelta

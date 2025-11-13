@@ -1,6 +1,8 @@
 # crypto.py
 """Module that provides cryptographic support services."""
 
+# fmt:off
+
 import hashlib
 from typing import Dict
 import zlib

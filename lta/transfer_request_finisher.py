@@ -1,6 +1,8 @@
 # transfer_request_finisher.py
 """Module to implement the TransferRequestFinisher component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import logging
 import sys

@@ -1,6 +1,8 @@
 # desy_mirror_replicator.py
 """Module to implement the DesyMirrorReplicator component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import logging
 import os

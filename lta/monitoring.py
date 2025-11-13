@@ -1,5 +1,7 @@
 """Module to implement the monitoring component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import logging
 import sys

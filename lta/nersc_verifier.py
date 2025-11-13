@@ -1,6 +1,8 @@
 # nersc_verifier.py
 """Module to implement the NerscVerifier component of the Long Term Archive."""
 
+# fmt:off
+
 import asyncio
 import logging
 import os

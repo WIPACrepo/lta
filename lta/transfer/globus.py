@@ -1,6 +1,8 @@
 # globus.py
 """Tools to help manage Globus proxies."""
 
+# fmt:off
+
 import os
 import subprocess
 import logging
