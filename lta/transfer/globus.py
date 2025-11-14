@@ -150,7 +150,7 @@ class GlobusTransfer:
     def __init__(self) -> None:
         """Load env config and initialize a TransferClient."""
         self._env = from_environment_as_dataclass(GlobusTransferEnv)
-        self._client = self._set_up_client()
+        self._transfer_client = self._set_up_client()
 
     # ---------------------------
     # Internal Helpers
@@ -211,7 +211,7 @@ class GlobusTransfer:
         # cancel task
         logger.error(error_msg)
         try:
-            self._client.cancel_task(task_id)
+            self._transfer_client.cancel_task(task_id)
         except Exception:
             logger.exception(f"Could not cancel Globus {task_id=}")
 
@@ -237,9 +237,8 @@ class GlobusTransfer:
         # set up transfer document
         dest_collection_id, dest_path = self._parse_dest_url(dest_url)
         tdata = globus_sdk.TransferData(
-            self._client,
-            self._env.GLOBUS_SOURCE_COLLECTION_ID,
-            dest_collection_id,
+            source_endpoint=self._env.GLOBUS_SOURCE_COLLECTION_ID,
+            destination_endpoint=dest_collection_id,
             label=f"LTA bundle transfer: {os.path.basename(source_path)}",
             sync_level="checksum",
         )
@@ -250,7 +249,7 @@ class GlobusTransfer:
             f"Submitting transfer: src_collection={self._env.GLOBUS_SOURCE_COLLECTION_ID} "
             f"{source_path=} {dest_collection_id=} {dest_path=}",
         )
-        task_id = self._client.submit_transfer(tdata)["task_id"]
+        task_id = self._transfer_client.submit_transfer(tdata)["task_id"]
         logger.info(f"Globus transfer submitted: {task_id=}")
         await asyncio.sleep(0)  # since request is not async, handover to pending tasks
 
@@ -272,7 +271,7 @@ class GlobusTransfer:
                 logger.debug("checking transfer status...")
 
             # look at status
-            task = self._client.get_task(task_id)
+            task = self._transfer_client.get_task(task_id)
             match status := task["status"]:
                 case "SUCCEEDED":
                     logger.info(f"Globus transfer succeeded: {task_id=} {task=}")
