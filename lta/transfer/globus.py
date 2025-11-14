@@ -144,6 +144,10 @@ class GlobusTransferEnv:
 # ---------------------------
 
 
+class GlobusTransferFailedException(Exception):
+    """Raised when globus transfer failed."""
+
+
 class GlobusTransfer:
     """Submit and wait for single-file Globus transfers."""
 
@@ -281,7 +285,7 @@ class GlobusTransfer:
                 case "FAILED" | "INACTIVE":
                     msg = f"Globus transfer failed ({status=}): {task_id=} {task=}"
                     logger.error(msg)
-                    raise RuntimeError(msg)
+                    raise GlobusTransferFailedException(msg)
                 case "ACTIVE":
                     continue
                 case _:

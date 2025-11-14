@@ -10,6 +10,7 @@ import random
 import sys
 from typing import Any, Dict, Optional
 
+from humanfriendly import Timer
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 import wipac_telemetry.tracing_tools as wtt
@@ -19,7 +20,7 @@ from .joiner import join_smart_url
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .rest_server import boolify
-from .transfer.globus import GlobusTransfer
+from .transfer.globus import GlobusTransfer, GlobusTransferFailedException
 
 Logger = logging.Logger
 
@@ -162,7 +163,7 @@ class GlobusReplicator(Component):
             )
         except Exception as e:
             self.logger.error(f'Globus transfer threw an error: {e}')
-            raise  # TODO
+            raise  # -> bundle to be quarantined
 
         # update the Bundle in the LTA DB
         patch_body = {
@@ -173,7 +174,6 @@ class GlobusReplicator(Component):
             # store the Globus task id so another component can inspect it
             "transfer_reference": f"globus/{task_id}",
         }
-
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
