@@ -265,11 +265,9 @@ class GlobusTransfer:
             # looping condition(s)
             # -- note: check if interval elapsed *before* sleeping to not waste time
             if deadline.has_interval_elapsed():
-                self._cancel_task(
-                    task_id,
-                    f"Globus transfer {task_id=} timed out after {request_timeout=} seconds",
-                )
-                raise TimeoutError(f"Globus transfer {task_id} timed out")
+                msg = f"Globus transfer {task_id=} timed out after {request_timeout=} seconds"
+                self._cancel_task(task_id, msg)
+                raise TimeoutError(msg)
             elif i > 0:
                 await asyncio.sleep(self._env.GLOBUS_POLL_INTERVAL_SECONDS)
 
