@@ -293,3 +293,8 @@ class GlobusTransfer:
                         f"received unknown {status=}: {task_id=} {task=} — continuing..."
                     )
                     continue
+
+        # --- mypy requires a fall-through path since the inf. loop is not a 'while-True'
+        raise RuntimeError(
+            f"Globus transfer loop exited unexpectedly (task_id={task_id})"
+        )

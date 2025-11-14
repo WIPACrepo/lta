@@ -10,7 +10,7 @@ import random
 import sys
 from typing import Any, Dict, Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[import-not-found]
 from rest_tools.client import RestClient
 import wipac_telemetry.tracing_tools as wtt
 
