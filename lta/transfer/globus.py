@@ -254,6 +254,7 @@ class GlobusTransfer:
         await asyncio.sleep(0)  # since request is not async, handover to pending tasks
 
         # wait for transfer result
+        # -- NOTE: 'globus_sdk.TransferClient.task_wait()' is *NOT* async, so diy
         deadline = IntervalTimer(request_timeout, logger=None)
         for i in itertools.count():
 
