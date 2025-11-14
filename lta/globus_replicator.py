@@ -27,7 +27,7 @@ LOG = logging.getLogger(__name__)
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "GLOBUS_DEST_URLS": None,  # URLs delimited with semi-colons ;
+    "GLOBUS_DEST_URL": None,
     "GLOBUS_TIMEOUT": "1200",
     "USE_FULL_BUNDLE_PATH": "FALSE",
     "WORK_RETRIES": "3",
@@ -62,7 +62,7 @@ class GlobusReplicator(Component):
         logger - The object the replicator should use for logging.
         """
         super().__init__("replicator", config, logger)
-        self.globus_dest_urls = config["GLOBUS_DEST_URLS"].split(";")
+        self.globus_dest_url = config["GLOBUS_DEST_URL"]
         self.globus_timeout = int(config["GLOBUS_TIMEOUT"])
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
@@ -144,13 +144,12 @@ class GlobusReplicator(Component):
         bundle_path = bundle["bundle_path"]  # /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
 
         # destination logic
-        globus_dest_url = random.choice(self.globus_dest_urls)
         basename = os.path.basename(bundle_path)
         if self.use_full_bundle_path:
             dest_path = bundle["path"]  # /data/exp/IceCube/2015/filtered/level2/0320
-            dest_url = join_smart_url([globus_dest_url, dest_path, basename])
+            dest_url = join_smart_url([self.globus_dest_url, dest_path, basename])
         else:
-            dest_url = join_smart_url([globus_dest_url, basename])
+            dest_url = join_smart_url([self.globus_dest_url, basename])
 
         # transfer the bundle
         self.logger.info(f'Sending {bundle_path} to {dest_url}')
