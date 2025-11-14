@@ -5,6 +5,7 @@ import asyncio
 import itertools
 import subprocess
 import uuid
+import datetime
 from typing import cast
 import logging
 import os
@@ -245,6 +246,15 @@ class GlobusTransfer:
             destination_endpoint=dest_collection_id,
             label=f"LTA bundle transfer: {os.path.basename(source_path)}",
             sync_level="checksum",
+            # NOTE: 'deadline'
+            #   Even though we will attempt to manually cancel if things go awry
+            #   (see below), tell globus our plan in case our python process dies.
+            #   Also, add a bit of cushion.
+            deadline=(
+                datetime.datetime.now(datetime.timezone.utc)
+                + datetime.timedelta(seconds=request_timeout)
+                + datetime.timedelta(seconds=self._env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
+            ),
         )
         tdata.add_item(source_path, dest_path)
 
