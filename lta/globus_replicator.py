@@ -19,7 +19,7 @@ from .joiner import join_smart_url
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .rest_server import boolify
-from .transfer.globus import Globus
+from .transfer.globus import GlobusTransfer
 
 Logger = logging.Logger
 
@@ -27,12 +27,6 @@ LOG = logging.getLogger(__name__)
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    # "GLOBUS_PROXY_DURATION": "72",
-    # "GLOBUS_PROXY_OUTPUT": None,
-    # "GLOBUS_PROXY_PASSPHRASE": None,
-    # "GLOBUS_PROXY_VOMS_ROLE": None,
-    # "GLOBUS_PROXY_VOMS_VO": None,
-    # "GLOBUS_DEST_URL": None,
     "GLOBUS_DEST_URLS": None,  # URLs delimited with semi-colons ;
     "GLOBUS_TIMEOUT": "1200",
     "USE_FULL_BUNDLE_PATH": "FALSE",
@@ -73,6 +67,8 @@ class GlobusReplicator(Component):
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
+
+        self.globus = GlobusTransfer(config)
 
     def _do_status(self) -> Dict[str, Any]:
         """GlobusReplicator has no additional status to contribute."""
@@ -147,7 +143,8 @@ class GlobusReplicator(Component):
         # get our ducks in a row
         bundle_id = bundle["uuid"]
         bundle_path = bundle["bundle_path"]  # /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
-        # perform the transfer to the destination
+
+        # destination logic
         globus_dest_url = random.choice(self.globus_dest_urls)
         basename = os.path.basename(bundle_path)
         if self.use_full_bundle_path:
@@ -155,23 +152,29 @@ class GlobusReplicator(Component):
             dest_url = join_smart_url([globus_dest_url, dest_path, basename])
         else:
             dest_url = join_smart_url([globus_dest_url, basename])
+
+        # transfer the bundle
         self.logger.info(f'Sending {bundle_path} to {dest_url}')
         try:
-            Globus.transfer_file(
+            task_id = self.globus.transfer_file(
                 source_path=bundle_path,
                 dest_url=dest_url,
                 request_timeout=self.globus_timeout,
             )
         except Exception as e:
             self.logger.error(f'Globus transfer threw an error: {e}')
+            raise  # TODO
+
         # update the Bundle in the LTA DB
         patch_body = {
             "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
             "claimed": False,
-            "transfer_reference": "globus-transfer",
+            # store the Globus task id so another component can inspect it
+            "transfer_reference": task_id,
         }
+
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
