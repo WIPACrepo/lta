@@ -67,8 +67,7 @@ class GlobusReplicator(Component):
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-
-        self.globus = GlobusTransfer(config)
+        self.globus_transfer = GlobusTransfer()
 
     def _do_status(self) -> Dict[str, Any]:
         """GlobusReplicator has no additional status to contribute."""
@@ -156,7 +155,7 @@ class GlobusReplicator(Component):
         # transfer the bundle
         self.logger.info(f'Sending {bundle_path} to {dest_url}')
         try:
-            task_id = self.globus.transfer_file(
+            task_id = self.globus_transfer.transfer_file(
                 source_path=bundle_path,
                 dest_url=dest_url,
                 request_timeout=self.globus_timeout,
@@ -172,7 +171,7 @@ class GlobusReplicator(Component):
             "update_timestamp": now(),
             "claimed": False,
             # store the Globus task id so another component can inspect it
-            "transfer_reference": task_id,
+            "transfer_reference": f"globus/{task_id}",
         }
 
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")

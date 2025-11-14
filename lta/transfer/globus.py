@@ -133,10 +133,10 @@ GLOBUS_TRANSFER_CONFIG: dict[str, str | None] = {
 class GlobusTransfer:
     """Helper class to submit and wait for single-file Globus transfers."""
 
-    def __init__(self, config: dict[str, str]) -> None:
+    def __init__(self) -> None:
         """Create a GlobusTransfer helper."""
-        # Config must be fully expanded and contain all required fields.
-        self._cfg: dict[str, str] = config
+        # Resolve env config once; from_environment returns dict[str, str]
+        self._cfg: dict[str, str] = from_environment(GLOBUS_TRANSFER_CONFIG)
         self._transfer_client: globus_sdk.TransferClient = self._mk_client()
 
     def _mk_client(self) -> globus_sdk.TransferClient:
@@ -160,7 +160,7 @@ class GlobusTransfer:
         )
 
         token_response = client.oauth2_client_credentials_tokens(
-            requested_scopes=self._cfg["GLOBUS_TRANSFER_SCOPE"]
+            requested_scopes=self._cfg["GLOBUS_TRANSFER_SCOPE"],
         )
         rs = token_response.by_resource_server["transfer.api.globus.org"]
         access_token = rs["access_token"]
