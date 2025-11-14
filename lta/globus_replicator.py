@@ -1,5 +1,5 @@
-# gridftp_replicator.py
-"""Module to implement the GridFTPReplicator component of the Long Term Archive."""
+# globus_replicator.py
+"""Module to implement the GlobusReplicator component of the Long Term Archive."""
 
 # fmt:off
 
@@ -19,8 +19,7 @@ from .joiner import join_smart_url
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .rest_server import boolify
-from .transfer.globus import SiteGlobusProxy
-from .transfer.gridftp import GridFTP
+from .transfer.globus import Globus
 
 Logger = logging.Logger
 
@@ -33,9 +32,9 @@ EXPECTED_CONFIG.update({
     # "GLOBUS_PROXY_PASSPHRASE": None,
     # "GLOBUS_PROXY_VOMS_ROLE": None,
     # "GLOBUS_PROXY_VOMS_VO": None,
-    # "GRIDFTP_DEST_URL": None,
-    "GRIDFTP_DEST_URLS": None,  # URLs delimited with semi-colons ;
-    "GRIDFTP_TIMEOUT": "1200",
+    # "GLOBUS_DEST_URL": None,
+    "GLOBUS_DEST_URLS": None,  # URLs delimited with semi-colons ;
+    "GLOBUS_TIMEOUT": "1200",
     "USE_FULL_BUNDLE_PATH": "FALSE",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
@@ -47,40 +46,40 @@ load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level'
 success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
-class GridFTPReplicator(Component):
+class GlobusReplicator(Component):
     """
-    GridFTPReplicator is a Long Term Archive component.
+    GlobusReplicator is a Long Term Archive component.
 
-    A GridFTPReplicator is responsible for copying the completed archive
-    bundles from a GridFTP location to a GridFTP destination. GridFTP will
+    A GlobusReplicator is responsible for copying the completed archive
+    bundles from a source location to a Globus destination. Globus will
     then replicate the bundle from the source (i.e.: WIPAC Data Warehouse)
     to the destination(s), (i.e.: DESY, NERSC DTN).
 
     It uses the LTA DB to find completed bundles that need to be replicated.
-    It issues a globus-url-copy command. It updates the Bundle and the
+    It issues a Globus transfer command. It updates the Bundle and the
     corresponding TransferRequest in the LTA DB with a 'transferring' status.
     """
 
     def __init__(self, config: Dict[str, str], logger: Logger) -> None:
         """
-        Create a GridFTPReplicator component.
+        Create a GlobusReplicator component.
 
         config - A dictionary of required configuration values.
         logger - The object the replicator should use for logging.
         """
-        super(GridFTPReplicator, self).__init__("replicator", config, logger)
-        self.gridftp_dest_urls = config["GRIDFTP_DEST_URLS"].split(";")
-        self.gridftp_timeout = int(config["GRIDFTP_TIMEOUT"])
+        super(GlobusReplicator, self).__init__("replicator", config, logger)
+        self.globus_dest_urls = config["GLOBUS_DEST_URLS"].split(";")
+        self.globus_timeout = int(config["GLOBUS_TIMEOUT"])
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
     def _do_status(self) -> Dict[str, Any]:
-        """GridFTPReplicator has no additional status to contribute."""
+        """GlobusReplicator has no additional status to contribute."""
         return {}
 
     def _expected_config(self) -> Dict[str, Optional[str]]:
-        """GridFTPReplicator provides our expected configuration dictionary."""
+        """GlobusReplicator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
     @wtt.spanned()
@@ -95,7 +94,7 @@ class GridFTPReplicator(Component):
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
-        load_gauge.labels(component='gridftp_replicator', level='bundle', type='work').set(load_level)
+        load_gauge.labels(component='globus_replicator', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
     @wtt.spanned()
@@ -115,9 +114,9 @@ class GridFTPReplicator(Component):
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
-            success_counter.labels(component='gridftp_replicator', level='bundle', type='work').inc()
+            success_counter.labels(component='globus_replicator', level='bundle', type='work').inc()
         except Exception as e:
-            failure_counter.labels(component='gridftp_replicator', level='bundle', type='exception').inc()
+            failure_counter.labels(component='globus_replicator', level='bundle', type='exception').inc()
             await self._quarantine_bundle(lta_rc, bundle, f"{e}")
             return False
         # if we were successful at processing work, let the caller know
@@ -148,46 +147,44 @@ class GridFTPReplicator(Component):
         # get our ducks in a row
         bundle_id = bundle["uuid"]
         bundle_path = bundle["bundle_path"]  # /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
-        # make sure our proxy credentials are all in order
-        self.logger.info('Updating proxy credentials')
-        sgp = SiteGlobusProxy()
-        sgp.update_proxy()
-        # tell GridFTP to 'put' our file to the destination
-        gridftp_dest_url = random.choice(self.gridftp_dest_urls)
+        # perform the transfer to the destination
+        globus_dest_url = random.choice(self.globus_dest_urls)
         basename = os.path.basename(bundle_path)
         if self.use_full_bundle_path:
             dest_path = bundle["path"]  # /data/exp/IceCube/2015/filtered/level2/0320
-            dest_url = join_smart_url([gridftp_dest_url, dest_path, basename])
+            dest_url = join_smart_url([globus_dest_url, dest_path, basename])
         else:
-            dest_url = join_smart_url([gridftp_dest_url, basename])
+            dest_url = join_smart_url([globus_dest_url, basename])
         self.logger.info(f'Sending {bundle_path} to {dest_url}')
         try:
-            GridFTP.put(dest_url,
-                        filename=bundle_path,
-                        request_timeout=self.gridftp_timeout)
+            Globus.transfer_file(
+                source_path=bundle_path,
+                dest_url=dest_url,
+                request_timeout=self.globus_timeout,
+            )
         except Exception as e:
-            self.logger.error(f'GridFTP threw an error: {e}')
+            self.logger.error(f'Globus transfer threw an error: {e}')
         # update the Bundle in the LTA DB
         patch_body = {
             "status": self.output_status,
             "reason": "",
             "update_timestamp": now(),
             "claimed": False,
-            "transfer_reference": "globus-url-copy",
+            "transfer_reference": "globus-transfer",
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
 
-async def main(gridftp_replicator: GridFTPReplicator) -> None:
-    """Execute the work loop of the GridFTPReplicator component."""
+async def main(globus_replicator: GlobusReplicator) -> None:
+    """Execute the work loop of the GlobusReplicator component."""
     LOG.info("Starting asynchronous code")
-    await work_loop(gridftp_replicator)
+    await work_loop(globus_replicator)
     LOG.info("Ending asynchronous code")
 
 
 def main_sync() -> None:
-    """Configure a GridFTPReplicator component from the environment and set it running."""
+    """Configure a GlobusReplicator component from the environment and set it running."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
     # configure logging for the application
@@ -198,13 +195,13 @@ def main_sync() -> None:
         stream=sys.stdout,
         style="{",
     )
-    # create our GridFTPReplicator service
+    # create our GlobusReplicator service
     LOG.info("Starting synchronous code")
-    gridftp_replicator = GridFTPReplicator(config, LOG)
+    globus_replicator = GlobusReplicator(config, LOG)
     # let's get to work
     metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
     start_http_server(metrics_port)
-    asyncio.run(main(gridftp_replicator))
+    asyncio.run(main(globus_replicator))
     LOG.info("Ending synchronous code")
 
 
