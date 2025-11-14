@@ -1,20 +1,21 @@
 # globus.py
 """Tools to help manage Globus proxies."""
 
-# fmt:off
-
 import subprocess
 from typing import cast
 import logging
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
+import dataclasses
 
 import globus_sdk
+from wipac_dev_tools import from_environment, from_environment_as_dataclass
 
 from ..lta_tools import from_environment
-from wipac_dev_tools import from_environment
+
+# fmt:off
 
 EMPTY_STRING_SENTINEL_VALUE = "517c094b-739a-4a01-9d61-8d29eee99fda"
 
@@ -116,51 +117,52 @@ class SiteGlobusProxy(object):
 
 # fmt: on
 
-GLOBUS_TRANSFER_CONFIG: dict[str, str | None] = {
-    # Auth / client credentials
-    "GLOBUS_CLIENT_ID": None,
-    "GLOBUS_CLIENT_SECRET": None,
-    # Source collection (where the bundles live)
-    "GLOBUS_SOURCE_COLLECTION_ID": None,
-    # Optional: default destination collection if not encoded in the URL
-    "GLOBUS_DEST_COLLECTION_ID": None,
-    # Optional: override scope / poll interval
-    "GLOBUS_TRANSFER_SCOPE": "urn:globus:auth:scope:transfer.api.globus.org:all",
-    "GLOBUS_POLL_INTERVAL_SECONDS": "10",
-}
+# ---------------------------
+# Environment Config Dataclass
+# ---------------------------
+
+
+@dataclasses.dataclass(frozen=True)
+class GlobusTransferEnv:
+    """Typed environment configuration for Globus transfers."""
+
+    # Required
+    GLOBUS_CLIENT_ID: str
+    GLOBUS_CLIENT_SECRET: str
+    GLOBUS_SOURCE_COLLECTION_ID: str
+    GLOBUS_DEST_COLLECTION_ID: str
+
+    # Defaults
+    GLOBUS_TRANSFER_SCOPE: str = "urn:globus:auth:scope:transfer.api.globus.org:all"
+    GLOBUS_POLL_INTERVAL_SECONDS: str = "10"
+
+
+# ---------------------------
+# Globus Transfer Helper
+# ---------------------------
 
 
 class GlobusTransfer:
-    """Helper class to submit and wait for single-file Globus transfers."""
+    """Submit and wait for single-file Globus transfers."""
 
     def __init__(self) -> None:
-        """Create a GlobusTransfer helper."""
-        # Resolve env config once; from_environment returns dict[str, str]
-        self._cfg: dict[str, str] = from_environment(GLOBUS_TRANSFER_CONFIG)
-        self._transfer_client: globus_sdk.TransferClient = self._mk_client()
+        """Load env config and initialize a TransferClient."""
+        self._env: GlobusTransferEnv = from_environment_as_dataclass(GlobusTransferEnv)
+        self._transfer_client = self._set_up_client()
 
-    def _mk_client(self) -> globus_sdk.TransferClient:
-        """Create and return an authenticated TransferClient."""
-        missing = [
-            key
-            for key in (
-                "GLOBUS_CLIENT_ID",
-                "GLOBUS_CLIENT_SECRET",
-                "GLOBUS_SOURCE_COLLECTION_ID",
-                "GLOBUS_TRANSFER_SCOPE",
-            )
-            if key not in self._cfg or not self._cfg[key]
-        ]
-        if missing:
-            raise RuntimeError(f"Missing required Globus config: {', '.join(missing)}")
+    # ---------------------------
+    # Internal Helpers
+    # ---------------------------
 
+    def _set_up_client(self) -> globus_sdk.TransferClient:
+        """Create an authenticated TransferClient."""
         client = globus_sdk.ConfidentialAppAuthClient(
-            self._cfg["GLOBUS_CLIENT_ID"],
-            self._cfg["GLOBUS_CLIENT_SECRET"],
+            self._env.GLOBUS_CLIENT_ID,
+            self._env.GLOBUS_CLIENT_SECRET,
         )
 
         token_response = client.oauth2_client_credentials_tokens(
-            requested_scopes=self._cfg["GLOBUS_TRANSFER_SCOPE"],
+            requested_scopes=self._env.GLOBUS_TRANSFER_SCOPE,
         )
         rs = token_response.by_resource_server["transfer.api.globus.org"]
         access_token = rs["access_token"]
@@ -170,36 +172,36 @@ class GlobusTransfer:
 
         logger.info(
             "Initialized Globus TransferClient with source collection %s",
-            self._cfg["GLOBUS_SOURCE_COLLECTION_ID"],
+            self._env.GLOBUS_SOURCE_COLLECTION_ID,
         )
         return tc
 
     def _parse_dest_url(self, dest_url: str) -> tuple[str, str]:
         """
-        Parse dest_url into (dest_collection_id, dest_path).
+        Parse destination URL into (collection_id, absolute_path).
 
-        Supported forms:
-          globus://<COLLECTION>/abs/path/file
-          /abs/path/file   (requires GLOBUS_DEST_COLLECTION_ID)
+        Supports:
+          globus://COLLECTION/abs/path/file
+          /abs/path/file     → uses GLOBUS_DEST_COLLECTION_ID
         """
         parsed = urlparse(dest_url)
 
+        # Explicit collection in URL
         if parsed.scheme == "globus":
             dest_collection_id = parsed.netloc
             dest_path = parsed.path
         else:
-            if "GLOBUS_DEST_COLLECTION_ID" not in self._cfg:
-                raise RuntimeError(
-                    "Destination collection id missing: "
-                    "Set GLOBUS_DEST_COLLECTION_ID or use globus://COLLECTION/path"
-                )
-            dest_collection_id = self._cfg["GLOBUS_DEST_COLLECTION_ID"]
+            dest_collection_id = self._env.GLOBUS_DEST_COLLECTION_ID
             dest_path = dest_url
 
         if not dest_path.startswith("/"):
             dest_path = "/" + dest_path
 
         return dest_collection_id, dest_path
+
+    # ---------------------------
+    # Public API
+    # ---------------------------
 
     def transfer_file(
         self,
@@ -218,8 +220,8 @@ class GlobusTransfer:
         if not os.path.isabs(source_path):
             raise ValueError(f"source_path must be absolute: {source_path}")
 
+        src_collection_id = self._env.GLOBUS_SOURCE_COLLECTION_ID
         dest_collection_id, dest_path = self._parse_dest_url(dest_url)
-        src_collection_id = self._cfg["GLOBUS_SOURCE_COLLECTION_ID"]
 
         label = f"LTA bundle transfer: {os.path.basename(source_path)}"
 
@@ -233,7 +235,7 @@ class GlobusTransfer:
         tdata.add_item(source_path, dest_path)
 
         logger.info(
-            "Submitting Globus transfer: src_collection=%s src_path=%s "
+            "Submitting transfer: src_collection=%s src_path=%s "
             "dest_collection=%s dest_path=%s",
             src_collection_id,
             source_path,
@@ -241,12 +243,12 @@ class GlobusTransfer:
             dest_path,
         )
 
-        submit_result: dict[str, Any] = self._transfer_client.submit_transfer(tdata)
-        task_id = submit_result["task_id"]
+        result: dict[str, Any] = self._transfer_client.submit_transfer(tdata)
+        task_id = result["task_id"]
 
-        logger.info("Globus transfer submitted, task_id=%s", task_id)
+        logger.info("Globus transfer submitted: task_id=%s", task_id)
 
-        poll_interval = float(self._cfg["GLOBUS_POLL_INTERVAL_SECONDS"])
+        poll_interval = float(self._env.GLOBUS_POLL_INTERVAL_SECONDS)
         deadline = time.monotonic() + request_timeout
 
         while True:
@@ -257,30 +259,25 @@ class GlobusTransfer:
                 logger.info("Globus transfer %s succeeded", task_id)
                 return task_id
 
-            if status == "FAILED" or status == "INACTIVE":
+            if status in {"FAILED", "INACTIVE"}:
                 logger.error(
-                    "Globus transfer %s failed: status=%s task=%r",
+                    "Globus transfer %s failed with status=%s task=%r",
                     task_id,
                     status,
                     task,
                 )
-                raise RuntimeError(
-                    f"Globus transfer {task_id} failed with status {status}"
-                )
+                raise RuntimeError(f"Globus transfer {task_id} failed: {status}")
 
             if time.monotonic() >= deadline:
                 logger.error(
-                    "Globus transfer %s timed out after %s seconds (last status=%s)",
+                    "Globus transfer %s timed out after %s seconds",
                     task_id,
                     request_timeout,
-                    status,
                 )
                 try:
                     self._transfer_client.cancel_task(task_id)
                 except Exception:
-                    logger.exception("Failed to cancel Globus task %s", task_id)
-                raise TimeoutError(
-                    f"Globus transfer {task_id} did not complete in {request_timeout}s"
-                )
+                    logger.exception("Could not cancel Globus task %s", task_id)
+                raise TimeoutError(f"Globus transfer {task_id} timed out")
 
             time.sleep(poll_interval)
