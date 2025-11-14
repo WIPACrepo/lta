@@ -155,7 +155,7 @@ class GlobusReplicator(Component):
         # transfer the bundle
         self.logger.info(f'Sending {bundle_path} to {dest_url}')
         try:
-            task_id = self.globus_transfer.transfer_file(
+            task_id = await self.globus_transfer.transfer_file(
                 source_path=bundle_path,
                 dest_url=dest_url,
                 request_timeout=self.globus_timeout,

@@ -1,17 +1,19 @@
 # globus.py
 """Tools to help manage Globus proxies."""
-
+import asyncio
+import itertools
 import subprocess
+import uuid
 from typing import cast
 import logging
 import os
-import time
 from typing import Any, Optional
 from urllib.parse import urlparse
 import dataclasses
 
 import globus_sdk
 from wipac_dev_tools import from_environment, from_environment_as_dataclass
+from wipac_dev_tools.timing_tools import IntervalTimer
 
 from ..lta_tools import from_environment
 
@@ -205,7 +207,15 @@ class GlobusTransfer:
     # Public API
     # ---------------------------
 
-    def transfer_file(
+    def _cancel_task(self, task_id: uuid.UUID | str, error_msg: str):
+        # cancel task
+        logger.error(error_msg)
+        try:
+            self._client.cancel_task(task_id)
+        except Exception:
+            logger.exception(f"Could not cancel Globus {task_id=}")
+
+    async def transfer_file(
         self,
         *,
         source_path: str,
@@ -241,38 +251,37 @@ class GlobusTransfer:
             f"{source_path=} {dest_collection_id=} {dest_path=}",
         )
         task_id = self._client.submit_transfer(tdata)["task_id"]
-        logger.info("Globus transfer submitted: task_id=%s", task_id)
+        logger.info(f"Globus transfer submitted: {task_id=}")
+        await asyncio.sleep(0)  # since request is not async, handover to pending tasks
 
         # wait for transfer result
-        deadline = time.monotonic() + request_timeout
-        while True:
-            task = self._client.get_task(task_id)
+        deadline = IntervalTimer(request_timeout, logger=None)
+        for i in itertools.count():
+
+            # looping condition(s)
+            # -- note: check if interval elapsed *before* sleeping to not waste time
+            if deadline.has_interval_elapsed():
+                self._cancel_task(
+                    task_id,
+                    f"Globus transfer {task_id=} timed out after {request_timeout=} seconds",
+                )
+                raise TimeoutError(f"Globus transfer {task_id} timed out")
+            elif i > 0:
+                await asyncio.sleep(self._env.GLOBUS_POLL_INTERVAL_SECONDS)
+            else:
+                logger.debug("checking transfer status...")
 
             # look at status
+            task = self._client.get_task(task_id)
             match status := task["status"]:
                 case "SUCCEEDED":
-                    logger.info("Globus transfer %s succeeded", task_id)
+                    logger.info(f"Globus transfer succeeded: {task_id=} {task=}")
                     return task_id
                 case "FAILED" | "INACTIVE":
-                    msg = f"Globus transfer {task_id} failed with {status=} {task=}"
+                    msg = f"Globus transfer failed ({status=}): {task_id=} {task=}"
                     logger.error(msg)
                     raise RuntimeError(msg)
                 case _:
-                    pass  # TODO -- mystery case
-
-            # has it been too long?
-            if time.monotonic() >= deadline:
-                logger.error(
-                    "Globus transfer %s timed out after %s seconds",
-                    task_id,
-                    request_timeout,
-                )
-                # cancel task
-                try:
-                    self._client.cancel_task(task_id)
-                except Exception:
-                    logger.exception("Could not cancel Globus task %s", task_id)
-                # always raise timeout
-                raise TimeoutError(f"Globus transfer {task_id} timed out")
-
-            time.sleep(self._env.GLOBUS_POLL_INTERVAL_SECONDS)
+                    logger.warning(
+                        f"received unknown {status=}: {task_id=} {task=} — continuing..."
+                    )
