@@ -1,12 +1,9 @@
 # globus_replicator.py
 """Module to implement the GlobusReplicator component of the Long Term Archive."""
 
-# fmt:off
-
 import asyncio
 import logging
 import os
-import random
 import sys
 from typing import Any, Dict, Optional
 
@@ -20,6 +17,8 @@ from .lta_tools import from_environment
 from .lta_types import BundleType
 from .rest_server import boolify
 from .transfer.globus import GlobusTransfer
+
+# fmt:off
 
 Logger = logging.Logger
 
