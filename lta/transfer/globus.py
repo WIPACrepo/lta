@@ -150,13 +150,13 @@ class GlobusTransfer:
     def __init__(self) -> None:
         """Load env config and initialize a TransferClient."""
         self._env = from_environment_as_dataclass(GlobusTransferEnv)
-        self._transfer_client = self._set_up_client()
+        self._transfer_client = self._create_client()
 
     # ---------------------------
     # Internal Helpers
     # ---------------------------
 
-    def _set_up_client(self) -> globus_sdk.TransferClient:
+    def _create_client(self) -> globus_sdk.TransferClient:
         """Create an authenticated TransferClient."""
 
         # request token
@@ -203,17 +203,17 @@ class GlobusTransfer:
 
         return dest_collection_id, dest_path
 
-    # ---------------------------
-    # Public API
-    # ---------------------------
-
-    def _cancel_task(self, task_id: uuid.UUID | str, error_msg: str):
+    def _cancel_task(self, task_id: uuid.UUID | str, error_msg: str) -> None:
         # cancel task
         logger.error(error_msg)
         try:
             self._transfer_client.cancel_task(task_id)
         except Exception:
             logger.exception(f"Could not cancel Globus {task_id=}")
+
+    # ---------------------------
+    # Public API
+    # ---------------------------
 
     async def transfer_file(
         self,
@@ -267,12 +267,13 @@ class GlobusTransfer:
                 raise TimeoutError(f"Globus transfer {task_id} timed out")
             elif i > 0:
                 await asyncio.sleep(self._env.GLOBUS_POLL_INTERVAL_SECONDS)
-            else:
-                logger.debug("checking transfer status...")
 
             # look at status
+            logger.debug("checking transfer status...")
             task = self._transfer_client.get_task(task_id)
-            match status := task["status"]:
+            status = task["status"]
+            logger.debug(f"{status=}")
+            match status:
                 case "SUCCEEDED":
                     logger.info(f"Globus transfer succeeded: {task_id=} {task=}")
                     return task_id
@@ -280,7 +281,10 @@ class GlobusTransfer:
                     msg = f"Globus transfer failed ({status=}): {task_id=} {task=}"
                     logger.error(msg)
                     raise RuntimeError(msg)
+                case "ACTIVE":
+                    continue
                 case _:
                     logger.warning(
                         f"received unknown {status=}: {task_id=} {task=} — continuing..."
                     )
+                    continue
