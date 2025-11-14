@@ -67,7 +67,7 @@ class GlobusReplicator(Component):
         config - A dictionary of required configuration values.
         logger - The object the replicator should use for logging.
         """
-        super(GlobusReplicator, self).__init__("replicator", config, logger)
+        super().__init__("replicator", config, logger)
         self.globus_dest_urls = config["GLOBUS_DEST_URLS"].split(";")
         self.globus_timeout = int(config["GLOBUS_TIMEOUT"])
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
