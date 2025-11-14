@@ -1,5 +1,6 @@
 # globus.py
 """Tools to help manage Globus proxies."""
+
 import asyncio
 import itertools
 import subprocess
@@ -15,9 +16,8 @@ import globus_sdk
 from wipac_dev_tools import from_environment, from_environment_as_dataclass
 from wipac_dev_tools.timing_tools import IntervalTimer
 
-from ..lta_tools import from_environment
-
 # fmt:off
+
 
 EMPTY_STRING_SENTINEL_VALUE = "517c094b-739a-4a01-9d61-8d29eee99fda"
 
