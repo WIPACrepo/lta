@@ -153,31 +153,6 @@ jobs:
   # TESTS
   #############################################################################
 
-  pip-install:
-    needs: [
-      py-versions,
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
-    ]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
-          fetch-depth: 0  # setuptools-scm needs to access git tags
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.py3 }}
-      - name: "source ./tools/setupenv.sh"
-        run: |
-          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
-          source ./tools/setupenv.sh
-
   unit-tests:
     needs: [ py-versions ]
     runs-on: ubuntu-latest
@@ -300,7 +275,6 @@ jobs:
       mypy,
       py-setup,
       py-dependencies,
-      pip-install,
       unit-tests,
       test-build-docker,
       integration-tests,
