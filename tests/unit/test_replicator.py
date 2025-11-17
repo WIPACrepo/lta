@@ -37,7 +37,6 @@ class ReplicatorTestHelper:
     dest_attr: str
     timeout_attr: str
     expected_config_keys: list[str]
-    has_transfer_reference: bool
     error_quarantines: bool
 
     def instantiate_replicator(self, *args: Any, **kwargs: Any) -> Any:
@@ -123,7 +122,6 @@ def rep_helper(
                     "WORK_RETRIES",
                     "WORK_TIMEOUT_SECONDS",
                 ],
-                has_transfer_reference=False,
                 error_quarantines=False,
             )
 
@@ -156,13 +154,12 @@ def rep_helper(
                     "WORK_RETRIES",
                     "WORK_TIMEOUT_SECONDS",
                 ],
-                has_transfer_reference=True,
                 error_quarantines=True,
             )
 
         # ???
         case _:
-            raise UnknownRepHelperError(rep_helper.classname)
+            raise UnknownRepHelperError(request.param)
 
     return rep_helper
 
