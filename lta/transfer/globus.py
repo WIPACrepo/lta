@@ -208,6 +208,46 @@ class GlobusTransfer:
 
         return dest_collection_id, dest_path
 
+    def make_transfer_document(
+        self,
+        source_path: str,
+        dest_url: str,
+    ) -> globus_sdk.TransferData:
+        """Create the object needed for submitting a transfer."""
+        dest_collection_id, dest_path = self._parse_dest_url(dest_url)
+
+        tdata = globus_sdk.TransferData(
+            source_endpoint=self._env.GLOBUS_SOURCE_COLLECTION_ID,
+            destination_endpoint=dest_collection_id,
+            label=f"LTA bundle transfer: {os.path.basename(source_path)}",
+            sync_level="checksum",
+            fail_on_quota_errors=True,
+            # NOTE: 'deadline'
+            #   Even though we will attempt to manually cancel if things go awry
+            #   (see below), tell globus our plan in case our python process dies.
+            #   Also, add a bit of cushion.
+            deadline=(
+                datetime.datetime.now(datetime.timezone.utc)
+                + datetime.timedelta(seconds=request_timeout)
+                + datetime.timedelta(seconds=self._env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
+            ),
+        )
+        tdata.add_item(source_path, dest_path)
+
+        logger.info(
+            f"Created transfer document for {source_path=} {dest_path=} {dest_collection_id=}"
+        )
+        return tdata
+
+    async def _submit_transfer(self, tdata: globus_sdk.TransferData) -> uuid.UUID | str:
+        """Submit a transfer via Globus TransferClient."""
+        logger.info(f"Submitting transfer: {list(tdata.iter_items())}")
+        task_id = self._transfer_client.submit_transfer(tdata)["task_id"]
+        logger.info(f"Globus transfer submitted: {task_id=}")
+        await asyncio.sleep(0)  # since request is not async, handover to pending tasks
+
+        return task_id
+
     def _cancel_task(self, task_id: uuid.UUID | str, error_msg: str) -> None:
         # cancel task
         logger.error(error_msg)
@@ -239,33 +279,9 @@ class GlobusTransfer:
         if not os.path.isabs(source_path):
             raise ValueError(f"source_path must be absolute: {source_path}")
 
-        # set up transfer document
-        dest_collection_id, dest_path = self._parse_dest_url(dest_url)
-        tdata = globus_sdk.TransferData(
-            source_endpoint=self._env.GLOBUS_SOURCE_COLLECTION_ID,
-            destination_endpoint=dest_collection_id,
-            label=f"LTA bundle transfer: {os.path.basename(source_path)}",
-            sync_level="checksum",
-            # NOTE: 'deadline'
-            #   Even though we will attempt to manually cancel if things go awry
-            #   (see below), tell globus our plan in case our python process dies.
-            #   Also, add a bit of cushion.
-            deadline=(
-                datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(seconds=request_timeout)
-                + datetime.timedelta(seconds=self._env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
-            ),
-        )
-        tdata.add_item(source_path, dest_path)
-
-        # submit transfer
-        logger.info(
-            f"Submitting transfer: src_collection={self._env.GLOBUS_SOURCE_COLLECTION_ID} "
-            f"{source_path=} {dest_collection_id=} {dest_path=}",
-        )
-        task_id = self._transfer_client.submit_transfer(tdata)["task_id"]
-        logger.info(f"Globus transfer submitted: {task_id=}")
-        await asyncio.sleep(0)  # since request is not async, handover to pending tasks
+        # do transfer
+        tdata = self.make_transfer_document(source_path, dest_url)
+        task_id = await self._submit_transfer(tdata)
 
         # wait for transfer result
         # -- NOTE: 'globus_sdk.TransferClient.task_wait()' is *NOT* async, so diy
