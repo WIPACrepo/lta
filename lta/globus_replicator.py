@@ -134,6 +134,7 @@ class GlobusReplicator(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
         except Exception as e:
             self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
+            self.logger.exception(e)
 
     @wtt.spanned()
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
@@ -160,6 +161,7 @@ class GlobusReplicator(Component):
             )
         except Exception as e:
             self.logger.error(f'Globus transfer threw an error: {e}')
+            self.logger.exception(e)
             raise  # -> bundle to be quarantined
 
         # update the Bundle in the LTA DB
