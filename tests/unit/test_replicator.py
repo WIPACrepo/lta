@@ -46,6 +46,13 @@ class ReplicatorTestHelper:
         return cls(*args, **kwargs)
 
 
+class UnknownRepHelperError(AssertionError):
+    """Raised when an unknown ReplicatorTestHelper is encountered.
+
+    If raised, then a test is broken.
+    """
+
+
 @pytest.fixture(
     params=[
         "lta.gridftp_replicator.GridFTPReplicator",
@@ -155,7 +162,7 @@ def rep_helper(
 
         # ???
         case _:
-            raise AssertionError(f"Unknown replicator implementation: {request.param}")
+            raise UnknownRepHelperError(rep_helper.classname)
 
     return rep_helper
 
@@ -198,9 +205,7 @@ def base_config(rep_helper: ReplicatorTestHelper) -> dict[str, str]:
         case "GlobusReplicator":
             cfg[rep_helper.dest_config_key] = "globus://dest.example.org/collection"
         case _:
-            raise AssertionError(
-                f"Unhandled impl in base_config: {rep_helper.classname}"
-            )
+            UnknownRepHelperError(rep_helper.classname)
 
     cfg[rep_helper.timeout_config_key] = "1200"
     return cfg
@@ -284,7 +289,7 @@ def test_010_init_parses_config(
         case "GlobusReplicator":
             assert dest_attr_value == base_config[rep_helper.dest_config_key]
         case _:
-            raise AssertionError(f"Unhandled impl in init test: {rep_helper.classname}")
+            raise UnknownRepHelperError(rep_helper.classname)
 
     timeout_value = getattr(rep, rep_helper.timeout_attr)
     assert timeout_value == int(base_config[rep_helper.timeout_config_key])
@@ -352,9 +357,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
             # GlobusReplicator uses a single dest URL, no random choice.
             pass
         case _:
-            raise AssertionError(
-                f"Unhandled impl in success test: {rep_helper.classname}"
-            )
+            UnknownRepHelperError(rep_helper.classname)
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
@@ -372,9 +375,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
             src_path = kwargs["source_path"]
             timeout = kwargs["request_timeout"]
         case _:
-            raise AssertionError(
-                f"Unhandled impl in success call inspection: {rep_helper.classname}"
-            )
+            UnknownRepHelperError(rep_helper.classname)
 
     assert src_path == bundle["bundle_path"]
     assert timeout == getattr(rep, rep_helper.timeout_attr)
@@ -391,13 +392,16 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     assert body.get("status") == rep.output_status
     assert body.get("reason") == ""
 
-    if rep_helper.has_transfer_reference:
-        assert (
-            body.get("transfer_reference")
-            == f"globus/{rep_helper.transfer_mock.return_value}"
-        )
-    else:
-        assert "transfer_reference" not in body
+    match rep_helper.classname:
+        case "GridFTPReplicator":
+            assert body.get("transfer_reference") == "globus-url-copy"
+        case "GlobusReplicator":
+            assert (
+                body.get("transfer_reference")
+                == f"globus/{rep_helper.transfer_mock.return_value}"
+            )
+        case _:
+            UnknownRepHelperError(rep_helper.classname)
 
 
 @pytest.mark.asyncio
@@ -453,9 +457,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
             assert body.get("reason") == ""
             assert body.get("status") != "quarantined"
         case _:
-            raise AssertionError(
-                f"Unhandled impl in error behaviour test: {rep_helper.classname}"
-            )
+            UnknownRepHelperError(rep_helper.classname)
 
 
 @pytest.mark.asyncio
@@ -542,9 +544,7 @@ async def test_080_replication_use_full_bundle_path_true(
         case "GlobusReplicator":
             pass
         case _:
-            raise AssertionError(
-                f"Unhandled impl in USE_FULL_BUNDLE_PATH true: {rep_helper.classname}"
-            )
+            UnknownRepHelperError(rep_helper.classname)
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
@@ -558,9 +558,7 @@ async def test_080_replication_use_full_bundle_path_true(
         case "GlobusReplicator":
             dest_url = kwargs["dest_url"]
         case _:
-            raise AssertionError(
-                f"Unhandled impl in USE_FULL_BUNDLE_PATH true call: {rep_helper.classname}"
-            )
+            UnknownRepHelperError(rep_helper.classname)
 
     assert "/data/exp/IC/2015/filtered/level2/0320/bar.zip" in dest_url
 
@@ -596,9 +594,7 @@ async def test_090_replication_use_full_bundle_path_false(
         case "GlobusReplicator":
             pass
         case _:
-            raise AssertionError(
-                f"Unhandled impl in USE_FULL_BUNDLE_PATH false: {rep_helper.classname}"
-            )
+            UnknownRepHelperError(rep_helper.classname)
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
@@ -612,9 +608,7 @@ async def test_090_replication_use_full_bundle_path_false(
         case "GlobusReplicator":
             dest_url = kwargs["dest_url"]
         case _:
-            raise AssertionError(
-                f"Unhandled impl in USE_FULL_BUNDLE_PATH false call: {rep_helper.classname}"
-            )
+            UnknownRepHelperError(rep_helper.classname)
 
     assert dest_url.endswith("/baz.zip")
     assert "irrelevant" not in dest_url
