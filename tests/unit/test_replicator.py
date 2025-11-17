@@ -30,6 +30,7 @@ class ReplicatorTestHelper:
 
     classname: Literal["GridFTPReplicator", "GlobusReplicator"]
     mod: Any  # imported module object
+    transfer_mock: MagicMock  # the mocked backend transfer object
 
     dest_config_key: str
     timeout_config_key: str
@@ -88,9 +89,22 @@ def rep_helper(
         # GRIDFTP
         case "lta.gridftp_replicator.GridFTPReplicator":
             mod = import_fresh("lta.gridftp_replicator")
+
+            class _DummyProxy:
+                def update_proxy(self) -> None:
+                    return None
+
+            monkeypatch.setattr(mod, "SiteGlobusProxy", _DummyProxy)
+
+            # GridFTPReplicator calls module-level GridFTP.put(...)
+            xfer_mock = MagicMock()
+            gridftp_obj = SimpleNamespace(put=xfer_mock)
+            monkeypatch.setattr(mod, "GridFTP", gridftp_obj)
+
             rep_helper = ReplicatorTestHelper(
                 classname="GridFTPReplicator",
                 mod=mod,
+                transfer_mock=xfer_mock,
                 dest_config_key="GRIDFTP_DEST_URLS",
                 timeout_config_key="GRIDFTP_TIMEOUT",
                 dest_attr="gridftp_dest_urls",
@@ -106,18 +120,24 @@ def rep_helper(
                 error_quarantines=False,
             )
 
-            class _DummyProxy:
-                def update_proxy(self) -> None:
-                    return None
-
-            monkeypatch.setattr(mod, "SiteGlobusProxy", _DummyProxy)
-
         # GLOBUS
         case "lta.globus_replicator.GlobusReplicator":
             mod = import_fresh("lta.globus_replicator")
+
+            # GlobusReplicator instantiates GlobusTransfer and calls transfer_file(...)
+            xfer_mock = MagicMock()
+            xfer_mock.return_value = "TASK-123"
+
+            class _GlobusStub:
+                def __init__(self) -> None:
+                    self.transfer_file = xfer_mock
+
+            monkeypatch.setattr(mod, "GlobusTransfer", _GlobusStub)
+
             rep_helper = ReplicatorTestHelper(
                 classname="GlobusReplicator",
                 mod=mod,
+                transfer_mock=xfer_mock,
                 dest_config_key="GLOBUS_DEST_URL",
                 timeout_config_key="GLOBUS_TIMEOUT",
                 dest_attr="globus_dest_url",
@@ -238,36 +258,6 @@ def mock_now(
     return ts
 
 
-@pytest.fixture
-def transfer_mock(
-    rep_helper: ReplicatorTestHelper,
-    monkeypatch: pytest.MonkeyPatch,
-) -> MagicMock:
-    """Patch the transfer backend and return the MagicMock that is called."""
-    mock = MagicMock()
-
-    match rep_helper.classname:
-        case "GridFTPReplicator":
-            # GridFTPReplicator calls module-level GridFTP.put(...)
-            gridftp_obj = SimpleNamespace(put=mock)
-            monkeypatch.setattr(rep_helper.mod, "GridFTP", gridftp_obj)
-        case "GlobusReplicator":
-            # GlobusReplicator instantiates GlobusTransfer and calls transfer_file(...)
-            mock.return_value = "TASK-123"
-
-            class _GlobusStub:
-                def __init__(self) -> None:
-                    self.transfer_file = mock
-
-            monkeypatch.setattr(rep_helper.mod, "GlobusTransfer", _GlobusStub)
-        case _:
-            raise AssertionError(
-                f"Unhandled impl in transfer_mock: {rep_helper.classname}"
-            )
-
-    return mock
-
-
 # --------------------------------------------------------------------------------------
 # Tests
 # --------------------------------------------------------------------------------------
@@ -335,7 +325,6 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
-    transfer_mock: MagicMock,
     mock_join: Callable[[list[str]], str],
     mock_now: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -370,8 +359,8 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
-    transfer_mock.assert_called_once()
-    args, kwargs = transfer_mock.call_args
+    rep_helper.transfer_mock.assert_called_once()
+    args, kwargs = rep_helper.transfer_mock.call_args
 
     match rep_helper.classname:
         case "GridFTPReplicator":
@@ -403,7 +392,10 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     assert body.get("reason") == ""
 
     if rep_helper.has_transfer_reference:
-        assert body.get("transfer_reference") == f"globus/{transfer_mock.return_value}"
+        assert (
+            body.get("transfer_reference")
+            == f"globus/{rep_helper.transfer_mock.return_value}"
+        )
     else:
         assert "transfer_reference" not in body
 
@@ -413,7 +405,6 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
-    transfer_mock: MagicMock,
     mock_join: Callable[[list[str]], str],
     mock_now: str,
 ) -> None:
@@ -436,7 +427,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     def _raise(*_a: Any, **_k: Any) -> None:
         raise RuntimeError("boom")
 
-    transfer_mock.side_effect = _raise
+    rep_helper.transfer_mock.side_effect = _raise
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     patch_calls = [c for c in rc.calls if c[0] == "PATCH"]
@@ -525,7 +516,6 @@ async def test_080_replication_use_full_bundle_path_true(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
-    transfer_mock: MagicMock,
     mock_join: Callable[[list[str]], str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -559,8 +549,8 @@ async def test_080_replication_use_full_bundle_path_true(
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
-    transfer_mock.assert_called_once()
-    args, kwargs = transfer_mock.call_args
+    rep_helper.transfer_mock.assert_called_once()
+    args, kwargs = rep_helper.transfer_mock.call_args
 
     match rep_helper.classname:
         case "GridFTPReplicator":
@@ -580,7 +570,6 @@ async def test_090_replication_use_full_bundle_path_false(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
-    transfer_mock: MagicMock,
     mock_join: Callable[[list[str]], str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -614,8 +603,8 @@ async def test_090_replication_use_full_bundle_path_false(
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
-    transfer_mock.assert_called_once()
-    args, kwargs = transfer_mock.call_args
+    rep_helper.transfer_mock.assert_called_once()
+    args, kwargs = rep_helper.transfer_mock.call_args
 
     match rep_helper.classname:
         case "GridFTPReplicator":
