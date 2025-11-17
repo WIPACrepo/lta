@@ -179,12 +179,7 @@ jobs:
           source ./tools/setupenv.sh
 
   unit-tests:
-    needs: [
-      py-versions,
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
-    ]
+    needs: [ py-versions ]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
