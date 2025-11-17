@@ -281,9 +281,9 @@ def test_010_init_parses_config(
     logger: Any,
 ) -> None:
     """__init__ should parse and coerce config values correctly."""
-    replicator_obj = replicator_helper.cls(base_config, logger)
+    rep = replicator_helper.cls(base_config, logger)
 
-    dest_attr_value = getattr(replicator_obj, replicator_helper.dest_attr)
+    dest_attr_value = getattr(rep, replicator_helper.dest_attr)
     match replicator_helper.id:
         case "gridftp":
             expected_dest = base_config[replicator_helper.dest_config_key].split(";")
@@ -293,12 +293,12 @@ def test_010_init_parses_config(
             raise AssertionError(f"Unhandled impl in init test: {replicator_helper.id}")
     assert dest_attr_value == expected_dest
 
-    timeout_value = getattr(replicator_obj, replicator_helper.timeout_attr)
+    timeout_value = getattr(rep, replicator_helper.timeout_attr)
     assert timeout_value == int(base_config[replicator_helper.timeout_config_key])
 
-    assert replicator_obj.use_full_bundle_path is False
-    assert replicator_obj.work_retries == 3
-    assert replicator_obj.work_timeout_seconds == 30.0
+    assert rep.use_full_bundle_path is False
+    assert rep.work_retries == 3
+    assert rep.work_timeout_seconds == 30.0
 
 
 @pytest.mark.asyncio
@@ -308,8 +308,8 @@ async def test_020_do_status_empty(
     logger: Any,
 ) -> None:
     """_do_status should return an empty dict."""
-    replicator_obj = replicator_helper.cls(base_config, logger)
-    assert replicator_obj._do_status() == {}
+    rep = replicator_helper.cls(base_config, logger)
+    assert rep._do_status() == {}
 
 
 @pytest.mark.asyncio
@@ -319,10 +319,10 @@ async def test_030_do_work_claim_no_bundle_returns_false(
     logger: Any,
 ) -> None:
     """When the DB returns no bundle, _do_work_claim should return False."""
-    replicator_obj = replicator_helper.cls(base_config, logger)
+    rep = replicator_helper.cls(base_config, logger)
     rc = DummyRestClient(responses=[{"bundle": None}])
 
-    got = await replicator_obj._do_work_claim(rc)  # type: ignore[arg-type]
+    got = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert got is False
     assert any(url.startswith("/Bundles/actions/pop") for _, url, _ in rc.calls)
 
@@ -338,7 +338,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """On success, replicator should invoke transfer and PATCH the bundle."""
-    replicator_obj = replicator_helper.cls(base_config, logger)
+    rep = replicator_helper.cls(base_config, logger)
 
     bundle: dict[str, Any] = {
         "uuid": "B-123",
@@ -364,7 +364,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
                 f"Unhandled impl in success test: {replicator_helper.id}"
             )
 
-    ok = await replicator_obj._do_work_claim(rc)  # type: ignore[arg-type]
+    ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
     transfer_mock.assert_called_once()
@@ -385,7 +385,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
             )
 
     assert src_path == bundle["bundle_path"]
-    assert timeout == getattr(replicator_obj, replicator_helper.timeout_attr)
+    assert timeout == getattr(rep, replicator_helper.timeout_attr)
     assert dest_url.endswith("/foo.zip")
 
     # Verify PATCH
@@ -396,7 +396,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     _, url, body = patch_calls[0]
     assert url == "/Bundles/B-123"
     assert body.get("claimed") is False
-    assert body.get("status") == replicator_obj.output_status
+    assert body.get("status") == rep.output_status
     assert body.get("reason") == ""
 
     if replicator_helper.has_transfer_reference:
@@ -420,7 +420,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     - GridFTPReplicator: logs error and still marks bundle as successful.
     - GlobusReplicator: quarantines the bundle and returns False.
     """
-    replicator_obj = replicator_helper.cls(base_config, logger)
+    rep = replicator_helper.cls(base_config, logger)
 
     bundle: dict[str, Any] = {
         "uuid": "B-ERR",
@@ -435,7 +435,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
 
     transfer_mock.side_effect = _raise
 
-    ok = await replicator_obj._do_work_claim(rc)  # type: ignore[arg-type]
+    ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     patch_calls = [c for c in rc.calls if c[0] == "PATCH"]
     assert patch_calls
 
@@ -454,7 +454,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
             success_calls = [c for c in patch_calls if c[1] == "/Bundles/B-ERR"]
             assert success_calls
             _, _, body = success_calls[0]
-            assert body.get("status") == replicator_obj.output_status
+            assert body.get("status") == rep.output_status
             assert body.get("claimed") is False
             assert body.get("reason") == ""
             assert body.get("status") != "quarantined"
@@ -471,7 +471,7 @@ async def test_060_do_work_runs_until_no_work(
     logger: Any,
 ) -> None:
     """_do_work should loop until _do_work_claim returns False."""
-    replicator_obj = replicator_helper.cls(base_config, logger)
+    rep = replicator_helper.cls(base_config, logger)
 
     claim_calls: list[bool] = []
 
@@ -479,10 +479,10 @@ async def test_060_do_work_runs_until_no_work(
         claim_calls.append(True)
         return len(claim_calls) == 1  # True once, then False
 
-    replicator_obj._do_work_claim = _fake_claim  # type: ignore[assignment]
+    rep._do_work_claim = _fake_claim  # type: ignore[assignment]
     rc = DummyRestClient()
 
-    await replicator_obj._do_work(rc)  # type: ignore[arg-type]
+    await rep._do_work(rc)  # type: ignore[arg-type]
     assert len(claim_calls) == 2
 
 
@@ -494,13 +494,13 @@ async def test_070_do_work_respects_run_once_and_die(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """If run_once_and_die is set, _do_work should call sys.exit after one claim attempt."""
-    replicator_obj = replicator_helper.cls(base_config, logger)
-    replicator_obj.run_once_and_die = True
+    rep = replicator_helper.cls(base_config, logger)
+    rep.run_once_and_die = True
 
     async def _fake_claim(_rc: DummyRestClient) -> bool:
         return False
 
-    replicator_obj._do_work_claim = _fake_claim  # type: ignore[assignment]
+    rep._do_work_claim = _fake_claim  # type: ignore[assignment]
 
     exit_called: dict[str, bool] = {"flag": False}
 
@@ -512,7 +512,7 @@ async def test_070_do_work_respects_run_once_and_die(
     monkeypatch.setattr(replicator_helper.mod.sys, "exit", _fake_exit)
 
     with pytest.raises(SystemExit):
-        await replicator_obj._do_work(DummyRestClient())  # type: ignore[arg-type]
+        await rep._do_work(DummyRestClient())  # type: ignore[arg-type]
 
     assert exit_called["flag"] is True
 
@@ -529,7 +529,7 @@ async def test_080_replication_use_full_bundle_path_true(
     """When USE_FULL_BUNDLE_PATH is TRUE, dest includes bundle['path'] + basename."""
     cfg = dict(base_config)
     cfg["USE_FULL_BUNDLE_PATH"] = "TRUE"
-    replicator_obj = replicator_helper.cls(cfg, logger)
+    rep = replicator_helper.cls(cfg, logger)
 
     bundle: dict[str, Any] = {
         "uuid": "B-456",
@@ -553,7 +553,7 @@ async def test_080_replication_use_full_bundle_path_true(
                 f"Unhandled impl in USE_FULL_BUNDLE_PATH true: {replicator_helper.id}"
             )
 
-    ok = await replicator_obj._do_work_claim(rc)  # type: ignore[arg-type]
+    ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
     transfer_mock.assert_called_once()
@@ -584,7 +584,7 @@ async def test_090_replication_use_full_bundle_path_false(
     """When USE_FULL_BUNDLE_PATH is FALSE, destination includes only the basename."""
     cfg = dict(base_config)
     cfg["USE_FULL_BUNDLE_PATH"] = "FALSE"
-    replicator_obj = replicator_helper.cls(cfg, logger)
+    rep = replicator_helper.cls(cfg, logger)
 
     bundle: dict[str, Any] = {
         "uuid": "B-789",
@@ -608,7 +608,7 @@ async def test_090_replication_use_full_bundle_path_false(
                 f"Unhandled impl in USE_FULL_BUNDLE_PATH false: {replicator_helper.id}"
             )
 
-    ok = await replicator_obj._do_work_claim(rc)  # type: ignore[arg-type]
+    ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
     transfer_mock.assert_called_once()
