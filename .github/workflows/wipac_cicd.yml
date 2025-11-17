@@ -230,6 +230,7 @@ jobs:
       # linters so we don't waste compute on faulty code...
       flake8,
       mypy,
+      unit-tests,
     ]
     runs-on: ubuntu-latest
     strategy:

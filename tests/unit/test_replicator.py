@@ -84,6 +84,8 @@ def rep_helper(
 
     # Make ReplicatorTestHelper instance
     match request.param:
+
+        # GRIDFTP
         case "lta.gridftp_replicator.GridFTPReplicator":
             mod = import_fresh("lta.gridftp_replicator")
             rep_helper = ReplicatorTestHelper(
@@ -103,6 +105,14 @@ def rep_helper(
                 has_transfer_reference=False,
                 error_quarantines=False,
             )
+
+            class _DummyProxy:
+                def update_proxy(self) -> None:
+                    return None
+
+            monkeypatch.setattr(mod, "SiteGlobusProxy", _DummyProxy)
+
+        # GLOBUS
         case "lta.globus_replicator.GlobusReplicator":
             mod = import_fresh("lta.globus_replicator")
             rep_helper = ReplicatorTestHelper(
@@ -122,23 +132,10 @@ def rep_helper(
                 has_transfer_reference=True,
                 error_quarantines=True,
             )
+
+        # ???
         case _:
             raise AssertionError(f"Unknown replicator implementation: {request.param}")
-
-    # Only the GridFTP module uses SiteGlobusProxy
-    match request.param:
-        case "GridFTPReplicator":
-
-            class _DummyProxy:
-                def update_proxy(self) -> None:
-                    return None
-
-            monkeypatch.setattr(mod, "SiteGlobusProxy", _DummyProxy)
-        case "GlobusReplicator":
-            # Globus module does not use SiteGlobusProxy
-            pass
-        case _:
-            raise AssertionError(f"Unhandled impl for SiteGlobusProxy: {request.param}")
 
     return rep_helper
 
