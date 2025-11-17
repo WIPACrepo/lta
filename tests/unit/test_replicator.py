@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import importlib
 import sys
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import prometheus_client
 import pytest
@@ -28,9 +28,9 @@ from unittest.mock import MagicMock
 class ReplicatorTestHelper:
     """Describe which replicator implementation is under test."""
 
-    id: str  # "gridftp" / "globus"
+    classname: Literal["GridFTPReplicator", "GlobusReplicator"]
     mod: Any  # imported module object
-    cls: type  # GridFTPReplicator / GlobusReplicator
+
     dest_config_key: str
     timeout_config_key: str
     dest_attr: str
@@ -39,9 +39,19 @@ class ReplicatorTestHelper:
     has_transfer_reference: bool
     error_quarantines: bool
 
+    def instantiate_replicator(self, *args: Any, **kwargs: Any) -> Any:
+        """Instantiate replicator object."""
+        cls = getattr(self.mod, self.classname)
+        return cls(*args, **kwargs)
 
-@pytest.fixture(params=["gridftp", "globus"])
-def replicator_helper(
+
+@pytest.fixture(
+    params=[
+        "lta.gridftp_replicator.GridFTPReplicator",
+        "lta.globus_replicator.GlobusReplicator",
+    ]
+)
+def rep_helper(
     request: pytest.FixtureRequest,
     monkeypatch: pytest.MonkeyPatch,
 ) -> ReplicatorTestHelper:
@@ -65,17 +75,20 @@ def replicator_helper(
     monkeypatch.setattr(prometheus_client, "Counter", lambda *a, **k: _Counter())
     monkeypatch.setattr(prometheus_client, "Gauge", lambda *a, **k: _Gauge())
 
+    def import_fresh(
+        modname: Literal["lta.gridftp_replicator", "lta.globus_replicator"],
+    ) -> Any:
+        """Fresh import so the stubs take effect for each parametrized run."""
+        sys.modules.pop(modname, None)
+        return importlib.import_module(modname)
+
     # Make ReplicatorTestHelper instance
     match request.param:
-        case "gridftp":
-            # Fresh import so the stubs take effect for each parametrized run
-            sys.modules.pop("lta.gridftp_replicator", None)
-            mod = importlib.import_module("lta.gridftp_replicator")
-            # Make instance
+        case "lta.gridftp_replicator.GridFTPReplicator":
+            mod = import_fresh("lta.gridftp_replicator")
             rep_helper = ReplicatorTestHelper(
-                id=request.param,
+                classname="GridFTPReplicator",
                 mod=mod,
-                cls=getattr(mod, "GridFTPReplicator"),
                 dest_config_key="GRIDFTP_DEST_URLS",
                 timeout_config_key="GRIDFTP_TIMEOUT",
                 dest_attr="gridftp_dest_urls",
@@ -90,15 +103,11 @@ def replicator_helper(
                 has_transfer_reference=False,
                 error_quarantines=False,
             )
-        case "globus":
-            # Fresh import so the stubs take effect for each parametrized run
-            sys.modules.pop("lta.globus_replicator", None)
-            mod = importlib.import_module("lta.globus_replicator")
-            # Make instance
+        case "lta.globus_replicator.GlobusReplicator":
+            mod = import_fresh("lta.globus_replicator")
             rep_helper = ReplicatorTestHelper(
-                id=request.param,
+                classname="GlobusReplicator",
                 mod=mod,
-                cls=getattr(mod, "GlobusReplicator"),
                 dest_config_key="GLOBUS_DEST_URL",
                 timeout_config_key="GLOBUS_TIMEOUT",
                 dest_attr="globus_dest_url",
@@ -118,14 +127,14 @@ def replicator_helper(
 
     # Only the GridFTP module uses SiteGlobusProxy
     match request.param:
-        case "gridftp":
+        case "GridFTPReplicator":
 
             class _DummyProxy:
                 def update_proxy(self) -> None:
                     return None
 
             monkeypatch.setattr(mod, "SiteGlobusProxy", _DummyProxy)
-        case "globus":
+        case "GlobusReplicator":
             # Globus module does not use SiteGlobusProxy
             pass
         case _:
@@ -140,7 +149,7 @@ def replicator_helper(
 
 
 @pytest.fixture
-def base_config(replicator_helper: ReplicatorTestHelper) -> dict[str, str]:
+def base_config(rep_helper: ReplicatorTestHelper) -> dict[str, str]:
     """Minimal, valid config for either replication component."""
     cfg: dict[str, str] = {
         # ===== Required by COMMON_CONFIG (must be present and non-empty) =====
@@ -163,22 +172,20 @@ def base_config(replicator_helper: ReplicatorTestHelper) -> dict[str, str]:
         "USE_FULL_BUNDLE_PATH": "FALSE",
     }
 
-    match replicator_helper.id:
-        case "gridftp":
-            cfg[replicator_helper.dest_config_key] = (
+    match rep_helper.classname:
+        case "GridFTPReplicator":
+            cfg[rep_helper.dest_config_key] = (
                 "gsiftp://dest.example.org:2811/data;"
                 "gsiftp://alt.example.org:2811/data"
             )
-        case "globus":
-            cfg[replicator_helper.dest_config_key] = (
-                "globus://dest.example.org/collection"
-            )
+        case "GlobusReplicator":
+            cfg[rep_helper.dest_config_key] = "globus://dest.example.org/collection"
         case _:
             raise AssertionError(
-                f"Unhandled impl in base_config: {replicator_helper.id}"
+                f"Unhandled impl in base_config: {rep_helper.classname}"
             )
 
-    cfg[replicator_helper.timeout_config_key] = "1200"
+    cfg[rep_helper.timeout_config_key] = "1200"
     return cfg
 
 
@@ -211,7 +218,7 @@ class DummyRestClient:
 
 @pytest.fixture
 def mock_join(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Callable[[list[str]], str]:
     """Mock join_smart_url to a predictable path joiner."""
@@ -219,35 +226,35 @@ def mock_join(
     def _join(parts: list[str]) -> str:
         return "/".join(s.strip("/") for s in parts if s is not None)
 
-    monkeypatch.setattr(replicator_helper.mod, "join_smart_url", _join)
+    monkeypatch.setattr(rep_helper.mod, "join_smart_url", _join)
     return _join
 
 
 @pytest.fixture
 def mock_now(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     monkeypatch: pytest.MonkeyPatch,
 ) -> str:
     """Freeze now() to a stable string."""
     ts = "2025-01-01T00:00:00Z"
-    monkeypatch.setattr(replicator_helper.mod, "now", lambda: ts)
+    monkeypatch.setattr(rep_helper.mod, "now", lambda: ts)
     return ts
 
 
 @pytest.fixture
 def transfer_mock(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     monkeypatch: pytest.MonkeyPatch,
 ) -> MagicMock:
     """Patch the transfer backend and return the MagicMock that is called."""
     mock = MagicMock()
 
-    match replicator_helper.id:
-        case "gridftp":
+    match rep_helper.classname:
+        case "GridFTPReplicator":
             # GridFTPReplicator calls module-level GridFTP.put(...)
             gridftp_obj = SimpleNamespace(put=mock)
-            monkeypatch.setattr(replicator_helper.mod, "GridFTP", gridftp_obj)
-        case "globus":
+            monkeypatch.setattr(rep_helper.mod, "GridFTP", gridftp_obj)
+        case "GlobusReplicator":
             # GlobusReplicator instantiates GlobusTransfer and calls transfer_file(...)
             mock.return_value = "TASK-123"
 
@@ -255,10 +262,10 @@ def transfer_mock(
                 def __init__(self) -> None:
                     self.transfer_file = mock
 
-            monkeypatch.setattr(replicator_helper.mod, "GlobusTransfer", _GlobusStub)
+            monkeypatch.setattr(rep_helper.mod, "GlobusTransfer", _GlobusStub)
         case _:
             raise AssertionError(
-                f"Unhandled impl in transfer_mock: {replicator_helper.id}"
+                f"Unhandled impl in transfer_mock: {rep_helper.classname}"
             )
 
     return mock
@@ -269,32 +276,31 @@ def transfer_mock(
 # --------------------------------------------------------------------------------------
 
 
-def test_000_expected_config_has_keys(replicator_helper: ReplicatorTestHelper) -> None:
+def test_000_expected_config_has_keys(rep_helper: ReplicatorTestHelper) -> None:
     """EXPECTED_CONFIG should include keys this component relies on."""
-    for key in replicator_helper.expected_config_keys:
-        assert key in replicator_helper.mod.EXPECTED_CONFIG
+    for key in rep_helper.expected_config_keys:
+        assert key in rep_helper.mod.EXPECTED_CONFIG
 
 
 def test_010_init_parses_config(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
 ) -> None:
     """__init__ should parse and coerce config values correctly."""
-    rep = replicator_helper.cls(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logger)
 
-    dest_attr_value = getattr(rep, replicator_helper.dest_attr)
-    match replicator_helper.id:
-        case "gridftp":
-            expected_dest = base_config[replicator_helper.dest_config_key].split(";")
-        case "globus":
-            expected_dest = base_config[replicator_helper.dest_config_key]
+    dest_attr_value = getattr(rep, rep_helper.dest_attr)
+    match rep_helper.classname:
+        case "GridFTPReplicator":
+            assert dest_attr_value == base_config[rep_helper.dest_config_key].split(";")
+        case "GlobusReplicator":
+            assert dest_attr_value == base_config[rep_helper.dest_config_key]
         case _:
-            raise AssertionError(f"Unhandled impl in init test: {replicator_helper.id}")
-    assert dest_attr_value == expected_dest
+            raise AssertionError(f"Unhandled impl in init test: {rep_helper.classname}")
 
-    timeout_value = getattr(rep, replicator_helper.timeout_attr)
-    assert timeout_value == int(base_config[replicator_helper.timeout_config_key])
+    timeout_value = getattr(rep, rep_helper.timeout_attr)
+    assert timeout_value == int(base_config[rep_helper.timeout_config_key])
 
     assert rep.use_full_bundle_path is False
     assert rep.work_retries == 3
@@ -303,23 +309,23 @@ def test_010_init_parses_config(
 
 @pytest.mark.asyncio
 async def test_020_do_status_empty(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
 ) -> None:
     """_do_status should return an empty dict."""
-    rep = replicator_helper.cls(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logger)
     assert rep._do_status() == {}
 
 
 @pytest.mark.asyncio
 async def test_030_do_work_claim_no_bundle_returns_false(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
 ) -> None:
     """When the DB returns no bundle, _do_work_claim should return False."""
-    rep = replicator_helper.cls(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logger)
     rc = DummyRestClient(responses=[{"bundle": None}])
 
     got = await rep._do_work_claim(rc)  # type: ignore[arg-type]
@@ -329,7 +335,7 @@ async def test_030_do_work_claim_no_bundle_returns_false(
 
 @pytest.mark.asyncio
 async def test_040_do_work_claim_success_calls_transfer_and_patch(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
     transfer_mock: MagicMock,
@@ -338,7 +344,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """On success, replicator should invoke transfer and PATCH the bundle."""
-    rep = replicator_helper.cls(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logger)
 
     bundle: dict[str, Any] = {
         "uuid": "B-123",
@@ -348,20 +354,20 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
 
-    match replicator_helper.id:
-        case "gridftp":
+    match rep_helper.classname:
+        case "GridFTPReplicator":
             # GridFTP chooses among multiple dest URLs; make deterministic.
             monkeypatch.setattr(
-                replicator_helper.mod.random,  # type: ignore[attr-defined]
+                rep_helper.mod.random,  # type: ignore[attr-defined]
                 "choice",
                 lambda urls: urls[0],
             )
-        case "globus":
+        case "GlobusReplicator":
             # GlobusReplicator uses a single dest URL, no random choice.
             pass
         case _:
             raise AssertionError(
-                f"Unhandled impl in success test: {replicator_helper.id}"
+                f"Unhandled impl in success test: {rep_helper.classname}"
             )
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
@@ -370,22 +376,22 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     transfer_mock.assert_called_once()
     args, kwargs = transfer_mock.call_args
 
-    match replicator_helper.id:
-        case "gridftp":
+    match rep_helper.classname:
+        case "GridFTPReplicator":
             dest_url = args[0]
             src_path = kwargs["filename"]
             timeout = kwargs["request_timeout"]
-        case "globus":
+        case "GlobusReplicator":
             dest_url = kwargs["dest_url"]
             src_path = kwargs["source_path"]
             timeout = kwargs["request_timeout"]
         case _:
             raise AssertionError(
-                f"Unhandled impl in success call inspection: {replicator_helper.id}"
+                f"Unhandled impl in success call inspection: {rep_helper.classname}"
             )
 
     assert src_path == bundle["bundle_path"]
-    assert timeout == getattr(rep, replicator_helper.timeout_attr)
+    assert timeout == getattr(rep, rep_helper.timeout_attr)
     assert dest_url.endswith("/foo.zip")
 
     # Verify PATCH
@@ -399,7 +405,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     assert body.get("status") == rep.output_status
     assert body.get("reason") == ""
 
-    if replicator_helper.has_transfer_reference:
+    if rep_helper.has_transfer_reference:
         assert body.get("transfer_reference") == f"globus/{transfer_mock.return_value}"
     else:
         assert "transfer_reference" not in body
@@ -407,7 +413,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
 
 @pytest.mark.asyncio
 async def test_050_do_work_claim_transfer_error_behaviour(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
     transfer_mock: MagicMock,
@@ -420,7 +426,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     - GridFTPReplicator: logs error and still marks bundle as successful.
     - GlobusReplicator: quarantines the bundle and returns False.
     """
-    rep = replicator_helper.cls(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logger)
 
     bundle: dict[str, Any] = {
         "uuid": "B-ERR",
@@ -439,8 +445,8 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     patch_calls = [c for c in rc.calls if c[0] == "PATCH"]
     assert patch_calls
 
-    match replicator_helper.id:
-        case "globus":
+    match rep_helper.classname:
+        case "GlobusReplicator":
             # Globus path: quarantined + False
             assert ok is False
             quarantine_calls = [c for c in patch_calls if c[1] == "/Bundles/B-ERR"]
@@ -448,7 +454,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
             _, _, body = quarantine_calls[0]
             assert body.get("status") == "quarantined"
             assert "BY:replicator-" in body.get("reason", "")
-        case "gridftp":
+        case "GridFTPReplicator":
             # GridFTP path: success + not quarantined
             assert ok is True
             success_calls = [c for c in patch_calls if c[1] == "/Bundles/B-ERR"]
@@ -460,18 +466,18 @@ async def test_050_do_work_claim_transfer_error_behaviour(
             assert body.get("status") != "quarantined"
         case _:
             raise AssertionError(
-                f"Unhandled impl in error behaviour test: {replicator_helper.id}"
+                f"Unhandled impl in error behaviour test: {rep_helper.classname}"
             )
 
 
 @pytest.mark.asyncio
 async def test_060_do_work_runs_until_no_work(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
 ) -> None:
     """_do_work should loop until _do_work_claim returns False."""
-    rep = replicator_helper.cls(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logger)
 
     claim_calls: list[bool] = []
 
@@ -488,13 +494,13 @@ async def test_060_do_work_runs_until_no_work(
 
 @pytest.mark.asyncio
 async def test_070_do_work_respects_run_once_and_die(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """If run_once_and_die is set, _do_work should call sys.exit after one claim attempt."""
-    rep = replicator_helper.cls(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logger)
     rep.run_once_and_die = True
 
     async def _fake_claim(_rc: DummyRestClient) -> bool:
@@ -509,7 +515,7 @@ async def test_070_do_work_respects_run_once_and_die(
         raise SystemExit
 
     # Patch the sys.exit used by this module
-    monkeypatch.setattr(replicator_helper.mod.sys, "exit", _fake_exit)
+    monkeypatch.setattr(rep_helper.mod.sys, "exit", _fake_exit)
 
     with pytest.raises(SystemExit):
         await rep._do_work(DummyRestClient())  # type: ignore[arg-type]
@@ -519,7 +525,7 @@ async def test_070_do_work_respects_run_once_and_die(
 
 @pytest.mark.asyncio
 async def test_080_replication_use_full_bundle_path_true(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
     transfer_mock: MagicMock,
@@ -529,7 +535,7 @@ async def test_080_replication_use_full_bundle_path_true(
     """When USE_FULL_BUNDLE_PATH is TRUE, dest includes bundle['path'] + basename."""
     cfg = dict(base_config)
     cfg["USE_FULL_BUNDLE_PATH"] = "TRUE"
-    rep = replicator_helper.cls(cfg, logger)
+    rep = rep_helper.instantiate_replicator(cfg, logger)
 
     bundle: dict[str, Any] = {
         "uuid": "B-456",
@@ -539,18 +545,18 @@ async def test_080_replication_use_full_bundle_path_true(
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
 
-    match replicator_helper.id:
-        case "gridftp":
+    match rep_helper.classname:
+        case "GridFTPReplicator":
             monkeypatch.setattr(
-                replicator_helper.mod.random,  # type: ignore[attr-defined]
+                rep_helper.mod.random,  # type: ignore[attr-defined]
                 "choice",
                 lambda urls: urls[0],
             )
-        case "globus":
+        case "GlobusReplicator":
             pass
         case _:
             raise AssertionError(
-                f"Unhandled impl in USE_FULL_BUNDLE_PATH true: {replicator_helper.id}"
+                f"Unhandled impl in USE_FULL_BUNDLE_PATH true: {rep_helper.classname}"
             )
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
@@ -559,14 +565,14 @@ async def test_080_replication_use_full_bundle_path_true(
     transfer_mock.assert_called_once()
     args, kwargs = transfer_mock.call_args
 
-    match replicator_helper.id:
-        case "gridftp":
+    match rep_helper.classname:
+        case "GridFTPReplicator":
             dest_url = args[0]
-        case "globus":
+        case "GlobusReplicator":
             dest_url = kwargs["dest_url"]
         case _:
             raise AssertionError(
-                f"Unhandled impl in USE_FULL_BUNDLE_PATH true call: {replicator_helper.id}"
+                f"Unhandled impl in USE_FULL_BUNDLE_PATH true call: {rep_helper.classname}"
             )
 
     assert "/data/exp/IC/2015/filtered/level2/0320/bar.zip" in dest_url
@@ -574,7 +580,7 @@ async def test_080_replication_use_full_bundle_path_true(
 
 @pytest.mark.asyncio
 async def test_090_replication_use_full_bundle_path_false(
-    replicator_helper: ReplicatorTestHelper,
+    rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
     logger: Any,
     transfer_mock: MagicMock,
@@ -584,7 +590,7 @@ async def test_090_replication_use_full_bundle_path_false(
     """When USE_FULL_BUNDLE_PATH is FALSE, destination includes only the basename."""
     cfg = dict(base_config)
     cfg["USE_FULL_BUNDLE_PATH"] = "FALSE"
-    rep = replicator_helper.cls(cfg, logger)
+    rep = rep_helper.instantiate_replicator(cfg, logger)
 
     bundle: dict[str, Any] = {
         "uuid": "B-789",
@@ -594,18 +600,18 @@ async def test_090_replication_use_full_bundle_path_false(
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
 
-    match replicator_helper.id:
-        case "gridftp":
+    match rep_helper.classname:
+        case "GridFTPReplicator":
             monkeypatch.setattr(
-                replicator_helper.mod.random,  # type: ignore[attr-defined]
+                rep_helper.mod.random,  # type: ignore[attr-defined]
                 "choice",
                 lambda urls: urls[0],
             )
-        case "globus":
+        case "GlobusReplicator":
             pass
         case _:
             raise AssertionError(
-                f"Unhandled impl in USE_FULL_BUNDLE_PATH false: {replicator_helper.id}"
+                f"Unhandled impl in USE_FULL_BUNDLE_PATH false: {rep_helper.classname}"
             )
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
@@ -614,14 +620,14 @@ async def test_090_replication_use_full_bundle_path_false(
     transfer_mock.assert_called_once()
     args, kwargs = transfer_mock.call_args
 
-    match replicator_helper.id:
-        case "gridftp":
+    match rep_helper.classname:
+        case "GridFTPReplicator":
             dest_url = args[0]
-        case "globus":
+        case "GlobusReplicator":
             dest_url = kwargs["dest_url"]
         case _:
             raise AssertionError(
-                f"Unhandled impl in USE_FULL_BUNDLE_PATH false call: {replicator_helper.id}"
+                f"Unhandled impl in USE_FULL_BUNDLE_PATH false call: {rep_helper.classname}"
             )
 
     assert dest_url.endswith("/baz.zip")
