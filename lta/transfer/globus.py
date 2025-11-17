@@ -212,6 +212,7 @@ class GlobusTransfer:
         self,
         source_path: str,
         dest_url: str,
+        request_timeout: int,
     ) -> globus_sdk.TransferData:
         """Create the object needed for submitting a transfer."""
         dest_collection_id, dest_path = self._parse_dest_url(dest_url)
@@ -280,7 +281,7 @@ class GlobusTransfer:
             raise ValueError(f"source_path must be absolute: {source_path}")
 
         # do transfer
-        tdata = self.make_transfer_document(source_path, dest_url)
+        tdata = self.make_transfer_document(source_path, dest_url, request_timeout)
         task_id = await self._submit_transfer(tdata)
 
         # wait for transfer result
@@ -305,7 +306,7 @@ class GlobusTransfer:
             match status:
                 case "SUCCEEDED":
                     logger.info(f"Globus transfer succeeded: {task_id=} {task=}")
-                    return task_id
+                    return str(task_id)
                 case "FAILED" | "INACTIVE":
                     msg = f"Globus transfer failed ({status=}): {task_id=} {task=}"
                     logger.error(msg)
