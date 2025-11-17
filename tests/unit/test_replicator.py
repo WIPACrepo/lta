@@ -8,6 +8,7 @@ Goals:
 - Cover success, no-work, error/quarantine vs success-on-error, run-once-and-die,
   and USE_FULL_BUNDLE_PATH toggling.
 """
+import logging
 from dataclasses import dataclass
 import importlib
 import sys
@@ -208,17 +209,6 @@ def base_config(rep_helper: ReplicatorTestHelper) -> dict[str, str]:
     return cfg
 
 
-@pytest.fixture
-def logger() -> Any:
-    """Simple logger-like stub with no-op methods."""
-
-    class _L:
-        def __getattr__(self, _name: str) -> Callable[..., None]:
-            return lambda *a, **k: None
-
-    return _L()
-
-
 class DummyRestClient:
     """A stub RestClient that returns queued responses and records requests."""
 
@@ -274,10 +264,9 @@ def test_000_expected_config_has_keys(rep_helper: ReplicatorTestHelper) -> None:
 def test_010_init_parses_config(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
-    logger: Any,
 ) -> None:
     """__init__ should parse and coerce config values correctly."""
-    rep = rep_helper.instantiate_replicator(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logging.getLogger())
 
     dest_attr_value = getattr(rep, rep_helper.dest_attr)
     match rep_helper.classname:
@@ -300,10 +289,9 @@ def test_010_init_parses_config(
 async def test_020_do_status_empty(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
-    logger: Any,
 ) -> None:
     """_do_status should return an empty dict."""
-    rep = rep_helper.instantiate_replicator(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logging.getLogger())
     assert rep._do_status() == {}
 
 
@@ -311,10 +299,9 @@ async def test_020_do_status_empty(
 async def test_030_do_work_claim_no_bundle_returns_false(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
-    logger: Any,
 ) -> None:
     """When the DB returns no bundle, _do_work_claim should return False."""
-    rep = rep_helper.instantiate_replicator(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logging.getLogger())
     rc = DummyRestClient(responses=[{"bundle": None}])
 
     got = await rep._do_work_claim(rc)  # type: ignore[arg-type]
@@ -326,13 +313,12 @@ async def test_030_do_work_claim_no_bundle_returns_false(
 async def test_040_do_work_claim_success_calls_transfer_and_patch(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
-    logger: Any,
     mock_join: Callable[[list[str]], str],
     mock_now: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """On success, replicator should invoke transfer and PATCH the bundle."""
-    rep = rep_helper.instantiate_replicator(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logging.getLogger())
 
     bundle: dict[str, Any] = {
         "uuid": "B-123",
@@ -405,7 +391,6 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
 async def test_050_do_work_claim_transfer_error_behaviour(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
-    logger: Any,
     mock_join: Callable[[list[str]], str],
     mock_now: str,
 ) -> None:
@@ -415,7 +400,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     - GridFTPReplicator: logs error and still marks bundle as successful.
     - GlobusReplicator: quarantines the bundle and returns False.
     """
-    rep = rep_helper.instantiate_replicator(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logging.getLogger())
 
     bundle: dict[str, Any] = {
         "uuid": "B-ERR",
@@ -461,10 +446,9 @@ async def test_050_do_work_claim_transfer_error_behaviour(
 async def test_060_do_work_runs_until_no_work(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
-    logger: Any,
 ) -> None:
     """_do_work should loop until _do_work_claim returns False."""
-    rep = rep_helper.instantiate_replicator(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logging.getLogger())
 
     claim_calls: list[bool] = []
 
@@ -483,11 +467,10 @@ async def test_060_do_work_runs_until_no_work(
 async def test_070_do_work_respects_run_once_and_die(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
-    logger: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """If run_once_and_die is set, _do_work should call sys.exit after one claim attempt."""
-    rep = rep_helper.instantiate_replicator(base_config, logger)
+    rep = rep_helper.instantiate_replicator(base_config, logging.getLogger())
     rep.run_once_and_die = True
 
     async def _fake_claim(_rc: DummyRestClient) -> bool:
@@ -514,14 +497,13 @@ async def test_070_do_work_respects_run_once_and_die(
 async def test_080_replication_use_full_bundle_path_true(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
-    logger: Any,
     mock_join: Callable[[list[str]], str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When USE_FULL_BUNDLE_PATH is TRUE, dest includes bundle['path'] + basename."""
     cfg = dict(base_config)
     cfg["USE_FULL_BUNDLE_PATH"] = "TRUE"
-    rep = rep_helper.instantiate_replicator(cfg, logger)
+    rep = rep_helper.instantiate_replicator(cfg, logging.getLogger())
 
     bundle: dict[str, Any] = {
         "uuid": "B-456",
@@ -564,14 +546,13 @@ async def test_080_replication_use_full_bundle_path_true(
 async def test_090_replication_use_full_bundle_path_false(
     rep_helper: ReplicatorTestHelper,
     base_config: dict[str, str],
-    logger: Any,
     mock_join: Callable[[list[str]], str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When USE_FULL_BUNDLE_PATH is FALSE, destination includes only the basename."""
     cfg = dict(base_config)
     cfg["USE_FULL_BUNDLE_PATH"] = "FALSE"
-    rep = rep_helper.instantiate_replicator(cfg, logger)
+    rep = rep_helper.instantiate_replicator(cfg, logging.getLogger())
 
     bundle: dict[str, Any] = {
         "uuid": "B-789",
