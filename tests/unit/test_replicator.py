@@ -17,7 +17,7 @@ from typing import Any, Callable, Literal
 
 import prometheus_client
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 
 # --------------------------------------------------------------------------------------
@@ -131,11 +131,11 @@ def rep_helper(
             mod = import_fresh("lta.globus_replicator")
 
             # GlobusReplicator instantiates GlobusTransfer and calls transfer_file(...)
-            xfer_mock = MagicMock()
-            xfer_mock.return_value = "TASK-123"
+            xfer_mock = AsyncMock(return_value="TASK-123")
 
             class _GlobusStub:
-                def __init__(self) -> None:
+                def __init__(self, *args, **kwargs) -> None:
+                    # this is what GlobusReplicator will await
                     self.transfer_file = xfer_mock
 
             monkeypatch.setattr(mod, "GlobusTransfer", _GlobusStub)
