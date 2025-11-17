@@ -221,8 +221,11 @@ class GlobusTransfer:
             source_endpoint=self._env.GLOBUS_SOURCE_COLLECTION_ID,
             destination_endpoint=dest_collection_id,
             label=f"LTA bundle transfer: {os.path.basename(source_path)}",
-            sync_level="checksum",
             fail_on_quota_errors=True,
+            # NOTE: 'sync_level'
+            #   LTA doesn't assume the transfer mechanism is reliable, and computes
+            #   checksums later in the pipeline. So 'mtime' is fine (and much cheaper).
+            sync_level="mtime",
             # NOTE: 'deadline'
             #   Even though we will attempt to manually cancel if things go awry
             #   (see below), tell globus our plan in case our python process dies.
