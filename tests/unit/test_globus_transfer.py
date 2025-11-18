@@ -402,7 +402,7 @@ async def test_430_transfer_file_timeout_cancels_and_raises(
     client.get_task.return_value = {"status": "ACTIVE"}
     mock_transfer_client.return_value = client
 
-    mock_timer.return_value.has_interval_elapsed.return_value = True
+    mock_timer.return_value.has_interval_elapsed.return_value = True  # triggers timeout
 
     # arrange: instance with cancel hook
     gt = GlobusTransfer()
