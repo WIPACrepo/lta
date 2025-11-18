@@ -56,7 +56,7 @@ def test_100_globus_transfer_init_wires_sdk_correctly(
 ) -> None:
     """__init__ loads env and builds a TransferClient with an access token."""
     # arrange: environment + SDK patches
-    env = GlobusTransferEnv(
+    mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
@@ -64,11 +64,10 @@ def test_100_globus_transfer_init_wires_sdk_correctly(
         GLOBUS_TRANSFER_SCOPE="scope:transfer",
         GLOBUS_POLL_INTERVAL_SECONDS=5.0,
     )
-    mock_from_env.return_value = env
 
     token_resp = MagicMock()
     token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"}
+        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
     }
     mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
         token_resp
@@ -77,18 +76,18 @@ def test_100_globus_transfer_init_wires_sdk_correctly(
     # act
     gt = GlobusTransfer()
 
-    # assert
+    # assert: env + auth wiring
     mock_from_env.assert_called_once_with(GlobusTransferEnv)
     mock_confidential.assert_called_once_with("cid", "secret")
     mock_confidential.return_value.oauth2_client_credentials_tokens.assert_called_once_with(
         requested_scopes="scope:transfer",
     )
+
+    # assert: authorizer + client creation
     mock_authorizer.assert_called_once_with("ACCESS-TOKEN")
     mock_transfer_client.assert_called_once_with(
         authorizer=mock_authorizer.return_value,
     )
-
-    assert gt._env is env
     assert gt._transfer_client is mock_transfer_client.return_value
 
 
@@ -109,18 +108,18 @@ def test_200_make_transfer_document_builds_expected_transferdata(
 ) -> None:
     """make_transfer_document builds TransferData with correct label and deadline."""
     # arrange: environment + SDK patches
-    env = GlobusTransferEnv(
+    poll_interval = 5.0
+    mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_POLL_INTERVAL_SECONDS=5.0,
+        GLOBUS_POLL_INTERVAL_SECONDS=poll_interval,
     )
-    mock_from_env.return_value = env
 
     token_resp = MagicMock()
     token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"}
+        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
     }
     mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
         token_resp
@@ -138,8 +137,8 @@ def test_200_make_transfer_document_builds_expected_transferdata(
     after = datetime.datetime.now(datetime.timezone.utc)
 
     # assert: basic transfer metadata
-    assert tdata["source_endpoint"] == env.GLOBUS_SOURCE_COLLECTION_ID
-    assert tdata["destination_endpoint"] == env.GLOBUS_DEST_COLLECTION_ID
+    assert tdata["source_endpoint"] == "src-id"
+    assert tdata["destination_endpoint"] == "dst-id"
     assert tdata["fail_on_quota_errors"] is True
     assert tdata["sync_level"] == "mtime"
 
@@ -149,21 +148,12 @@ def test_200_make_transfer_document_builds_expected_transferdata(
     assert source in label
     assert dest in label
 
-    # assert: deadline window (with cushion and seconds truncation)
-    deadline_str = tdata["deadline"]
-    deadline = datetime.datetime.fromisoformat(deadline_str)
-    cushion = datetime.timedelta(seconds=env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
-
-    # isoformat(..., timespec="seconds") truncates microseconds, so allow up to
-    # ~1 second slack on the lower bound, but still require the cushion.
-    min_deadline = (
-        before
-        + datetime.timedelta(seconds=timeout)
-        + cushion
-        - datetime.timedelta(seconds=1)
-    )
-    max_deadline = after + datetime.timedelta(seconds=timeout) + cushion
-    assert min_deadline <= deadline <= max_deadline
+    # assert: deadline window (account for cushion and seconds truncation)
+    deadline = datetime.datetime.fromisoformat(tdata["deadline"])
+    cushion = datetime.timedelta(seconds=poll_interval * 5)
+    base_time = deadline - datetime.timedelta(seconds=timeout) - cushion
+    fuzz = datetime.timedelta(seconds=1)
+    assert (before - fuzz) <= base_time <= after
 
     # assert: transfer items
     items = tdata["DATA"]
@@ -193,17 +183,16 @@ async def test_300_submit_transfer_uses_client_and_returns_task_id(
 ) -> None:
     """_submit_transfer calls submit_transfer and returns the task_id."""
     # arrange: environment + SDK patches
-    env = GlobusTransferEnv(
+    mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src",
         GLOBUS_DEST_COLLECTION_ID="dst",
     )
-    mock_from_env.return_value = env
 
     token_resp = MagicMock()
     token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"}
+        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
     }
     mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
         token_resp
@@ -220,7 +209,7 @@ async def test_300_submit_transfer_uses_client_and_returns_task_id(
     gt = GlobusTransfer()
     tid = await gt._submit_transfer(tdata)
 
-    # assert
+    # assert: client call + cooperative yield
     client.submit_transfer.assert_called_once_with(tdata)
     mock_sleep.assert_awaited_once_with(0)
     assert tid == "TASK-123"
@@ -244,38 +233,29 @@ async def test_400_transfer_file_rejects_relative_source_path(
 ) -> None:
     """transfer_file enforces absolute source_path."""
     # arrange: environment + SDK patches
-    env = GlobusTransferEnv(
+    mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
-        GLOBUS_CLIENT_SECRET="secret",
+        GLOBOS_CLIENT_SECRET="secret",  # type: ignore[call-arg]  # keep fail-safe
         GLOBUS_SOURCE_COLLECTION_ID="/src",
         GLOBUS_DEST_COLLECTION_ID="/dst",
     )
-    mock_from_env.return_value = env
 
     token_resp = MagicMock()
     token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"}
+        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
     }
     mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
         token_resp
     )
     mock_transfer_client.return_value = MagicMock()
 
-    # arrange: inputs
-    source_path = "relative/path.dat"
-    dest_url = "globus://dest/path"
-    request_timeout = 10
-
-    # act
-    gt = GlobusTransfer()
+    # act + assert: relative path rejected
     with pytest.raises(ValueError) as excinfo:
-        await gt.transfer_file(
-            source_path=source_path,
-            dest_url=dest_url,
-            request_timeout=request_timeout,
+        await GlobusTransfer().transfer_file(
+            source_path="relative/path.dat",
+            dest_url="globus://dest/path",
+            request_timeout=10,
         )
-
-    # assert
     assert "must be absolute" in str(excinfo.value)
 
 
@@ -292,18 +272,17 @@ async def test_410_transfer_file_success_on_first_poll(
 ) -> None:
     """If first status is SUCCEEDED, transfer_file returns immediately."""
     # arrange: environment + SDK patches
-    env = GlobusTransferEnv(
+    mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
         GLOBUS_POLL_INTERVAL_SECONDS=1.0,
     )
-    mock_from_env.return_value = env
 
     token_resp = MagicMock()
     token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"}
+        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
     }
     mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
         token_resp
@@ -314,17 +293,11 @@ async def test_410_transfer_file_success_on_first_poll(
     client.get_task.return_value = {"status": "SUCCEEDED"}
     mock_transfer_client.return_value = client
 
-    # arrange: inputs
-    source_path = "/abs/path.dat"
-    dest_url = "globus://dest/path"
-    request_timeout = 30
-
     # act
-    gt = GlobusTransfer()
-    result = await gt.transfer_file(
-        source_path=source_path,
-        dest_url=dest_url,
-        request_timeout=request_timeout,
+    result = await GlobusTransfer().transfer_file(
+        source_path="/abs/path.dat",
+        dest_url="globus://dest/path",
+        request_timeout=30,
     )
 
     # assert: submit + single poll
@@ -348,50 +321,41 @@ async def test_420_transfer_file_active_then_succeeds(
 ) -> None:
     """ACTIVE status causes a poll + sleep, then SUCCEEDED returns task_id."""
     # arrange: environment + SDK patches
-    env = GlobusTransferEnv(
+    poll_interval = 2.0
+    mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_POLL_INTERVAL_SECONDS=2.0,
+        GLOBUS_POLL_INTERVAL_SECONDS=poll_interval,
     )
-    mock_from_env.return_value = env
 
     token_resp = MagicMock()
     token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"}
+        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
     }
     mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
         token_resp
     )
 
     client = MagicMock()
+    client.submit_transfer.return_value = {"task_id": "TASK-123"}
     client.get_task.side_effect = [
         {"status": "ACTIVE"},
         {"status": "SUCCEEDED"},
     ]
     mock_transfer_client.return_value = client
 
-    # arrange: inputs
-    source_path = "/abs/file.dat"
-    dest_url = "globus://dest/path"
-    request_timeout = 30
-
-    # arrange: instance overrides
-    gt = GlobusTransfer()
-    gt.make_transfer_document = MagicMock(return_value="TData")
-    gt._submit_transfer = AsyncMock(return_value="TASK-123")
-
     # act
-    result = await gt.transfer_file(
-        source_path=source_path,
-        dest_url=dest_url,
-        request_timeout=request_timeout,
+    result = await GlobusTransfer().transfer_file(
+        source_path="/abs/file.dat",
+        dest_url="globus://dest/path",
+        request_timeout=30,
     )
 
-    # assert
+    # assert: two polls + one sleep
     assert client.get_task.call_count == 2
-    mock_sleep.assert_awaited_once_with(2.0)
+    mock_sleep.assert_awaited_once_with(poll_interval)
     assert result == "TASK-123"
 
 
@@ -412,49 +376,42 @@ async def test_430_transfer_file_timeout_cancels_and_raises(
 ) -> None:
     """When the deadline elapses, transfer_file cancels and raises TimeoutError."""
     # arrange: environment + SDK patches
-    env = GlobusTransferEnv(
+    mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
-        GLOBUS_CLIENT_SECRET="secret",
+        GLOBUS_CLIENT_SECRET="secret",  # type: ignore[call-arg]  # keep fail-safe
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
         GLOBUS_POLL_INTERVAL_SECONDS=1.0,
     )
-    mock_from_env.return_value = env
 
     token_resp = MagicMock()
     token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"}
+        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
     }
     mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
         token_resp
     )
 
     client = MagicMock()
+    client.submit_transfer.return_value = {"task_id": "TASK-123"}
     client.get_task.return_value = {"status": "ACTIVE"}
     mock_transfer_client.return_value = client
 
     mock_timer.return_value.has_interval_elapsed.return_value = True
 
-    # arrange: inputs
-    source_path = "/abs/file.dat"
-    dest_url = "globus://dest/path"
-    request_timeout = 5
-
-    # arrange: instance overrides
+    # arrange: instance with cancel hook
     gt = GlobusTransfer()
-    gt.make_transfer_document = MagicMock(return_value="TData")
-    gt._submit_transfer = AsyncMock(return_value="TASK-123")
     gt._cancel_task = MagicMock()
 
     # act
     with pytest.raises(TimeoutError) as excinfo:
         await gt.transfer_file(
-            source_path=source_path,
-            dest_url=dest_url,
-            request_timeout=request_timeout,
+            source_path="/abs/file.dat",
+            dest_url="globus://dest/path",
+            request_timeout=5,
         )
 
-    # assert
+    # assert: timeout behavior
     assert "timed out" in str(excinfo.value)
     gt._cancel_task.assert_called_once()
     mock_sleep.assert_not_awaited()
@@ -473,17 +430,16 @@ async def test_440_transfer_file_failed_raises(
 ) -> None:
     """FAILED status raises GlobusTransferFailedException."""
     # arrange: environment + SDK patches
-    env = GlobusTransferEnv(
+    mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
     )
-    mock_from_env.return_value = env
 
     token_resp = MagicMock()
     token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"}
+        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
     }
     mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
         token_resp
@@ -494,21 +450,15 @@ async def test_440_transfer_file_failed_raises(
     client.get_task.return_value = {"status": "FAILED"}
     mock_transfer_client.return_value = client
 
-    # arrange: inputs
-    source_path = "/abs/file.dat"
-    dest_url = "globus://dest/path"
-    request_timeout = 30
-
     # act
-    gt = GlobusTransfer()
     with pytest.raises(GlobusTransferFailedException) as excinfo:
-        await gt.transfer_file(
-            source_path=source_path,
-            dest_url=dest_url,
-            request_timeout=request_timeout,
+        await GlobusTransfer().transfer_file(
+            source_path="/abs/file.dat",
+            dest_url="globus://dest/path",
+            request_timeout=30,
         )
 
-    # assert
+    # assert: failure surface
     text = str(excinfo.value)
     assert "FAILED" in text
     assert "TASK-123" in text
@@ -529,48 +479,40 @@ async def test_450_transfer_file_inactive_raises(
 ) -> None:
     """INACTIVE status raises GlobusTransferFailedException."""
     # arrange: environment + SDK patches
-    env = GlobusTransferEnv(
+    mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
     )
-    mock_from_env.return_value = env
 
     token_resp = MagicMock()
     token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"}
+        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
     }
     mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
         token_resp
     )
 
     client = MagicMock()
+    client.submit_transfer.return_value = {"task_id": "TASK-123"}
     client.get_task.return_value = {"status": "INACTIVE"}
     mock_transfer_client.return_value = client
 
-    # arrange: inputs
-    source_path = "/abs/file.dat"
-    dest_url = "globus://dest/path"
-    request_timeout = 30
-
-    # arrange: instance overrides
-    gt = GlobusTransfer()
-    gt.make_transfer_document = MagicMock(return_value="TData")
-    gt._submit_transfer = AsyncMock(return_value="TASK-123")
-
     # act
     with pytest.raises(GlobusTransferFailedException) as excinfo:
-        await gt.transfer_file(
-            source_path=source_path,
-            dest_url=dest_url,
-            request_timeout=request_timeout,
+        await GlobusTransfer().transfer_file(
+            source_path="/abs/file.dat",
+            dest_url="globus://dest/path",
+            request_timeout=30,
         )
 
-    # assert
+    # assert: failure surface
     text = str(excinfo.value)
     assert "INACTIVE" in text
     assert "TASK-123" in text
+    client.submit_transfer.assert_called_once()
+    client.get_task.assert_called_once_with("TASK-123")
 
 
 @patch("lta.transfer.globus.asyncio.sleep", new_callable=AsyncMock)
@@ -588,48 +530,39 @@ async def test_460_transfer_file_unknown_status_then_succeeds(
 ) -> None:
     """Unknown status is ignored and polling continues until success."""
     # arrange: environment + SDK patches
-    env = GlobusTransferEnv(
+    poll_interval = 1.0
+    mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_POLL_INTERVAL_SECONDS=1.0,
+        GLOBUS_POLL_INTERVAL_SECONDS=poll_interval,
     )
-    mock_from_env.return_value = env
 
     token_resp = MagicMock()
     token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"}
+        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
     }
     mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
         token_resp
     )
 
     client = MagicMock()
+    client.submit_transfer.return_value = {"task_id": "TASK-123"}
     client.get_task.side_effect = [
         {"status": "FOO"},
         {"status": "SUCCEEDED"},
     ]
     mock_transfer_client.return_value = client
 
-    # arrange: inputs
-    source_path = "/abs/file.dat"
-    dest_url = "globus://dest/path"
-    request_timeout = 30
-
-    # arrange: instance overrides
-    gt = GlobusTransfer()
-    gt.make_transfer_document = MagicMock(return_value="TData")
-    gt._submit_transfer = AsyncMock(return_value="TASK-123")
-
     # act
-    result = await gt.transfer_file(
-        source_path=source_path,
-        dest_url=dest_url,
-        request_timeout=request_timeout,
+    result = await GlobusTransfer().transfer_file(
+        source_path="/abs/file.dat",
+        dest_url="globus://dest/path",
+        request_timeout=30,
     )
 
-    # assert
+    # assert: unknown status tolerant
     assert result == "TASK-123"
     assert client.get_task.call_count == 2
-    mock_sleep.assert_awaited_once_with(1.0)
+    mock_sleep.assert_awaited_once_with(poll_interval)
