@@ -210,7 +210,7 @@ class GlobusTransfer:
                 datetime.datetime.now(datetime.timezone.utc)
                 + datetime.timedelta(seconds=request_timeout)
                 + datetime.timedelta(seconds=self._env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
-            ),
+            ).isoformat(timespec="seconds"),
         )
         tdata.add_item(source_path, dest_url)
 
