@@ -196,7 +196,7 @@ class GlobusTransfer:
         tdata = globus_sdk.TransferData(
             source_endpoint=self._env.GLOBUS_SOURCE_COLLECTION_ID,
             destination_endpoint=self._env.GLOBUS_DEST_COLLECTION_ID,
-            label=f"LTA bundle transfer: {os.path.basename(source_path)}",
+            label=f"LTA bundle transfer: {source_path} -> {dest_url}",
             fail_on_quota_errors=True,
             # NOTE: 'sync_level'
             #   LTA doesn't assume the transfer mechanism is reliable, and computes
