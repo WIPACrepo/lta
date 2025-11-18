@@ -187,7 +187,7 @@ class GlobusTransfer:
 
     def make_transfer_document(
         self,
-        source_path: str,
+        source_path: Path,
         dest_url: str,
         request_timeout: int,
     ) -> globus_sdk.TransferData:
@@ -241,7 +241,7 @@ class GlobusTransfer:
     async def transfer_file(
         self,
         *,
-        source_path: str | Path,
+        source_path: Path,
         dest_url: str,
         request_timeout: int,
     ) -> str:

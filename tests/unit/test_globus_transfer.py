@@ -2,6 +2,7 @@
 
 import dataclasses
 import datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -253,7 +254,7 @@ async def test_400_transfer_file_rejects_relative_source_path(
     # act + assert: relative path rejected
     with pytest.raises(ValueError) as excinfo:
         await GlobusTransfer().transfer_file(
-            source_path="relative/path.dat",
+            source_path=Path("relative/path.dat"),
             dest_url="globus://dest/path",
             request_timeout=10,
         )
@@ -296,7 +297,7 @@ async def test_410_transfer_file_success_on_first_poll(
 
     # act
     result = await GlobusTransfer().transfer_file(
-        source_path="/abs/path.dat",
+        source_path=Path("/abs/path.dat"),
         dest_url="globus://dest/path",
         request_timeout=30,
     )
@@ -349,7 +350,7 @@ async def test_420_transfer_file_active_then_succeeds(
 
     # act
     result = await GlobusTransfer().transfer_file(
-        source_path="/abs/file.dat",
+        source_path=Path("/abs/file.dat"),
         dest_url="globus://dest/path",
         request_timeout=30,
     )
@@ -411,7 +412,7 @@ async def test_430_transfer_file_timeout_cancels_and_raises(
     # act
     with pytest.raises(TimeoutError) as excinfo:
         await gt.transfer_file(
-            source_path="/abs/file.dat",
+            source_path=Path("/abs/file.dat"),
             dest_url="globus://dest/path",
             request_timeout=5,
         )
@@ -461,7 +462,7 @@ async def test_440_transfer_file_failed_raises(
     # act
     with pytest.raises(GlobusTransferFailedException) as excinfo:
         await GlobusTransfer().transfer_file(
-            source_path="/abs/file.dat",
+            source_path=Path("/abs/file.dat"),
             dest_url="globus://dest/path",
             request_timeout=30,
         )
@@ -510,7 +511,7 @@ async def test_450_transfer_file_inactive_raises(
     # act
     with pytest.raises(GlobusTransferFailedException) as excinfo:
         await GlobusTransfer().transfer_file(
-            source_path="/abs/file.dat",
+            source_path=Path("/abs/file.dat"),
             dest_url="globus://dest/path",
             request_timeout=30,
         )
@@ -565,7 +566,7 @@ async def test_460_transfer_file_unknown_status_then_succeeds(
 
     # act
     result = await GlobusTransfer().transfer_file(
-        source_path="/abs/file.dat",
+        source_path=Path("/abs/file.dat"),
         dest_url="globus://dest/path",
         request_timeout=30,
     )

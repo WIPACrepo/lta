@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import sys
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[import-not-found]
@@ -141,15 +142,14 @@ class GlobusReplicator(Component):
         """Replicate the supplied bundle using the configured transfer service."""
         # get our ducks in a row
         bundle_id = bundle["uuid"]
-        bundle_path = bundle["bundle_path"]  # /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
+        bundle_path = Path(bundle["bundle_path"])  # /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
 
         # destination logic
-        basename = os.path.basename(bundle_path)
         if self.use_full_bundle_path:
             dest_path = bundle["path"]  # /data/exp/IceCube/2015/filtered/level2/0320
-            dest_url = join_smart_url([self.globus_dest_url, dest_path, basename])
+            dest_url = join_smart_url([self.globus_dest_url, dest_path, bundle_path.name])
         else:
-            dest_url = join_smart_url([self.globus_dest_url, basename])
+            dest_url = join_smart_url([self.globus_dest_url, bundle_path.name])
 
         # transfer the bundle
         self.logger.info(f'Sending {bundle_path} to {dest_url}')
