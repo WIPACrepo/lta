@@ -185,29 +185,6 @@ class GlobusTransfer:
         )
         return tc
 
-    def _parse_dest_url(self, dest_url: str) -> tuple[str, str]:
-        """
-        Parse destination URL into (collection_id, absolute_path).
-
-        Supports:
-          globus://COLLECTION/abs/path/file
-          /abs/path/file     → uses GLOBUS_DEST_COLLECTION_ID
-        """
-        parsed = urlparse(dest_url)
-
-        # Explicit collection in URL
-        if parsed.scheme == "globus":
-            dest_collection_id = parsed.netloc
-            dest_path = parsed.path
-        else:
-            dest_collection_id = self._env.GLOBUS_DEST_COLLECTION_ID
-            dest_path = dest_url
-
-        if not dest_path.startswith("/"):
-            dest_path = "/" + dest_path
-
-        return dest_collection_id, dest_path
-
     def make_transfer_document(
         self,
         source_path: str,
@@ -215,11 +192,10 @@ class GlobusTransfer:
         request_timeout: int,
     ) -> globus_sdk.TransferData:
         """Create the object needed for submitting a transfer."""
-        dest_collection_id, dest_path = self._parse_dest_url(dest_url)
 
         tdata = globus_sdk.TransferData(
             source_endpoint=self._env.GLOBUS_SOURCE_COLLECTION_ID,
-            destination_endpoint=dest_collection_id,
+            destination_endpoint=self._env.GLOBUS_DEST_COLLECTION_ID,
             label=f"LTA bundle transfer: {os.path.basename(source_path)}",
             fail_on_quota_errors=True,
             # NOTE: 'sync_level'
@@ -236,11 +212,9 @@ class GlobusTransfer:
                 + datetime.timedelta(seconds=self._env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
             ),
         )
-        tdata.add_item(source_path, dest_path)
+        tdata.add_item(source_path, dest_url)
 
-        logger.info(
-            f"Created transfer document for {source_path=} {dest_path=} {dest_collection_id=}"
-        )
+        logger.info(f"Created transfer document for {source_path=} -> {dest_url=}")
         return tdata
 
     async def _submit_transfer(self, tdata: globus_sdk.TransferData) -> uuid.UUID | str:
@@ -275,7 +249,7 @@ class GlobusTransfer:
         Transfer a single file via Globus Transfer and block until completion.
 
         :param source_path: Absolute path on the source collection.
-        :param dest_url: globus://COLLECTION/path OR /path (with env id).
+        :param dest_url: The destination url (location).
         :param request_timeout: Request timeout in seconds.
 
         :returns: Globus task_id for the submitted transfer.
