@@ -134,7 +134,7 @@ def test_200_make_transfer_document_builds_expected_transferdata(
     # act
     gt = GlobusTransfer()
     before = datetime.datetime.now(datetime.timezone.utc)
-    tdata = gt.make_transfer_document(source, dest, timeout)
+    tdata = gt.make_transfer_document(Path(source), dest, timeout)
     after = datetime.datetime.now(datetime.timezone.utc)
 
     # assert: basic transfer metadata
@@ -407,7 +407,7 @@ async def test_430_transfer_file_timeout_cancels_and_raises(
 
     # arrange: instance with cancel hook
     gt = GlobusTransfer()
-    gt._cancel_task = MagicMock()
+    gt._cancel_task = MagicMock()  # type: ignore
 
     # act
     with pytest.raises(TimeoutError) as excinfo:
