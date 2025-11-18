@@ -11,7 +11,7 @@ def globus_ls_recursive(gt: GlobusTransfer, collection: str, path: Path):
 
     print(f"\n\nglobus ls {path}")
 
-    entries = gt._transfer_client.operation_ls(collection, path=path)["DATA"]
+    entries = gt._transfer_client.operation_ls(collection, path=str(path))["DATA"]
 
     for e in entries:
         fullpath = path / e["name"]
