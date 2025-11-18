@@ -97,7 +97,6 @@ def test_100_globus_transfer_init_wires_sdk_correctly(
 # ---------------------------------------------------------------------------
 
 
-@patch("lta.transfer.globus.globus_sdk.TransferData")
 @patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
@@ -107,7 +106,6 @@ def test_200_make_transfer_document_builds_expected_transferdata(
     mock_confidential,
     mock_transfer_client,
     mock_authorizer,
-    mock_transfer_data,
 ) -> None:
     """make_transfer_document builds TransferData with correct label and deadline."""
     # arrange: environment + SDK patches
@@ -135,38 +133,44 @@ def test_200_make_transfer_document_builds_expected_transferdata(
 
     # act
     gt = GlobusTransfer()
-    fake_tdata = mock_transfer_data.return_value
-
     before = datetime.datetime.now(datetime.timezone.utc)
     tdata = gt.make_transfer_document(source, dest, timeout)
     after = datetime.datetime.now(datetime.timezone.utc)
 
-    # assert
-    assert tdata is fake_tdata
+    # assert: basic transfer metadata
+    assert tdata["source_endpoint"] == env.GLOBUS_SOURCE_COLLECTION_ID
+    assert tdata["destination_endpoint"] == env.GLOBUS_DEST_COLLECTION_ID
+    assert tdata["fail_on_quota_errors"] is True
+    assert tdata["sync_level"] == "mtime"
 
-    _, kwargs = mock_transfer_data.call_args
-    assert kwargs["source_endpoint"] == env.GLOBUS_SOURCE_COLLECTION_ID
-    assert kwargs["destination_endpoint"] == env.GLOBUS_DEST_COLLECTION_ID
-    assert kwargs["fail_on_quota_errors"] is True
-    assert kwargs["sync_level"] == "mtime"
-
-    label = kwargs["label"]
+    # assert: label content
+    label = tdata["label"]
     assert label.startswith("LTA bundle transfer: ")
     assert source in label
     assert dest in label
 
-    deadline = datetime.datetime.fromisoformat(kwargs["deadline"])
+    # assert: deadline window (with cushion and seconds truncation)
+    deadline_str = tdata["deadline"]
+    deadline = datetime.datetime.fromisoformat(deadline_str)
     cushion = datetime.timedelta(seconds=env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
 
-    # because isoformat(..., timespec="seconds") truncates microseconds, we can only
-    # safely assert that:
-    #   - deadline is at least timeout seconds after 'before'
-    #   - deadline is at most timeout + cushion seconds after 'after'
-    min_deadline = before + datetime.timedelta(seconds=timeout)
+    # isoformat(..., timespec="seconds") truncates microseconds, so allow up to
+    # ~1 second slack on the lower bound, but still require the cushion.
+    min_deadline = (
+        before
+        + datetime.timedelta(seconds=timeout)
+        + cushion
+        - datetime.timedelta(seconds=1)
+    )
     max_deadline = after + datetime.timedelta(seconds=timeout) + cushion
     assert min_deadline <= deadline <= max_deadline
 
-    fake_tdata.add_item.assert_called_once_with(source, dest)
+    # assert: transfer items
+    items = tdata["DATA"]
+    assert len(items) == 1
+    item = items[0]
+    assert item["source_path"] == source
+    assert item["destination_path"] == dest
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +310,7 @@ async def test_410_transfer_file_success_on_first_poll(
     )
 
     client = MagicMock()
+    client.submit_transfer.return_value = {"task_id": "TASK-123"}
     client.get_task.return_value = {"status": "SUCCEEDED"}
     mock_transfer_client.return_value = client
 
@@ -314,25 +319,16 @@ async def test_410_transfer_file_success_on_first_poll(
     dest_url = "globus://dest/path"
     request_timeout = 30
 
-    # arrange: instance overrides
-    gt = GlobusTransfer()
-    gt.make_transfer_document = MagicMock(return_value="TData")
-    gt._submit_transfer = AsyncMock(return_value="TASK-123")
-
     # act
+    gt = GlobusTransfer()
     result = await gt.transfer_file(
         source_path=source_path,
         dest_url=dest_url,
         request_timeout=request_timeout,
     )
 
-    # assert
-    gt.make_transfer_document.assert_called_once_with(
-        source_path,
-        dest_url,
-        request_timeout,
-    )
-    gt._submit_transfer.assert_awaited_once_with("TData")
+    # assert: submit + single poll
+    client.submit_transfer.assert_called_once()
     client.get_task.assert_called_once_with("TASK-123")
     assert result == "TASK-123"
 
@@ -494,6 +490,7 @@ async def test_440_transfer_file_failed_raises(
     )
 
     client = MagicMock()
+    client.submit_transfer.return_value = {"task_id": "TASK-123"}
     client.get_task.return_value = {"status": "FAILED"}
     mock_transfer_client.return_value = client
 
@@ -502,12 +499,8 @@ async def test_440_transfer_file_failed_raises(
     dest_url = "globus://dest/path"
     request_timeout = 30
 
-    # arrange: instance overrides
-    gt = GlobusTransfer()
-    gt.make_transfer_document = MagicMock(return_value="TData")
-    gt._submit_transfer = AsyncMock(return_value="TASK-123")
-
     # act
+    gt = GlobusTransfer()
     with pytest.raises(GlobusTransferFailedException) as excinfo:
         await gt.transfer_file(
             source_path=source_path,
@@ -519,6 +512,8 @@ async def test_440_transfer_file_failed_raises(
     text = str(excinfo.value)
     assert "FAILED" in text
     assert "TASK-123" in text
+    client.submit_transfer.assert_called_once()
+    client.get_task.assert_called_once_with("TASK-123")
 
 
 @patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
