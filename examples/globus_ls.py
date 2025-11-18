@@ -1,5 +1,6 @@
 """A simple script that does a 'globus ls' using lta's GlobusTransfer."""
 
+import logging
 from pathlib import Path
 import json
 import asyncio
@@ -36,5 +37,6 @@ async def main():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     asyncio.run(main())
     print("Done.")
