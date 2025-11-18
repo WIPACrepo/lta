@@ -146,8 +146,8 @@ class GlobusReplicator(Component):
 
         # destination logic
         if self.use_full_bundle_path:
-            dest_path = bundle["path"]  # /data/exp/IceCube/2015/filtered/level2/0320
-            dest_url = join_smart_url([self.globus_dest_url, dest_path, bundle_path.name])
+            # /data/exp/IceCube/2015/filtered/level2/0320
+            dest_url = join_smart_url([self.globus_dest_url, bundle["path"], bundle_path.name])
         else:
             dest_url = join_smart_url([self.globus_dest_url, bundle_path.name])
 
