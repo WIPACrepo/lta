@@ -6,6 +6,7 @@ import itertools
 import subprocess
 import uuid
 import datetime
+from pathlib import Path
 from typing import cast
 import logging
 import os
@@ -211,7 +212,7 @@ class GlobusTransfer:
                 + datetime.timedelta(seconds=self._env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
             ).isoformat(timespec="seconds"),
         )
-        tdata.add_item(source_path, dest_url)
+        tdata.add_item(str(source_path), dest_url)
 
         logger.info(f"Created transfer document for {source_path=} -> {dest_url=}")
         return tdata
@@ -240,7 +241,7 @@ class GlobusTransfer:
     async def transfer_file(
         self,
         *,
-        source_path: str,
+        source_path: str | Path,
         dest_url: str,
         request_timeout: int,
     ) -> str:
