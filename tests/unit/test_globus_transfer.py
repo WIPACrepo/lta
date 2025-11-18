@@ -140,7 +140,8 @@ def test_200_make_transfer_document_builds_expected_transferdata(
     assert tdata["source_endpoint"] == "src-id"
     assert tdata["destination_endpoint"] == "dst-id"
     assert tdata["fail_on_quota_errors"] is True
-    assert tdata["sync_level"] == "mtime"
+    # Globus maps sync level "mtime" → numeric code 2 internally.
+    assert tdata["sync_level"] == 2
 
     # assert: label content
     label = tdata["label"]
@@ -235,7 +236,7 @@ async def test_400_transfer_file_rejects_relative_source_path(
     # arrange: environment + SDK patches
     mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
-        GLOBOS_CLIENT_SECRET="secret",  # type: ignore[call-arg]  # keep fail-safe
+        GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="/src",
         GLOBUS_DEST_COLLECTION_ID="/dst",
     )
@@ -353,9 +354,13 @@ async def test_420_transfer_file_active_then_succeeds(
         request_timeout=30,
     )
 
-    # assert: two polls + one sleep
+    # assert: two polls + expected sleeps (0 from _submit_transfer, then poll_interval)
     assert client.get_task.call_count == 2
-    mock_sleep.assert_awaited_once_with(poll_interval)
+    assert mock_sleep.await_count == 2
+    first_call_args = mock_sleep.await_args_list[0].args
+    second_call_args = mock_sleep.await_args_list[1].args
+    assert first_call_args == (0,)
+    assert second_call_args == (poll_interval,)
     assert result == "TASK-123"
 
 
@@ -378,7 +383,7 @@ async def test_430_transfer_file_timeout_cancels_and_raises(
     # arrange: environment + SDK patches
     mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
-        GLOBUS_CLIENT_SECRET="secret",  # type: ignore[call-arg]  # keep fail-safe
+        GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
         GLOBUS_POLL_INTERVAL_SECONDS=1.0,
@@ -414,7 +419,10 @@ async def test_430_transfer_file_timeout_cancels_and_raises(
     # assert: timeout behavior
     assert "timed out" in str(excinfo.value)
     gt._cancel_task.assert_called_once()
-    mock_sleep.assert_not_awaited()
+
+    # only the initial sleep(0) from _submit_transfer should have occurred
+    assert mock_sleep.await_count == 1
+    assert mock_sleep.await_args_list[0].args == (0,)
 
 
 @patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
@@ -565,4 +573,9 @@ async def test_460_transfer_file_unknown_status_then_succeeds(
     # assert: unknown status tolerant
     assert result == "TASK-123"
     assert client.get_task.call_count == 2
-    mock_sleep.assert_awaited_once_with(poll_interval)
+    # _submit_transfer: sleep(0), then polling sleep(poll_interval)
+    assert mock_sleep.await_count == 2
+    first_call_args = mock_sleep.await_args_list[0].args
+    second_call_args = mock_sleep.await_args_list[1].args
+    assert first_call_args == (0,)
+    assert second_call_args == (poll_interval,)
