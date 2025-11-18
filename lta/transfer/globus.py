@@ -10,7 +10,6 @@ from typing import cast
 import logging
 import os
 from typing import Any, Optional
-from urllib.parse import urlparse
 import dataclasses
 
 import globus_sdk
