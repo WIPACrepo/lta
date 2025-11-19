@@ -135,7 +135,7 @@ def rep_helper(
             xfer_mock = AsyncMock(return_value="TASK-123")
 
             class _GlobusStub:
-                def __init__(self, *args, **kwargs) -> None:
+                def __init__(self, *args: Any, **kwargs: Any) -> None:
                     # this is what GlobusReplicator will await
                     self.transfer_file = xfer_mock
 
@@ -150,8 +150,6 @@ def rep_helper(
                 dest_attr="globus_dest_url",
                 timeout_attr="globus_timeout",
                 expected_config_keys=[
-                    "GLOBUS_DEST_URL",
-                    "GLOBUS_TIMEOUT",
                     "USE_FULL_BUNDLE_PATH",
                     "WORK_RETRIES",
                     "WORK_TIMEOUT_SECONDS",
@@ -201,12 +199,14 @@ def base_config(rep_helper: ReplicatorTestHelper) -> dict[str, str]:
                 "gsiftp://dest.example.org:2811/data;"
                 "gsiftp://alt.example.org:2811/data"
             )
+            cfg[rep_helper.timeout_config_key] = "1200"
+
         case "GlobusReplicator":
-            cfg[rep_helper.dest_config_key] = "globus://dest.example.org/collection"
+            pass
+
         case _:
             raise UnknownRepHelperError(rep_helper.classname)
 
-    cfg[rep_helper.timeout_config_key] = "1200"
     return cfg
 
 
@@ -236,7 +236,10 @@ def mock_join(
     def _join(parts: list[str]) -> str:
         return "/".join(s.strip("/") for s in parts if s is not None)
 
-    monkeypatch.setattr(rep_helper.mod, "join_smart_url", _join)
+    if rep_helper.classname == "GridFTPReplicator":
+        # GridFTPReplicator uses join_smart_url; GlobusReplicator no longer does.
+        monkeypatch.setattr(rep_helper.mod, "join_smart_url", _join)
+
     return _join
 
 
@@ -269,17 +272,21 @@ def test_010_init_parses_config(
     """__init__ should parse and coerce config values correctly."""
     rep = rep_helper.instantiate_replicator(base_config, logging.getLogger())
 
-    dest_attr_value = getattr(rep, rep_helper.dest_attr)
     match rep_helper.classname:
         case "GridFTPReplicator":
+            dest_attr_value = getattr(rep, rep_helper.dest_attr)
             assert dest_attr_value == base_config[rep_helper.dest_config_key].split(";")
+
+            timeout_value = getattr(rep, rep_helper.timeout_attr)
+            assert timeout_value == int(base_config[rep_helper.timeout_config_key])
+
         case "GlobusReplicator":
-            assert dest_attr_value == base_config[rep_helper.dest_config_key]
+            # These are internal to GlobusTransferEnv, not the replicator itself.
+            assert not hasattr(rep, "globus_dest_url")
+            assert not hasattr(rep, "globus_timeout")
+
         case _:
             raise UnknownRepHelperError(rep_helper.classname)
-
-    timeout_value = getattr(rep, rep_helper.timeout_attr)
-    assert timeout_value == int(base_config[rep_helper.timeout_config_key])
 
     assert rep.use_full_bundle_path is False
     assert rep.work_retries == 3
@@ -338,7 +345,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
                 lambda urls: urls[0],
             )
         case "GlobusReplicator":
-            # GlobusReplicator uses a single dest URL, no random choice.
+            # GlobusReplicator uses a single dest path, no random choice.
             pass
         case _:
             raise UnknownRepHelperError(rep_helper.classname)
@@ -351,19 +358,24 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
 
     match rep_helper.classname:
         case "GridFTPReplicator":
-            dest_url = args[0]
+            dest = args[0]
             src_path = kwargs["filename"]
             timeout = kwargs["request_timeout"]
+
+            assert str(src_path) == bundle["bundle_path"]
+            assert timeout == int(base_config[rep_helper.timeout_config_key])
+            assert dest.endswith("/foo.zip")
+
         case "GlobusReplicator":
-            dest_url = kwargs["dest_url"]
             src_path = kwargs["source_path"]
-            timeout = kwargs["request_timeout"]
+            dest_path = kwargs["dest_path"]
+
+            # USE_FULL_BUNDLE_PATH is FALSE in base_config → just basename.
+            assert str(src_path) == bundle["bundle_path"]
+            assert str(dest_path) == "foo.zip"
+
         case _:
             raise UnknownRepHelperError(rep_helper.classname)
-
-    assert str(src_path) == bundle["bundle_path"]
-    assert timeout == getattr(rep, rep_helper.timeout_attr)
-    assert dest_url.endswith("/foo.zip")
 
     # Verify PATCH
     patch_calls = [
@@ -534,13 +546,15 @@ async def test_080_replication_use_full_bundle_path_true(
 
     match rep_helper.classname:
         case "GridFTPReplicator":
-            dest_url = args[0]
+            dest_str = args[0]
+            assert "/data/exp/IC/2015/filtered/level2/0320/bar.zip" in dest_str
+
         case "GlobusReplicator":
-            dest_url = kwargs["dest_url"]
+            dest_path = kwargs["dest_path"]
+            assert str(dest_path) == "/data/exp/IC/2015/filtered/level2/0320/bar.zip"
+
         case _:
             raise UnknownRepHelperError(rep_helper.classname)
-
-    assert "/data/exp/IC/2015/filtered/level2/0320/bar.zip" in dest_url
 
 
 @pytest.mark.asyncio
@@ -583,11 +597,13 @@ async def test_090_replication_use_full_bundle_path_false(
 
     match rep_helper.classname:
         case "GridFTPReplicator":
-            dest_url = args[0]
+            dest_str = args[0]
+            assert dest_str.endswith("/baz.zip")
+            assert "irrelevant" not in dest_str
+
         case "GlobusReplicator":
-            dest_url = kwargs["dest_url"]
+            dest_path = kwargs["dest_path"]
+            assert str(dest_path) == "baz.zip"
+
         case _:
             raise UnknownRepHelperError(rep_helper.classname)
-
-    assert dest_url.endswith("/baz.zip")
-    assert "irrelevant" not in dest_url
