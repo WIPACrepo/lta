@@ -25,8 +25,8 @@ def test_000_globus_transfer_env_defaults() -> None:
     env = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
-        GLOBUS_SOURCE_COLLECTION_ID="src",
-        GLOBUS_DEST_COLLECTION_ID="dst",
+        GLOBUS_SOURCE_COLLECTION_ID="src-id",
+        GLOBUS_DEST_COLLECTION_ID="dst-id",
     )
 
     # assert: defaults
@@ -190,8 +190,8 @@ async def test_300_submit_transfer_uses_client_and_returns_task_id(
     mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
-        GLOBUS_SOURCE_COLLECTION_ID="src",
-        GLOBUS_DEST_COLLECTION_ID="dst",
+        GLOBUS_SOURCE_COLLECTION_ID="src-id",
+        GLOBUS_DEST_COLLECTION_ID="dst-id",
     )
 
     token_resp = MagicMock()
@@ -240,8 +240,8 @@ async def test_400_transfer_file_rejects_relative_source_path(
     mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
-        GLOBUS_SOURCE_COLLECTION_ID="/src",
-        GLOBUS_DEST_COLLECTION_ID="/dst",
+        GLOBUS_SOURCE_COLLECTION_ID="src-id",
+        GLOBUS_DEST_COLLECTION_ID="dst-id",
     )
 
     token_resp = MagicMock()
