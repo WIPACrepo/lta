@@ -204,7 +204,7 @@ def base_config(rep_helper: ReplicatorTestHelper) -> dict[str, str]:
         case "GlobusReplicator":
             cfg[rep_helper.dest_config_key] = "globus://dest.example.org/collection"
         case _:
-            UnknownRepHelperError(rep_helper.classname)
+            raise UnknownRepHelperError(rep_helper.classname)
 
     cfg[rep_helper.timeout_config_key] = "1200"
     return cfg
@@ -341,7 +341,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
             # GlobusReplicator uses a single dest URL, no random choice.
             pass
         case _:
-            UnknownRepHelperError(rep_helper.classname)
+            raise UnknownRepHelperError(rep_helper.classname)
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
@@ -359,9 +359,9 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
             src_path = kwargs["source_path"]
             timeout = kwargs["request_timeout"]
         case _:
-            UnknownRepHelperError(rep_helper.classname)
+            raise UnknownRepHelperError(rep_helper.classname)
 
-    assert src_path == bundle["bundle_path"]
+    assert str(src_path) == bundle["bundle_path"]
     assert timeout == getattr(rep, rep_helper.timeout_attr)
     assert dest_url.endswith("/foo.zip")
 
@@ -385,7 +385,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
                 == f"globus/{rep_helper.transfer_mock.return_value}"
             )
         case _:
-            UnknownRepHelperError(rep_helper.classname)
+            raise UnknownRepHelperError(rep_helper.classname)
 
 
 @pytest.mark.asyncio
@@ -440,7 +440,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
             assert body.get("reason") == ""
             assert body.get("status") != "quarantined"
         case _:
-            UnknownRepHelperError(rep_helper.classname)
+            raise UnknownRepHelperError(rep_helper.classname)
 
 
 @pytest.mark.asyncio
@@ -524,7 +524,7 @@ async def test_080_replication_use_full_bundle_path_true(
         case "GlobusReplicator":
             pass
         case _:
-            UnknownRepHelperError(rep_helper.classname)
+            raise UnknownRepHelperError(rep_helper.classname)
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
@@ -538,7 +538,7 @@ async def test_080_replication_use_full_bundle_path_true(
         case "GlobusReplicator":
             dest_url = kwargs["dest_url"]
         case _:
-            UnknownRepHelperError(rep_helper.classname)
+            raise UnknownRepHelperError(rep_helper.classname)
 
     assert "/data/exp/IC/2015/filtered/level2/0320/bar.zip" in dest_url
 
@@ -573,7 +573,7 @@ async def test_090_replication_use_full_bundle_path_false(
         case "GlobusReplicator":
             pass
         case _:
-            UnknownRepHelperError(rep_helper.classname)
+            raise UnknownRepHelperError(rep_helper.classname)
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
@@ -587,7 +587,7 @@ async def test_090_replication_use_full_bundle_path_false(
         case "GlobusReplicator":
             dest_url = kwargs["dest_url"]
         case _:
-            UnknownRepHelperError(rep_helper.classname)
+            raise UnknownRepHelperError(rep_helper.classname)
 
     assert dest_url.endswith("/baz.zip")
     assert "irrelevant" not in dest_url
