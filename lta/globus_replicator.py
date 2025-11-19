@@ -12,7 +12,6 @@ from rest_tools.client import RestClient
 import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
-from .joiner import join_smart_url
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .rest_server import boolify
@@ -26,8 +25,6 @@ LOG = logging.getLogger(__name__)
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
-    "GLOBUS_DEST_URL": None,
-    "GLOBUS_TIMEOUT": "1200",
     "USE_FULL_BUNDLE_PATH": "FALSE",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
@@ -61,8 +58,6 @@ class GlobusReplicator(Component):
         logger - The object the replicator should use for logging.
         """
         super().__init__("replicator", config, logger)
-        self.globus_dest_url = config["GLOBUS_DEST_URL"]
-        self.globus_timeout = int(config["GLOBUS_TIMEOUT"])
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
@@ -141,22 +136,24 @@ class GlobusReplicator(Component):
         """Replicate the supplied bundle using the configured transfer service."""
         # get our ducks in a row
         bundle_id = bundle["uuid"]
-        bundle_path = Path(bundle["bundle_path"])  # /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
+        source_path = Path(bundle["bundle_path"])
 
         # destination logic
+        # -- start with basename of /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
+        bundle_name = Path(bundle["bundle_path"]).name
         if self.use_full_bundle_path:
-            # /data/exp/IceCube/2015/filtered/level2/0320
-            dest_url = join_smart_url([self.globus_dest_url, bundle["path"], bundle_path.name])
+            # /data/exp/IceCube/2015/filtered/level2/0320 + BUNDLE_NAME
+            dest_path = Path(bundle["path"]) / bundle_name
         else:
-            dest_url = join_smart_url([self.globus_dest_url, bundle_path.name])
+            # BUNDLE_NAME
+            dest_path = Path(bundle_name)
 
         # transfer the bundle
-        self.logger.info(f'Sending {bundle_path} to {dest_url}')
+        self.logger.info(f'Sending {source_path} to {dest_path}')
         try:
             task_id = await self.globus_transfer.transfer_file(
-                source_path=bundle_path,
-                dest_url=dest_url,
-                request_timeout=self.globus_timeout,
+                source_path=source_path,
+                dest_path=dest_path,
             )
         except Exception as e:
             self.logger.error(f'Globus transfer threw an error: {e}')

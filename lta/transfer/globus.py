@@ -17,6 +17,8 @@ import globus_sdk
 from wipac_dev_tools import from_environment, from_environment_as_dataclass
 from wipac_dev_tools.timing_tools import IntervalTimer
 
+from ..joiner import join_smart_url
+
 # fmt:off
 
 
@@ -134,8 +136,10 @@ class GlobusTransferEnv:
     GLOBUS_CLIENT_SECRET: str
     GLOBUS_SOURCE_COLLECTION_ID: str
     GLOBUS_DEST_COLLECTION_ID: str
+    GLOBUS_DEST_URL: str
 
-    # Defaults
+    # Optional
+    GLOBUS_TIMEOUT: int = 1200
     GLOBUS_TRANSFER_SCOPE: str = "urn:globus:auth:scope:transfer.api.globus.org:all"
     GLOBUS_POLL_INTERVAL_SECONDS: float = 10.0
 
@@ -189,7 +193,6 @@ class GlobusTransfer:
         self,
         source_path: Path,
         dest_url: str,
-        request_timeout: int,
     ) -> globus_sdk.TransferData:
         """Create the object needed for submitting a transfer."""
 
@@ -208,7 +211,7 @@ class GlobusTransfer:
             #   Also, add a bit of cushion.
             deadline=(
                 datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(seconds=request_timeout)
+                + datetime.timedelta(seconds=self._env.GLOBUS_TIMEOUT)
                 + datetime.timedelta(seconds=self._env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
             ).isoformat(timespec="seconds"),
         )
@@ -242,34 +245,34 @@ class GlobusTransfer:
         self,
         *,
         source_path: Path,
-        dest_url: str,
-        request_timeout: int,
+        dest_path: Path,
     ) -> str:
         """
         Transfer a single file via Globus Transfer and block until completion.
 
         :param source_path: Absolute path on the source collection.
-        :param dest_url: The destination url (location).
-        :param request_timeout: Request timeout in seconds.
+        :param dest_path: The destination path (location) on GLOBUS_DEST_URL.
 
         :returns: Globus task_id for the submitted transfer.
         """
         if not os.path.isabs(source_path):
             raise ValueError(f"source_path must be absolute: {source_path}")
 
+        dest_url = join_smart_url([self._env.GLOBUS_DEST_URL, str(dest_path)])
+
         # do transfer
-        tdata = self.make_transfer_document(source_path, dest_url, request_timeout)
+        tdata = self.make_transfer_document(source_path, dest_url)
         task_id = await self._submit_transfer(tdata)
 
         # wait for transfer result
         # -- NOTE: 'globus_sdk.TransferClient.task_wait()' is *NOT* async, so diy
-        deadline = IntervalTimer(request_timeout, logger=None)
+        deadline = IntervalTimer(self._env.GLOBUS_TIMEOUT, logger=None)
         for i in itertools.count():
 
             # looping condition(s)
             # -- note: check if interval elapsed *before* sleeping to not waste time
             if deadline.has_interval_elapsed():
-                msg = f"Globus transfer {task_id=} timed out after {request_timeout=} seconds"
+                msg = f"Globus transfer {task_id=} timed out after {deadline.seconds} seconds"
                 self._cancel_task(task_id, msg)
                 raise TimeoutError(msg)
             elif i > 0:
