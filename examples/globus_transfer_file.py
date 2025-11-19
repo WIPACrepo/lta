@@ -20,22 +20,16 @@ async def main():
     )
     parser.add_argument(
         "--dest",
-        type=str,
+        type=Path,
         required=True,
-        help="File destination URL",
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=60,
+        help="File destination path",
     )
     args = parser.parse_args()
 
     gt = GlobusTransfer()
     await gt.transfer_file(
         source_path=args.src,
-        dest_url=args.dest,
-        request_timeout=args.timeout,
+        dest_path=args.dest,
     )
 
 
