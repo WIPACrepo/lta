@@ -17,8 +17,6 @@ import globus_sdk
 from wipac_dev_tools import from_environment, from_environment_as_dataclass
 from wipac_dev_tools.timing_tools import IntervalTimer
 
-from ..joiner import join_smart_url
-
 # fmt:off
 
 
