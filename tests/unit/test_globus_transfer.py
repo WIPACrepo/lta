@@ -27,7 +27,6 @@ def test_000_globus_transfer_env_defaults() -> None:
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src",
         GLOBUS_DEST_COLLECTION_ID="dst",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
     )
 
     # assert: defaults
@@ -64,7 +63,6 @@ def test_100_globus_transfer_init_wires_sdk_correctly(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
         GLOBUS_TRANSFER_SCOPE="scope:transfer",
         GLOBUS_POLL_INTERVAL_SECONDS=5.0,
     )
@@ -119,7 +117,6 @@ def test_200_make_transfer_document_builds_expected_transferdata(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
         GLOBUS_TIMEOUT=timeout,
         GLOBUS_POLL_INTERVAL_SECONDS=poll_interval,
     )
@@ -133,13 +130,13 @@ def test_200_make_transfer_document_builds_expected_transferdata(
     )
 
     # arrange: inputs
-    source = "/absolute/source.dat"
-    dest = "globus://dest-collection/path"
+    source = Path("/absolute/source.dat")
+    dest = Path("/dest/collection/path.dat")
 
     # act
     gt = GlobusTransfer()
     before = datetime.datetime.now(datetime.timezone.utc)
-    tdata = gt.make_transfer_document(Path(source), dest)
+    tdata = gt.make_transfer_document(source, dest)
     after = datetime.datetime.now(datetime.timezone.utc)
 
     # assert: basic transfer metadata
@@ -152,8 +149,8 @@ def test_200_make_transfer_document_builds_expected_transferdata(
     # assert: label content
     label = tdata["label"]
     assert label.startswith("LTA bundle transfer: ")
-    assert source in label
-    assert dest in label
+    assert str(source) in label
+    assert str(dest) in label
 
     # assert: deadline window (account for cushion and seconds truncation)
     deadline = datetime.datetime.fromisoformat(tdata["deadline"])
@@ -166,8 +163,8 @@ def test_200_make_transfer_document_builds_expected_transferdata(
     items = tdata["DATA"]
     assert len(items) == 1
     item = items[0]
-    assert item["source_path"] == source
-    assert item["destination_path"] == dest
+    assert item["source_path"] == str(source)
+    assert item["destination_path"] == str(dest)
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +192,6 @@ async def test_300_submit_transfer_uses_client_and_returns_task_id(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src",
         GLOBUS_DEST_COLLECTION_ID="dst",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
     )
 
     token_resp = MagicMock()
@@ -246,7 +242,6 @@ async def test_400_transfer_file_rejects_relative_source_path(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="/src",
         GLOBUS_DEST_COLLECTION_ID="/dst",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
     )
 
     token_resp = MagicMock()
@@ -262,7 +257,7 @@ async def test_400_transfer_file_rejects_relative_source_path(
     with pytest.raises(ValueError) as excinfo:
         await GlobusTransfer().transfer_file(
             source_path=Path("relative/path.dat"),
-            dest_path=Path("dest/path.dat"),
+            dest_path=Path("/dest/path.dat"),
         )
     assert "must be absolute" in str(excinfo.value)
 
@@ -285,7 +280,6 @@ async def test_410_transfer_file_success_on_first_poll(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
         GLOBUS_POLL_INTERVAL_SECONDS=1.0,
     )
 
@@ -305,7 +299,7 @@ async def test_410_transfer_file_success_on_first_poll(
     # act
     result = await GlobusTransfer().transfer_file(
         source_path=Path("/abs/path.dat"),
-        dest_path=Path("dest/path.dat"),
+        dest_path=Path("/dest/path.dat"),
     )
 
     # assert: submit + single poll
@@ -335,7 +329,6 @@ async def test_420_transfer_file_active_then_succeeds(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
         GLOBUS_POLL_INTERVAL_SECONDS=poll_interval,
     )
 
@@ -358,7 +351,7 @@ async def test_420_transfer_file_active_then_succeeds(
     # act
     result = await GlobusTransfer().transfer_file(
         source_path=Path("/abs/file.dat"),
-        dest_path=Path("dest/path.dat"),
+        dest_path=Path("/dest/path.dat"),
     )
 
     # assert: two polls + expected sleeps (0 from _submit_transfer, then poll_interval)
@@ -393,7 +386,6 @@ async def test_430_transfer_file_timeout_cancels_and_raises(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
         GLOBUS_POLL_INTERVAL_SECONDS=1.0,
     )
 
@@ -420,7 +412,7 @@ async def test_430_transfer_file_timeout_cancels_and_raises(
     with pytest.raises(TimeoutError) as excinfo:
         await gt.transfer_file(
             source_path=Path("/abs/file.dat"),
-            dest_path=Path("dest/path.dat"),
+            dest_path=Path("/dest/path.dat"),
         )
 
     # assert: timeout behavior
@@ -450,7 +442,6 @@ async def test_440_transfer_file_failed_raises(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
     )
 
     token_resp = MagicMock()
@@ -470,7 +461,7 @@ async def test_440_transfer_file_failed_raises(
     with pytest.raises(GlobusTransferFailedException) as excinfo:
         await GlobusTransfer().transfer_file(
             source_path=Path("/abs/file.dat"),
-            dest_path=Path("dest/path.dat"),
+            dest_path=Path("/dest/path.dat"),
         )
 
     # assert: failure surface
@@ -499,7 +490,6 @@ async def test_450_transfer_file_inactive_raises(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
     )
 
     token_resp = MagicMock()
@@ -519,7 +509,7 @@ async def test_450_transfer_file_inactive_raises(
     with pytest.raises(GlobusTransferFailedException) as excinfo:
         await GlobusTransfer().transfer_file(
             source_path=Path("/abs/file.dat"),
-            dest_path=Path("dest/path.dat"),
+            dest_path=Path("/dest/path.dat"),
         )
 
     # assert: failure surface
@@ -551,7 +541,6 @@ async def test_460_transfer_file_unknown_status_then_succeeds(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_DEST_URL="globus://dest.example.org/collection",
         GLOBUS_POLL_INTERVAL_SECONDS=poll_interval,
     )
 
@@ -574,7 +563,7 @@ async def test_460_transfer_file_unknown_status_then_succeeds(
     # act
     result = await GlobusTransfer().transfer_file(
         source_path=Path("/abs/file.dat"),
-        dest_path=Path("dest/path.dat"),
+        dest_path=Path("/dest/path.dat"),
     )
 
     # assert: unknown status tolerant

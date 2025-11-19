@@ -136,7 +136,6 @@ class GlobusTransferEnv:
     GLOBUS_CLIENT_SECRET: str
     GLOBUS_SOURCE_COLLECTION_ID: str
     GLOBUS_DEST_COLLECTION_ID: str
-    GLOBUS_DEST_URL: str
 
     # Optional
     GLOBUS_TIMEOUT: int = 1200
@@ -192,14 +191,14 @@ class GlobusTransfer:
     def make_transfer_document(
         self,
         source_path: Path,
-        dest_url: str,
+        dest_path: Path,
     ) -> globus_sdk.TransferData:
         """Create the object needed for submitting a transfer."""
 
         tdata = globus_sdk.TransferData(
             source_endpoint=self._env.GLOBUS_SOURCE_COLLECTION_ID,
             destination_endpoint=self._env.GLOBUS_DEST_COLLECTION_ID,
-            label=f"LTA bundle transfer: {source_path} -> {dest_url}",
+            label=f"LTA bundle transfer: {source_path} -> {dest_path}",
             fail_on_quota_errors=True,
             # NOTE: 'sync_level'
             #   LTA doesn't assume the transfer mechanism is reliable, and computes
@@ -215,9 +214,9 @@ class GlobusTransfer:
                 + datetime.timedelta(seconds=self._env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
             ).isoformat(timespec="seconds"),
         )
-        tdata.add_item(str(source_path), dest_url)
+        tdata.add_item(str(source_path), str(dest_path))
 
-        logger.info(f"Created transfer document for {source_path=} -> {dest_url=}")
+        logger.info(f"Created transfer document for {source_path=} -> {dest_path=}")
         return tdata
 
     async def _submit_transfer(self, tdata: globus_sdk.TransferData) -> uuid.UUID | str:
@@ -251,17 +250,15 @@ class GlobusTransfer:
         Transfer a single file via Globus Transfer and block until completion.
 
         :param source_path: Absolute path on the source collection.
-        :param dest_path: The destination path (location) on GLOBUS_DEST_URL.
+        :param dest_path: The filepath on the destination collection.
 
         :returns: Globus task_id for the submitted transfer.
         """
         if not os.path.isabs(source_path):
             raise ValueError(f"source_path must be absolute: {source_path}")
 
-        dest_url = join_smart_url([self._env.GLOBUS_DEST_URL, str(dest_path)])
-
         # do transfer
-        tdata = self.make_transfer_document(source_path, dest_url)
+        tdata = self.make_transfer_document(source_path, dest_path)
         task_id = await self._submit_transfer(tdata)
 
         # wait for transfer result
