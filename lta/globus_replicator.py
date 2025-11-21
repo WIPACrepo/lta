@@ -2,11 +2,14 @@
 """Module to implement the GlobusReplicator component of the Long Term Archive."""
 
 import asyncio
+import dataclasses
 import logging
 import sys
+import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
+import globus_sdk
 from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[import-not-found]
 from rest_tools.client import RestClient
 import wipac_telemetry.tracing_tools as wtt
@@ -34,6 +37,26 @@ EXPECTED_CONFIG.update({
 failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
 load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
 success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
+
+
+@dataclasses.dataclass
+class TransferIdentityFromGlobus:
+    task_id: uuid.UUID | str
+
+
+class TransferIdentityFromLTA:
+    PREFIX = "globus/"
+
+    def __init__(self, task_id: str) -> None:
+        self.task_id = task_id
+
+    @staticmethod
+    def make_transfer_reference(xfer_identity: TransferIdentityFromGlobus) -> str:
+        return f"{TransferIdentityFromLTA.PREFIX}{xfer_identity.task_id}"
+
+    @staticmethod
+    def from_transfer_reference(transfer_reference: str) -> 'TransferIdentityFromLTA':
+        return TransferIdentityFromLTA(transfer_reference.removeprefix(TransferIdentityFromLTA.PREFIX))
 
 
 class GlobusReplicator(Component):
@@ -105,6 +128,8 @@ class GlobusReplicator(Component):
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
             success_counter.labels(component='globus_replicator', level='bundle', type='work').inc()
         except Exception as e:
+            self.logger.error(f'Globus transfer threw an error: {e}')
+            self.logger.exception(e)
             failure_counter.labels(component='globus_replicator', level='bundle', type='exception').inc()
             await self._quarantine_bundle(lta_rc, bundle, f"{e}")
             return False
@@ -157,37 +182,59 @@ class GlobusReplicator(Component):
         # get our ducks in a row
         bundle_id = bundle["uuid"]
         source_path, dest_path = self._extract_paths(bundle)
+        # -- for mypy, only typehint
+        xfer_identity: TransferIdentityFromGlobus | TransferIdentityFromLTA | None
 
         # transfer the bundle
         self.logger.info(f'Sending {source_path} to {dest_path}')
         try:
-            task_id = await self.globus_transfer.transfer_file(
+            _task_id = await self.globus_transfer.transfer_file(
                 source_path=source_path,
                 dest_path=dest_path,
             )
-        except Exception as e:
-            self.logger.error(f'Globus transfer threw an error: {e}')
-            self.logger.exception(e)
+            xfer_identity = TransferIdentityFromGlobus(_task_id)
+            self.logger.info(f'Initiated transfer {source_path} to {dest_path}')
+        # ERROR -> globus possibly caught this inflight duplicate transfer
+        except globus_sdk.TransferAPIError as e:
+            if "A transfer with identical paths has not yet completed" in str(e):
+                if _ref := bundle.get("transfer_reference", None):
+                    xfer_identity = TransferIdentityFromLTA.from_transfer_reference(cast(str, _ref))
+                    self.logger.warning(
+                        f"globus caught inflight duplicate; continuing with bundle's "
+                        f"preexisting transfer_reference ({_ref}) ({xfer_identity.task_id})..."
+                    )
+                else:
+                    xfer_identity = None
+                    self.logger.warning(
+                        f"globus caught inflight duplicate; bundle did not have a "
+                        f"preexisting transfer_reference ({_ref}), continuing without id..."
+                    )
+            else:
+                raise  # -> bundle to be quarantined
+        # ERROR -> mystery
+        except Exception:
             raise  # -> bundle to be quarantined
 
         # record task id in the LTA DB -- useful for debugging
-        await self._patch_bundle(
-            lta_rc,
-            bundle_id,
-            {
-                "update_timestamp": now(),
-                "transfer_reference": f"globus/{task_id}",
-            }
-        )
+        if isinstance(xfer_identity, TransferIdentityFromGlobus):
+            await self._patch_bundle(
+                lta_rc,
+                bundle_id,
+                {
+                    "update_timestamp": now(),
+                    "transfer_reference": TransferIdentityFromLTA.make_transfer_reference(xfer_identity),
+                }
+            )
 
         # wait for transfer to finish
-        self.logger.info(f'Waiting on transfer: {source_path} to {dest_path}')
-        try:
-            await self.globus_transfer.wait_for_transfer_to_finish(task_id)
-        except Exception as e:
-            self.logger.error(f'Globus transfer threw an error: {e}')
-            self.logger.exception(e)
-            raise  # -> bundle to be quarantined
+        if isinstance(xfer_identity, TransferIdentityFromGlobus | TransferIdentityFromLTA):
+            self.logger.info(f'Waiting on transfer: {source_path} to {dest_path}')
+            try:
+                await self.globus_transfer.wait_for_transfer_to_finish(xfer_identity.task_id)
+            except Exception:
+                raise  # -> bundle to be quarantined
+        else:
+            self.logger.info('OK: cannot track transfer, assuming it went finished')
 
         # update the Bundle in the LTA DB
         await self._patch_bundle(
@@ -202,7 +249,6 @@ class GlobusReplicator(Component):
         )
 
 
-# fmt: off
 async def main(globus_replicator: GlobusReplicator) -> None:
     """Execute the work loop of the GlobusReplicator component."""
     LOG.info("Starting asynchronous code")
