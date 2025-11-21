@@ -131,11 +131,8 @@ class GlobusReplicator(Component):
             self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
             self.logger.exception(e)
 
-    @wtt.spanned()
-    async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
-        """Replicate the supplied bundle using the configured transfer service."""
-        # get our ducks in a row
-        bundle_id = bundle["uuid"]
+    def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
+        """Get the source and destination paths for the supplied bundle."""
         source_path = Path(bundle["bundle_path"])
 
         # destination logic
@@ -148,6 +145,19 @@ class GlobusReplicator(Component):
             # BUNDLE_NAME
             dest_path = Path(bundle_name)
 
+        return source_path, dest_path
+
+    async def _patch_bundle(self, lta_rc: RestClient, bundle_id: str, patch_body: dict) -> None:
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+
+    @wtt.spanned()
+    async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
+        """Replicate the supplied bundle using the configured transfer service."""
+        # get our ducks in a row
+        bundle_id = bundle["uuid"]
+        source_path, dest_path = self._extract_paths(bundle)
+
         # transfer the bundle
         self.logger.info(f'Sending {source_path} to {dest_path}')
         try:
@@ -155,7 +165,24 @@ class GlobusReplicator(Component):
                 source_path=source_path,
                 dest_path=dest_path,
             )
-            # TODO: record task id?
+        except Exception as e:
+            self.logger.error(f'Globus transfer threw an error: {e}')
+            self.logger.exception(e)
+            raise  # -> bundle to be quarantined
+
+        # record task id in the LTA DB -- useful for debugging
+        await self._patch_bundle(
+            lta_rc,
+            bundle_id,
+            {
+                "update_timestamp": now(),
+                "transfer_reference": f"globus/{task_id}",
+            }
+        )
+
+        # wait for transfer to finish
+        self.logger.info(f'Waiting on transfer: {source_path} to {dest_path}')
+        try:
             await self.globus_transfer.wait_for_transfer_to_finish(task_id)
         except Exception as e:
             self.logger.error(f'Globus transfer threw an error: {e}')
@@ -163,18 +190,19 @@ class GlobusReplicator(Component):
             raise  # -> bundle to be quarantined
 
         # update the Bundle in the LTA DB
-        patch_body = {
-            "status": self.output_status,
-            "reason": "",
-            "update_timestamp": now(),
-            "claimed": False,
-            # store the Globus task id so another component can inspect it
-            "transfer_reference": f"globus/{task_id}",
-        }
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+        await self._patch_bundle(
+            lta_rc,
+            bundle_id,
+            {
+                "status": self.output_status,
+                "reason": "",
+                "update_timestamp": now(),
+                "claimed": False,
+            }
+        )
 
 
+# fmt: off
 async def main(globus_replicator: GlobusReplicator) -> None:
     """Execute the work loop of the GlobusReplicator component."""
     LOG.info("Starting asynchronous code")

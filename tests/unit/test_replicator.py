@@ -227,16 +227,21 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
         c for c in rc.calls if c[0] == "PATCH" and c[1].startswith("/Bundles/")
     ]
     assert patch_calls
+    # -- post transfer_file()
     _, url, body = patch_calls[0]
     assert url == "/Bundles/B-123"
+    assert set(body.keys()) == {"update_timestamp", "transfer_reference"}
+    assert (
+            body.get("transfer_reference")
+            == f"globus/{lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value}"  # type: ignore
+    )
+    # -- post wait_for_transfer_to_finish()
+    _, url, body = patch_calls[1]
+    assert url == "/Bundles/B-123"
+    assert set(body.keys()) == {"status", "reason", "update_timestamp", "claimed"}
     assert body.get("claimed") is False
     assert body.get("status") == rep.output_status
     assert body.get("reason") == ""
-
-    assert (
-        body.get("transfer_reference")
-        == f"globus/{lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value}"  # type: ignore
-    )
 
 
 @pytest.mark.asyncio
