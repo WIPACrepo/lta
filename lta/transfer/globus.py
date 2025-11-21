@@ -84,10 +84,11 @@ class GlobusTransfer:
         #   we'll use dict-kwargs unpacking.
         optionals: dict[str, Any] = {}
         if self._env.GLOBUS_HARD_DEADLINE_SECONDS:
-            optionals["deadline"] = (
-                    datetime.datetime.now(datetime.timezone.utc)
-                    + datetime.timedelta(seconds=self._env.GLOBUS_HARD_DEADLINE_SECONDS)
-            ).isoformat(timespec="seconds")
+            now = datetime.datetime.now(datetime.timezone.utc)
+            deadline_dt = now + datetime.timedelta(
+                seconds=self._env.GLOBUS_HARD_DEADLINE_SECONDS
+            )
+            optionals["deadline"] = deadline_dt.isoformat(timespec="seconds")
 
         # Construct
         tdata = globus_sdk.TransferData(
@@ -180,16 +181,16 @@ class GlobusTransfer:
                     #   'files' (int),
                     #   'files_skipped' (int), and
                     #   'files_transferred' (int)
-                    LOGGER.info(f"Globus transfer succeeded: {task_id=} {task=}")
+                    LOGGER.info(f"Globus transfer succeeded: {task_id=}")
                     return task.data
                 case "FAILED" | "INACTIVE":
-                    msg = f"Globus transfer failed ({status=}): {task_id=} {task=}"
+                    msg = f"Globus transfer failed ({status=}): {task_id=}"
                     LOGGER.error(msg)
                     raise GlobusTransferFailedException(msg)
                 case "ACTIVE":
                     continue
                 case _:
                     LOGGER.warning(
-                        f"received unknown {status=}: {task_id=} {task=} — continuing..."
+                        f"received unknown {status=}: {task_id=} — continuing..."
                     )
                     continue
