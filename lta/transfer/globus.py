@@ -8,6 +8,7 @@ from pathlib import Path
 import logging
 import os
 import dataclasses
+from typing import Any
 
 import globus_sdk
 from wipac_dev_tools import from_environment_as_dataclass
@@ -26,7 +27,7 @@ class GlobusTransferEnv:
     GLOBUS_DEST_COLLECTION_ID: str
 
     # Optional
-    GLOBUS_TIMEOUT: int = 1200
+    GLOBUS_TIMEOUT: int | None = None
     GLOBUS_TRANSFER_SCOPE: str = "urn:globus:auth:scope:transfer.api.globus.org:all"
     GLOBUS_POLL_INTERVAL_SECONDS: float = 10.0
 
@@ -78,19 +79,27 @@ class GlobusTransfer:
     ) -> globus_sdk.TransferData:
         """Create the object needed for submitting a transfer."""
 
+        # Unfortunately, 'globus_sdk' does not support passing 'None' for its args...
+        #   So to avoid accessing its private 'globus_sdk._missing.MISSING',
+        #   we'll use dict-kwargs unpacking.
+        optionals: dict[str, Any] = {}
+        if self._env.GLOBUS_TIMEOUT:
+            optionals["deadline"] = (
+                    datetime.datetime.now(datetime.timezone.utc)
+                    + datetime.timedelta(seconds=self._env.GLOBUS_TIMEOUT)
+            ).isoformat(timespec="seconds")
+
+        # Construct
         tdata = globus_sdk.TransferData(
             source_endpoint=self._env.GLOBUS_SOURCE_COLLECTION_ID,
             destination_endpoint=self._env.GLOBUS_DEST_COLLECTION_ID,
             label=f"LTA bundle transfer: {source_path} -> {dest_path}",
             fail_on_quota_errors=True,
-            deadline=(
-                datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(seconds=self._env.GLOBUS_TIMEOUT)
-            ).isoformat(timespec="seconds"),
             # NOTE: 'sync_level'
             #   LTA doesn't assume the transfer mechanism is reliable, and computes
             #   checksums later in the pipeline. So 'mtime' is fine (and much cheaper).
             sync_level="mtime",
+            **optionals,
         )
         tdata.add_item(str(source_path), str(dest_path))
 
