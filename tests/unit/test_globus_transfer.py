@@ -33,7 +33,7 @@ def test_000_globus_transfer_env_defaults() -> None:
     assert (
         env.GLOBUS_TRANSFER_SCOPE == "urn:globus:auth:scope:transfer.api.globus.org:all"
     )
-    assert env.GLOBUS_POLL_INTERVAL_SECONDS == 10.0
+    assert env.GLOBUS_POLL_INTERVAL_SECONDS == 10
     assert env.GLOBUS_HARD_DEADLINE_SECONDS is None
 
     # act + assert: immutability
@@ -64,7 +64,7 @@ def test_100_globus_transfer_init_wires_sdk_correctly(
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
         GLOBUS_TRANSFER_SCOPE="scope:transfer",
-        GLOBUS_POLL_INTERVAL_SECONDS=5.0,
+        GLOBUS_POLL_INTERVAL_SECONDS=5,
     )
 
     token_resp = MagicMock()
@@ -117,7 +117,7 @@ def test_200_make_transfer_document_builds_expected_transferdata(
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
         GLOBUS_HARD_DEADLINE_SECONDS=deadline,
-        GLOBUS_POLL_INTERVAL_SECONDS=5.0,
+        GLOBUS_POLL_INTERVAL_SECONDS=5,
     )
 
     token_resp = MagicMock()
@@ -279,7 +279,7 @@ async def test_410_transfer_file_success_on_first_poll(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_POLL_INTERVAL_SECONDS=1.0,
+        GLOBUS_POLL_INTERVAL_SECONDS=1,
     )
 
     token_resp = MagicMock()
@@ -324,7 +324,7 @@ async def test_420_transfer_file_active_then_succeeds(
 ) -> None:
     """ACTIVE status causes a poll + sleep, then SUCCEEDED returns task_id."""
     # arrange: environment + SDK patches
-    poll_interval = 2.0
+    poll_interval = 2
     mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
@@ -482,7 +482,7 @@ async def test_460_transfer_file_unknown_status_then_succeeds(
 ) -> None:
     """Unknown status is ignored and polling continues until success."""
     # arrange: environment + SDK patches
-    poll_interval = 1.0
+    poll_interval = 1
     mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
