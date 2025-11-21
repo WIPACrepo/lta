@@ -40,6 +40,7 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
+
 class Bundler(Component):
     """
     Bundler is a Long Term Archive component.

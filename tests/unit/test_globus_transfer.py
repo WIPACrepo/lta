@@ -17,6 +17,18 @@ from lta.transfer.globus import (
 )
 
 
+class _FakeResponse:
+    """This mimics the requests.Response class for our purposes."""
+
+    def __init__(self, data: dict):
+        self._data = data
+        self.status_code = 200
+        self.headers = {"Content-Type": "application/json"}
+
+    def json(self) -> dict:
+        return self._data
+
+
 # ---------------------------------------------------------------------------
 # GlobusTransferEnv
 # ---------------------------------------------------------------------------
@@ -203,7 +215,8 @@ async def test_300_submit_transfer_uses_client_and_returns_task_id(
 
     client = MagicMock()
     client.submit_transfer.return_value = GlobusHTTPResponse(
-        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+        cast(Response, _FakeResponse({"task_id": "TASK-123"})),
+        client=MagicMock(),
     )
     mock_transfer_client.return_value = client
 
@@ -263,16 +276,6 @@ async def test_400_transfer_file_rejects_relative_source_path(
     assert "must be absolute" in str(excinfo.value)
 
 
-class _FakeResponse:
-    def __init__(self, data: dict):
-        self._data = data
-        self.status_code = 200
-        self.headers = {"Content-Type": "application/json"}
-
-    def json(self) -> dict:
-        return self._data
-
-
 @patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
@@ -304,10 +307,10 @@ async def test_410_transfer_file_success_on_first_poll(
 
     client = MagicMock()
     client.submit_transfer.return_value = GlobusHTTPResponse(
-        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+        cast(Response, _FakeResponse({"task_id": "TASK-123"})), client=MagicMock()
     )
     client.get_task.return_value = GlobusHTTPResponse(
-        cast(Response, _FakeResponse({"status": "SUCCEEDED"}))
+        cast(Response, _FakeResponse({"status": "SUCCEEDED"})), client=MagicMock()
     )
     mock_transfer_client.return_value = client
 
@@ -359,11 +362,15 @@ async def test_420_transfer_file_active_then_succeeds(
 
     client = MagicMock()
     client.submit_transfer.return_value = GlobusHTTPResponse(
-        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+        cast(Response, _FakeResponse({"task_id": "TASK-123"})), client=MagicMock()
     )
     client.get_task.side_effect = [
-        GlobusHTTPResponse(cast(Response, _FakeResponse({"status": "ACTIVE"}))),
-        GlobusHTTPResponse(cast(Response, _FakeResponse({"status": "SUCCEEDED"}))),
+        GlobusHTTPResponse(
+            cast(Response, _FakeResponse({"status": "ACTIVE"})), client=MagicMock()
+        ),
+        GlobusHTTPResponse(
+            cast(Response, _FakeResponse({"status": "SUCCEEDED"})), client=MagicMock()
+        ),
     ]
     mock_transfer_client.return_value = client
 
@@ -415,10 +422,10 @@ async def test_440_transfer_file_failed_raises(
 
     client = MagicMock()
     client.submit_transfer.return_value = GlobusHTTPResponse(
-        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+        cast(Response, _FakeResponse({"task_id": "TASK-123"})), client=MagicMock()
     )
     client.get_task.return_value = GlobusHTTPResponse(
-        cast(Response, _FakeResponse({"status": "FAILED"}))
+        cast(Response, _FakeResponse({"status": "FAILED"})), client=MagicMock()
     )
     mock_transfer_client.return_value = client
 
@@ -469,10 +476,10 @@ async def test_450_transfer_file_inactive_raises(
 
     client = MagicMock()
     client.submit_transfer.return_value = GlobusHTTPResponse(
-        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+        cast(Response, _FakeResponse({"task_id": "TASK-123"})), client=MagicMock()
     )
     client.get_task.return_value = GlobusHTTPResponse(
-        cast(Response, _FakeResponse({"status": "INACTIVE"}))
+        cast(Response, _FakeResponse({"status": "INACTIVE"})), client=MagicMock()
     )
     mock_transfer_client.return_value = client
 
@@ -527,11 +534,15 @@ async def test_460_transfer_file_unknown_status_then_succeeds(
 
     client = MagicMock()
     client.submit_transfer.return_value = GlobusHTTPResponse(
-        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+        cast(Response, _FakeResponse({"task_id": "TASK-123"})), client=MagicMock()
     )
     client.get_task.side_effect = [
-        GlobusHTTPResponse(cast(Response, _FakeResponse({"status": "FOO"}))),
-        GlobusHTTPResponse(cast(Response, _FakeResponse({"status": "SUCCEEDED"}))),
+        GlobusHTTPResponse(
+            cast(Response, _FakeResponse({"status": "FOO"})), client=MagicMock()
+        ),
+        GlobusHTTPResponse(
+            cast(Response, _FakeResponse({"status": "SUCCEEDED"})), client=MagicMock()
+        ),
     ]
     mock_transfer_client.return_value = client
 
