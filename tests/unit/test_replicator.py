@@ -10,11 +10,9 @@ Goals:
 """
 
 import logging
-import importlib
-import sys
 from typing import Any, Callable
 
-import lta.globus_replicator
+import lta
 
 import prometheus_client
 import pytest
@@ -31,22 +29,23 @@ EXPECTED_CONFIG_KEYS = [
 ]
 
 
-def import_fresh(modname: str) -> Any:
-    """Fresh import so the stubs take effect for each parametrized run."""
-    sys.modules.pop(modname, None)
-    return importlib.import_module(modname)
-
-
 @pytest.fixture(autouse=True)
-@patch("lta.transfer.globus.GlobusTransfer")
 def setup(
-    mock_globus_transfer: MagicMock,
     request: pytest.FixtureRequest,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Import replicator module, stub Prometheus, and return metadata + class."""
+    """Stub Prometheus + GlobusTransfer for all tests in this module."""
 
-    # Stub prometheus BEFORE import so module-level metrics use our stubs.
+    # --- Patch GlobusTransfer at the alias used by globus_replicator ---
+    patcher = patch("lta.globus_replicator.GlobusTransfer")
+    mock_globus_transfer = patcher.start()
+    request.addfinalizer(patcher.stop)
+
+    # Every GlobusTransfer() call returns this instance
+    instance = mock_globus_transfer.return_value
+    instance.transfer_file = AsyncMock()
+
+    # --- Stub prometheus BEFORE any metrics are touched ---
     class _Counter:
         def labels(self, **_: Any) -> Any:
             return self
@@ -63,10 +62,6 @@ def setup(
 
     monkeypatch.setattr(prometheus_client, "Counter", lambda *a, **k: _Counter())
     monkeypatch.setattr(prometheus_client, "Gauge", lambda *a, **k: _Gauge())
-
-    # Every GlobusTransfer() call returns this instance
-    instance = mock_globus_transfer.return_value
-    instance.transfer_file = AsyncMock()
 
 
 # --------------------------------------------------------------------------------------
@@ -208,12 +203,10 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
-    sys.modules[
-        "lta.globus_replicator"
-    ].GlobusTransfer.transfer_file.assert_called_once()
-    args, kwargs = sys.modules[
-        "lta.globus_replicator"
-    ].GlobusTransfer.transfer_file.call_args
+    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()
+    args, kwargs = (
+        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args
+    )
 
     src_path = kwargs["source_path"]
     dest_path = kwargs["dest_path"]
@@ -235,7 +228,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
 
     assert (
         body.get("transfer_reference")
-        == f"globus/{lta.globus_replicator.GlobusTransfer.transfer_file.return_value}"
+        == f"globus/{lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value}"
     )
 
 
@@ -264,7 +257,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     def _raise(*_a: Any, **_k: Any) -> None:
         raise RuntimeError("boom")
 
-    lta.globus_replicator.GlobusTransfer.transfer_file.side_effect = _raise
+    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.side_effect = _raise
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     patch_calls = [c for c in rc.calls if c[0] == "PATCH"]
@@ -350,12 +343,10 @@ async def test_080_replication_use_full_bundle_path_true(
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
-    sys.modules[
-        "lta.globus_replicator"
-    ].GlobusTransfer.transfer_file.assert_called_once()
-    args, kwargs = sys.modules[
-        "lta.globus_replicator"
-    ].GlobusTransfer.transfer_file.call_args
+    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()
+    args, kwargs = (
+        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args
+    )
 
     dest_path = kwargs["dest_path"]
     assert str(dest_path) == "/data/exp/IC/2015/filtered/level2/0320/bar.zip"
@@ -383,12 +374,10 @@ async def test_090_replication_use_full_bundle_path_false(
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
-    sys.modules[
-        "lta.globus_replicator"
-    ].GlobusTransfer.transfer_file.assert_called_once()
-    args, kwargs = sys.modules[
-        "lta.globus_replicator"
-    ].GlobusTransfer.transfer_file.call_args
+    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()
+    args, kwargs = (
+        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args
+    )
 
     dest_path = kwargs["dest_path"]
     assert str(dest_path) == "baz.zip"
