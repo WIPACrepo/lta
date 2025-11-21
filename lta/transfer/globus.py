@@ -115,14 +115,6 @@ class GlobusTransfer:
 
         return task_id
 
-    def _cancel_task(self, task_id: uuid.UUID | str, error_msg: str) -> None:
-        # cancel task
-        LOGGER.error(error_msg)
-        try:
-            self._transfer_client.cancel_task(task_id)
-        except Exception:
-            LOGGER.exception(f"Could not cancel Globus {task_id=}")
-
     # ---------------------------
     # Public API
     # ---------------------------
@@ -150,8 +142,17 @@ class GlobusTransfer:
 
         return task_id
 
-    async def wait_for_transfer_to_finish(self, task_id: uuid.UUID | str) -> None:
+    async def wait_for_transfer_to_finish(
+            self,
+            task_id: uuid.UUID | str,
+    ) -> dict[str, Any]:
         """Wait (forever) for transfer to finish.
+
+        Return:
+            The successful task object.
+
+        Raises:
+            'GlobusTransferFailedException' if the transfer failed (FAILED or INACTIVE).
 
         NOTE: 'globus_sdk.TransferClient.task_wait()' is *NOT* async, so we must diy
         """
@@ -167,12 +168,20 @@ class GlobusTransfer:
             # look at status
             LOGGER.debug("checking transfer status...")
             task = self._transfer_client.get_task(task_id)
+            LOGGER.debug(f"{task=}")
             status = task["status"]
             LOGGER.debug(f"{status=}")
             match status:
                 case "SUCCEEDED":
+                    # File(s) in transfer was/were:
+                    #   (1) written at destination and/or
+                    #   (2) did not need to be written due to `sync_level` setting
+                    # To differentiate, look at `task` fields:
+                    #   'files' (int),
+                    #   'files_skipped' (int), and
+                    #   'files_transferred' (int)
                     LOGGER.info(f"Globus transfer succeeded: {task_id=} {task=}")
-                    return
+                    return task.data
                 case "FAILED" | "INACTIVE":
                     msg = f"Globus transfer failed ({status=}): {task_id=} {task=}"
                     LOGGER.error(msg)
