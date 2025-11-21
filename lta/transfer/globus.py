@@ -83,19 +83,14 @@ class GlobusTransfer:
             destination_endpoint=self._env.GLOBUS_DEST_COLLECTION_ID,
             label=f"LTA bundle transfer: {source_path} -> {dest_path}",
             fail_on_quota_errors=True,
+            deadline=(
+                datetime.datetime.now(datetime.timezone.utc)
+                + datetime.timedelta(seconds=self._env.GLOBUS_TIMEOUT)
+            ).isoformat(timespec="seconds"),
             # NOTE: 'sync_level'
             #   LTA doesn't assume the transfer mechanism is reliable, and computes
             #   checksums later in the pipeline. So 'mtime' is fine (and much cheaper).
             sync_level="mtime",
-            # NOTE: 'deadline'
-            #   Even though we will attempt to manually cancel if things go awry
-            #   (see below), tell globus our plan in case our python process dies.
-            #   Also, add a bit of cushion.
-            deadline=(
-                datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(seconds=self._env.GLOBUS_TIMEOUT)
-                + datetime.timedelta(seconds=self._env.GLOBUS_POLL_INTERVAL_SECONDS * 5)
-            ).isoformat(timespec="seconds"),
         )
         tdata.add_item(str(source_path), str(dest_path))
 
