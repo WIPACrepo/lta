@@ -24,6 +24,9 @@ class _FakeResponse:
         self._data = data
         self.status_code = 200
         self.headers = {"Content-Type": "application/json"}
+        self.text = (
+            "THIS IS A FAKE RESPONSE -- IF REAL TEXT IS NEEDED, UPDATE THIS CLASS"
+        )
 
     def json(self) -> dict:
         return self._data
