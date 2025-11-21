@@ -2,7 +2,6 @@
 """Tools to help manage Globus proxies."""
 
 import asyncio
-import itertools
 import uuid
 import datetime
 from pathlib import Path
@@ -12,7 +11,6 @@ import dataclasses
 
 import globus_sdk
 from wipac_dev_tools import from_environment_as_dataclass
-from wipac_dev_tools.timing_tools import IntervalTimer
 
 LOGGER = logging.getLogger(__name__)
 
