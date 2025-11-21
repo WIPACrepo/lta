@@ -3,126 +3,18 @@
 
 import asyncio
 import itertools
-import subprocess
 import uuid
 import datetime
 from pathlib import Path
-from typing import cast
 import logging
 import os
-from typing import Any, Optional
 import dataclasses
 
 import globus_sdk
-from wipac_dev_tools import from_environment, from_environment_as_dataclass
+from wipac_dev_tools import from_environment_as_dataclass
 from wipac_dev_tools.timing_tools import IntervalTimer
 
-# fmt:off
-
-
-EMPTY_STRING_SENTINEL_VALUE = "517c094b-739a-4a01-9d61-8d29eee99fda"
-
-PROXY_CONFIG: dict[str, str | None] = {
-    "GLOBUS_PROXY_DURATION": "72",
-    "GLOBUS_PROXY_PASSPHRASE": EMPTY_STRING_SENTINEL_VALUE,
-    "GLOBUS_PROXY_VOMS_ROLE": EMPTY_STRING_SENTINEL_VALUE,
-    "GLOBUS_PROXY_VOMS_VO": EMPTY_STRING_SENTINEL_VALUE,
-    "GLOBUS_PROXY_OUTPUT": EMPTY_STRING_SENTINEL_VALUE,
-}
-
-logger = logging.getLogger('globus')
-
-
-class SiteGlobusProxy(object):
-    """
-    Manage site-wide globus proxy.
-
-    :param duration: proxy duration (optional, default 72 hours)
-    """
-
-    def __init__(self, duration: Optional[int] = None):
-        """Create a SiteGlobusProxy object."""
-        # load what we can from the environment
-        self.cfg = from_environment(PROXY_CONFIG)
-        # remove anything optional that wasn't specified
-        cfg_keys = list(self.cfg.keys())
-        for key in cfg_keys:
-            if self.cfg[key] == EMPTY_STRING_SENTINEL_VALUE:
-                del self.cfg[key]
-        # ensure duration is converted to an integer value
-        if "GLOBUS_PROXY_DURATION" in self.cfg:
-            self.cfg["GLOBUS_PROXY_DURATION"] = int(self.cfg["GLOBUS_PROXY_DURATION"])
-        # ensure we have at least an empty string for passphrase
-        if "GLOBUS_PROXY_PASSPHRASE" not in self.cfg:
-            self.cfg["GLOBUS_PROXY_PASSPHRASE"] = ""
-        # override the duration if specified during construction
-        if duration:
-            self.cfg['GLOBUS_PROXY_DURATION'] = duration
-
-    def set_duration(self, d: str) -> None:
-        """Set the duration."""
-        self.cfg['GLOBUS_PROXY_DURATION'] = d
-
-    def set_passphrase(self, p: str) -> None:
-        """Set the passphrase."""
-        self.cfg['GLOBUS_PROXY_PASSPHRASE'] = p
-
-    def set_voms_role(self, r: str) -> None:
-        """Set the voms role."""
-        self.cfg['GLOBUS_PROXY_VOMS_ROLE'] = r
-
-    def set_voms_vo(self, vo: str) -> None:
-        """Set the voms VO."""
-        self.cfg['GLOBUS_PROXY_VOMS_VO'] = vo
-
-    def update_proxy(self) -> None:
-        """Update the proxy."""
-        logger.info('duration: %r', self.cfg['GLOBUS_PROXY_DURATION'])
-        if subprocess.call(['grid-proxy-info', '-e', '-valid', f'{self.cfg["GLOBUS_PROXY_DURATION"]}:0'],
-                           stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL):
-            # proxy needs updating
-            if 'GLOBUS_PROXY_VOMS_VO' in self.cfg and self.cfg['GLOBUS_PROXY_VOMS_VO']:
-                cmd = ['voms-proxy-init']
-                if 'GLOBUS_PROXY_VOMS_ROLE' in self.cfg and self.cfg['GLOBUS_PROXY_VOMS_ROLE']:
-                    vo = self.cfg['GLOBUS_PROXY_VOMS_VO']
-                    role = self.cfg['GLOBUS_PROXY_VOMS_ROLE']
-                    cmd.extend(['-voms', '{0}:/{0}/Role={1}'.format(vo, role)])
-                else:
-                    cmd.extend(['-voms', cast(str, self.cfg['GLOBUS_PROXY_VOMS_VO'])])
-            else:
-                cmd = ['grid-proxy-init']
-            cmd.extend(['-debug', '-pwstdin', '-valid', f'{int(self.cfg["GLOBUS_PROXY_DURATION"])+1}:0'])
-            if 'GLOBUS_PROXY_OUTPUT' in self.cfg and self.cfg['GLOBUS_PROXY_OUTPUT']:
-                cmd.extend(['-out', cast(str, self.cfg['GLOBUS_PROXY_OUTPUT'])])
-            inputbytes = (cast(str, self.cfg['GLOBUS_PROXY_PASSPHRASE']) + '\n').encode('utf-8')
-            p = subprocess.run(cmd, input=inputbytes, capture_output=True, timeout=60, check=False)
-            logger.info('proxy cmd: %r', p.args)
-            logger.info('stdout: %s', p.stdout)
-            logger.info('stderr: %s', p.stderr)
-            if 'GLOBUS_PROXY_VOMS_VO' in self.cfg and self.cfg['GLOBUS_PROXY_VOMS_VO']:
-                for line in p.stdout.decode('utf-8').split('\n'):
-                    if line.startswith('Creating proxy') and line.endswith('Done'):
-                        break  # this is a good proxy
-                else:
-                    raise Exception('voms-proxy-init failed')
-            elif p.returncode > 0:
-                raise Exception('grid-proxy-init failed')
-
-    def get_proxy(self) -> Any:
-        """Get the proxy location."""
-        if 'GLOBUS_PROXY_OUTPUT' in self.cfg and self.cfg['GLOBUS_PROXY_OUTPUT']:
-            return self.cfg['GLOBUS_PROXY_OUTPUT']
-        FNULL = open(os.devnull, 'w')
-        return subprocess.check_output(['grid-proxy-info', '-path'],
-                                       stderr=FNULL).decode('utf-8').strip()
-
-
-# fmt: on
-
-# ---------------------------
-# Environment Config Dataclass
-# ---------------------------
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -139,11 +31,6 @@ class GlobusTransferEnv:
     GLOBUS_TIMEOUT: int = 1200
     GLOBUS_TRANSFER_SCOPE: str = "urn:globus:auth:scope:transfer.api.globus.org:all"
     GLOBUS_POLL_INTERVAL_SECONDS: float = 10.0
-
-
-# ---------------------------
-# Globus Transfer Helper
-# ---------------------------
 
 
 class GlobusTransferFailedException(Exception):
@@ -180,7 +67,7 @@ class GlobusTransfer:
                 token_resp.by_resource_server["transfer.api.globus.org"]["access_token"]
             )
         )
-        logger.info(
+        LOGGER.info(
             f"Initialized Globus TransferClient with source collection "
             f"{self._env.GLOBUS_SOURCE_COLLECTION_ID}",
         )
@@ -214,25 +101,25 @@ class GlobusTransfer:
         )
         tdata.add_item(str(source_path), str(dest_path))
 
-        logger.info(f"Created transfer document for {source_path=} -> {dest_path=}")
+        LOGGER.info(f"Created transfer document for {source_path=} -> {dest_path=}")
         return tdata
 
     async def _submit_transfer(self, tdata: globus_sdk.TransferData) -> uuid.UUID | str:
         """Submit a transfer via Globus TransferClient."""
-        logger.info(f"Submitting transfer: {list(tdata.iter_items())}")
+        LOGGER.info(f"Submitting transfer: {list(tdata.iter_items())}")
         task_id = self._transfer_client.submit_transfer(tdata)["task_id"]
-        logger.info(f"Globus transfer submitted: {task_id=}")
+        LOGGER.info(f"Globus transfer submitted: {task_id=}")
         await asyncio.sleep(0)  # since request is not async, handover to pending tasks
 
         return task_id
 
     def _cancel_task(self, task_id: uuid.UUID | str, error_msg: str) -> None:
         # cancel task
-        logger.error(error_msg)
+        LOGGER.error(error_msg)
         try:
             self._transfer_client.cancel_task(task_id)
         except Exception:
-            logger.exception(f"Could not cancel Globus {task_id=}")
+            LOGGER.exception(f"Could not cancel Globus {task_id=}")
 
     # ---------------------------
     # Public API
@@ -274,22 +161,22 @@ class GlobusTransfer:
                 await asyncio.sleep(self._env.GLOBUS_POLL_INTERVAL_SECONDS)
 
             # look at status
-            logger.debug("checking transfer status...")
+            LOGGER.debug("checking transfer status...")
             task = self._transfer_client.get_task(task_id)
             status = task["status"]
-            logger.debug(f"{status=}")
+            LOGGER.debug(f"{status=}")
             match status:
                 case "SUCCEEDED":
-                    logger.info(f"Globus transfer succeeded: {task_id=} {task=}")
+                    LOGGER.info(f"Globus transfer succeeded: {task_id=} {task=}")
                     return str(task_id)
                 case "FAILED" | "INACTIVE":
                     msg = f"Globus transfer failed ({status=}): {task_id=} {task=}"
-                    logger.error(msg)
+                    LOGGER.error(msg)
                     raise GlobusTransferFailedException(msg)
                 case "ACTIVE":
                     continue
                 case _:
-                    logger.warning(
+                    LOGGER.warning(
                         f"received unknown {status=}: {task_id=} {task=} — continuing..."
                     )
                     continue
