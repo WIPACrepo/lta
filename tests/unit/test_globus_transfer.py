@@ -297,15 +297,17 @@ async def test_410_transfer_file_success_on_first_poll(
     mock_transfer_client.return_value = client
 
     # act
-    result = await GlobusTransfer().transfer_file(
+    gt = GlobusTransfer()
+    task_id = await gt.transfer_file(
         source_path=Path("/abs/path.dat"),
         dest_path=Path("/dest/path.dat"),
     )
+    await gt.wait_for_transfer_to_finish(task_id)
 
     # assert: submit + single poll
     client.submit_transfer.assert_called_once()
     client.get_task.assert_called_once_with("TASK-123")
-    assert result == "TASK-123"
+    assert task_id == "TASK-123"
 
 
 @patch("lta.transfer.globus.asyncio.sleep", new_callable=AsyncMock)
@@ -349,10 +351,12 @@ async def test_420_transfer_file_active_then_succeeds(
     mock_transfer_client.return_value = client
 
     # act
-    result = await GlobusTransfer().transfer_file(
+    gt = GlobusTransfer()
+    task_id = await gt.transfer_file(
         source_path=Path("/abs/file.dat"),
         dest_path=Path("/dest/path.dat"),
     )
+    await gt.wait_for_transfer_to_finish(task_id)
 
     # assert: two polls + expected sleeps (0 from _submit_transfer, then poll_interval)
     assert client.get_task.call_count == 2
@@ -361,67 +365,7 @@ async def test_420_transfer_file_active_then_succeeds(
     second_call_args = mock_sleep.await_args_list[1].args
     assert first_call_args == (0,)
     assert second_call_args == (poll_interval,)
-    assert result == "TASK-123"
-
-
-@patch("lta.transfer.globus.IntervalTimer")
-@patch("lta.transfer.globus.asyncio.sleep", new_callable=AsyncMock)
-@patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
-@patch("lta.transfer.globus.globus_sdk.TransferClient")
-@patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
-@patch("lta.transfer.globus.from_environment_as_dataclass")
-@pytest.mark.asyncio
-async def test_430_transfer_file_timeout_cancels_and_raises(
-    mock_from_env,
-    mock_confidential,
-    mock_transfer_client,
-    mock_authorizer,
-    mock_sleep,
-    mock_timer,
-) -> None:
-    """When the deadline elapses, transfer_file cancels and raises TimeoutError."""
-    # arrange: environment + SDK patches
-    mock_from_env.return_value = GlobusTransferEnv(
-        GLOBUS_CLIENT_ID="cid",
-        GLOBUS_CLIENT_SECRET="secret",
-        GLOBUS_SOURCE_COLLECTION_ID="src-id",
-        GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_POLL_INTERVAL_SECONDS=1.0,
-    )
-
-    token_resp = MagicMock()
-    token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
-    }
-    mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
-        token_resp
-    )
-
-    client = MagicMock()
-    client.submit_transfer.return_value = {"task_id": "TASK-123"}
-    client.get_task.return_value = {"status": "ACTIVE"}
-    mock_transfer_client.return_value = client
-
-    mock_timer.return_value.has_interval_elapsed.return_value = True  # triggers timeout
-
-    # arrange: instance with cancel hook
-    gt = GlobusTransfer()
-    gt._cancel_task = MagicMock()  # type: ignore
-
-    # act
-    with pytest.raises(TimeoutError) as excinfo:
-        await gt.transfer_file(
-            source_path=Path("/abs/file.dat"),
-            dest_path=Path("/dest/path.dat"),
-        )
-
-    # assert: timeout behavior
-    assert "timed out" in str(excinfo.value)
-    gt._cancel_task.assert_called_once()
-
-    # only the initial sleep(0) from _submit_transfer should have occurred
-    assert mock_sleep.await_count == 1
-    assert mock_sleep.await_args_list[0].args == (0,)
+    assert task_id == "TASK-123"
 
 
 @patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
@@ -458,11 +402,13 @@ async def test_440_transfer_file_failed_raises(
     mock_transfer_client.return_value = client
 
     # act
+    gt = GlobusTransfer()
+    task_id = await gt.transfer_file(
+        source_path=Path("/abs/file.dat"),
+        dest_path=Path("/dest/path.dat"),
+    )
     with pytest.raises(GlobusTransferFailedException) as excinfo:
-        await GlobusTransfer().transfer_file(
-            source_path=Path("/abs/file.dat"),
-            dest_path=Path("/dest/path.dat"),
-        )
+        await gt.wait_for_transfer_to_finish(task_id)
 
     # assert: failure surface
     text = str(excinfo.value)
@@ -506,11 +452,13 @@ async def test_450_transfer_file_inactive_raises(
     mock_transfer_client.return_value = client
 
     # act
+    gt = GlobusTransfer()
+    task_id = await gt.transfer_file(
+        source_path=Path("/abs/file.dat"),
+        dest_path=Path("/dest/path.dat"),
+    )
     with pytest.raises(GlobusTransferFailedException) as excinfo:
-        await GlobusTransfer().transfer_file(
-            source_path=Path("/abs/file.dat"),
-            dest_path=Path("/dest/path.dat"),
-        )
+        await gt.wait_for_transfer_to_finish(task_id)
 
     # assert: failure surface
     text = str(excinfo.value)
@@ -561,13 +509,15 @@ async def test_460_transfer_file_unknown_status_then_succeeds(
     mock_transfer_client.return_value = client
 
     # act
-    result = await GlobusTransfer().transfer_file(
+    gt = GlobusTransfer()
+    task_id = await gt.transfer_file(
         source_path=Path("/abs/file.dat"),
         dest_path=Path("/dest/path.dat"),
     )
+    await gt.wait_for_transfer_to_finish(task_id)
 
     # assert: unknown status tolerant
-    assert result == "TASK-123"
+    assert task_id == "TASK-123"
     assert client.get_task.call_count == 2
     # _submit_transfer: sleep(0), then polling sleep(poll_interval)
     assert mock_sleep.await_count == 2
