@@ -29,7 +29,7 @@ class GlobusTransferEnv:
     # Optional
     GLOBUS_HARD_DEADLINE_SECONDS: int | None = None
     GLOBUS_TRANSFER_SCOPE: str = "urn:globus:auth:scope:transfer.api.globus.org:all"
-    GLOBUS_POLL_INTERVAL_SECONDS: float = 10.0
+    GLOBUS_POLL_INTERVAL_SECONDS: int = 60
 
 
 class GlobusTransferFailedException(Exception):
