@@ -34,7 +34,7 @@ def test_000_globus_transfer_env_defaults() -> None:
         env.GLOBUS_TRANSFER_SCOPE == "urn:globus:auth:scope:transfer.api.globus.org:all"
     )
     assert env.GLOBUS_POLL_INTERVAL_SECONDS == 10.0
-    assert env.GLOBUS_TIMEOUT == 1200
+    assert env.GLOBUS_HARD_DEADLINE_SECONDS == 1200
 
     # act + assert: immutability
     with pytest.raises(dataclasses.FrozenInstanceError):
@@ -117,7 +117,7 @@ def test_200_make_transfer_document_builds_expected_transferdata(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_TIMEOUT=timeout,
+        GLOBUS_HARD_DEADLINE_SECONDS=timeout,
         GLOBUS_POLL_INTERVAL_SECONDS=poll_interval,
     )
 

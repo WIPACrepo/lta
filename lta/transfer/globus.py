@@ -27,7 +27,7 @@ class GlobusTransferEnv:
     GLOBUS_DEST_COLLECTION_ID: str
 
     # Optional
-    GLOBUS_TIMEOUT: int | None = None
+    GLOBUS_HARD_DEADLINE_SECONDS: int | None = None
     GLOBUS_TRANSFER_SCOPE: str = "urn:globus:auth:scope:transfer.api.globus.org:all"
     GLOBUS_POLL_INTERVAL_SECONDS: float = 10.0
 
@@ -83,10 +83,10 @@ class GlobusTransfer:
         #   So to avoid accessing its private 'globus_sdk._missing.MISSING',
         #   we'll use dict-kwargs unpacking.
         optionals: dict[str, Any] = {}
-        if self._env.GLOBUS_TIMEOUT:
+        if self._env.GLOBUS_HARD_DEADLINE_SECONDS:
             optionals["deadline"] = (
                     datetime.datetime.now(datetime.timezone.utc)
-                    + datetime.timedelta(seconds=self._env.GLOBUS_TIMEOUT)
+                    + datetime.timedelta(seconds=self._env.GLOBUS_HARD_DEADLINE_SECONDS)
             ).isoformat(timespec="seconds")
 
         # Construct
