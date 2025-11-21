@@ -3,9 +3,12 @@
 import dataclasses
 import datetime
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from globus_sdk import GlobusHTTPResponse
+from requests import Response
 
 from lta.transfer.globus import (
     GlobusTransfer,
@@ -33,7 +36,7 @@ def test_000_globus_transfer_env_defaults() -> None:
     assert (
         env.GLOBUS_TRANSFER_SCOPE == "urn:globus:auth:scope:transfer.api.globus.org:all"
     )
-    assert env.GLOBUS_POLL_INTERVAL_SECONDS == 10
+    assert env.GLOBUS_POLL_INTERVAL_SECONDS == 60
     assert env.GLOBUS_HARD_DEADLINE_SECONDS is None
 
     # act + assert: immutability
@@ -199,7 +202,9 @@ async def test_300_submit_transfer_uses_client_and_returns_task_id(
     )
 
     client = MagicMock()
-    client.submit_transfer.return_value = {"task_id": "TASK-123"}
+    client.submit_transfer.return_value = GlobusHTTPResponse(
+        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+    )
     mock_transfer_client.return_value = client
 
     # arrange: inputs
@@ -258,6 +263,16 @@ async def test_400_transfer_file_rejects_relative_source_path(
     assert "must be absolute" in str(excinfo.value)
 
 
+class _FakeResponse:
+    def __init__(self, data: dict):
+        self._data = data
+        self.status_code = 200
+        self.headers = {"Content-Type": "application/json"}
+
+    def json(self) -> dict:
+        return self._data
+
+
 @patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
@@ -288,8 +303,12 @@ async def test_410_transfer_file_success_on_first_poll(
     )
 
     client = MagicMock()
-    client.submit_transfer.return_value = {"task_id": "TASK-123"}
-    client.get_task.return_value = {"status": "SUCCEEDED"}
+    client.submit_transfer.return_value = GlobusHTTPResponse(
+        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+    )
+    client.get_task.return_value = GlobusHTTPResponse(
+        cast(Response, _FakeResponse({"status": "SUCCEEDED"}))
+    )
     mock_transfer_client.return_value = client
 
     # act
@@ -339,10 +358,12 @@ async def test_420_transfer_file_active_then_succeeds(
     )
 
     client = MagicMock()
-    client.submit_transfer.return_value = {"task_id": "TASK-123"}
+    client.submit_transfer.return_value = GlobusHTTPResponse(
+        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+    )
     client.get_task.side_effect = [
-        {"status": "ACTIVE"},
-        {"status": "SUCCEEDED"},
+        GlobusHTTPResponse(cast(Response, _FakeResponse({"status": "ACTIVE"}))),
+        GlobusHTTPResponse(cast(Response, _FakeResponse({"status": "SUCCEEDED"}))),
     ]
     mock_transfer_client.return_value = client
 
@@ -393,8 +414,12 @@ async def test_440_transfer_file_failed_raises(
     )
 
     client = MagicMock()
-    client.submit_transfer.return_value = {"task_id": "TASK-123"}
-    client.get_task.return_value = {"status": "FAILED"}
+    client.submit_transfer.return_value = GlobusHTTPResponse(
+        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+    )
+    client.get_task.return_value = GlobusHTTPResponse(
+        cast(Response, _FakeResponse({"status": "FAILED"}))
+    )
     mock_transfer_client.return_value = client
 
     # act
@@ -443,8 +468,12 @@ async def test_450_transfer_file_inactive_raises(
     )
 
     client = MagicMock()
-    client.submit_transfer.return_value = {"task_id": "TASK-123"}
-    client.get_task.return_value = {"status": "INACTIVE"}
+    client.submit_transfer.return_value = GlobusHTTPResponse(
+        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+    )
+    client.get_task.return_value = GlobusHTTPResponse(
+        cast(Response, _FakeResponse({"status": "INACTIVE"}))
+    )
     mock_transfer_client.return_value = client
 
     # act
@@ -497,10 +526,12 @@ async def test_460_transfer_file_unknown_status_then_succeeds(
     )
 
     client = MagicMock()
-    client.submit_transfer.return_value = {"task_id": "TASK-123"}
+    client.submit_transfer.return_value = GlobusHTTPResponse(
+        cast(Response, _FakeResponse({"task_id": "TASK-123"}))
+    )
     client.get_task.side_effect = [
-        {"status": "FOO"},
-        {"status": "SUCCEEDED"},
+        GlobusHTTPResponse(cast(Response, _FakeResponse({"status": "FOO"}))),
+        GlobusHTTPResponse(cast(Response, _FakeResponse({"status": "SUCCEEDED"}))),
     ]
     mock_transfer_client.return_value = client
 
