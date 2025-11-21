@@ -16,7 +16,7 @@ import lta
 
 import prometheus_client
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 # --------------------------------------------------------------------------------------
 # Parametrized implementation helper (Globus)
@@ -205,21 +205,21 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     assert ok is True
 
     # GlobusTransfer.transfer_file
-    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()
+    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()  # type: ignore
     kwargs = (
-        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs
+        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs  # type: ignore
     )
     # -- USE_FULL_BUNDLE_PATH is FALSE in base_config → just basename.
     assert str(kwargs["source_path"]) == bundle["bundle_path"]
     assert str(kwargs["dest_path"]) == "foo.zip"
 
     # GlobusTransfer.wait_for_transfer_to_finish
-    lta.globus_replicator.GlobusTransfer.return_value.wait_for_transfer_to_finish.assert_called_once()
+    lta.globus_replicator.GlobusTransfer.return_value.wait_for_transfer_to_finish.assert_called_once()  # type: ignore
     args = (
-        lta.globus_replicator.GlobusTransfer.return_value.wait_for_transfer_to_finish.call_args.args
+        lta.globus_replicator.GlobusTransfer.return_value.wait_for_transfer_to_finish.call_args.args  # type: ignore
     )
     assert args == (  # assert wait_for_transfer_to_finish() was called with the 'task_id'
-        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value,
+        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value,  # type: ignore
     )
 
     # Verify PATCH
@@ -235,7 +235,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
 
     assert (
         body.get("transfer_reference")
-        == f"globus/{lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value}"
+        == f"globus/{lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value}"  # type: ignore
     )
 
 
@@ -264,7 +264,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     def _raise(*_a: Any, **_k: Any) -> None:
         raise RuntimeError("boom")
 
-    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.side_effect = _raise
+    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.side_effect = _raise  # type: ignore
 
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     patch_calls = [c for c in rc.calls if c[0] == "PATCH"]
@@ -350,9 +350,9 @@ async def test_080_replication_use_full_bundle_path_true(
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
-    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()
+    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()  # type: ignore
     kwargs = (
-        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs
+        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs  # type: ignore
     )
 
     dest_path = kwargs["dest_path"]
@@ -381,9 +381,9 @@ async def test_090_replication_use_full_bundle_path_false(
     ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
     assert ok is True
 
-    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()
+    lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()  # type: ignore
     kwargs = (
-        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs
+        lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs  # type: ignore
     )
 
     dest_path = kwargs["dest_path"]
