@@ -34,7 +34,7 @@ def test_000_globus_transfer_env_defaults() -> None:
         env.GLOBUS_TRANSFER_SCOPE == "urn:globus:auth:scope:transfer.api.globus.org:all"
     )
     assert env.GLOBUS_POLL_INTERVAL_SECONDS == 10.0
-    assert env.GLOBUS_HARD_DEADLINE_SECONDS == 1200
+    assert env.GLOBUS_HARD_DEADLINE_SECONDS is None
 
     # act + assert: immutability
     with pytest.raises(dataclasses.FrozenInstanceError):
@@ -110,15 +110,14 @@ def test_200_make_transfer_document_builds_expected_transferdata(
 ) -> None:
     """make_transfer_document builds TransferData with correct label and deadline."""
     # arrange: environment + SDK patches
-    poll_interval = 5.0
-    timeout = 60
+    deadline = 60
     mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-        GLOBUS_HARD_DEADLINE_SECONDS=timeout,
-        GLOBUS_POLL_INTERVAL_SECONDS=poll_interval,
+        GLOBUS_HARD_DEADLINE_SECONDS=deadline,
+        GLOBUS_POLL_INTERVAL_SECONDS=5.0,
     )
 
     token_resp = MagicMock()
@@ -152,10 +151,10 @@ def test_200_make_transfer_document_builds_expected_transferdata(
     assert str(source) in label
     assert str(dest) in label
 
-    # assert: deadline window (account for cushion and seconds truncation)
-    deadline = datetime.datetime.fromisoformat(tdata["deadline"])
-    cushion = datetime.timedelta(seconds=poll_interval * 5)
-    base_time = deadline - datetime.timedelta(seconds=timeout) - cushion
+    # assert: deadline window (account for seconds truncation)
+    base_time = datetime.datetime.fromisoformat(tdata["deadline"]) - datetime.timedelta(
+        seconds=deadline
+    )
     fuzz = datetime.timedelta(seconds=1)
     assert (before - fuzz) <= base_time <= after
 
