@@ -155,6 +155,8 @@ class GlobusReplicator(Component):
                 source_path=source_path,
                 dest_path=dest_path,
             )
+            # TODO: record task id?
+            await self.globus_transfer.wait_for_transfer_to_finish(task_id)
         except Exception as e:
             self.logger.error(f'Globus transfer threw an error: {e}')
             self.logger.exception(e)

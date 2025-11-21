@@ -130,7 +130,7 @@ class GlobusTransfer:
         *,
         source_path: Path,
         dest_path: Path,
-    ) -> str:
+    ) -> uuid.UUID | str:
         """
         Transfer a single file via Globus Transfer and block until completion.
 
@@ -146,18 +146,20 @@ class GlobusTransfer:
         tdata = self.make_transfer_document(source_path, dest_path)
         task_id = await self._submit_transfer(tdata)
 
-        # wait for transfer result
-        # -- NOTE: 'globus_sdk.TransferClient.task_wait()' is *NOT* async, so diy
-        deadline = IntervalTimer(self._env.GLOBUS_TIMEOUT, logger=None)
-        for i in itertools.count():
+        return task_id
 
-            # looping condition(s)
-            # -- note: check if interval elapsed *before* sleeping to not waste time
-            if deadline.has_interval_elapsed():
-                msg = f"Globus transfer {task_id=} timed out after {deadline.seconds} seconds"
-                self._cancel_task(task_id, msg)
-                raise TimeoutError(msg)
-            elif i > 0:
+    async def wait_for_transfer_to_finish(self, task_id: uuid.UUID | str) -> None:
+        """Wait (forever) for transfer to finish.
+
+        NOTE: 'globus_sdk.TransferClient.task_wait()' is *NOT* async, so we must diy
+        """
+        first = True
+        while True:
+
+            # sleep each time after first iteration
+            if first:
+                first = False
+            else:
                 await asyncio.sleep(self._env.GLOBUS_POLL_INTERVAL_SECONDS)
 
             # look at status
@@ -168,7 +170,7 @@ class GlobusTransfer:
             match status:
                 case "SUCCEEDED":
                     LOGGER.info(f"Globus transfer succeeded: {task_id=} {task=}")
-                    return str(task_id)
+                    return
                 case "FAILED" | "INACTIVE":
                     msg = f"Globus transfer failed ({status=}): {task_id=} {task=}"
                     LOGGER.error(msg)
@@ -180,8 +182,3 @@ class GlobusTransfer:
                         f"received unknown {status=}: {task_id=} {task=} — continuing..."
                     )
                     continue
-
-        # --- mypy requires a fall-through path since the inf. loop is not a 'while-True'
-        raise RuntimeError(
-            f"Globus transfer loop exited unexpectedly (task_id={task_id})"
-        )
