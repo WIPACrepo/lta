@@ -146,10 +146,7 @@ def test_200_make_transfer_document_builds_expected_transferdata(
     assert tdata["sync_level"] == 2
 
     # assert: label content
-    label = tdata["label"]
-    assert label.startswith("LTA bundle transfer: ")
-    assert str(source) in label
-    assert str(dest) in label
+    assert tdata["label"] == f"LTA bundle: {source.name}"
 
     # assert: deadline window (account for seconds truncation)
     base_time = datetime.datetime.fromisoformat(tdata["deadline"]) - datetime.timedelta(
