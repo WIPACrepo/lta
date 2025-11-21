@@ -122,3 +122,5 @@ stderr.txt
 *.code-workspace
 
 version.py
+
+*globus-lta-env*
