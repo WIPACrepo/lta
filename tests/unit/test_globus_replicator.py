@@ -46,7 +46,9 @@ def setup(
     instance.transfer_file = AsyncMock()
     instance.wait_for_transfer_to_finish = AsyncMock()
 
-    # --- Stub prometheus BEFORE any metrics are touched ---
+    # --- Stub prometheus *at the module aliases* used by GlobusReplicator ---
+    import lta.globus_replicator as _mod
+
     class _Counter:
         def labels(self, **_: Any) -> Any:
             return self
@@ -61,8 +63,9 @@ def setup(
         def set(self, *_: Any, **__: Any) -> None:
             return None
 
-    monkeypatch.setattr(prometheus_client, "Counter", lambda *a, **k: _Counter())
-    monkeypatch.setattr(prometheus_client, "Gauge", lambda *a, **k: _Gauge())
+    # Patch the names actually used in GlobusReplicator.__init__
+    monkeypatch.setattr(_mod, "Counter", lambda *a, **k: _Counter())
+    monkeypatch.setattr(_mod, "Gauge", lambda *a, **k: _Gauge())
 
 
 # --------------------------------------------------------------------------------------
