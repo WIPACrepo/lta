@@ -208,17 +208,10 @@ class GlobusReplicator(Component):
         # ERROR -> globus possibly caught this inflight duplicate transfer
         except globus_sdk.TransferAPIError as e:
             if "A transfer with identical paths has not yet completed" in str(e):
+                # Check if there is an task_id/transfer_reference in the LTA bundle obj.
+                #   This is our best-effort at recovering the task_id since
+                #   globus didn't give it to us in the error message.
                 inflight_dup_origin_task_id = TransferReferenceToolkit.to_task_id(bundle)
-                # TODO/QUESTION: how can we be sure this is the actual task_id of the
-                #   inflight duplicate? is there a situation where:
-                #   - replicator A dies after sending task_id to LTA
-                #   - in background, transfer A finishes
-                #   - bundle is re-replicated (B)
-                #   - replicator B dies after transfer_file() but before sending task_id
-                #   - bundle is re-re-replicated (C)
-                #   - replicator C is denied by globus (a.k.a we are *here*)
-                #      > the only task_id is the one in the LTA DB (from transfer A)
-                #      > do we just ignore the id and carry on? when does site move verifier check?
                 self.logger.warning("OK: globus caught inflight duplicate")
             else:
                 raise
