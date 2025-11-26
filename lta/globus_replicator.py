@@ -45,9 +45,14 @@ class TransferReferenceToolkit:
         return f"{TransferReferenceToolkit.PREFIX}{task_id}"
 
     @staticmethod
-    def to_task_id(transfer_reference: str) -> str:
-        """Convert LTA transfer_reference to Globus task_id."""
-        return transfer_reference.removeprefix(TransferReferenceToolkit.PREFIX)
+    def to_task_id(bundle: dict) -> str | None:
+        """Convert LTA bundle (w/ transfer_reference) to Globus task_id."""
+        transfer_reference = bundle.get("transfer_reference", None)
+
+        if transfer_reference:
+            return transfer_reference.removeprefix(TransferReferenceToolkit.PREFIX)
+        else:
+            return None
 
 
 class GlobusReplicator(Component):
@@ -190,10 +195,10 @@ class GlobusReplicator(Component):
         # get our ducks in a row
         bundle_id = bundle["uuid"]
         source_path, dest_path = self._extract_paths(bundle)
-        # -- for mypy, only typehint
-        task_id: uuid.UUID | str | None  # set below
+        globus_caught_inflight_duplicate = False
+        task_id: uuid.UUID | str | None = None
 
-        # transfer the bundle
+        # Transfer the bundle
         self.logger.info(f'Sending {source_path} to {dest_path}')
         try:
             task_id = await self.globus_transfer.transfer_file(
@@ -204,24 +209,13 @@ class GlobusReplicator(Component):
         # ERROR -> globus possibly caught this inflight duplicate transfer
         except globus_sdk.TransferAPIError as e:
             if "A transfer with identical paths has not yet completed" in str(e):
-                # was there a task_id already recorded in the LTA bundle object?
-                if _ref := bundle.get("transfer_reference", None):
-                    task_id = TransferReferenceToolkit.to_task_id(_ref)
-                    self.logger.warning(
-                        f"globus caught inflight duplicate; continuing with bundle's "
-                        f"preexisting transfer_reference ({_ref}) ({task_id})..."
-                    )
-                else:
-                    task_id = None
-                    self.logger.warning(
-                        f"globus caught inflight duplicate; bundle did not have a "
-                        f"preexisting transfer_reference ({_ref}), continuing without id..."
-                    )
-            # ERROR -> unknown 'globus_sdk.TransferAPIError' variation
+                globus_caught_inflight_duplicate = True
+                self.logger.warning("OK: globus caught inflight duplicate")
             else:
                 raise
-        # NO ERROR(S) -> record task_id in the LTA DB
-        else:
+
+        # Record task_id in the LTA DB
+        if task_id:
             await self._patch_bundle(
                 lta_rc,
                 bundle_id,
@@ -231,13 +225,18 @@ class GlobusReplicator(Component):
                 }
             )
 
-        # wait for transfer to finish
+        # Wait for transfer to finish
         if task_id:
             self.logger.info(f'Waiting on transfer: {source_path} to {dest_path}')
-            try:
-                await self.globus_transfer.wait_for_transfer_to_finish(task_id)
-            except Exception:
-                raise  # -> bundle to be quarantined
+            await self.globus_transfer.wait_for_transfer_to_finish(task_id)
+        elif globus_caught_inflight_duplicate:
+            # was there a task_id already recorded in the LTA bundle object?
+            _preexisting_task_id = TransferReferenceToolkit.to_task_id(bundle)
+            if _preexisting_task_id:
+                self.logger.info(f'Waiting on transfer: {source_path} to {dest_path}')
+                await self.globus_transfer.wait_for_transfer_to_finish(_preexisting_task_id)
+            else:
+                self.logger.info('OK: cannot track transfer, assuming it finished')
         else:
             self.logger.info('OK: cannot track transfer, assuming it finished')
 
