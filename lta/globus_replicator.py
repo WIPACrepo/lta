@@ -196,6 +196,7 @@ class GlobusReplicator(Component):
         source_path, dest_path = self._extract_paths(bundle)
         inflight_dup_origin_task_id = None
         task_id: uuid.UUID | str | None = None
+        extra_updates = {}
 
         # Transfer the bundle
         self.logger.info(f'Sending {source_path} to {dest_path}')
@@ -236,14 +237,7 @@ class GlobusReplicator(Component):
             # Since we cannot track the bundle transfer, reset 'work_priority_timestamp'.
             #    This way, the Site Move Verifier component will check this bundle
             #    relatively later than it would if we normally just unclaimed+advanced.
-            await self._patch_bundle(
-                lta_rc,
-                bundle_id,
-                {
-                    "update_timestamp": now(),
-                    "work_priority_timestamp": now(),
-                }
-            )
+            extra_updates = {"work_priority_timestamp": now()}
             self.logger.info("OK: cannot track transfer, assuming it finished")
 
         # Unclaim and Advance -- update the Bundle in the LTA DB
@@ -255,6 +249,7 @@ class GlobusReplicator(Component):
                 "reason": "",
                 "update_timestamp": now(),
                 "claimed": False,
+                **extra_updates,
             }
         )
 
