@@ -195,7 +195,7 @@ class GlobusReplicator(Component):
         # get our ducks in a row
         bundle_id = bundle["uuid"]
         source_path, dest_path = self._extract_paths(bundle)
-        globus_caught_inflight_duplicate = False
+        inflight_dup_origin_task_id = None
         task_id: uuid.UUID | str | None = None
 
         # Transfer the bundle
@@ -209,7 +209,17 @@ class GlobusReplicator(Component):
         # ERROR -> globus possibly caught this inflight duplicate transfer
         except globus_sdk.TransferAPIError as e:
             if "A transfer with identical paths has not yet completed" in str(e):
-                globus_caught_inflight_duplicate = True
+                inflight_dup_origin_task_id = TransferReferenceToolkit.to_task_id(bundle)
+                # TODO/QUESTION: how can we be sure this is the actual task_id of the
+                #   inflight duplicate? is there a situation where:
+                #   - replicator A dies after sending task_id to LTA
+                #   - in background, transfer A finishes
+                #   - bundle is re-replicated (B)
+                #   - replicator B dies after transfer_file() but before sending task_id
+                #   - bundle is re-re-replicated (C)
+                #   - replicator C is denied by globus (a.k.a we are *here*)
+                #      > the only task_id is the one in the LTA DB (from transfer A)
+                #      > do we just ignore the id and carry on? when does site move verifier check?
                 self.logger.warning("OK: globus caught inflight duplicate")
             else:
                 raise
@@ -227,18 +237,11 @@ class GlobusReplicator(Component):
 
         # Wait for transfer to finish
         if task_id:
-            self.logger.info(f'Waiting on transfer: {source_path} to {dest_path}')
             await self.globus_transfer.wait_for_transfer_to_finish(task_id)
-        elif globus_caught_inflight_duplicate:
-            # was there a task_id already recorded in the LTA bundle object?
-            _preexisting_task_id = TransferReferenceToolkit.to_task_id(bundle)
-            if _preexisting_task_id:
-                self.logger.info(f'Waiting on transfer: {source_path} to {dest_path}')
-                await self.globus_transfer.wait_for_transfer_to_finish(_preexisting_task_id)
-            else:
-                self.logger.info('OK: cannot track transfer, assuming it finished')
+        elif inflight_dup_origin_task_id:
+            await self.globus_transfer.wait_for_transfer_to_finish(inflight_dup_origin_task_id)
         else:
-            self.logger.info('OK: cannot track transfer, assuming it finished')
+            self.logger.info("OK: cannot track transfer, assuming it finished")
 
         # update the Bundle in the LTA DB
         await self._patch_bundle(

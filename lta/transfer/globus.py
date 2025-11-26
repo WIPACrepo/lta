@@ -157,6 +157,8 @@ class GlobusTransfer:
 
         NOTE: 'globus_sdk.TransferClient.task_wait()' is *NOT* async, so we must diy
         """
+        LOGGER.info(f"Waiting on transfer: {task_id=}")
+
         first = True
         while True:
 
