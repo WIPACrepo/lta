@@ -201,15 +201,6 @@ class GlobusReplicator(Component):
                 dest_path=dest_path,
             )
             self.logger.info(f'Initiated transfer {source_path} to {dest_path}')
-            # record task_id in the LTA DB
-            await self._patch_bundle(
-                lta_rc,
-                bundle_id,
-                {
-                    "update_timestamp": now(),
-                    "transfer_reference": TransferReferenceToolkit.to_transfer_reference(task_id),
-                }
-            )
         # ERROR -> globus possibly caught this inflight duplicate transfer
         except globus_sdk.TransferAPIError as e:
             if "A transfer with identical paths has not yet completed" in str(e):
@@ -228,10 +219,17 @@ class GlobusReplicator(Component):
                     )
             # ERROR -> unknown 'globus_sdk.TransferAPIError' variation
             else:
-                raise  # -> bundle to be quarantined
-        # ERROR -> mystery
-        except Exception:
-            raise  # -> bundle to be quarantined
+                raise
+        # NO ERROR(S) -> record task_id in the LTA DB
+        else:
+            await self._patch_bundle(
+                lta_rc,
+                bundle_id,
+                {
+                    "update_timestamp": now(),
+                    "transfer_reference": TransferReferenceToolkit.to_transfer_reference(task_id),
+                }
+            )
 
         # wait for transfer to finish
         if task_id:
