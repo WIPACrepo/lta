@@ -2,12 +2,11 @@
 """Module to implement the GlobusReplicator component of the Long Term Archive."""
 
 import asyncio
-import dataclasses
 import logging
 import sys
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional
 
 import globus_sdk
 from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[import-not-found]
