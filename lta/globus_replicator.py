@@ -33,10 +33,6 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 @dataclasses.dataclass
@@ -86,6 +82,23 @@ class GlobusReplicator(Component):
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.globus_transfer = GlobusTransfer()
 
+        # prometheus metrics
+        self.failure_counter = Counter(
+            "lta_failures",
+            "lta processing failures",
+            ["component", "level", "type"],
+        )
+        self.load_gauge = Gauge(
+            "lta_load_level",
+            "lta work processed",
+            ["component", "level", "type"],
+        )
+        self.success_counter = Counter(
+            "lta_successes",
+            "lta processing successes",
+            ["component", "level", "type"],
+        )
+
     def _do_status(self) -> Dict[str, Any]:
         """GlobusReplicator has no additional status to contribute."""
         return {}
@@ -106,7 +119,7 @@ class GlobusReplicator(Component):
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
-        load_gauge.labels(component='globus_replicator', level='bundle', type='work').set(load_level)
+        self.load_gauge.labels(component='globus_replicator', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
     @wtt.spanned()
@@ -126,11 +139,11 @@ class GlobusReplicator(Component):
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
-            success_counter.labels(component='globus_replicator', level='bundle', type='work').inc()
+            self.success_counter.labels(component='globus_replicator', level='bundle', type='work').inc()
         except Exception as e:
             self.logger.error(f'Globus transfer threw an error: {e}')
             self.logger.exception(e)
-            failure_counter.labels(component='globus_replicator', level='bundle', type='exception').inc()
+            self.failure_counter.labels(component='globus_replicator', level='bundle', type='exception').inc()
             await self._quarantine_bundle(lta_rc, bundle, f"{e}")
             return False
         # if we were successful at processing work, let the caller know
