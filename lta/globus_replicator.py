@@ -34,25 +34,20 @@ EXPECTED_CONFIG.update({
 })
 
 
+class TransferReferenceToolkit:
+    """A couple of tools for interacting with LTA transfer_reference."""
 
-@dataclasses.dataclass
-class TransferIdentityFromGlobus:
-    task_id: uuid.UUID | str
-
-
-class TransferIdentityFromLTA:
     PREFIX = "globus/"
 
-    def __init__(self, task_id: str) -> None:
-        self.task_id = task_id
+    @staticmethod
+    def to_transfer_reference(task_id: uuid.UUID | str) -> str:
+        """Convert Globus task_id to LTA transfer_reference."""
+        return f"{TransferReferenceToolkit.PREFIX}{task_id}"
 
     @staticmethod
-    def make_transfer_reference(xfer_identity: TransferIdentityFromGlobus) -> str:
-        return f"{TransferIdentityFromLTA.PREFIX}{xfer_identity.task_id}"
-
-    @staticmethod
-    def from_transfer_reference(transfer_reference: str) -> 'TransferIdentityFromLTA':
-        return TransferIdentityFromLTA(transfer_reference.removeprefix(TransferIdentityFromLTA.PREFIX))
+    def to_task_id(transfer_reference: str) -> str:
+        """Convert LTA transfer_reference to Globus task_id."""
+        return transfer_reference.removeprefix(TransferReferenceToolkit.PREFIX)
 
 
 class GlobusReplicator(Component):
@@ -196,58 +191,57 @@ class GlobusReplicator(Component):
         bundle_id = bundle["uuid"]
         source_path, dest_path = self._extract_paths(bundle)
         # -- for mypy, only typehint
-        xfer_identity: TransferIdentityFromGlobus | TransferIdentityFromLTA | None
+        task_id: uuid.UUID | str | None  # set below
 
         # transfer the bundle
         self.logger.info(f'Sending {source_path} to {dest_path}')
         try:
-            _task_id = await self.globus_transfer.transfer_file(
+            task_id = await self.globus_transfer.transfer_file(
                 source_path=source_path,
                 dest_path=dest_path,
             )
-            xfer_identity = TransferIdentityFromGlobus(_task_id)
             self.logger.info(f'Initiated transfer {source_path} to {dest_path}')
+            # record task_id in the LTA DB
+            await self._patch_bundle(
+                lta_rc,
+                bundle_id,
+                {
+                    "update_timestamp": now(),
+                    "transfer_reference": TransferReferenceToolkit.to_transfer_reference(task_id),
+                }
+            )
         # ERROR -> globus possibly caught this inflight duplicate transfer
         except globus_sdk.TransferAPIError as e:
             if "A transfer with identical paths has not yet completed" in str(e):
+                # was there a task_id already recorded in the LTA bundle object?
                 if _ref := bundle.get("transfer_reference", None):
-                    xfer_identity = TransferIdentityFromLTA.from_transfer_reference(cast(str, _ref))
+                    task_id = TransferReferenceToolkit.to_task_id(_ref)
                     self.logger.warning(
                         f"globus caught inflight duplicate; continuing with bundle's "
-                        f"preexisting transfer_reference ({_ref}) ({xfer_identity.task_id})..."
+                        f"preexisting transfer_reference ({_ref}) ({task_id})..."
                     )
                 else:
-                    xfer_identity = None
+                    task_id = None
                     self.logger.warning(
                         f"globus caught inflight duplicate; bundle did not have a "
                         f"preexisting transfer_reference ({_ref}), continuing without id..."
                     )
+            # ERROR -> unknown 'globus_sdk.TransferAPIError' variation
             else:
                 raise  # -> bundle to be quarantined
         # ERROR -> mystery
         except Exception:
             raise  # -> bundle to be quarantined
 
-        # record task id in the LTA DB -- useful for debugging
-        if isinstance(xfer_identity, TransferIdentityFromGlobus):
-            await self._patch_bundle(
-                lta_rc,
-                bundle_id,
-                {
-                    "update_timestamp": now(),
-                    "transfer_reference": TransferIdentityFromLTA.make_transfer_reference(xfer_identity),
-                }
-            )
-
         # wait for transfer to finish
-        if isinstance(xfer_identity, TransferIdentityFromGlobus | TransferIdentityFromLTA):
+        if task_id:
             self.logger.info(f'Waiting on transfer: {source_path} to {dest_path}')
             try:
-                await self.globus_transfer.wait_for_transfer_to_finish(xfer_identity.task_id)
+                await self.globus_transfer.wait_for_transfer_to_finish(task_id)
             except Exception:
                 raise  # -> bundle to be quarantined
         else:
-            self.logger.info('OK: cannot track transfer, assuming it went finished')
+            self.logger.info('OK: cannot track transfer, assuming it finished')
 
         # update the Bundle in the LTA DB
         await self._patch_bundle(
