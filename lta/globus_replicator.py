@@ -233,9 +233,20 @@ class GlobusReplicator(Component):
         elif inflight_dup_origin_task_id:
             await self.globus_transfer.wait_for_transfer_to_finish(inflight_dup_origin_task_id)
         else:
+            # Since we cannot track the bundle transfer, reset 'work_priority_timestamp'.
+            #    This way, the Site Move Verifier component will check this bundle
+            #    relatively later than it would if we normally just unclaimed+advanced.
+            await self._patch_bundle(
+                lta_rc,
+                bundle_id,
+                {
+                    "update_timestamp": now(),
+                    "work_priority_timestamp": now(),
+                }
+            )
             self.logger.info("OK: cannot track transfer, assuming it finished")
 
-        # update the Bundle in the LTA DB
+        # Unclaim and Advance -- update the Bundle in the LTA DB
         await self._patch_bundle(
             lta_rc,
             bundle_id,
