@@ -30,7 +30,7 @@ async def main():
     print("Initializing GlobusTransfer…")
 
     # mock out the otherwise required env vars — we aren't using this
-    os.environ["GLOBUS_DEST_COLLECTION_ID"] = "foo"
+    os.environ["GLOBUS_DEST_COLLECTION_ID"] = "n/a"
 
     gt = GlobusTransfer()  # uses env vars for auth
     collection = gt._env.GLOBUS_SOURCE_COLLECTION_ID
