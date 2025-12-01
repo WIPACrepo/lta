@@ -1,6 +1,7 @@
 """A simple script that does a 'globus ls' using lta's GlobusTransfer."""
 
 import logging
+import os
 from pathlib import Path
 import json
 import asyncio
@@ -27,6 +28,10 @@ def globus_ls_recursive(gt: GlobusTransfer, collection: str, path: Path):
 async def main():
     """Main function."""
     print("Initializing GlobusTransfer…")
+
+    # mock out the otherwise required env vars — we aren't using this
+    os.environ["GLOBUS_DEST_COLLECTION_ID"] = "foo"
+
     gt = GlobusTransfer()  # uses env vars for auth
     collection = gt._env.GLOBUS_SOURCE_COLLECTION_ID
 
