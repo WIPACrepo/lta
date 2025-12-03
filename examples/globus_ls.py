@@ -1,11 +1,13 @@
 """A simple script that does a 'globus ls' using lta's GlobusTransfer."""
 
 import argparse
+import copy
 import logging
 import os
 from pathlib import Path
 import json
 import asyncio
+from datetime import datetime
 
 from lta.transfer.globus import GlobusTransfer
 
@@ -13,14 +15,40 @@ TREE_TO_PRINT: list[str] = []  # this is global so we can print even if exceptio
 
 
 def print_tree():
+    """Print the tree: TREE_TO_PRINT."""
+    to_print = copy.deepcopy(TREE_TO_PRINT)
+
+    # this will shave each metadata section so all have the same left-padding
+    #   in:  '├── [  12.0B Dec  1 02:10]'
+    #   out: '├── [12.0B Dec  1 02:10]'
+    while all(("─ [ " in x) for x in to_print[1:]):  # note: first line is root path
+        to_print = [x.replace("─ [ ", "─ [") for x in to_print]
+
     print(flush=True)
-    for ln in TREE_TO_PRINT:
+    for ln in to_print:
         print(ln, flush=True)
 
 
+def _fmt_meta(e: dict) -> str:
+    """Return metadata like: [4.5K Dec  3 16:05]."""
+
+    # human-readable byte size
+    def _hr(n: int) -> str:
+        for u in ("B", "K", "M", "G", "T", "P"):
+            if n < 1024:
+                out = f"{n:6.1f}{u}"
+                return out.rstrip("0").rstrip(".")
+            n /= 1024
+        out = f"{n:.1f}E"
+        return out.rstrip("0").rstrip(".")
+
+    ts = datetime.fromisoformat(e["last_modified"]).strftime("%b %e %H:%M")
+    return f"[{_hr(e['size'])} {ts}]"
+
+
 def _add_tree_line(
-    name: str,
-    is_dir: bool,
+    entry: dict,
+    name_override: str | None,
     _draw_verticals: list[bool],
     is_last: bool,
 ) -> None:
@@ -31,11 +59,15 @@ def _add_tree_line(
     for do_it in _draw_verticals:
         prefix += "│   " if do_it else "    "
 
-    connector = "└── " if is_last else "├── "
+    connector = "└──" if is_last else "├──"
 
-    ending = "/" if is_dir else ""
+    meta = _fmt_meta(entry)
 
-    TREE_TO_PRINT.append(f"{prefix}{connector}{name}{ending}")
+    name = name_override or entry["name"]
+
+    ending = "/" if entry["type"] == "dir" else ""
+
+    TREE_TO_PRINT.append(f"{prefix}{connector} {meta}  {name}{ending}")
 
 
 def _globus_ls(
@@ -73,8 +105,8 @@ def _globus_ls(
 
         is_last = bool(idx == len(entries_sorted) - 1)
         _add_tree_line(
-            fullpath if show_fullpath else e["name"],
-            e["type"] == "dir",
+            e,
+            fullpath if show_fullpath else None,
             _draw_verticals,
             is_last,
         )
@@ -133,6 +165,7 @@ async def main():
         help="Recursively list the contents of 'globus ls'",
     )
     parser.add_argument(
+        "-d",
         "--max-depth",
         type=int,
         default=None,
