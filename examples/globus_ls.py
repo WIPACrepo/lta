@@ -1,5 +1,6 @@
 """A simple script that does a 'globus ls' using lta's GlobusTransfer."""
 
+import argparse
 import logging
 import os
 from pathlib import Path
@@ -9,7 +10,7 @@ import asyncio
 from lta.transfer.globus import GlobusTransfer
 
 
-def globus_ls_recursive(gt: GlobusTransfer, collection: str, path: Path):
+def _globus_ls_recursive(gt: GlobusTransfer, collection: str, path: Path):
     """Like 'globus ls <collection>' but recursively for every subdir."""
 
     print(f"\n\nglobus ls {path}")
@@ -22,24 +23,41 @@ def globus_ls_recursive(gt: GlobusTransfer, collection: str, path: Path):
         print(json.dumps(e, indent=4))
         # recurse
         if e["type"] == "dir":
-            globus_ls_recursive(gt, collection, fullpath)
+            _globus_ls_recursive(gt, collection, fullpath)
 
 
-async def main():
-    """Main function."""
-    print("Initializing GlobusTransfer…")
-
-    # mock out the otherwise required env vars — we aren't using this
-    os.environ["GLOBUS_DEST_COLLECTION_ID"] = "n/a"
+def globus_ls() -> None:
+    """Do the ls."""
+    print("Initializing GlobusTransfer...")
 
     gt = GlobusTransfer()  # uses env vars for auth
     collection = gt._env.GLOBUS_SOURCE_COLLECTION_ID
 
     print(f"Listing contents for {collection=}…")
 
-    globus_ls_recursive(gt, collection, Path("/"))
+    _globus_ls_recursive(gt, collection, Path("/"))
 
     print("\nOK — Python SDK authentication is working.")
+
+
+async def main():
+    """Main function."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--collection",
+        required=bool("GLOBUS_SOURCE_COLLECTION_ID" not in os.environ),
+        help="The collection name",
+    )
+    args = parser.parse_args()
+
+    # override if given
+    if args.collection:
+        os.environ["GLOBUS_SOURCE_COLLECTION_ID"] = args.collection
+
+    # mock out the otherwise required env vars — we aren't using this
+    os.environ["GLOBUS_DEST_COLLECTION_ID"] = "n/a"
+
+    globus_ls()
 
 
 if __name__ == "__main__":
