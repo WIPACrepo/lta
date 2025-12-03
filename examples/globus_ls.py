@@ -90,7 +90,7 @@ def _globus_ls(
     print(f"\n\nglobus ls {path}")
 
     if _depth == 0:
-        TREE_TO_PRINT.append(str(path))
+        TREE_TO_PRINT.append(f"{path} ({do_recursive=}, {max_depth=})")
 
     # call api
     entries_sorted = sorted(
