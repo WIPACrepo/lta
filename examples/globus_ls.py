@@ -42,7 +42,7 @@ def _fmt_meta(e: dict) -> str:
         out = f"{n:.1f}E"
         return out.rstrip("0").rstrip(".")
 
-    ts = datetime.fromisoformat(e["last_modified"]).strftime("%b %e %H:%M")
+    ts = datetime.fromisoformat(e["last_modified"]).strftime("%b %e %H:%M %Y")
     return f"[{_hr(e['size'])} {ts}]"
 
 
