@@ -33,7 +33,7 @@ def _fmt_meta(e: dict) -> str:
     """Return metadata like: [4.5K Dec  3 16:05]."""
 
     # human-readable byte size
-    def _hr(n: int) -> str:
+    def _hr(n: float) -> str:
         for u in ("B", "K", "M", "G", "T", "P"):
             if n < 1024:
                 out = f"{n:6.1f}{u}"
