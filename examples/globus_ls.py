@@ -26,7 +26,7 @@ def _globus_ls_recursive(gt: GlobusTransfer, collection: str, path: Path):
             _globus_ls_recursive(gt, collection, fullpath)
 
 
-def globus_ls() -> None:
+def globus_ls(root: Path) -> None:
     """Do the ls."""
     print("Initializing GlobusTransfer...")
 
@@ -35,7 +35,7 @@ def globus_ls() -> None:
 
     print(f"Listing contents for {collection=}…")
 
-    _globus_ls_recursive(gt, collection, Path("/"))
+    _globus_ls_recursive(gt, collection, root)
 
     print("\nOK — Python SDK authentication is working.")
 
@@ -48,6 +48,12 @@ async def main():
         required=bool("GLOBUS_SOURCE_COLLECTION_ID" not in os.environ),
         help="The collection name",
     )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        required=True,
+        help="The directory tree root to 'ls'",
+    )
     args = parser.parse_args()
 
     # override if given
@@ -57,7 +63,7 @@ async def main():
     # mock out the otherwise required env vars — we aren't using this
     os.environ["GLOBUS_DEST_COLLECTION_ID"] = "n/a"
 
-    globus_ls()
+    globus_ls(args.root)
 
 
 if __name__ == "__main__":
