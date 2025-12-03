@@ -10,7 +10,12 @@ import asyncio
 from lta.transfer.globus import GlobusTransfer
 
 
-def _globus_ls_recursive(gt: GlobusTransfer, collection: str, path: Path):
+def _globus_ls(
+    gt: GlobusTransfer,
+    collection: str,
+    path: Path,
+    do_recursive: bool,
+):
     """Like 'globus ls <collection>' but recursively for every subdir."""
 
     print(f"\n\nglobus ls {path}")
@@ -22,11 +27,11 @@ def _globus_ls_recursive(gt: GlobusTransfer, collection: str, path: Path):
         print(f"\n-> {fullpath}")
         print(json.dumps(e, indent=4))
         # recurse
-        if e["type"] == "dir":
-            _globus_ls_recursive(gt, collection, fullpath)
+        if do_recursive and e["type"] == "dir":
+            _globus_ls(gt, collection, fullpath, do_recursive)
 
 
-def globus_ls(root: Path) -> None:
+def globus_ls(root: Path, do_recursive: bool) -> None:
     """Do the ls."""
     print("Initializing GlobusTransfer...")
 
@@ -35,7 +40,7 @@ def globus_ls(root: Path) -> None:
 
     print(f"Listing contents for {collection=}…")
 
-    _globus_ls_recursive(gt, collection, root)
+    _globus_ls(gt, collection, root, do_recursive)
 
     print("\nOK — Python SDK authentication is working.")
 
@@ -52,7 +57,13 @@ async def main():
         "--root",
         type=Path,
         required=True,
-        help="The directory tree root to 'ls'",
+        help="The directory tree root to 'globus ls'",
+    )
+    parser.add_argument(
+        "-r",
+        "--recursive",
+        action="store_true",
+        help="Recursively list the contents of 'globus ls'",
     )
     args = parser.parse_args()
 
@@ -63,7 +74,7 @@ async def main():
     # mock out the otherwise required env vars — we aren't using this
     os.environ["GLOBUS_DEST_COLLECTION_ID"] = "n/a"
 
-    globus_ls(args.root)
+    globus_ls(args.root, args.recursive)
 
 
 if __name__ == "__main__":
