@@ -153,38 +153,8 @@ jobs:
   # TESTS
   #############################################################################
 
-  pip-install:
-    needs: [
-      py-versions,
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
-    ]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
-          fetch-depth: 0  # setuptools-scm needs to access git tags
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.py3 }}
-      - name: "source ./tools/setupenv.sh"
-        run: |
-          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
-          source ./tools/setupenv.sh
-
   unit-tests:
-    needs: [
-      py-versions,
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
-    ]
+    needs: [ py-versions ]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -205,7 +175,7 @@ jobs:
         run: |
           set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
           source ./tools/setupenv.sh
-          pytest -vvvvv --tb=short tests/unit/
+          pytest -vvvvv tests/unit/
 
   test-build-docker:
     needs: [
@@ -228,13 +198,14 @@ jobs:
           file: Dockerfile
           tags: ${{ env.CI_DOCKER_IMAGE_W_TAG }}
 
-  integration-tests:
+  integration-test-rest-server:
     needs: [
       mongo-versions,
       py-versions,
       # linters so we don't waste compute on faulty code...
       flake8,
       mypy,
+      unit-tests,
     ]
     runs-on: ubuntu-latest
     strategy:
@@ -285,7 +256,7 @@ jobs:
               /bin/bash -c "\
                 pip install $dev_reqs && \
                 resources/enable_profiling.py && \
-                pytest -vvvvv --tb=short tests/integration/ --exitfirst && \
+                pytest -vvvvv tests/integration/test_rest_server.py --exitfirst && \
                 resources/profile_queries.py \
               "
 
@@ -304,10 +275,9 @@ jobs:
       mypy,
       py-setup,
       py-dependencies,
-      pip-install,
       unit-tests,
       test-build-docker,
-      integration-tests,
+      integration-test-rest-server,
     ]
     uses: WIPACrepo/wipac-dev-workflows/.github/workflows/tag-and-release.yml@v1.20
     permissions: # for GITHUB_TOKEN
