@@ -37,7 +37,7 @@ class GlobusTransferFailedException(Exception):
 
 
 class GlobusTransfer:
-    """Submit and wait for single-file Globus transfers."""
+    """Manage single-file Globus transfers."""
 
     def __init__(self) -> None:
         """Load env config and initialize a TransferClient."""
@@ -127,7 +127,9 @@ class GlobusTransfer:
         dest_path: Path,
     ) -> uuid.UUID | str:
         """
-        Transfer a single file via Globus Transfer and block until completion.
+        Submit a single-file Globus transfer return the task ID.
+
+        Does not wait for transfer to complete, see `wait_for_transfer_to_finish()`.
 
         :param source_path: Absolute path on the source collection.
         :param dest_path: The filepath on the destination collection.
@@ -144,8 +146,8 @@ class GlobusTransfer:
         return task_id
 
     async def wait_for_transfer_to_finish(
-            self,
-            task_id: uuid.UUID | str,
+        self,
+        task_id: uuid.UUID | str,
     ) -> dict[str, Any]:
         """Wait (forever) for transfer to finish.
 
