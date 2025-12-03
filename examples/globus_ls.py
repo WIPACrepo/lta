@@ -19,8 +19,8 @@ def print_tree():
     to_print = copy.deepcopy(TREE_TO_PRINT)
 
     # this will shave each metadata section so all have the same left-padding
-    #   in:  '├── [  12.0B Dec  1 02:10]'
-    #   out: '├── [12.0B Dec  1 02:10]'
+    #   in:  '├── [  12.0B Dec  1 02:10 2025]'
+    #   out: '├── [12.0B Dec  1 02:10 2025]'
     while all(("─ [ " in x) for x in to_print[1:]):  # note: first line is root path
         to_print = [x.replace("─ [ ", "─ [") for x in to_print]
 
@@ -30,7 +30,7 @@ def print_tree():
 
 
 def _fmt_meta(e: dict) -> str:
-    """Return metadata like: [4.5K Dec  3 16:05]."""
+    """Return metadata like: [  12.0B Dec  1 02:10 2025]."""
 
     # human-readable byte size
     def _hr(n: float) -> str:
