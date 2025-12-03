@@ -9,14 +9,26 @@ import asyncio
 
 from lta.transfer.globus import GlobusTransfer
 
+TREE_TO_PRINT: list[str] = []
+
+
+def print_tree():
+    print()
+    for ln in TREE_TO_PRINT:
+        print(ln)
+
 
 def _globus_ls(
     gt: GlobusTransfer,
     collection: str,
     path: Path,
     do_recursive: bool,
+    max_depth: int | None,
+    _depth: int = 0,
 ):
     """Like 'globus ls <collection>' but recursively for every subdir."""
+    if (max_depth is not None) and (_depth > max_depth):
+        return
 
     print(f"\n\nglobus ls {path}")
 
@@ -26,12 +38,15 @@ def _globus_ls(
         fullpath = path / e["name"]
         print(f"\n-> {fullpath}")
         print(json.dumps(e, indent=4))
+        TREE_TO_PRINT.append(
+            f"{'——'*(_depth+1)} {e['name']}{'/' if e['type'] == 'dir' else ''}"
+        )
         # recurse
         if do_recursive and e["type"] == "dir":
-            _globus_ls(gt, collection, fullpath, do_recursive)
+            _globus_ls(gt, collection, fullpath, do_recursive, max_depth, _depth + 1)
 
 
-def globus_ls(root: Path, do_recursive: bool) -> None:
+def globus_ls(root: Path, do_recursive: bool, max_depth: int | None) -> None:
     """Do the ls."""
     print("Initializing GlobusTransfer...")
 
@@ -40,7 +55,7 @@ def globus_ls(root: Path, do_recursive: bool) -> None:
 
     print(f"Listing contents for {collection=}…")
 
-    _globus_ls(gt, collection, root, do_recursive)
+    _globus_ls(gt, collection, root, do_recursive, max_depth)
 
     print("\nOK — Python SDK authentication is working.")
 
@@ -65,6 +80,11 @@ async def main():
         action="store_true",
         help="Recursively list the contents of 'globus ls'",
     )
+    parser.add_argument(
+        "--max-depth",
+        type=int,
+        default=None,
+    )
     args = parser.parse_args()
 
     # override if given
@@ -74,10 +94,13 @@ async def main():
     # mock out the otherwise required env vars — we aren't using this
     os.environ["GLOBUS_DEST_COLLECTION_ID"] = "n/a"
 
-    globus_ls(args.root, args.recursive)
+    globus_ls(args.root, args.recursive, args.max_depth)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    finally:
+        print_tree()
     print("Done.")
