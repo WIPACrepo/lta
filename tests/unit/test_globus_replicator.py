@@ -368,7 +368,7 @@ async def test_080_replication_use_full_bundle_path_true(
 
     assert (
         kwargs["dest_path"]
-        == REPLICATOR_DEST_DIRPATH / "/data/exp/IC/2015/filtered/level2/0320/bar.zip"
+        == REPLICATOR_DEST_DIRPATH / "data/exp/IC/2015/filtered/level2/0320/bar.zip"
     )
 
 
