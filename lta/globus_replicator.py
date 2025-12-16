@@ -30,6 +30,7 @@ EXPECTED_CONFIG.update({
     "USE_FULL_BUNDLE_PATH": "FALSE",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
+    "REPLICATOR_DEST_DIRPATH": None,  # required
 })
 
 
@@ -79,6 +80,8 @@ class GlobusReplicator(Component):
         self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
+        self.replicator_dest_dirpath = Path(config["REPLICATOR_DEST_DIRPATH"])
+
         self.globus_transfer = GlobusTransfer()
 
         # prometheus metrics
@@ -177,10 +180,10 @@ class GlobusReplicator(Component):
         bundle_name = Path(bundle["bundle_path"]).name
         if self.use_full_bundle_path:
             # /data/exp/IceCube/2015/filtered/level2/0320 + BUNDLE_NAME
-            dest_path = Path(bundle["path"]) / bundle_name
+            dest_path = self.replicator_dest_dirpath / bundle["path"].lstrip('/') / bundle_name
         else:
             # BUNDLE_NAME
-            dest_path = Path(bundle_name)
+            dest_path = self.replicator_dest_dirpath / bundle_name
 
         return source_path, dest_path
 

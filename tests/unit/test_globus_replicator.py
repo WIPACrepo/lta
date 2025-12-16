@@ -10,6 +10,7 @@ Goals:
 """
 
 import logging
+from pathlib import Path
 from typing import Any, Callable
 
 import lta
@@ -22,10 +23,13 @@ from unittest.mock import AsyncMock, patch
 # Parametrized implementation helper (Globus)
 # --------------------------------------------------------------------------------------
 
+REPLICATOR_DEST_DIRPATH = Path("/path/to/destination/")
+
 EXPECTED_CONFIG_KEYS = [
     "USE_FULL_BUNDLE_PATH",
     "WORK_RETRIES",
     "WORK_TIMEOUT_SECONDS",
+    "REPLICATOR_DEST_DIRPATH",
 ]
 
 
@@ -75,7 +79,7 @@ def setup(
 
 @pytest.fixture
 def base_config() -> dict[str, str]:
-    """Minimal, valid config for either replication component."""
+    """Minimal, valid config for the replication component."""
     cfg: dict[str, str] = {
         # ===== Required by COMMON_CONFIG (must be present and non-empty) =====
         "CLIENT_ID": "test-client-id",
@@ -95,6 +99,7 @@ def base_config() -> dict[str, str]:
         "WORK_SLEEP_DURATION_SECONDS": "0.01",  # keep tests snappy
         "WORK_TIMEOUT_SECONDS": "30",
         "USE_FULL_BUNDLE_PATH": "FALSE",
+        "REPLICATOR_DEST_DIRPATH": str(REPLICATOR_DEST_DIRPATH),
     }
 
     return cfg
@@ -214,7 +219,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     )
     # -- USE_FULL_BUNDLE_PATH is FALSE in base_config → just basename.
     assert str(kwargs["source_path"]) == bundle["bundle_path"]
-    assert str(kwargs["dest_path"]) == "foo.zip"
+    assert kwargs["dest_path"] == REPLICATOR_DEST_DIRPATH / "foo.zip"
 
     # GlobusTransfer.wait_for_transfer_to_finish
     lta.globus_replicator.GlobusTransfer.return_value.wait_for_transfer_to_finish.assert_called_once()  # type: ignore
@@ -361,8 +366,10 @@ async def test_080_replication_use_full_bundle_path_true(
         lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs  # type: ignore
     )
 
-    dest_path = kwargs["dest_path"]
-    assert str(dest_path) == "/data/exp/IC/2015/filtered/level2/0320/bar.zip"
+    assert (
+        kwargs["dest_path"]
+        == REPLICATOR_DEST_DIRPATH / "data/exp/IC/2015/filtered/level2/0320/bar.zip"
+    )
 
 
 @pytest.mark.asyncio
@@ -392,5 +399,4 @@ async def test_090_replication_use_full_bundle_path_false(
         lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs  # type: ignore
     )
 
-    dest_path = kwargs["dest_path"]
-    assert str(dest_path) == "baz.zip"
+    assert kwargs["dest_path"] == REPLICATOR_DEST_DIRPATH / "baz.zip"
