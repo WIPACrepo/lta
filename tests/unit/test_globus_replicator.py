@@ -26,6 +26,7 @@ EXPECTED_CONFIG_KEYS = [
     "USE_FULL_BUNDLE_PATH",
     "WORK_RETRIES",
     "WORK_TIMEOUT_SECONDS",
+    "REPLICATOR_DEST_DIRPATH",
 ]
 
 
@@ -75,7 +76,7 @@ def setup(
 
 @pytest.fixture
 def base_config() -> dict[str, str]:
-    """Minimal, valid config for either replication component."""
+    """Minimal, valid config for the replication component."""
     cfg: dict[str, str] = {
         # ===== Required by COMMON_CONFIG (must be present and non-empty) =====
         "CLIENT_ID": "test-client-id",
@@ -95,6 +96,7 @@ def base_config() -> dict[str, str]:
         "WORK_SLEEP_DURATION_SECONDS": "0.01",  # keep tests snappy
         "WORK_TIMEOUT_SECONDS": "30",
         "USE_FULL_BUNDLE_PATH": "FALSE",
+        "REPLICATOR_DEST_DIRPATH": "/path/to/destination/",
     }
 
     return cfg
