@@ -1,5 +1,3 @@
-#!/bin/bash
-set -euo pipefail
 #!/usr/bin/env bash
 export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/data/user/lta/bundler_out"}
 export BUNDLER_WORKBOX_PATH=${BUNDLER_WORKBOX_PATH:="/data/user/lta/bundler_work"}

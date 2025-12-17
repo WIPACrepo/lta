@@ -1,5 +1,3 @@
-#!/bin/bash
-set -euo pipefail
 #!/usr/bin/env bash
 cd ${HOME}/lta
 source env/bin/activate

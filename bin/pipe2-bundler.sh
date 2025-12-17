@@ -1,5 +1,3 @@
-#!/bin/bash
-set -euo pipefail
 #!/usr/bin/env bash
 export BUNDLER_OUTBOX_PATH=${BUNDLER_OUTBOX_PATH:="/mnt/lfss/jade-lta/bundler_stage"}
 export BUNDLER_WORKBOX_PATH=${BUNDLER_WORKBOX_PATH:="/mnt/lfss/jade-lta/bundler_work"}

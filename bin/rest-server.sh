@@ -1,5 +1,3 @@
-#!/bin/bash
-set -euo pipefail
 #!/usr/bin/env bash
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_AUDIENCE=${LTA_AUTH_AUDIENCE:="long-term-archive"}

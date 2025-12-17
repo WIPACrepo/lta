@@ -1,5 +1,3 @@
-#!/bin/bash
-set -euo pipefail
 #!/usr/bin/env bash
 export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
 export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}

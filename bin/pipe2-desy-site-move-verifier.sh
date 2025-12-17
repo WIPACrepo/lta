@@ -1,5 +1,3 @@
-#!/bin/bash
-set -euo pipefail
 #!/usr/bin/env bash
 cd /afs/ifh.de/user/j/jbelling/LTA/lta
 source env/bin/activate
