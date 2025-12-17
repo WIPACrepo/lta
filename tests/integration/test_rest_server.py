@@ -41,7 +41,6 @@ CONFIG = {
     'LTA_MONGODB_PORT': '27017',
     'OTEL_EXPORTER_OTLP_ENDPOINT': 'localhost:4317',
     'PROMETHEUS_METRICS_PORT': '8090',
-    'WIPACTEL_EXPORT_STDOUT': 'TRUE',
 }
 for k in CONFIG:
     if k in os.environ:
@@ -88,7 +87,6 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
     monkeypatch.setenv("PROMETHEUS_METRICS_PORT", "8090")
-    monkeypatch.setenv("WIPACTEL_EXPORT_STDOUT", "TRUE")
     s = start(debug=True)
 
     def client(role: str = "admin", timeout: float = 0.5) -> RestClient:

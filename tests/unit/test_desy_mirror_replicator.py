@@ -50,7 +50,6 @@ def config() -> TestConfig:
         "RUN_ONCE_AND_DIE": "FALSE",
         "RUN_UNTIL_NO_WORK": "FALSE",
         "SOURCE_SITE": "WIPAC",
-        "WIPACTEL_EXPORT_STDOUT": "FALSE",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -204,7 +203,6 @@ async def test_desy_mirror_replicator_logs_configuration(mocker: MockerFixture) 
         "RUN_ONCE_AND_DIE": "FALSE",
         "RUN_UNTIL_NO_WORK": "FALSE",
         "SOURCE_SITE": "WIPAC",
-        "WIPACTEL_EXPORT_STDOUT": "FALSE",
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
@@ -230,7 +228,6 @@ async def test_desy_mirror_replicator_logs_configuration(mocker: MockerFixture) 
         call('RUN_ONCE_AND_DIE = FALSE'),
         call('RUN_UNTIL_NO_WORK = FALSE'),
         call('SOURCE_SITE = WIPAC'),
-        call('WIPACTEL_EXPORT_STDOUT = FALSE'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
         call('WORK_TIMEOUT_SECONDS = 90')
