@@ -98,7 +98,6 @@ class RateLimiter(Component):
         self.logger.info(f"Found {len(disk_files)} entries ({size} bytes) in {path}")
         return (disk_files, size)
 
-    @wtt.spanned()
     async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -113,7 +112,6 @@ class RateLimiter(Component):
         load_gauge.labels(component='rate_limiter', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
-    @wtt.spanned()
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be staged
@@ -138,7 +136,6 @@ class RateLimiter(Component):
         # even if we were successful, take a break between bundles
         return False
 
-    @wtt.spanned()
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,
                                  bundle: BundleType,
@@ -157,7 +154,6 @@ class RateLimiter(Component):
         except Exception as e:
             self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
-    @wtt.spanned()
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Stage the Bundle to the output directory for transfer."""
         bundle_id = bundle["uuid"]
@@ -196,7 +192,6 @@ class RateLimiter(Component):
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
-    @wtt.spanned()
     async def _unclaim_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Return the Bundle to the LTA DB, unclaim it for processing at a later date."""
         self.logger.info("Bundle is not ready to be staged; will unclaim it.")

@@ -104,7 +104,6 @@ class Component:
             else:
                 self.logger.info(f"{name} = {config[name]}")
 
-    @wtt.spanned()
     async def run(self) -> None:
         """Perform the Component's work cycle."""
         self.logger.info(f"Starting {self.type} work cycle")

@@ -93,7 +93,6 @@ class Locator(Component):
         """Locator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    @wtt.spanned()
     async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on TransferRequests.")
@@ -108,7 +107,6 @@ class Locator(Component):
         load_gauge.labels(component='locator', level='transfer_request', type='work').set(load_level)
         self.logger.info("Ending work on TransferRequests.")
 
-    @wtt.spanned()
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a transfer request and perform work on it."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
@@ -133,7 +131,6 @@ class Locator(Component):
         # if we were successful at processing work, let the caller know
         return True
 
-    @wtt.spanned()
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,
                                         tr: TransferRequestType) -> None:
@@ -214,7 +211,6 @@ class Locator(Component):
                 "catalog": as_lta_record(bundle_record),
             })
 
-    @wtt.spanned()
     async def _create_bundle(self,
                              lta_rc: RestClient,
                              bundle: BundleType) -> Any:
@@ -227,7 +223,6 @@ class Locator(Component):
         uuid = result["bundles"][0]
         return uuid
 
-    @wtt.spanned()
     async def _quarantine_transfer_request(self,
                                            lta_rc: RestClient,
                                            tr: TransferRequestType,
@@ -246,7 +241,6 @@ class Locator(Component):
         except Exception as e:
             self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
 
-    @wtt.spanned()
     def _reduce_unique_archive_uuid(self,
                                     bundle_uuids: List[str],
                                     catalog_record: Dict[str, Any],

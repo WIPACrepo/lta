@@ -80,7 +80,6 @@ class NerscMover(Component):
         """NerscMover provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    @wtt.spanned()
     async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -95,7 +94,6 @@ class NerscMover(Component):
         load_gauge.labels(component='nersc_mover', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
-    @wtt.spanned()
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 0. Do some pre-flight checks to ensure that we can do work
@@ -136,7 +134,6 @@ class NerscMover(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return False
 
-    @wtt.spanned()
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Replicate the supplied bundle using the configured transfer service."""
         bundle_id = bundle["uuid"]
@@ -175,7 +172,6 @@ class NerscMover(Component):
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
-    @wtt.spanned()
     async def _execute_hsi_command(self, lta_rc: RestClient, bundle: BundleType, args: List[str]) -> bool:
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed

@@ -63,7 +63,6 @@ class Deleter(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    @wtt.spanned()
     async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -78,7 +77,6 @@ class Deleter(Component):
         load_gauge.labels(component='deleter', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
-    @wtt.spanned()
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be deleted
@@ -103,7 +101,6 @@ class Deleter(Component):
         # if we were successful at processing work, let the caller know
         return True
 
-    @wtt.spanned()
     async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Delete the provided Bundle and update the LTA DB."""
         # determine the name of the file to be deleted
@@ -125,7 +122,6 @@ class Deleter(Component):
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
-    @wtt.spanned()
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,
                                  bundle: BundleType,

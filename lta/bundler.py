@@ -79,7 +79,6 @@ class Bundler(Component):
         """Bundler provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    @wtt.spanned()
     async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -94,7 +93,6 @@ class Bundler(Component):
         self.load_gauge.labels(component='bundler', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
-    @wtt.spanned()
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be built
@@ -124,7 +122,6 @@ class Bundler(Component):
         # signal the work was processed successfully
         return True
 
-    @wtt.spanned()
     async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here
         bundle_uuid = bundle["uuid"]
@@ -174,7 +171,6 @@ class Bundler(Component):
         self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{bundle}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', bundle)
 
-    @wtt.spanned()
     async def _create_bundle_archive(self,
                                      fc_rc: RestClient,
                                      lta_rc: RestClient,
@@ -225,7 +221,6 @@ class Bundler(Component):
             self.logger.error(error_message)
             raise Exception(error_message)
 
-    @wtt.spanned()
     async def _create_metadata_file(self,
                                     fc_rc: RestClient,
                                     lta_rc: RestClient,
@@ -281,7 +276,6 @@ class Bundler(Component):
             self.logger.error(error_message)
             raise Exception(error_message)
 
-    @wtt.spanned()
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,
                                  bundle: BundleType,
