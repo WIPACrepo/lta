@@ -1,3 +1,5 @@
+#!/bin/bash
+set -euo pipefail
 #!/usr/bin/env bash
 cd ${HOME}/lta
 source env/bin/activate
@@ -20,7 +22,6 @@ export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="FALSE"}
 export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="TRUE"}
 export SOURCE_SITE=${SOURCE_SITE:="WIPAC"}
 export TAPE_BASE_PATH=${RSE_BASE_PATH:="/home/projects/icecube"}
-export WIPACTEL_EXPORT_STDOUT=${WIPACTEL_EXPORT_STDOUT:="FALSE"}
 export WORK_RETRIES=${WORK_RETRIES:="3"}
 export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="30"}
 export WORK_TIMEOUT_SECONDS=${WORK_TIMEOUT_SECONDS:="30"}

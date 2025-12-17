@@ -757,11 +757,6 @@ def start(debug: bool = False) -> RestServer:
             logging.info(f"{name} = {config[name]}")
         else:
             logging.info(f"{name} = [秘密]")
-    for name in ["OTEL_EXPORTER_OTLP_ENDPOINT", "WIPACTEL_EXPORT_STDOUT"]:
-        if name in os.environ:
-            logging.info(f"{name} = {os.environ[name]}")
-        else:
-            logging.info(f"{name} = NOT SPECIFIED")
 
     auth: dict[str, Union[str, int, float, bool]] = {}
     if config["CI_TEST"] == "TRUE":

@@ -1,3 +1,5 @@
+#!/bin/bash
+set -euo pipefail
 #!/usr/bin/env bash
 export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
 export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}
@@ -19,7 +21,6 @@ export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="FALSE"}
 export SOURCE_SITE=${SOURCE_SITE:="NERSC"}
 export UNPACKER_OUTBOX_PATH=${UNPACKER_OUTBOX_PATH:="/data/user/jadelta/ltatemp/unpacker_work"}
 export UNPACKER_WORKBOX_PATH=${UNPACKER_WORKBOX_PATH:="/data/user/jadelta/ltatemp/welcome_home"}
-export WIPACTEL_EXPORT_STDOUT=${WIPACTEL_EXPORT_STDOUT:="FALSE"}
 export WORK_RETRIES=${WORK_RETRIES:="3"}
 export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="300"}
 export WORK_TIMEOUT_SECONDS=${WORK_TIMEOUT_SECONDS:="30"}

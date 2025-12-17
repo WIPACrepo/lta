@@ -1,3 +1,5 @@
+#!/bin/bash
+set -euo pipefail
 #!/usr/bin/env bash
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_AUDIENCE=${LTA_AUTH_AUDIENCE:="long-term-archive"}
@@ -11,5 +13,4 @@ export LTA_REST_HOST=${LTA_REST_HOST:="127.0.0.1"}
 export LTA_REST_PORT=${LTA_REST_PORT:="8080"}
 # export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export PROMETHEUS_METRICS_PORT=${PROMETHEUS_METRICS_PORT:="8090"}
-export WIPACTEL_EXPORT_STDOUT=${WIPACTEL_EXPORT_STDOUT:="FALSE"}
 python -m lta.rest_server

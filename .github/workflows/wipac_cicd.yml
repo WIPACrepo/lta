@@ -171,7 +171,6 @@ jobs:
       - name: Pytest
         env:
           CI_TEST_ENV: true
-          WIPACTEL_EXPORT_STDOUT: false
         run: |
           set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
           source ./tools/setupenv.sh
