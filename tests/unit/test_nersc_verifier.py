@@ -1,6 +1,8 @@
 # test_nersc_verifier.py
 """Unit tests for lta/nersc_verifier.py."""
 
+# fmt:off
+
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY

@@ -1,6 +1,8 @@
 # test_deleter.py
 """Unit tests for lta/deleter.py."""
 
+# fmt:off
+
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY

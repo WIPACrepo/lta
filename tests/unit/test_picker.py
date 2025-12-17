@@ -1,6 +1,8 @@
 # test_picker.py
 """Unit tests for lta/picker.py."""
 
+# fmt:off
+
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY

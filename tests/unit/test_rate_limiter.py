@@ -1,6 +1,8 @@
 # test_rate_limiter.py
 """Unit tests for lta/rate_limiter.py."""
 
+# fmt:off
+
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY

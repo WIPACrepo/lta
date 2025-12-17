@@ -1,6 +1,8 @@
 # test_version.py
 """Unit tests for lta/version.py."""
 
+# fmt:off
+
 from lta.version import __version__, __version_tuple__, version, version_tuple
 
 

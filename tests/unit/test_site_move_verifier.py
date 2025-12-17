@@ -1,6 +1,8 @@
 # test_site_move_verifier.py
 """Unit tests for lta/site_move_verifier.py."""
 
+# fmt:off
+
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY

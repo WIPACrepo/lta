@@ -1,6 +1,8 @@
 # test_util.py
 """Module to provide testing utility functions, objects, etc."""
 
+# fmt:off
+
 from typing import Any
 
 

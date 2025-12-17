@@ -1,6 +1,8 @@
 # test_transfer_sync.py
 """Unit tests for lta/transfer/sync.py."""
 
+# fmt:off
+
 import asyncio
 from asyncio import Task
 import os
@@ -51,6 +53,7 @@ def config() -> TestConfig:
         "RUN_ONCE_AND_DIE": "FALSE",
         "RUN_UNTIL_NO_WORK": "FALSE",
         "SOURCE_SITE": "WIPAC",
+        "WIPACTEL_EXPORT_STDOUT": "FALSE",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
@@ -64,14 +67,16 @@ def test_always_succeed() -> None:
 
 def test_bind_setup_curl() -> None:
     """Test that we get a setup_curl function bound to a configuration."""
-    setup_curl1 = bind_setup_curl({"LOG_LEVEL": "NOT_DEBUG"})
+    setup_curl1 = bind_setup_curl({
+        "LOG_LEVEL": "NOT_DEBUG"
+    })
     curl_mock = MagicMock()
     setup_curl1(curl_mock)
-    curl_mock.setopt.assert_called_with(
-        pycurl.CAPATH, "/etc/grid-security/certificates"
-    )
+    curl_mock.setopt.assert_called_with(pycurl.CAPATH, '/etc/grid-security/certificates')
 
-    setup_curl2 = bind_setup_curl({"LOG_LEVEL": "DEBUG"})
+    setup_curl2 = bind_setup_curl({
+        "LOG_LEVEL": "DEBUG"
+    })
     curl_mock = MagicMock()
     setup_curl2(curl_mock)
     curl_mock.setopt.assert_called_with(pycurl.VERBOSE, True)
@@ -89,16 +94,8 @@ def test_decode_if_necessary() -> None:
 
 def test_convert_checksum_from_dcache() -> None:
     """Test that convert_checksum_from_dcache will base64 decode checksums."""
-    assert (
-        convert_checksum_from_dcache("ArC5mMA4l7VdpUYIodMR9w==")
-        == "02b0b998c03897b55da54608a1d311f7"
-    )
-    assert (
-        convert_checksum_from_dcache(
-            "sha-512=FoNbvqRdMmCxsyybg0KPt1oj5/3Ds5NYqlxGnXU4Hc9tJU8Qo1dWd1Klc6ZDNhI3hgLAxaX5o72CbeLleVcoEw=="
-        )
-        == "16835bbea45d3260b1b32c9b83428fb75a23e7fdc3b39358aa5c469d75381dcf6d254f10a357567752a573a6433612378602c0c5a5f9a3bd826de2e579572813"
-    )
+    assert convert_checksum_from_dcache("ArC5mMA4l7VdpUYIodMR9w==") == "02b0b998c03897b55da54608a1d311f7"
+    assert convert_checksum_from_dcache("sha-512=FoNbvqRdMmCxsyybg0KPt1oj5/3Ds5NYqlxGnXU4Hc9tJU8Qo1dWd1Klc6ZDNhI3hgLAxaX5o72CbeLleVcoEw==") == "16835bbea45d3260b1b32c9b83428fb75a23e7fdc3b39358aa5c469d75381dcf6d254f10a357567752a573a6433612378602c0c5a5f9a3bd826de2e579572813"
 
 
 def test_sha512sum_tempfile() -> None:
@@ -107,17 +104,13 @@ def test_sha512sum_tempfile() -> None:
         temp.write(bytearray("The quick brown fox jumps over the lazy dog\n", "utf8"))
         temp.close()
     hashsum = sha512sum(Path(temp.name))
-    assert (
-        hashsum
-        == "a12ac6bdd854ac30c5cc5b576e1ee2c060c0d8c2bec8797423d7119aa2b962f7f30ce2e39879cbff0109c8f0a3fd9389a369daae45df7d7b286d7d98272dc5b1"
-    )
+    assert hashsum == "a12ac6bdd854ac30c5cc5b576e1ee2c060c0d8c2bec8797423d7119aa2b962f7f30ce2e39879cbff0109c8f0a3fd9389a369daae45df7d7b286d7d98272dc5b1"
     os.remove(temp.name)
 
 
 @pytest.mark.asyncio
 async def test_connection_semaphore_limits_concurrency() -> None:
     """Test that the connection_semaphore decorator limits concurrency of async class methods."""
-
     class TestClass(ParallelAsync):
         def __init__(self, max_concurrent: int):
             self._semaphore = asyncio.Semaphore(max_concurrent)
@@ -143,7 +136,8 @@ async def test_connection_semaphore_limits_concurrency() -> None:
 
     # Launch 5 tasks in parallel
     tasks: list[Task[str]] = [
-        asyncio.create_task(_as_task(instance.do_work(0.1))) for _ in range(5)
+        asyncio.create_task(_as_task(instance.do_work(0.1)))
+        for _ in range(5)
     ]
 
     # Wait for all to finish
@@ -162,107 +156,91 @@ def test_sync_constructor_missing() -> None:
         Sync({})
 
     with pytest.raises(KeyError):
-        Sync(
-            {
-                # "DEST_URL": "",
-                "LTA_AUTH_OPENID_URL": "",
-                "CLIENT_ID": "",
-                "CLIENT_SECRET": "",
-                "WORK_TIMEOUT_SECONDS": "30",
-                "WORK_RETRIES": "3",
-                "MAX_PARALLEL": "10",
-            }
-        )
-
-    with pytest.raises(KeyError):
-        Sync(
-            {
-                "DEST_URL": "",
-                # "LTA_AUTH_OPENID_URL": "",
-                "CLIENT_ID": "",
-                "CLIENT_SECRET": "",
-                "WORK_TIMEOUT_SECONDS": "30",
-                "WORK_RETRIES": "3",
-                "MAX_PARALLEL": "10",
-            }
-        )
-
-    with pytest.raises(KeyError):
-        Sync(
-            {
-                "DEST_URL": "",
-                "LTA_AUTH_OPENID_URL": "",
-                # "CLIENT_ID": "",
-                "CLIENT_SECRET": "",
-                "WORK_TIMEOUT_SECONDS": "30",
-                "WORK_RETRIES": "3",
-                "MAX_PARALLEL": "10",
-            }
-        )
-
-    with pytest.raises(KeyError):
-        Sync(
-            {
-                "DEST_URL": "",
-                "LTA_AUTH_OPENID_URL": "",
-                "CLIENT_ID": "",
-                # "CLIENT_SECRET": "",
-                "WORK_TIMEOUT_SECONDS": "30",
-                "WORK_RETRIES": "3",
-                "MAX_PARALLEL": "10",
-            }
-        )
-
-    with pytest.raises(KeyError):
-        Sync(
-            {
-                "DEST_URL": "",
-                "LTA_AUTH_OPENID_URL": "",
-                "CLIENT_ID": "",
-                "CLIENT_SECRET": "",
-                # "WORK_TIMEOUT_SECONDS": "30",
-                "WORK_RETRIES": "3",
-                "MAX_PARALLEL": "10",
-            }
-        )
-
-    with pytest.raises(KeyError):
-        Sync(
-            {
-                "DEST_URL": "",
-                "LTA_AUTH_OPENID_URL": "",
-                "CLIENT_ID": "",
-                "CLIENT_SECRET": "",
-                "WORK_TIMEOUT_SECONDS": "30",
-                # "WORK_RETRIES": "3",
-                "MAX_PARALLEL": "10",
-            }
-        )
-
-    with pytest.raises(KeyError):
-        Sync(
-            {
-                "DEST_URL": "",
-                "LTA_AUTH_OPENID_URL": "",
-                "CLIENT_ID": "",
-                "CLIENT_SECRET": "",
-                "WORK_TIMEOUT_SECONDS": "30",
-                "WORK_RETRIES": "3",
-                # "MAX_PARALLEL": "10",
-            }
-        )
-
-    sync = Sync(
-        {
-            "DEST_URL": "",
+        Sync({
+            # "DEST_URL": "",
             "LTA_AUTH_OPENID_URL": "",
             "CLIENT_ID": "",
             "CLIENT_SECRET": "",
             "WORK_TIMEOUT_SECONDS": "30",
             "WORK_RETRIES": "3",
             "MAX_PARALLEL": "10",
-        }
-    )
+        })
+
+    with pytest.raises(KeyError):
+        Sync({
+            "DEST_URL": "",
+            # "LTA_AUTH_OPENID_URL": "",
+            "CLIENT_ID": "",
+            "CLIENT_SECRET": "",
+            "WORK_TIMEOUT_SECONDS": "30",
+            "WORK_RETRIES": "3",
+            "MAX_PARALLEL": "10",
+        })
+
+    with pytest.raises(KeyError):
+        Sync({
+            "DEST_URL": "",
+            "LTA_AUTH_OPENID_URL": "",
+            # "CLIENT_ID": "",
+            "CLIENT_SECRET": "",
+            "WORK_TIMEOUT_SECONDS": "30",
+            "WORK_RETRIES": "3",
+            "MAX_PARALLEL": "10",
+        })
+
+    with pytest.raises(KeyError):
+        Sync({
+            "DEST_URL": "",
+            "LTA_AUTH_OPENID_URL": "",
+            "CLIENT_ID": "",
+            # "CLIENT_SECRET": "",
+            "WORK_TIMEOUT_SECONDS": "30",
+            "WORK_RETRIES": "3",
+            "MAX_PARALLEL": "10",
+        })
+
+    with pytest.raises(KeyError):
+        Sync({
+            "DEST_URL": "",
+            "LTA_AUTH_OPENID_URL": "",
+            "CLIENT_ID": "",
+            "CLIENT_SECRET": "",
+            # "WORK_TIMEOUT_SECONDS": "30",
+            "WORK_RETRIES": "3",
+            "MAX_PARALLEL": "10",
+        })
+
+    with pytest.raises(KeyError):
+        Sync({
+            "DEST_URL": "",
+            "LTA_AUTH_OPENID_URL": "",
+            "CLIENT_ID": "",
+            "CLIENT_SECRET": "",
+            "WORK_TIMEOUT_SECONDS": "30",
+            # "WORK_RETRIES": "3",
+            "MAX_PARALLEL": "10",
+        })
+
+    with pytest.raises(KeyError):
+        Sync({
+            "DEST_URL": "",
+            "LTA_AUTH_OPENID_URL": "",
+            "CLIENT_ID": "",
+            "CLIENT_SECRET": "",
+            "WORK_TIMEOUT_SECONDS": "30",
+            "WORK_RETRIES": "3",
+            # "MAX_PARALLEL": "10",
+        })
+
+    sync = Sync({
+        "DEST_URL": "",
+        "LTA_AUTH_OPENID_URL": "",
+        "CLIENT_ID": "",
+        "CLIENT_SECRET": "",
+        "WORK_TIMEOUT_SECONDS": "30",
+        "WORK_RETRIES": "3",
+        "MAX_PARALLEL": "10",
+    })
     assert sync.config is not None
     assert sync.rc is not None
     assert sync.http_client is not None
@@ -346,9 +324,7 @@ async def test_sync_get_children(config: TestConfig, mocker: MockerFixture) -> N
 
 
 @pytest.mark.asyncio
-async def test_sync_get_children_whole_lotta_props(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_get_children_whole_lotta_props(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.get_children() can parse out a lot of properties."""
     XML_RESPONSE = """
         <?xml version="1.0" encoding="utf-8"?>
@@ -385,14 +361,14 @@ async def test_sync_get_children_whole_lotta_props(
 
     children = await sync.get_children("/fake/path/does/not/really/exist")
     assert children == {
-        "props.txt": {
-            "name": "props.txt",
-            "type": DirObject.File,
-            "size": 23456,
-            "checksums": {
-                "sha-512": "16835bbea45d3260b1b32c9b83428fb75a23e7fdc3b39358aa5c469d75381dcf6d254f10a357567752a573a6433612378602c0c5a5f9a3bd826de2e579572813",
+        'props.txt': {
+            'name': 'props.txt',
+            'type': DirObject.File,
+            'size': 23456,
+            'checksums': {
+                'sha-512': '16835bbea45d3260b1b32c9b83428fb75a23e7fdc3b39358aa5c469d75381dcf6d254f10a357567752a573a6433612378602c0c5a5f9a3bd826de2e579572813',
             },
-            "tape": False,
+            'tape': False,
         }
     }
 
@@ -430,9 +406,7 @@ async def test_sync_rmfile(config: TestConfig, mocker: MockerFixture) -> None:
 
 
 @pytest.mark.asyncio
-async def test_sync_rmtree_does_not_exist(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_rmtree_does_not_exist(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.rmtree() method ignores things that don't exist."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -450,9 +424,7 @@ async def test_sync_rmtree_does_not_exist(
 
 
 @pytest.mark.asyncio
-async def test_sync_rmtree_delete_files(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_rmtree_delete_files(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.rmtree() deletes the file it names."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -461,7 +433,11 @@ async def test_sync_rmtree_delete_files(
     sync.rc = rc_mock
     sync.http_client = hc_mock
     gc_mock = mocker.patch("lta.transfer.sync.Sync.get_children")
-    gc_mock.return_value = {"file.txt": {"type": DirObject.File}}
+    gc_mock.return_value = {
+        "file.txt": {
+            "type": DirObject.File
+        }
+    }
     rm_mock = mocker.patch("lta.transfer.sync.Sync.rmfile")
 
     await sync.rmtree(Path("/fake/path/to/actually/a/file.txt"))
@@ -472,9 +448,7 @@ async def test_sync_rmtree_delete_files(
 
 
 @pytest.mark.asyncio
-async def test_sync_rmtree_recurse_directory(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_rmtree_recurse_directory(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.rmtree() method recursively rmtree()s subdirectories."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -497,7 +471,7 @@ async def test_sync_rmtree_recurse_directory(
             "dir_b": {
                 "name": "dir_b",
                 "type": DirObject.Directory,
-            },
+            }
         },
         Exception("Nope"),
     ]
@@ -527,9 +501,7 @@ async def test_sync_mkdir(config: TestConfig, mocker: MockerFixture) -> None:
 
 
 @pytest.mark.asyncio
-async def test_sync_put_file_bad_checksum(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_put_file_bad_checksum(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.put_file() method throws a RuntimeError on a mismatched checksum."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -554,9 +526,7 @@ async def test_sync_put_file_bad_checksum(
 
 
 @pytest.mark.asyncio
-async def test_sync_put_file_readback_checksum_move(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_put_file_readback_checksum_move(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.put_file() method will calculate a readback-checksum and move the file."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -565,7 +535,9 @@ async def test_sync_put_file_readback_checksum_move(
     sync.rc = rc_mock
     sync.http_client = hc_mock
 
-    ret_mock = ObjectLiteral(headers={})
+    ret_mock = ObjectLiteral(
+        headers={}
+    )
     hc_mock.fetch.return_value = ret_mock
 
     with NamedTemporaryFile(mode="rb", delete=True) as temp:
@@ -575,9 +547,7 @@ async def test_sync_put_file_readback_checksum_move(
     rc_mock._get_token.assert_called()
 
 
-def test_sync_get_local_children_not_found(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+def test_sync_get_local_children_not_found(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.get_local_children() method will raise an error while the directory doesn't exist."""
     sync = Sync(config)
 
@@ -585,9 +555,7 @@ def test_sync_get_local_children_not_found(
         sync.get_local_children(Path("/fake/path/does/not/really/exist"))
 
 
-def test_sync_get_local_children_empty(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+def test_sync_get_local_children_empty(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.get_local_children() method will get local children."""
     sync = Sync(config)
     iterdir_mock = mocker.patch("lta.transfer.sync.Path.iterdir")
@@ -598,9 +566,7 @@ def test_sync_get_local_children_empty(
     iterdir_mock.assert_called()
 
 
-def test_sync_get_local_children_dir_and_file(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+def test_sync_get_local_children_dir_and_file(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.get_local_children() method will get local children."""
     sync = Sync(config)
 
@@ -634,9 +600,7 @@ def test_sync_get_local_children_dir_and_file(
     iterdir_mock.assert_called()
 
 
-def test_sync_get_local_children_skip_run_directories(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+def test_sync_get_local_children_skip_run_directories(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.get_local_children() method will get local children."""
     sync = Sync(config)
 
@@ -675,9 +639,7 @@ async def test_sync_sync_dir_empty(config: TestConfig, mocker: MockerFixture) ->
 
 
 @pytest.mark.asyncio
-async def test_sync_sync_dir_remove_failed_uploads(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_sync_dir_remove_failed_uploads(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.sync_dir() will attempt to remove failed uploads."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -718,9 +680,7 @@ async def test_sync_sync_dir_remove_failed_uploads(
 
 
 @pytest.mark.asyncio
-async def test_sync_sync_dir_fix_directory_to_file(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_sync_dir_fix_directory_to_file(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.sync_dir() will fix a remote directory by replacement with a local file."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -775,9 +735,7 @@ async def test_sync_sync_dir_fix_directory_to_file(
 
 
 @pytest.mark.asyncio
-async def test_sync_sync_dir_verify_existing_file(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_sync_dir_verify_existing_file(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.sync_dir() will verify an existing file of the same size."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -833,9 +791,7 @@ async def test_sync_sync_dir_verify_existing_file(
 
 
 @pytest.mark.asyncio
-async def test_sync_sync_dir_will_sync_missing_dir(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_sync_dir_will_sync_missing_dir(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.sync_dir() will synchronize a local directory to remote."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -867,7 +823,7 @@ async def test_sync_sync_dir_will_sync_missing_dir(
             "sync_me_plz": {
                 "name": "sync_me_plz",
                 "type": DirObject.Directory,
-            },
+            }
         },
         Exception("Nope"),
     ]
@@ -900,9 +856,7 @@ async def test_sync_sync_dir_will_sync_missing_dir(
 
 
 @pytest.mark.asyncio
-async def test_sync_mkdir_p_already_exist(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_mkdir_p_already_exist(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.mkdir_p() will not create anything if the directory already exists."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -918,9 +872,7 @@ async def test_sync_mkdir_p_already_exist(
 
 
 @pytest.mark.asyncio
-async def test_sync_mkdir_p_base_path_missing(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_mkdir_p_base_path_missing(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.mkdir_p() will raise an exception if the base path doesn't exist on remote."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -939,9 +891,7 @@ async def test_sync_mkdir_p_base_path_missing(
 
 
 @pytest.mark.asyncio
-async def test_sync_mkdir_p_server_on_fire(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_mkdir_p_server_on_fire(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.mkdir_p() will raise an exception if remote server is on fire."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -973,10 +923,10 @@ async def test_sync_mkdir_p_need_two(config: TestConfig, mocker: MockerFixture) 
         # checking
         HTTPError(404),  # /fake/path/to/create/with/parents  not found
         HTTPError(405),  # /fake/path/to/create/with  not allowed
-        {},  # /fake/path/to/create  found
+        {},              # /fake/path/to/create  found
         # creating
         HTTPError(409),  # /fake/path/to/create/with  conflict
-        {},  # /fake/path/to/create/with/parents  created
+        {},              # /fake/path/to/create/with/parents  created
     ]
 
     await sync.mkdir_p("/fake/path/to/create/with/parents")
@@ -986,9 +936,7 @@ async def test_sync_mkdir_p_need_two(config: TestConfig, mocker: MockerFixture) 
 
 
 @pytest.mark.asyncio
-async def test_sync_mkdir_p_need_two_but_fire(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_mkdir_p_need_two_but_fire(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.mkdir_p() will create a missing parent and dir."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -1001,7 +949,7 @@ async def test_sync_mkdir_p_need_two_but_fire(
         # checking
         HTTPError(404),  # /fake/path/to/create/with/parents  not found
         HTTPError(405),  # /fake/path/to/create/with  not allowed
-        {},  # /fake/path/to/create  found
+        {},              # /fake/path/to/create  found
         # creating
         HTTPError(409),  # /fake/path/to/create/with  conflict
         HTTPError(500),  # /fake/path/to/create/with/parents  fire started
@@ -1015,9 +963,7 @@ async def test_sync_mkdir_p_need_two_but_fire(
 
 
 @pytest.mark.asyncio
-async def test_sync_put_file_src_dest_bad_checksum(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_put_file_src_dest_bad_checksum(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.put_file_src_dest() method throws a RuntimeError on a mismatched checksum."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -1034,7 +980,9 @@ async def test_sync_put_file_src_dest_bad_checksum(
     hc_mock.fetch.return_value = ret_mock
 
     stat_mock = mocker.patch("os.stat")
-    stat_mock.return_value = ObjectLiteral(st_size=12345)
+    stat_mock.return_value = ObjectLiteral(
+        st_size=12345
+    )
 
     with pytest.raises(RuntimeError):
         with NamedTemporaryFile(mode="rb", delete=True) as temp:
@@ -1045,9 +993,7 @@ async def test_sync_put_file_src_dest_bad_checksum(
 
 
 @pytest.mark.asyncio
-async def test_sync_put_file_src_dest_readback_checksum_move(
-    config: TestConfig, mocker: MockerFixture
-) -> None:
+async def test_sync_put_file_src_dest_readback_checksum_move(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that the Sync.put_file_src_dest() method will calculate a readback-checksum and move the file."""
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
@@ -1056,11 +1002,15 @@ async def test_sync_put_file_src_dest_readback_checksum_move(
     sync.rc = rc_mock
     sync.http_client = hc_mock
 
-    ret_mock = ObjectLiteral(headers={})
+    ret_mock = ObjectLiteral(
+        headers={}
+    )
     hc_mock.fetch.return_value = ret_mock
 
     stat_mock = mocker.patch("os.stat")
-    stat_mock.return_value = ObjectLiteral(st_size=12345)
+    stat_mock.return_value = ObjectLiteral(
+        st_size=12345
+    )
 
     with NamedTemporaryFile(mode="rb", delete=True) as temp:
         await sync.put_file_src_dest(temp.name, "/fake/temp/files/go/here/temp.txt")
@@ -1082,16 +1032,13 @@ async def test_sync_put_path(config: TestConfig, mocker: MockerFixture) -> None:
     mdp_mock = mocker.patch("lta.transfer.sync.Sync.mkdir_p")
     pfsd_mock = mocker.patch("lta.transfer.sync.Sync.put_file_src_dest")
 
-    await sync.put_path(
-        "9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip",
-        "/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109/9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip",
-    )
+    await sync.put_path("9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip", "/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109/9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip")
 
     mdp_mock.assert_called_with("/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109", 1200)
     pfsd_mock.assert_called_with(
         "9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip",
         "/fake/data/exp/IceCube/2050/unbiased/PFRaw/1109/9c0ccadf-6d21-4dae-aba5-38750f0d22ec.zip",
-        1200,
+        1200
     )
 
     hc_mock.fetch.assert_not_called()
