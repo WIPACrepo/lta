@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from rest_tools.client import ClientCredentialsAuth, RestClient
-import wipac_telemetry.tracing_tools as wtt
 
 from .lta_const import drain_semaphore_filename
 from .rest_server import boolify

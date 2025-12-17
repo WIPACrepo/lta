@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
-import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
