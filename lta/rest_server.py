@@ -23,7 +23,7 @@ from rest_tools.utils.json_util import json_decode
 from rest_tools.server import RestHandler, RestHandlerSetup, RestServer, ArgumentHandler, ArgumentSource
 from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
-from wipac_dev_tools import from_environment
+from wipac_dev_tools import from_environment, strtobool
 
 # maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
 DELETE_CHUNK_SIZE = 1000
@@ -84,11 +84,6 @@ MONGO_INDEXES: List[Tuple[str, str, str, Optional[bool]]] = [
 lta_auth = keycloak_role_auth
 
 # -----------------------------------------------------------------------------
-
-
-def boolify(value: str) -> bool:
-    """Convert a string into a True or False value."""
-    return isinstance(value, str) and value.lower() in TRUE_SET
 
 
 def now() -> str:
@@ -260,7 +255,7 @@ class BundlesHandler(BaseLTAHandler):
         if status:
             query["status"] = status
         if verified:
-            query["verified"] = boolify(verified)
+            query["verified"] = strtobool(verified)
 
         projection: dict[str, bool] = {
             "_id": False,

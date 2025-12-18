@@ -21,8 +21,10 @@ from pytest_mock import MockerFixture
 from rest_tools.client import RestClient
 from rest_tools.utils import Auth
 from requests.exceptions import HTTPError
+from wipac_dev_tools import strtobool
 
-from lta.rest_server import boolify, main, start, unique_id
+from lta.rest_server import main, start, unique_id
+
 
 LtaCollection = Database[Dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
@@ -121,30 +123,30 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
 # -----------------------------------------------------------------------------
 
 
-def test_boolify() -> None:
-    """Test the boolify function."""
-    assert not boolify("0")
-    assert not boolify("F")
-    assert not boolify("f")
-    assert not boolify("FALSE")
-    assert not boolify("false")
-    assert not boolify("N")
-    assert not boolify("n")
-    assert not boolify("NO")
-    assert not boolify("no")
+def test_strtobool() -> None:
+    """Test the strtobool function."""
+    assert not strtobool("0")
+    assert not strtobool("F")
+    assert not strtobool("f")
+    assert not strtobool("FALSE")
+    assert not strtobool("false")
+    assert not strtobool("N")
+    assert not strtobool("n")
+    assert not strtobool("NO")
+    assert not strtobool("no")
 
-    assert boolify("1")
-    assert boolify("T")
-    assert boolify("t")
-    assert boolify("TRUE")
-    assert boolify("true")
-    assert boolify("Y")
-    assert boolify("y")
-    assert boolify("YES")
-    assert boolify("yes")
+    assert strtobool("1")
+    assert strtobool("T")
+    assert strtobool("t")
+    assert strtobool("TRUE")
+    assert strtobool("true")
+    assert strtobool("Y")
+    assert strtobool("y")
+    assert strtobool("YES")
+    assert strtobool("yes")
 
-    assert not boolify("alice")
-    assert not boolify("bob")
+    assert not strtobool("alice")
+    assert not strtobool("bob")
 
 # -----------------------------------------------------------------------------
 

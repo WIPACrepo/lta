@@ -11,11 +11,11 @@ from typing import Any, Optional
 
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
+from wipac_dev_tools import strtobool
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
-from .rest_server import boolify
 from .transfer.sync import Sync
 
 
@@ -64,7 +64,7 @@ class DesyMirrorReplicator(Component):
         logger - The object the replicator should use for logging.
         """
         super(DesyMirrorReplicator, self).__init__("desy_mirror_replicator", config, logger)
-        self.ci_test = boolify(config["CI_TEST"])
+        self.ci_test = strtobool(config["CI_TEST"])
         self.dest_base_path = config["DEST_BASE_PATH"]
         self.dest_url = config["DEST_URL"]
         self.input_path = config["INPUT_PATH"]

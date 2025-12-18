@@ -15,12 +15,13 @@ from zipfile import ZipFile
 
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
+from wipac_dev_tools import strtobool
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
 from .lta_types import BundleType
-from .rest_server import boolify
+
 
 Logger = logging.Logger
 
@@ -66,7 +67,7 @@ class Unpacker(Component):
         logger - The object the unpacker should use for logging.
         """
         super(Unpacker, self).__init__("unpacker", config, logger)
-        self.clean_outbox = boolify(config["CLEAN_OUTBOX"])
+        self.clean_outbox = strtobool(config["CLEAN_OUTBOX"])
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
