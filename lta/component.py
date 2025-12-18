@@ -13,9 +13,10 @@ from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from rest_tools.client import ClientCredentialsAuth, RestClient
+from wipac_dev_tools import strtobool
 
 from .lta_const import drain_semaphore_filename
-from .rest_server import boolify
+
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "CLIENT_ID": None,
@@ -86,8 +87,8 @@ class Component:
         self.lta_auth_openid_url = config["LTA_AUTH_OPENID_URL"]
         self.lta_rest_url = config["LTA_REST_URL"]
         self.output_status = config["OUTPUT_STATUS"]
-        self.run_once_and_die = boolify(config["RUN_ONCE_AND_DIE"])
-        self.run_until_no_work = boolify(config["RUN_UNTIL_NO_WORK"])
+        self.run_once_and_die = strtobool(config["RUN_ONCE_AND_DIE"])
+        self.run_until_no_work = strtobool(config["RUN_UNTIL_NO_WORK"])
         self.source_site = config["SOURCE_SITE"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])

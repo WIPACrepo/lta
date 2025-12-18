@@ -11,11 +11,11 @@ from typing import Any, Dict, Optional
 import globus_sdk
 from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[import-not-found]
 from rest_tools.client import RestClient
+from wipac_dev_tools import strtobool
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
-from .rest_server import boolify
 from .transfer.globus import GlobusTransfer
 
 # fmt:off
@@ -76,7 +76,7 @@ class GlobusReplicator(Component):
         logger - The object the replicator should use for logging.
         """
         super().__init__("replicator", config, logger)
-        self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
+        self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.replicator_dest_dirpath = Path(config["REPLICATOR_DEST_DIRPATH"])

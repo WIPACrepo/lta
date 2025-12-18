@@ -12,13 +12,14 @@ from typing import Any, Dict, List, Optional
 
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
+from wipac_dev_tools import strtobool
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
 from .lta_tools import from_environment
 from .lta_types import BundleType
-from .rest_server import boolify
+
 
 Logger = logging.Logger
 
@@ -91,7 +92,7 @@ class SiteMoveVerifier(Component):
         """
         super(SiteMoveVerifier, self).__init__("site_move_verifier", config, logger)
         self.dest_root_path = config["DEST_ROOT_PATH"]
-        self.use_full_bundle_path = boolify(config["USE_FULL_BUNDLE_PATH"])
+        self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         pass
