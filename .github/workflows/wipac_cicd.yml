@@ -209,7 +209,7 @@ jobs:
     ]
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
         mongodb-version: ${{ fromJSON(needs.mongo-versions.outputs.matrix) }}
