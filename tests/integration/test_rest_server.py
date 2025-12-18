@@ -12,6 +12,7 @@ from typing import Any, AsyncGenerator, Callable, cast, Dict, List
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
 
+import prometheus_client
 from pymongo import MongoClient
 from pymongo.database import Database
 import pytest
@@ -79,9 +80,18 @@ def port() -> int:
     return cast(int, ephemeral_port)
 
 
+def _reset_prometheus_registry() -> None:
+    """Remove all collectors from the default Prometheus registry (test-only)."""
+    # These attributes are internal to prometheus_client.
+    for collector in list(prometheus_client.REGISTRY._collector_to_names.keys()):  # type: ignore[attr-defined]
+        prometheus_client.REGISTRY.unregister(collector)
+
+
 @pytest_asyncio.fixture
 async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClientFactory, None]:
     """Provide RestClient as a test fixture."""
+    _reset_prometheus_registry()
+
     # setup_function
     monkeypatch.setenv("CI_TEST", "TRUE")
     monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", CONFIG['LTA_MONGODB_DATABASE_NAME'])
