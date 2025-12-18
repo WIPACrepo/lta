@@ -145,8 +145,10 @@ def test_strtobool() -> None:
     assert strtobool("YES")
     assert strtobool("yes")
 
-    assert not strtobool("alice")
-    assert not strtobool("bob")
+    with pytest.raises(ValueError):
+        assert not strtobool("alice")
+    with pytest.raises(ValueError):
+        assert not strtobool("bob")
 
 # -----------------------------------------------------------------------------
 
