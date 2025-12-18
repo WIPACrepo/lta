@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from binpacking import to_constant_volume  # type: ignore
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
-import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
@@ -76,7 +75,6 @@ class Picker(Component):
         """Picker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    @wtt.spanned()
     async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on TransferRequests.")
@@ -91,7 +89,6 @@ class Picker(Component):
         load_gauge.labels(component='picker', level='transfer_request', type='work').set(load_level)
         self.logger.info("Ending work on TransferRequests.")
 
-    @wtt.spanned()
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a transfer request and perform work on it."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
@@ -119,7 +116,6 @@ class Picker(Component):
         # if we were successful at processing work, let the caller know
         return True
 
-    @wtt.spanned()
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,
                                         tr: TransferRequestType) -> None:
@@ -196,7 +192,6 @@ class Picker(Component):
             })
             await self._create_metadata_mapping(lta_rc, spec, bundle_uuid)
 
-    @wtt.spanned()
     async def _create_bundle(self,
                              lta_rc: RestClient,
                              bundle: BundleType) -> Any:
@@ -208,7 +203,6 @@ class Picker(Component):
         uuid = result["bundles"][0]
         return uuid
 
-    @wtt.spanned()
     async def _create_metadata_mapping(self,
                                        lta_rc: RestClient,
                                        spec: List[Tuple[str, int]],
@@ -226,7 +220,6 @@ class Picker(Component):
             result = await lta_rc.request('POST', '/Metadata/actions/bulk_create', create_body)
             self.logger.info(f'Created {result["count"]} Metadata documents linking to pending bundle {bundle_uuid}.')
 
-    @wtt.spanned()
     async def _quarantine_transfer_request(self,
                                            lta_rc: RestClient,
                                            tr: TransferRequestType,

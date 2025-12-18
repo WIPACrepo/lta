@@ -11,7 +11,6 @@ from typing import Any, Dict, Optional
 
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
-import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .joiner import join_smart
@@ -74,7 +73,6 @@ class DesyVerifier(Component):
         """DesyVerifier provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    @wtt.spanned()
     async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -89,7 +87,6 @@ class DesyVerifier(Component):
         load_gauge.labels(component='desy_verifier', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
-    @wtt.spanned()
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be verified
@@ -123,7 +120,6 @@ class DesyVerifier(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return False
 
-    @wtt.spanned()
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records."""
         # configure a RestClient to talk to the File Catalog
@@ -168,7 +164,6 @@ class DesyVerifier(Component):
         # indicate that our file catalog updates were successful
         return True
 
-    @wtt.spanned()
     async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is verified."""
         bundle_id = bundle["uuid"]
@@ -183,7 +178,6 @@ class DesyVerifier(Component):
         # the morning sun has vanquished the horrible night
         return True
 
-    @wtt.spanned()
     async def _update_files_in_file_catalog(self,
                                             fc_rc: RestClient,
                                             lta_rc: RestClient,

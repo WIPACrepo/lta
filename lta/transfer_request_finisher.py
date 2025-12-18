@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional, Union
 
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
-import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
@@ -63,7 +62,6 @@ class TransferRequestFinisher(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    @wtt.spanned()
     async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -78,7 +76,6 @@ class TransferRequestFinisher(Component):
         load_gauge.labels(component='transfer_request_finisher', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
-    @wtt.spanned()
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be deleted
@@ -97,7 +94,6 @@ class TransferRequestFinisher(Component):
         # even if we processed a Bundle, take a break between Bundles
         return False
 
-    @wtt.spanned()
     async def _update_transfer_request(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """
         Update the TransferRequest that spawned the Bundle.

@@ -111,6 +111,7 @@ jobs:
         with:
           mode: PACKAGING
           python_min: "3.11"  # asyncio.TaskGroup
+          python_max: "3.13"
           author: WIPAC Developers
           author_email: developers@icecube.wisc.edu
           keywords_comma: "archive, data, IceCube, WIPAC"
@@ -171,7 +172,6 @@ jobs:
       - name: Pytest
         env:
           CI_TEST_ENV: true
-          WIPACTEL_EXPORT_STDOUT: false
         run: |
           set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
           source ./tools/setupenv.sh

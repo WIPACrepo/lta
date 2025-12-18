@@ -1,6 +1,8 @@
 # test_crypto.py
 """Unit tests for lta/crypto.py."""
 
+# fmt:off
+
 import os
 from tempfile import NamedTemporaryFile
 

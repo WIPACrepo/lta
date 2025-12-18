@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional
 
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
-import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import sha512sum
@@ -109,7 +108,6 @@ class SiteMoveVerifier(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    @wtt.spanned()
     async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -124,7 +122,6 @@ class SiteMoveVerifier(Component):
         load_gauge.labels(component='site_move_verifier', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
-    @wtt.spanned()
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be verified
@@ -149,7 +146,6 @@ class SiteMoveVerifier(Component):
         # if we were successful at processing work, let the caller know
         return True
 
-    @wtt.spanned()
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,
                                  bundle: BundleType,
@@ -168,7 +164,6 @@ class SiteMoveVerifier(Component):
         except Exception as e:
             self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
-    @wtt.spanned()
     async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the provided Bundle with the transfer service and update the LTA DB."""
         # get our ducks in a row
@@ -208,7 +203,6 @@ class SiteMoveVerifier(Component):
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
-    @wtt.spanned()
     def _execute_myquota(self) -> Optional[str]:
         """Run the myquota command to determine disk usage at the site."""
         completed_process = run(MYQUOTA_ARGS, stdout=PIPE, stderr=PIPE)

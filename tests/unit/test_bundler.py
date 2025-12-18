@@ -1,6 +1,8 @@
 # test_bundler.py
 """Unit tests for lta/bundler.py."""
 
+# fmt:off
+
 import os
 from typing import Dict
 from unittest.mock import AsyncMock, call, mock_open, patch

@@ -1,6 +1,8 @@
 # test_config.py
 """Unit tests for lta/config.py."""
 
+# fmt:off
+
 import pytest
 from pytest import MonkeyPatch
 

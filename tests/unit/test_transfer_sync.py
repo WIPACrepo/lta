@@ -1,6 +1,8 @@
 # test_transfer_sync.py
 """Unit tests for lta/transfer/sync.py."""
 
+# fmt:off
+
 import asyncio
 from asyncio import Task
 import os
@@ -51,7 +53,6 @@ def config() -> TestConfig:
         "RUN_ONCE_AND_DIE": "FALSE",
         "RUN_UNTIL_NO_WORK": "FALSE",
         "SOURCE_SITE": "WIPAC",
-        "WIPACTEL_EXPORT_STDOUT": "FALSE",
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",

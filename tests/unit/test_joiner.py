@@ -1,6 +1,8 @@
 # test_joiner.py
 """Unit tests for lta/joiner.py."""
 
+# fmt:off
+
 from lta.joiner import join_smart, join_smart_url
 
 

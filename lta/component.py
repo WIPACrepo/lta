@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from rest_tools.client import ClientCredentialsAuth, RestClient
-import wipac_telemetry.tracing_tools as wtt
 
 from .lta_const import drain_semaphore_filename
 from .rest_server import boolify
@@ -105,7 +104,6 @@ class Component:
             else:
                 self.logger.info(f"{name} = {config[name]}")
 
-    @wtt.spanned()
     async def run(self) -> None:
         """Perform the Component's work cycle."""
         self.logger.info(f"Starting {self.type} work cycle")

@@ -11,7 +11,6 @@ from typing import Any, Dict, Optional
 import globus_sdk
 from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[import-not-found]
 from rest_tools.client import RestClient
-import wipac_telemetry.tracing_tools as wtt
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
@@ -109,7 +108,6 @@ class GlobusReplicator(Component):
         """GlobusReplicator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    @wtt.spanned()
     async def _do_work(self, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")
@@ -124,7 +122,6 @@ class GlobusReplicator(Component):
         self.load_gauge.labels(component='globus_replicator', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
-    @wtt.spanned()
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be transferred
@@ -151,7 +148,6 @@ class GlobusReplicator(Component):
         # if we were successful at processing work, let the caller know
         return True
 
-    @wtt.spanned()
     async def _quarantine_bundle(self,
                                  lta_rc: RestClient,
                                  bundle: BundleType,
@@ -191,7 +187,6 @@ class GlobusReplicator(Component):
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
-    @wtt.spanned()
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""
         # get our ducks in a row

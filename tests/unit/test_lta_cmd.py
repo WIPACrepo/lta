@@ -1,6 +1,8 @@
 # test_lta_cmd.py
 """Unit tests for lta/lta_cmd.py."""
 
+# fmt:off
+
 import pytest
 
 from lta.lta_cmd import normalize_path

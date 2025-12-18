@@ -1,5 +1,7 @@
 # tests/unit/test_replicator.py
 """
+
+# fmt:off
 Unit tests for LTA replication component (GlobusReplicator).
 
 Goals:
