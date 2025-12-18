@@ -111,6 +111,7 @@ jobs:
         with:
           mode: PACKAGING
           python_min: "3.11"  # asyncio.TaskGroup
+          python_max: "3.13"
           author: WIPAC Developers
           author_email: developers@icecube.wisc.edu
           keywords_comma: "archive, data, IceCube, WIPAC"
