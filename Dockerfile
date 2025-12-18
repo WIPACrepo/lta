@@ -1,58 +1,14 @@
 # Dockerfile
 FROM almalinux:9
 
-ARG PYTHON=3.12
+ARG PYTHON=3.13
 
-RUN dnf install -y dnf-plugins-core wget && dnf clean all
-
-# install GridFTP tools like globus-url-copy
-RUN wget -O /etc/pki/rpm-gpg/RPM-GPG-KEY-EUGridPMA-RPM-4 \
-    https://dist.eugridpma.info/distribution/igtf/current/GPG-KEY-EUGridPMA-RPM-4 \
-    && rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-EUGridPMA-RPM-4 \
-    && cat <<EOF > /etc/yum.repos.d/igtf.repo
-[igtf]
-name=IGTF Accredited CAs
-baseurl=http://dist.eugridpma.info/distribution/igtf/current/
-enabled=1
-gpgcheck=1
-gpgkey=http://dist.eugridpma.info/distribution/igtf/current/GPG-KEY-EUGridPMA-RPM-4
-EOF
-
-RUN dnf install -y \
-    ca_policy_igtf-classic \
-    ca_policy_igtf-mics \
-    ca_policy_igtf-slcs \
-    ca_policy_igtf-iota \
-    && dnf clean all
-
-RUN wget https://downloads.globus.org/globus-connect-server/stable/installers/repo/rpm/globus-repo-6.0.33-1.noarch.rpm \
-    && rpm -Uvh globus-repo-6.0.33-1.noarch.rpm \
-    && sed -i 's/\\$releasever/9/g' /etc/yum.repos.d/globus*repo
-
-RUN dnf install -y \
-    globus-connect-server54 \
-    globus-gass-copy-progs \
-    globus-proxy-utils \
-    && dnf clean all
-
-# install voms-clients-cpp manually
-RUN wget https://dl.fedoraproject.org/pub/epel/9/Everything/x86_64/Packages/v/voms-2.1.2-1.el9.x86_64.rpm \
-    && wget https://dl.fedoraproject.org/pub/epel/9/Everything/x86_64/Packages/v/voms-clients-cpp-2.1.2-1.el9.x86_64.rpm \
-    && dnf install -y ./voms-2.1.2-1.el9.x86_64.rpm ./voms-clients-cpp-2.1.2-1.el9.x86_64.rpm \
-    && rm -f voms-2.1.2-1.el9.x86_64.rpm voms-clients-cpp-2.1.2-1.el9.x86_64.rpm \
-    && dnf clean all
-
-# NOTE: skipping 'osg-ca-certs' due to conflicts; looks like they finally made it into the main repo after all
-# RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
-#     yum install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
-#     yum install -y osg-ca-certs && \
-#     dnf install -y --allowerasing python${PYTHON} python${PYTHON}-pip git curl && \
-#     dnf clean all && yum clean all
-
-# install OSG tools and certs
+# add an enterprise linux repo that provides Python packages
 RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
-    yum install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
-    dnf install -y --allowerasing python${PYTHON} python${PYTHON}-pip git curl && \
+    dnf clean all && yum clean all
+
+# install Python and other snakes
+RUN dnf install -y --allowerasing curl git python${PYTHON} python${PYTHON}-pip && \
     dnf clean all && yum clean all
 
 # copy our project into the container
