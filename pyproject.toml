@@ -31,7 +31,6 @@ dependencies = [
     'colorama',
     'globus-sdk',
     'hurry.filesize',
-    'motor',
     'prometheus-client',
     'pycurl',
     'pymongo',
