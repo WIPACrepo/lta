@@ -1126,14 +1126,15 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
     with pytest.raises(HTTPError, match=r"Bad Request for url") as exc:
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC', {"claimant": "x"})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-    # NOTE: handler code never runs here; do not assert metrics.
+    assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 1.0
+    # NOTE: no response metric
 
     # request: POST
     # Missing both dest and source (but status is present, so we reach handler logic)
     with pytest.raises(HTTPError, match=r"missing source and dest fields") as exc:
         await r.request('POST', '/Bundles/actions/pop?status=taping', {"claimant": "x"})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-    assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 2.0
     assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 1.0
 
     # request: POST
@@ -1141,7 +1142,7 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
     with pytest.raises(HTTPError, match=r"missing claimant field") as exc:
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=inaccessible', {})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-    assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 2.0
+    assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 3.0
     assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 2.0
 
 
@@ -1450,7 +1451,6 @@ async def test_630_metadata_actions_bulk_create_errors(rest: RestClientFactory) 
     with pytest.raises(HTTPError, match=r"bundle_uuid") as exc:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     # NOTE: response_counter is not incremented on these early validation errors in server code
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Metadata/actions/bulk_create"}) == 1.0
 
