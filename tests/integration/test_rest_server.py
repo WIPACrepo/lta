@@ -4,11 +4,12 @@
 # fmt:off
 
 import asyncio
+from contextlib import contextmanager
 import logging
 import os
 import socket
 import tracemalloc
-from typing import Any, AsyncGenerator, Callable, cast, Dict, List
+from typing import Any, AsyncGenerator, Callable, cast, Dict, Iterator, List
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
 
@@ -85,6 +86,42 @@ def _reset_prometheus_registry() -> None:
     # These attributes are internal to prometheus_client.
     for collector in list(prometheus_client.REGISTRY._collector_to_names.keys()):  # type: ignore[attr-defined]
         prometheus_client.REGISTRY.unregister(collector)
+
+
+@contextmanager
+def assert_http_error(
+    status_code: int,
+    *,
+    contains: str | None = None,
+) -> Iterator[None]:
+    """
+    Assert that the wrapped block raises HTTPError with the expected status
+    and (optionally) an error message containing a substring.
+    """
+    try:
+        yield
+    except HTTPError as exc:
+        resp = exc.response
+        assert resp is not None, "HTTPError.response was None"
+        assert resp.status_code == status_code
+
+        if contains is not None:
+            # rest_tools usually returns JSON: {"error": "..."}
+            try:
+                body = resp.json()
+            except ValueError:
+                assert contains in (resp.text or "")
+            else:
+                if isinstance(body, dict) and "error" in body:
+                    assert contains in str(body["error"])
+                else:
+                    assert contains in str(body)
+
+        return
+    else:
+        raise AssertionError(
+            f"Expected HTTPError (status {status_code}) but no exception was raised"
+        )
 
 
 @pytest_asyncio.fixture
@@ -193,54 +230,44 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
     r = rest()  # type: ignore[call-arg]
 
     request: Dict[str, Any] = {'dest': ['bar']}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="missing source field"):
         await r.request('POST', '/TransferRequests', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'source': 'foo'}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="missing dest field"):
         await r.request('POST', '/TransferRequests', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'source': 'foo', 'dest': 'bar'}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="missing path field"):
         await r.request('POST', '/TransferRequests', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'source': 'foo', 'dest': []}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="missing path field"):
         await r.request('POST', '/TransferRequests', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'source': [], 'dest': 'bar', 'path': 'snafu'}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="source field is not a string"):
         await r.request('POST', '/TransferRequests', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'source': 'foo', 'dest': [], 'path': 'snafu'}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="dest field is not a string"):
         await r.request('POST', '/TransferRequests', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'source': 'foo', 'dest': 'bar', 'path': []}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="path field is not a string"):
         await r.request('POST', '/TransferRequests', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'source': "", 'dest': 'bar', 'path': 'snafu'}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="source field is empty"):
         await r.request('POST', '/TransferRequests', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'source': 'foo', 'dest': "", 'path': 'snafu'}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="dest field is empty"):
         await r.request('POST', '/TransferRequests', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'source': 'foo', 'dest': 'bar', 'path': ""}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="path field is empty"):
         await r.request('POST', '/TransferRequests', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio
@@ -264,16 +291,14 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
     ret = await r.request('PATCH', f'/TransferRequests/{uuid}', request2)
     assert ret == {}
 
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(404, contains="not found"):
         await r.request('PATCH', '/TransferRequests/foo', request2)
-    assert e.value.response.status_code == 404  # type: ignore[union-attr]
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
 
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(404, contains="not found"):
         await r.request('GET', f'/TransferRequests/{uuid}')
-    assert e.value.response.status_code == 404  # type: ignore[union-attr]
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
@@ -297,9 +322,8 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
     assert uuid
 
     # I'm being a jerk and claiming without naming myself as claimant
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="missing claimant field"):
         await r.request('POST', '/TransferRequests/actions/pop?source=JERK_STORE')
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     # I'm at NERSC, and should have no work
     nersc_pop_claimant = {
@@ -374,7 +398,6 @@ async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFacto
     #
     # Update - POST /Bundles/actions/bulk_update
     #
-    # request = {'files': results, 'update': {'key': 'value'}}
     results2 = results + [unique_id()]
     request2 = {'bundles': results2, 'update': {'key': 'value'}}
     ret = await r.request('POST', '/Bundles/actions/bulk_update', request2)
@@ -413,19 +436,16 @@ async def test_410_bundles_actions_bulk_create_errors(rest: RestClientFactory) -
     r = rest('system')  # type: ignore[call-arg]
 
     request: Dict[str, Any] = {}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="missing bundles field"):
         await r.request('POST', '/Bundles/actions/bulk_create', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'bundles': ''}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="bundles field is not a list"):
         await r.request('POST', '/Bundles/actions/bulk_create', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'bundles': []}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="bundles field is empty"):
         await r.request('POST', '/Bundles/actions/bulk_create', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio
@@ -434,19 +454,16 @@ async def test_420_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -
     r = rest('system')  # type: ignore[call-arg]
 
     request: Dict[str, Any] = {}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="missing bundles field"):
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'bundles': ''}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="bundles field is not a list"):
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'bundles': []}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="bundles field is empty"):
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio
@@ -455,29 +472,24 @@ async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -
     r = rest('system')  # type: ignore[call-arg]
 
     request: Dict[str, Any] = {}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="missing update field"):
         await r.request('POST', '/Bundles/actions/bulk_update', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'update': ''}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="update field is not an object"):
         await r.request('POST', '/Bundles/actions/bulk_update', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'update': {}}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="missing bundles field"):
         await r.request('POST', '/Bundles/actions/bulk_update', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'update': {}, 'bundles': ''}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="bundles field is not a list"):
         await r.request('POST', '/Bundles/actions/bulk_update', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     request = {'update': {}, 'bundles': []}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="bundles field is empty"):
         await r.request('POST', '/Bundles/actions/bulk_update', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio
@@ -666,9 +678,8 @@ async def test_460_get_bundles_uuid_error(rest: RestClientFactory) -> None:
     """Check that GET /Bundles/UUID returns 404 on not found."""
     r = rest('system')  # type: ignore[call-arg]
 
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(404, contains="not found"):
         await r.request('GET', '/Bundles/d4390bcadac74f9dbb49874b444b448d')
-    assert e.value.response.status_code == 404  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio
@@ -741,16 +752,14 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
     assert ret["key"] == "value"
 
     # we try to patch the uuid; error
-    with pytest.raises(HTTPError) as e:
-        request = {"key": "value", "uuid": "d4390bca-dac7-4f9d-bb49-874b444b448d"}
+    request = {"key": "value", "uuid": "d4390bca-dac7-4f9d-bb49-874b444b448d"}
+    with assert_http_error(400, contains="bad request"):
         await r.request('PATCH', f'/Bundles/{test_uuid}', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
     # we try to patch something that doesn't exist; error
-    with pytest.raises(HTTPError) as e:
-        request = {"key": "value"}
+    request = {"key": "value"}
+    with assert_http_error(404, contains="not found"):
         await r.request('PATCH', '/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
-    assert e.value.response.status_code == 404  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio
@@ -861,27 +870,18 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
 async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check error handlers for pop action for bundles."""
     r = rest('system')  # type: ignore[call-arg]
-    request: Dict[str, Any] = {}
 
-    with pytest.raises(HTTPError) as e:
-        await r.request('POST', '/Bundles/actions/pop?source=AREA-51', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
+    # Missing required query arg: status (raised before handler logic)
+    with assert_http_error(400, contains="Missing argument"):
+        await r.request('POST', '/Bundles/actions/pop?source=WIPAC', {"claimant": "x"})
 
-    with pytest.raises(HTTPError) as e:
-        await r.request('POST', '/Bundles/actions/pop?source=WIPAC', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
+    # Missing both dest and source (but status is present, so we reach handler logic)
+    with assert_http_error(400, contains="missing source and dest fields"):
+        await r.request('POST', '/Bundles/actions/pop?status=taping', {"claimant": "x"})
 
-    with pytest.raises(HTTPError) as e:
-        await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=supercalifragilisticexpialidocious', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
-
-    with pytest.raises(HTTPError) as e:
-        await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=none', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
-
-    with pytest.raises(HTTPError) as e:
-        await r.request('POST', '/Bundles/actions/pop?status=taping', request)
-    assert e.value.response.status_code == 400  # type: ignore[union-attr]
+    # Missing claimant (but other required pieces present)
+    with assert_http_error(400, contains="missing claimant field"):
+        await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=inaccessible', {})
 
 
 @pytest.mark.asyncio
@@ -1060,10 +1060,8 @@ async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClient
     #
     # Read - GET /Metadata/{uuid}
     #
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(404, contains="not found"):
         await r.request('GET', f'/Metadata/{metadata_uuid}')
-    assert e.value.response.status_code == 404
-    assert e.value.response.json()["error"] == "not found"
 
 
 @pytest.mark.asyncio
@@ -1114,28 +1112,20 @@ async def test_630_metadata_actions_bulk_create_errors(rest: RestClientFactory) 
     r = rest('system')  # type: ignore[call-arg]
 
     request: Dict[str, Any] = {}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="bundle_uuid"):
         await r.request('POST', '/Metadata/actions/bulk_create', request)
-    assert e.value.response.status_code == 400
-    assert "bundle_uuid" in e.value.response.json()["error"]
 
     request = {'bundle_uuid': '', 'files': ["foo"]}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="bundle_uuid must not be empty"):
         await r.request('POST', '/Metadata/actions/bulk_create', request)
-    assert e.value.response.status_code == 400
-    assert "bundle_uuid" in e.value.response.json()["error"]
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27"}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="files"):
         await r.request('POST', '/Metadata/actions/bulk_create', request)
-    assert e.value.response.status_code == 400
-    assert "files" in e.value.response.json()["error"]
 
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": []}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="files must not be empty"):
         await r.request('POST', '/Metadata/actions/bulk_create', request)
-    assert e.value.response.status_code == 400
-    assert "files" in e.value.response.json()["error"]
 
 
 @pytest.mark.asyncio
@@ -1144,22 +1134,16 @@ async def test_640_metadata_actions_bulk_delete_errors(rest: RestClientFactory) 
     r = rest('system')  # type: ignore[call-arg]
 
     request: Dict[str, Any] = {}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="metadata"):
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
-    assert e.value.response.status_code == 400
-    assert "metadata" in e.value.response.json()["error"]
 
     request = {'metadata': ''}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="metadata"):
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
-    assert e.value.response.status_code == 400
-    assert "metadata" in e.value.response.json()["error"]
 
     request = {'metadata': []}
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="metadata must not be empty"):
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
-    assert e.value.response.status_code == 400
-    assert "metadata" in e.value.response.json()["error"]
 
 
 @pytest.mark.asyncio
@@ -1167,10 +1151,8 @@ async def test_650_metadata_delete_errors(rest: RestClientFactory) -> None:
     """Check error conditions for DELETE /Metadata."""
     r = rest('system')  # type: ignore[call-arg]
 
-    with pytest.raises(HTTPError) as e:
+    with assert_http_error(400, contains="bundle_uuid"):
         await r.request('DELETE', '/Metadata')
-    assert e.value.response.status_code == 400
-    assert "bundle_uuid" in e.value.response.json()["error"]
 
 
 @pytest.mark.asyncio
