@@ -137,7 +137,7 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
 
 
 # -----------------------------------------------------------------------------
-# 000 - Helpers / pure utils
+# 000s - Helpers / pure utils
 # -----------------------------------------------------------------------------
 
 
@@ -170,7 +170,7 @@ def test_000_strtobool() -> None:
 
 
 # -----------------------------------------------------------------------------
-# 100 - Server lifecycle / reachability
+# 100s - Server lifecycle / reachability
 # -----------------------------------------------------------------------------
 
 
@@ -183,7 +183,7 @@ async def test_100_server_reachability(rest: RestClientFactory) -> None:
 
 
 # -----------------------------------------------------------------------------
-# 200 - TransferRequests endpoints
+# 200s - TransferRequests endpoints
 # -----------------------------------------------------------------------------
 
 
@@ -191,6 +191,7 @@ async def test_100_server_reachability(rest: RestClientFactory) -> None:
 async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
     """Check for bad transfer request handling."""
     r = rest()  # type: ignore[call-arg]
+
     request: Dict[str, Any] = {'dest': ['bar']}
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
@@ -246,6 +247,7 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
 async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for transfer requests."""
     r = rest(role="system")  # type: ignore[call-arg]
+
     request = {'source': 'foo', 'dest': 'bar', 'path': 'snafu'}
     ret = await r.request('POST', '/TransferRequests', request)
     uuid = ret['TransferRequest']
@@ -284,6 +286,7 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
 async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
     """Check pop action for transfer requests."""
     r = rest('system')  # type: ignore[call-arg]
+
     request = {
         'source': 'WIPAC',
         'dest': 'NERSC',
@@ -320,7 +323,7 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
 
 
 # -----------------------------------------------------------------------------
-# 300 - Script main
+# 300s - Script main
 # -----------------------------------------------------------------------------
 
 
@@ -344,7 +347,7 @@ async def test_300_script_main(mocker: MockerFixture) -> None:
 
 
 # -----------------------------------------------------------------------------
-# 400 - Bundles endpoints
+# 400s - Bundles endpoints
 # -----------------------------------------------------------------------------
 
 
@@ -850,7 +853,7 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
 
 
 # -----------------------------------------------------------------------------
-# 500 - Bundles actions error cases and variants
+# 500s - Bundles actions error cases and variants
 # -----------------------------------------------------------------------------
 
 
@@ -971,7 +974,7 @@ async def test_520_bundles_actions_bulk_create_huge(mongo: LtaCollection, rest: 
 
 
 # -----------------------------------------------------------------------------
-# 600 - Metadata endpoints
+# 600s - Metadata endpoints
 # -----------------------------------------------------------------------------
 
 
