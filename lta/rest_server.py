@@ -4,8 +4,6 @@ Long Term Archive REST API server.
 Run with `python -m lta.rest_server`.
 """
 
-# fmt:off
-
 import asyncio
 from datetime import datetime
 import logging
@@ -15,16 +13,24 @@ from typing import Any, cast, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
-from motor.motor_tornado import MotorDatabase
 from pymongo import AsyncMongoClient
+from pymongo.asynchronous.database import AsyncDatabase
 from prometheus_client import Counter, start_http_server
 import pymongo
 from pymongo import MongoClient
 from rest_tools.utils.json_util import json_decode
-from rest_tools.server import RestHandler, RestHandlerSetup, RestServer, ArgumentHandler, ArgumentSource
+from rest_tools.server import (
+    RestHandler,
+    RestHandlerSetup,
+    RestServer,
+    ArgumentHandler,
+    ArgumentSource,
+)
 from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
 from wipac_dev_tools import from_environment, strtobool
+
+# fmt:off
 
 # maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
 DELETE_CHUNK_SIZE = 1000
@@ -107,7 +113,7 @@ class BaseLTAHandler(RestHandler):
 
     def initialize(  # type: ignore[override]
             self,
-            db: MotorDatabase[DatabaseType],
+            db: AsyncDatabase[DatabaseType],
             request_counter: Counter,
             response_counter: Counter,
             *args: Any,
