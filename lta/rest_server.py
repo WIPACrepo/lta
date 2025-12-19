@@ -61,9 +61,7 @@ FIRST_IN_FIRST_OUT = [("work_priority_timestamp", pymongo.ASCENDING)]
 LOGGING_DENY_LIST = ["LTA_MONGODB_AUTH_PASS"]
 LTA_AUTH_PREFIX = "resource_access.long-term-archive.roles"
 LTA_AUTH_ROLES = ["system"]
-MOST_RECENT_FIRST = [("timestamp", pymongo.DESCENDING)]
 REMOVE_ID = {"_id": False}
-TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
 # -----------------------------------------------------------------------------
 
