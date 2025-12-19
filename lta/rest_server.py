@@ -15,7 +15,8 @@ from typing import Any, cast, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
-from motor.motor_tornado import MotorClient, MotorDatabase
+from motor.motor_tornado import MotorDatabase
+from pymongo import AsyncMongoClient
 from prometheus_client import Counter, start_http_server
 import pymongo
 from pymongo import MongoClient
@@ -779,8 +780,8 @@ def start(debug: bool = False) -> RestServer:
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
     ensure_mongo_indexes(lta_mongodb_url, mongo_db)
-    motor_client: MotorClient[DatabaseType] = MotorClient(lta_mongodb_url)
-    args['db'] = motor_client[mongo_db]
+    mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
+    args['db'] = mongo_client[mongo_db]
 
     # configure prometheus metrics
     args['request_counter'] = Counter('lta_requests', 'LTA DB requests', ['method', 'route'])
