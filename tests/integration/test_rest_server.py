@@ -101,6 +101,8 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
     monkeypatch.setenv("PROMETHEUS_METRICS_PORT", "8090")
     s = start(debug=True)
 
+    _clients: list[RestClient] = []
+
     def client(role: str = "admin", timeout: float = 0.5) -> RestClient:
         # But they were, all of them, deceived, for another Token was made.
         # In the land of PyTest, in the fires of Mount Fixture, the Dark Lord
@@ -120,12 +122,16 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
                                   expiration=300,
                                   payload=token_data,
                                   headers=None)
-        return RestClient(f'http://localhost:{port}', token=token, timeout=timeout, retries=0)
+        rc = RestClient(f'http://localhost:{port}', token=token, timeout=timeout, retries=0)
+        _clients.append(rc)
+        return rc
 
     try:
         yield client
     # teardown_function
     finally:
+        for r in _clients:
+            r.close()
         await s.stop()  # type: ignore[no-untyped-call]
         await asyncio.sleep(0.01)
 
@@ -174,8 +180,6 @@ async def test_100_server_reachability(rest: RestClientFactory) -> None:
     r = rest()  # type: ignore[call-arg]
     ret = await r.request('GET', '/')
     assert ret == {}
-
-    r.close()
 
 
 # -----------------------------------------------------------------------------
@@ -237,8 +241,6 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
         await r.request('POST', '/TransferRequests', request)
     assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
-    r.close()
-
 
 @pytest.mark.asyncio
 async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
@@ -276,8 +278,6 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
 
     ret = await r.request('GET', '/TransferRequests')
     assert len(ret['results']) == 0
-
-    r.close()
 
 
 @pytest.mark.asyncio
@@ -317,8 +317,6 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
     # repeating gets no work
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
     assert not ret['transfer_request']
-
-    r.close()
 
 
 # -----------------------------------------------------------------------------
@@ -405,8 +403,6 @@ async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFacto
     results = ret["results"]
     assert len(results) == 0
 
-    r.close()
-
 
 @pytest.mark.asyncio
 async def test_410_bundles_actions_bulk_create_errors(rest: RestClientFactory) -> None:
@@ -428,8 +424,6 @@ async def test_410_bundles_actions_bulk_create_errors(rest: RestClientFactory) -
         await r.request('POST', '/Bundles/actions/bulk_create', request)
     assert e.value.response.status_code == 400  # type: ignore[union-attr]
 
-    r.close()
-
 
 @pytest.mark.asyncio
 async def test_420_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -> None:
@@ -450,8 +444,6 @@ async def test_420_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
     assert e.value.response.status_code == 400  # type: ignore[union-attr]
-
-    r.close()
 
 
 @pytest.mark.asyncio
@@ -483,8 +475,6 @@ async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
     assert e.value.response.status_code == 400  # type: ignore[union-attr]
-
-    r.close()
 
 
 @pytest.mark.asyncio
@@ -606,8 +596,6 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
     results = ret["results"]
     assert len(results) == 1
 
-    r.close()
-
 
 @pytest.mark.asyncio
 async def test_450_get_bundles_request_filter(mongo: LtaCollection, rest: RestClientFactory) -> None:
@@ -669,8 +657,6 @@ async def test_450_get_bundles_request_filter(mongo: LtaCollection, rest: RestCl
     results = ret["results"]
     assert len(results) == 2
 
-    r.close()
-
 
 @pytest.mark.asyncio
 async def test_460_get_bundles_uuid_error(rest: RestClientFactory) -> None:
@@ -680,8 +666,6 @@ async def test_460_get_bundles_uuid_error(rest: RestClientFactory) -> None:
     with pytest.raises(HTTPError) as e:
         await r.request('GET', '/Bundles/d4390bcadac74f9dbb49874b444b448d')
     assert e.value.response.status_code == 404  # type: ignore[union-attr]
-
-    r.close()
 
 
 @pytest.mark.asyncio
@@ -721,8 +705,6 @@ async def test_470_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFac
     # we try to delete it again!
     ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
     assert not ret
-
-    r.close()
 
 
 @pytest.mark.asyncio
@@ -766,8 +748,6 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
         request = {"key": "value"}
         await r.request('PATCH', '/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
     assert e.value.response.status_code == 404  # type: ignore[union-attr]
-
-    r.close()
 
 
 @pytest.mark.asyncio
@@ -868,8 +848,6 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
     assert ret['bundle']
     assert ret['bundle']["path"] == "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
 
-    r.close()
-
 
 # -----------------------------------------------------------------------------
 # 500 - Bundles actions error cases and variants
@@ -901,8 +879,6 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
     with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/pop?status=taping', request)
     assert e.value.response.status_code == 400  # type: ignore[union-attr]
-
-    r.close()
 
 
 @pytest.mark.asyncio
@@ -936,8 +912,6 @@ async def test_510_bundles_actions_pop_at_destination(mongo: LtaCollection, rest
     ret = await r.request('POST', '/Bundles/actions/pop?dest=NERSC&status=taping', claimant_body)
     assert ret['bundle']
     assert ret['bundle']["path"] == "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
-
-    r.close()
 
 
 @pytest.mark.asyncio
@@ -995,8 +969,6 @@ async def test_520_bundles_actions_bulk_create_huge(mongo: LtaCollection, rest: 
     assert len(ret["bundles"]) == 1
     assert ret["count"] == 1
 
-    r.close()
-
 
 # -----------------------------------------------------------------------------
 # 600 - Metadata endpoints
@@ -1053,8 +1025,6 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
     results = ret["results"]
     assert len(results) == 3
 
-    r.close()
-
 
 @pytest.mark.asyncio
 async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClientFactory) -> None:
@@ -1091,8 +1061,6 @@ async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClient
         await r.request('GET', f'/Metadata/{metadata_uuid}')
     assert e.value.response.status_code == 404
     assert e.value.response.json()["error"] == "not found"
-
-    r.close()
 
 
 @pytest.mark.asyncio
@@ -1136,8 +1104,6 @@ async def test_620_metadata_bulk_crud(mongo: LtaCollection, rest: RestClientFact
     results = ret["results"]
     assert len(results) == 0
 
-    r.close()
-
 
 @pytest.mark.asyncio
 async def test_630_metadata_actions_bulk_create_errors(rest: RestClientFactory) -> None:
@@ -1168,8 +1134,6 @@ async def test_630_metadata_actions_bulk_create_errors(rest: RestClientFactory) 
     assert e.value.response.status_code == 400
     assert "files" in e.value.response.json()["error"]
 
-    r.close()
-
 
 @pytest.mark.asyncio
 async def test_640_metadata_actions_bulk_delete_errors(rest: RestClientFactory) -> None:
@@ -1194,8 +1158,6 @@ async def test_640_metadata_actions_bulk_delete_errors(rest: RestClientFactory) 
     assert e.value.response.status_code == 400
     assert "metadata" in e.value.response.json()["error"]
 
-    r.close()
-
 
 @pytest.mark.asyncio
 async def test_650_metadata_delete_errors(rest: RestClientFactory) -> None:
@@ -1206,8 +1168,6 @@ async def test_650_metadata_delete_errors(rest: RestClientFactory) -> None:
         await r.request('DELETE', '/Metadata')
     assert e.value.response.status_code == 400
     assert "bundle_uuid" in e.value.response.json()["error"]
-
-    r.close()
 
 
 @pytest.mark.asyncio
@@ -1242,5 +1202,3 @@ async def test_660_metadata_results_comprehension(rest: RestClientFactory) -> No
     for result in results:
         assert uuids[count] == result['uuid']
         count = count + 1
-
-    r.close()
