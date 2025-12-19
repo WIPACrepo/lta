@@ -140,7 +140,7 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
 
     _clients: list[RestClient] = []
 
-    def client(role: str = "admin", timeout: float = 0.5) -> RestClient:
+    def client(role: str, timeout: float = 0.5) -> RestClient:
         # But they were, all of them, deceived, for another Token was made.
         # In the land of PyTest, in the fires of Mount Fixture, the Dark Lord
         # Sauron forged in secret a master Token, to control all others. And
@@ -214,7 +214,7 @@ def test_000_strtobool() -> None:
 @pytest.mark.asyncio
 async def test_100_server_reachability(rest: RestClientFactory) -> None:
     """Check that we can reach the server."""
-    r = rest()  # type: ignore[call-arg]
+    r = rest("system")  # type: ignore[call-arg]
     ret = await r.request('GET', '/')
     assert ret == {}
 
@@ -227,7 +227,7 @@ async def test_100_server_reachability(rest: RestClientFactory) -> None:
 @pytest.mark.asyncio
 async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
     """Check for bad transfer request handling."""
-    r = rest()  # type: ignore[call-arg]
+    r = rest("system")  # type: ignore[call-arg]
 
     request: Dict[str, Any] = {'dest': ['bar']}
     with assert_http_error(400, contains="missing source field"):
