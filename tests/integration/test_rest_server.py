@@ -1083,8 +1083,7 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
     ret = await r.request('POST', '/Bundles/actions/pop?source=NERSC&status=inaccessible', claimant_body)
     assert not ret['bundle']
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 1.0
-    # NOTE: BundlesActionsPopHandler uses method='GET' on response_counter (even though this is POST)
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/Bundles/actions/pop"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "200", "route": "/Bundles/actions/pop"}) == 1.0
 
     # request: POST
     # I'm the bundler at WIPAC, and should pop one work item
@@ -1092,14 +1091,14 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
     assert ret['bundle']
     assert ret['bundle']["path"] == "/tmp/path1/sub1/24814fa8-875b-4bae-b034-ea8885d2aafe.zip"
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/Bundles/actions/pop"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "200", "route": "/Bundles/actions/pop"}) == 2.0
 
     # request: POST
     # repeating gets no work
     ret = await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=inaccessible', claimant_body)
     assert not ret['bundle']
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 3.0
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/Bundles/actions/pop"}) == 3.0
+    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "200", "route": "/Bundles/actions/pop"}) == 3.0
 
     # request: POST
     # I'm the bundler at WIPAC, and should pop one work item
@@ -1107,7 +1106,7 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
     assert ret['bundle']
     assert ret['bundle']["path"] == "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 4.0
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/Bundles/actions/pop"}) == 4.0
+    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "200", "route": "/Bundles/actions/pop"}) == 4.0
 
 
 # -----------------------------------------------------------------------------
