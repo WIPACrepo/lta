@@ -292,11 +292,11 @@ class BundlesActionsPopHandler(BaseLTAHandler):
         source: Optional[str] = self.get_argument('source', default=None)
         status: str = self.get_argument('status')
         if (not dest) and (not source):
-            self.response_counter.labels(method='GET', response='400', route='/Bundles/actions/pop').inc()
+            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/pop').inc()
             raise tornado.web.HTTPError(400, reason="missing source and dest fields")
         pop_body = json_decode(self.request.body)
         if 'claimant' not in pop_body:
-            self.response_counter.labels(method='GET', response='400', route='/Bundles/actions/pop').inc()
+            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/pop').inc()
             raise tornado.web.HTTPError(400, reason="missing claimant field")
         claimant = pop_body["claimant"]
         # find and claim a bundle for the specified source
@@ -331,7 +331,7 @@ class BundlesActionsPopHandler(BaseLTAHandler):
         else:
             logging.info(f"Bundle {bundle['uuid']} claimed by {claimant}")
         self.write({'bundle': bundle})
-        self.response_counter.labels(method='GET', response='200', route='/Bundles/actions/pop').inc()
+        self.response_counter.labels(method='POST', response='200', route='/Bundles/actions/pop').inc()
 
 
 class BundlesSingleHandler(BaseLTAHandler):
