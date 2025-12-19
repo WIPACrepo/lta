@@ -178,9 +178,9 @@ def test_000_strtobool() -> None:
 async def test_100_server_reachability(rest: RestClientFactory) -> None:
     """Check that we can reach the server."""
     r = rest("system")  # type: ignore[call-arg]
+    # request: GET
     ret = await r.request('GET', '/')
     assert ret == {}
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "GET", "route": "/"},
@@ -201,11 +201,11 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
     """Check for bad transfer request handling."""
     r = rest("system")  # type: ignore[call-arg]
 
+    # request: POST
     request: Dict[str, Any] = {'dest': ['bar']}
     with pytest.raises(HTTPError, match=r"missing source field") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -215,11 +215,11 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "400", "route": "/TransferRequests"},
     ) == 1.0
 
+    # request: POST
     request = {'source': 'foo'}
     with pytest.raises(HTTPError, match=r"missing dest field") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -229,11 +229,11 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "400", "route": "/TransferRequests"},
     ) == 2.0
 
+    # request: POST
     request = {'source': 'foo', 'dest': 'bar'}
     with pytest.raises(HTTPError, match=r"missing path field") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -243,11 +243,11 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "400", "route": "/TransferRequests"},
     ) == 3.0
 
+    # request: POST
     request = {'source': 'foo', 'dest': []}
     with pytest.raises(HTTPError, match=r"missing path field") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -257,11 +257,11 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "400", "route": "/TransferRequests"},
     ) == 4.0
 
+    # request: POST
     request = {'source': [], 'dest': 'bar', 'path': 'snafu'}
     with pytest.raises(HTTPError, match=r"source field is not a string") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -271,11 +271,11 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "400", "route": "/TransferRequests"},
     ) == 5.0
 
+    # request: POST
     request = {'source': 'foo', 'dest': [], 'path': 'snafu'}
     with pytest.raises(HTTPError, match=r"dest field is not a string") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -285,11 +285,11 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "400", "route": "/TransferRequests"},
     ) == 6.0
 
+    # request: POST
     request = {'source': 'foo', 'dest': 'bar', 'path': []}
     with pytest.raises(HTTPError, match=r"path field is not a string") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -299,11 +299,11 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "400", "route": "/TransferRequests"},
     ) == 7.0
 
+    # request: POST
     request = {'source': "", 'dest': 'bar', 'path': 'snafu'}
     with pytest.raises(HTTPError, match=r"source field is empty") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -313,11 +313,11 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "400", "route": "/TransferRequests"},
     ) == 8.0
 
+    # request: POST
     request = {'source': 'foo', 'dest': "", 'path': 'snafu'}
     with pytest.raises(HTTPError, match=r"dest field is empty") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -327,11 +327,11 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "400", "route": "/TransferRequests"},
     ) == 9.0
 
+    # request: POST
     request = {'source': 'foo', 'dest': 'bar', 'path': ""}
     with pytest.raises(HTTPError, match=r"path field is empty") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -347,11 +347,11 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
     """Check CRUD semantics for transfer requests."""
     r = rest(role="system")  # type: ignore[call-arg]
 
+    # request: POST
     request = {'source': 'foo', 'dest': 'bar', 'path': 'snafu'}
     ret = await r.request('POST', '/TransferRequests', request)
     uuid = ret['TransferRequest']
     assert uuid
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -361,9 +361,9 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
         {"method": "POST", "response": "201", "route": "/TransferRequests"},
     ) == 1.0
 
+    # request: GET
     ret = await r.request('GET', '/TransferRequests')
     assert len(ret['results']) == 1
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "GET", "route": "/TransferRequests"},
@@ -373,10 +373,10 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
         {"method": "GET", "response": "200", "route": "/TransferRequests"},
     ) == 1.0
 
+    # request: GET
     ret = await r.request('GET', f'/TransferRequests/{uuid}')
     for k in request:
         assert request[k] == ret[k]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "GET", "route": "/TransferRequests/{uuid}"},
@@ -386,10 +386,10 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
         {"method": "GET", "response": "200", "route": "/TransferRequests/{uuid}"},
     ) == 1.0
 
+    # request: PATCH
     request2 = {'bar': 2}
     ret = await r.request('PATCH', f'/TransferRequests/{uuid}', request2)
     assert ret == {}
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "PATCH", "route": "/TransferRequests/{uuid}"},
@@ -399,10 +399,10 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
         {"method": "PATCH", "response": "200", "route": "/TransferRequests/{uuid}"},
     ) == 1.0
 
+    # request: PATCH
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('PATCH', '/TransferRequests/foo', request2)
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "PATCH", "route": "/TransferRequests/{uuid}"},
@@ -412,9 +412,9 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
         {"method": "PATCH", "response": "404", "route": "/TransferRequests/{uuid}"},
     ) == 1.0
 
+    # request: DELETE
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "DELETE", "route": "/TransferRequests/{uuid}"},
@@ -424,10 +424,10 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
         {"method": "DELETE", "response": "204", "route": "/TransferRequests/{uuid}"},
     ) == 1.0
 
+    # request: GET
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('GET', f'/TransferRequests/{uuid}')
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "GET", "route": "/TransferRequests/{uuid}"},
@@ -437,9 +437,9 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
         {"method": "GET", "response": "404", "route": "/TransferRequests/{uuid}"},
     ) == 1.0
 
+    # request: DELETE
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "DELETE", "route": "/TransferRequests/{uuid}"},
@@ -449,9 +449,9 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
         {"method": "DELETE", "response": "204", "route": "/TransferRequests/{uuid}"},
     ) == 2.0
 
+    # request: GET
     ret = await r.request('GET', '/TransferRequests')
     assert len(ret['results']) == 0
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "GET", "route": "/TransferRequests"},
@@ -467,6 +467,7 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
     """Check pop action for transfer requests."""
     r = rest('system')  # type: ignore[call-arg]
 
+    # request: POST
     request = {
         'source': 'WIPAC',
         'dest': 'NERSC',
@@ -475,7 +476,6 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
     ret = await r.request('POST', '/TransferRequests', request)
     uuid = ret['TransferRequest']
     assert uuid
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests"},
@@ -485,11 +485,11 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "201", "route": "/TransferRequests"},
     ) == 1.0
 
+    # request: POST
     # I'm being a jerk and claiming without naming myself as claimant
     with pytest.raises(HTTPError, match=r"missing claimant field") as exc:
         await r.request('POST', '/TransferRequests/actions/pop?source=JERK_STORE')
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests/actions/pop"},
@@ -499,13 +499,13 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "400", "route": "/TransferRequests/actions/pop"},
     ) == 1.0
 
+    # request: POST
     # I'm at NERSC, and should have no work
     nersc_pop_claimant = {
         'claimant': 'testing-picker-aaaed864-0112-4bcf-a069-bb55c12e291d',
     }
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=NERSC', nersc_pop_claimant)
     assert not ret['transfer_request']
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests/actions/pop"},
@@ -515,6 +515,7 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "200", "route": "/TransferRequests/actions/pop"},
     ) == 1.0
 
+    # request: POST
     # I'm the picker at WIPAC, and should have one work item
     wipac_pop_claimant = {
         'claimant': 'testing-picker-3e4da7c3-bb73-4ab3-b6a6-02ceff6501fc',
@@ -523,7 +524,6 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
     assert ret['transfer_request']
     for k in request:
         assert request[k] == ret['transfer_request'][k]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests/actions/pop"},
@@ -533,10 +533,10 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
         {"method": "POST", "response": "200", "route": "/TransferRequests/actions/pop"},
     ) == 2.0
 
+    # request: POST
     # repeating gets no work
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
     assert not ret['transfer_request']
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/TransferRequests/actions/pop"},
@@ -585,10 +585,10 @@ async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFacto
     # Create - POST /Bundles/actions/bulk_create
     #
     request = {'bundles': [{"name": "one"}, {"name": "two"}]}
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/bulk_create', request)
     assert len(ret["bundles"]) == 2
     assert ret["count"] == 2
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_create"},
@@ -601,10 +601,10 @@ async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFacto
     #
     # Read - GET /Bundles
     #
+    # request: GET
     ret = await r.request('GET', '/Bundles')
     results = ret["results"]
     assert len(results) == 2
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "GET", "route": "/Bundles"},
@@ -619,10 +619,10 @@ async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFacto
     #
     results2 = results + [unique_id()]
     request2 = {'bundles': results2, 'update': {'key': 'value'}}
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/bulk_update', request2)
     assert ret["count"] == 2
     assert ret["bundles"] == results
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_update"},
@@ -636,6 +636,7 @@ async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFacto
     # Read - GET /Bundles/UUID
     #
     for idx, result in enumerate(results, start=1):
+        # request: GET
         ret = await r.request('GET', f'/Bundles/{result}')
         assert ret["uuid"] == result
         assert ret["name"] in ["one", "two"]
@@ -655,10 +656,10 @@ async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFacto
     #
     results2 = results + [unique_id()]
     request2 = {'bundles': results2}
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/bulk_delete', request2)
     assert ret["count"] == 2
     assert ret["bundles"] == results
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_delete"},
@@ -671,10 +672,10 @@ async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFacto
     #
     # Read - GET /Bundles
     #
+    # request: GET
     ret = await r.request('GET', '/Bundles')
     results = ret["results"]
     assert len(results) == 0
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "GET", "route": "/Bundles"},
@@ -690,11 +691,11 @@ async def test_410_bundles_actions_bulk_create_errors(rest: RestClientFactory) -
     """Check error conditions for bulk_create."""
     r = rest('system')  # type: ignore[call-arg]
 
+    # request: POST
     request: Dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"missing bundles field") as exc:
         await r.request('POST', '/Bundles/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_create"},
@@ -704,11 +705,11 @@ async def test_410_bundles_actions_bulk_create_errors(rest: RestClientFactory) -
         {"method": "POST", "response": "400", "route": "/Bundles/actions/bulk_create"},
     ) == 1.0
 
+    # request: POST
     request = {'bundles': ''}
     with pytest.raises(HTTPError, match=r"bundles field is not a list") as exc:
         await r.request('POST', '/Bundles/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_create"},
@@ -718,11 +719,11 @@ async def test_410_bundles_actions_bulk_create_errors(rest: RestClientFactory) -
         {"method": "POST", "response": "400", "route": "/Bundles/actions/bulk_create"},
     ) == 2.0
 
+    # request: POST
     request = {'bundles': []}
     with pytest.raises(HTTPError, match=r"bundles field is empty") as exc:
         await r.request('POST', '/Bundles/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_create"},
@@ -738,11 +739,11 @@ async def test_420_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -
     """Check error conditions for bulk_delete."""
     r = rest('system')  # type: ignore[call-arg]
 
+    # request: POST
     request: Dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"missing bundles field") as exc:
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_delete"},
@@ -752,11 +753,11 @@ async def test_420_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -
         {"method": "POST", "response": "400", "route": "/Bundles/actions/bulk_delete"},
     ) == 1.0
 
+    # request: POST
     request = {'bundles': ''}
     with pytest.raises(HTTPError, match=r"bundles field is not a list") as exc:
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_delete"},
@@ -766,11 +767,11 @@ async def test_420_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -
         {"method": "POST", "response": "400", "route": "/Bundles/actions/bulk_delete"},
     ) == 2.0
 
+    # request: POST
     request = {'bundles': []}
     with pytest.raises(HTTPError, match=r"bundles field is empty") as exc:
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_delete"},
@@ -786,11 +787,11 @@ async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -
     """Check error conditions for bulk_update."""
     r = rest('system')  # type: ignore[call-arg]
 
+    # request: POST
     request: Dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"missing update field") as exc:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_update"},
@@ -800,11 +801,11 @@ async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -
         {"method": "POST", "response": "400", "route": "/Bundles/actions/bulk_update"},
     ) == 1.0
 
+    # request: POST
     request = {'update': ''}
     with pytest.raises(HTTPError, match=r"update field is not an object") as exc:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_update"},
@@ -814,11 +815,11 @@ async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -
         {"method": "POST", "response": "400", "route": "/Bundles/actions/bulk_update"},
     ) == 2.0
 
+    # request: POST
     request = {'update': {}}
     with pytest.raises(HTTPError, match=r"missing bundles field") as exc:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_update"},
@@ -828,11 +829,11 @@ async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -
         {"method": "POST", "response": "400", "route": "/Bundles/actions/bulk_update"},
     ) == 3.0
 
+    # request: POST
     request = {'update': {}, 'bundles': ''}
     with pytest.raises(HTTPError, match=r"bundles field is not a list") as exc:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_update"},
@@ -842,11 +843,11 @@ async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -
         {"method": "POST", "response": "400", "route": "/Bundles/actions/bulk_update"},
     ) == 4.0
 
+    # request: POST
     request = {'update': {}, 'bundles': []}
     with pytest.raises(HTTPError, match=r"bundles field is empty") as exc:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_update"},
@@ -925,10 +926,10 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
     #
     # Create - POST /Bundles/actions/bulk_create
     #
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
     assert len(ret["bundles"]) == 11
     assert ret["count"] == 11
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_create"},
@@ -941,6 +942,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
     #
     # Read - GET /Bundles (all variants are still route=/Bundles in metrics)
     #
+    # request: GET
     ret = await r.request('GET', '/Bundles')
     results = ret["results"]
     assert len(results) == 11
@@ -953,6 +955,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 1.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?location=WIPAC')
     results = ret["results"]
     assert len(results) == 7
@@ -965,6 +968,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 2.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?location=DESY')
     results = ret["results"]
     assert len(results) == 3
@@ -977,6 +981,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 3.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?location=WIPAC:/tmp/path1')
     results = ret["results"]
     assert len(results) == 6
@@ -989,6 +994,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 4.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?status=waiting')
     results = ret["results"]
     assert len(results) == 4
@@ -1001,6 +1007,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 5.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?status=processing')
     results = ret["results"]
     assert len(results) == 3
@@ -1013,6 +1020,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 6.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?status=bundled')
     results = ret["results"]
     assert len(results) == 3
@@ -1025,6 +1033,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 7.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?verified=true')
     results = ret["results"]
     assert len(results) == 5
@@ -1037,6 +1046,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 8.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?verified=false')
     results = ret["results"]
     assert len(results) == 5
@@ -1049,6 +1059,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 9.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?status=waiting&verified=false')
     results = ret["results"]
     assert len(results) == 3
@@ -1061,6 +1072,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 10.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?status=waiting&verified=true')
     results = ret["results"]
     assert len(results) == 1
@@ -1111,10 +1123,10 @@ async def test_450_get_bundles_request_filter(mongo: LtaCollection, rest: RestCl
     #
     # Create - POST /Bundles/actions/bulk_create
     #
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
     assert len(ret["bundles"]) == 4
     assert ret["count"] == 4
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_create"},
@@ -1127,6 +1139,7 @@ async def test_450_get_bundles_request_filter(mongo: LtaCollection, rest: RestCl
     #
     # Read - GET /Bundles (all variants are still route=/Bundles in metrics)
     #
+    # request: GET
     ret = await r.request('GET', '/Bundles')
     results = ret["results"]
     assert len(results) == 4
@@ -1139,6 +1152,7 @@ async def test_450_get_bundles_request_filter(mongo: LtaCollection, rest: RestCl
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 1.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?request=dd162dad-9880-4ed7-b3c3-f8843d765ac3')
     results = ret["results"]
     assert len(results) == 0
@@ -1151,6 +1165,7 @@ async def test_450_get_bundles_request_filter(mongo: LtaCollection, rest: RestCl
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 2.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?request=5aba93ec-3c7d-43d7-8fe9-c19e5bc25991')
     results = ret["results"]
     assert len(results) == 1
@@ -1163,6 +1178,7 @@ async def test_450_get_bundles_request_filter(mongo: LtaCollection, rest: RestCl
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 3.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles?request=baebf071-702f-4ab5-9486-a9dec5420b84')
     results = ret["results"]
     assert len(results) == 2
@@ -1181,10 +1197,10 @@ async def test_460_get_bundles_uuid_error(rest: RestClientFactory) -> None:
     """Check that GET /Bundles/UUID returns 404 on not found."""
     r = rest('system')  # type: ignore[call-arg]
 
+    # request: GET
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('GET', '/Bundles/d4390bcadac74f9dbb49874b444b448d')
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "GET", "route": "/Bundles/{uuid}"},
@@ -1210,6 +1226,7 @@ async def test_470_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFac
         ]
     }
 
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
     assert len(ret["bundles"]) == 1
     assert ret["count"] == 1
@@ -1222,6 +1239,7 @@ async def test_470_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFac
         {"method": "POST", "response": "201", "route": "/Bundles/actions/bulk_create"},
     ) == 1.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles')
     results = ret["results"]
     assert len(results) == 1
@@ -1236,6 +1254,7 @@ async def test_470_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFac
 
     test_uuid = results[0]
 
+    # request: DELETE
     # we delete it when it exists
     ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
     assert not ret
@@ -1248,6 +1267,7 @@ async def test_470_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFac
         {"method": "DELETE", "response": "204", "route": "/Bundles/{uuid}"},
     ) == 1.0
 
+    # request: GET
     # we verify that it has been deleted
     ret = await r.request('GET', '/Bundles')
     results = ret["results"]
@@ -1261,6 +1281,7 @@ async def test_470_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFac
         {"method": "GET", "response": "200", "route": "/Bundles"},
     ) == 2.0
 
+    # request: DELETE
     # we try to delete it again!
     ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
     assert not ret
@@ -1289,6 +1310,7 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
         ]
     }
 
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
     assert len(ret["bundles"]) == 1
     assert ret["count"] == 1
@@ -1301,6 +1323,7 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
         {"method": "POST", "response": "201", "route": "/Bundles/actions/bulk_create"},
     ) == 1.0
 
+    # request: GET
     ret = await r.request('GET', '/Bundles')
     results = ret["results"]
     assert len(results) == 1
@@ -1315,6 +1338,7 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
 
     test_uuid = results[0]
 
+    # request: PATCH
     # we patch it when it exists
     request = {"key": "value"}
     ret = await r.request('PATCH', f'/Bundles/{test_uuid}', request)
@@ -1328,6 +1352,7 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
         {"method": "PATCH", "response": "200", "route": "/Bundles/{uuid}"},
     ) == 1.0
 
+    # request: PATCH
     # we try to patch the uuid; error
     request = {"key": "value", "uuid": "d4390bca-dac7-4f9d-bb49-874b444b448d"}
     with pytest.raises(HTTPError, match=r"bad request") as exc:
@@ -1342,6 +1367,7 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
         {"method": "PATCH", "response": "400", "route": "/Bundles/{uuid}"},
     ) == 1.0
 
+    # request: PATCH
     # we try to patch something that doesn't exist; error
     request = {"key": "value"}
     with pytest.raises(HTTPError, match=r"not found") as exc:
@@ -1430,6 +1456,7 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
     #
     # Create - POST /Bundles/actions/bulk_create
     #
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
     assert len(ret["bundles"]) == 10
     assert ret["count"] == 10
@@ -1446,9 +1473,9 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
     claimant_body = {
         'claimant': 'testing-picker-aaaed864-0112-4bcf-a069-bb55c12e291d',
     }
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/pop?source=NERSC&status=inaccessible', claimant_body)
     assert not ret['bundle']
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/pop"},
@@ -1459,6 +1486,7 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
         {"method": "GET", "response": "200", "route": "/Bundles/actions/pop"},
     ) == 1.0
 
+    # request: POST
     # I'm the bundler at WIPAC, and should pop one work item
     ret = await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=inaccessible', claimant_body)
     assert ret['bundle']
@@ -1472,6 +1500,7 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
         {"method": "GET", "response": "200", "route": "/Bundles/actions/pop"},
     ) == 2.0
 
+    # request: POST
     # repeating gets no work
     ret = await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=inaccessible', claimant_body)
     assert not ret['bundle']
@@ -1484,6 +1513,7 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
         {"method": "GET", "response": "200", "route": "/Bundles/actions/pop"},
     ) == 3.0
 
+    # request: POST
     # I'm the bundler at WIPAC, and should pop one work item
     ret = await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=accessible', claimant_body)
     assert ret['bundle']
@@ -1508,17 +1538,18 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
     """Check error handlers for pop action for bundles."""
     r = rest('system')  # type: ignore[call-arg]
 
+    # request: POST
     # Missing required query arg: status (raised before handler logic)
     with pytest.raises(HTTPError, match=r"Bad Request for url") as exc:
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC', {"claimant": "x"})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
     # NOTE: handler code never runs here; do not assert metrics.
 
+    # request: POST
     # Missing both dest and source (but status is present, so we reach handler logic)
     with pytest.raises(HTTPError, match=r"missing source and dest fields") as exc:
         await r.request('POST', '/Bundles/actions/pop?status=taping', {"claimant": "x"})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/pop"},
@@ -1529,11 +1560,11 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
         {"method": "GET", "response": "400", "route": "/Bundles/actions/pop"},
     ) == 1.0
 
+    # request: POST
     # Missing claimant (but other required pieces present)
     with pytest.raises(HTTPError, match=r"missing claimant field") as exc:
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=inaccessible', {})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/pop"},
@@ -1564,10 +1595,10 @@ async def test_510_bundles_actions_pop_at_destination(mongo: LtaCollection, rest
     #
     # Create - POST /Bundles/actions/bulk_create
     #
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
     assert len(ret["bundles"]) == 1
     assert ret["count"] == 1
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_create"},
@@ -1581,10 +1612,10 @@ async def test_510_bundles_actions_pop_at_destination(mongo: LtaCollection, rest
     claimant_body = {
         'claimant': 'testing-nersc_mover-aaaed864-0112-4bcf-a069-bb55c12e291d',
     }
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/pop?dest=NERSC&status=taping', claimant_body)
     assert ret['bundle']
     assert ret['bundle']["path"] == "/data/exp/IceCube/2014/15f7a399-fe40-4337-bb7e-d68d2d28ec8e.zip"
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/pop"},
@@ -1646,10 +1677,10 @@ async def test_520_bundles_actions_bulk_create_huge(mongo: LtaCollection, rest: 
     #
     # Create - POST /Bundles/actions/bulk_create
     #
+    # request: POST
     ret = await r.request('POST', '/Bundles/actions/bulk_create', test_data)
     assert len(ret["bundles"]) == 1
     assert ret["count"] == 1
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Bundles/actions/bulk_create"},
@@ -1674,6 +1705,7 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
     #
     # Create - POST /Metadata/actions/bulk_create
     #
+    # request: POST
     request = {
         'bundle_uuid': bundle_uuid0,
         'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
@@ -1690,6 +1722,7 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
         {"method": "POST", "response": "201", "route": "/Metadata/actions/bulk_create"},
     ) == 1.0
 
+    # request: POST
     request = {
         'bundle_uuid': bundle_uuid1,
         'files': ["03ccb63e-32cf-4135-85b2-fd06b8c9137f", "c65f2c58-a412-403c-9354-d25d7ae5cdeb", "864f0903-f207-478d-bac2-b437ebc07226"]
@@ -1709,6 +1742,7 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
     #
     # Read - GET /Metadata
     #
+    # request: GET
     ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid0}')
     results = ret["results"]
     assert len(results) == 3
@@ -1721,6 +1755,7 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
         {"method": "GET", "response": "200", "route": "/Metadata"},
     ) == 1.0
 
+    # request: GET
     ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid1}')
     results = ret["results"]
     assert len(results) == 3
@@ -1736,6 +1771,7 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
     #
     # Delete - DELETE /Metadata?bundle_uuid={uuid}
     #
+    # request: DELETE
     ret = await r.request('DELETE', f'/Metadata?bundle_uuid={bundle_uuid0}')
     assert not ret
     assert prometheus_client.REGISTRY.get_sample_value(
@@ -1750,6 +1786,7 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
     #
     # Read - GET /Metadata
     #
+    # request: GET
     ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid0}')
     results = ret["results"]
     assert len(results) == 0
@@ -1762,6 +1799,7 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
         {"method": "GET", "response": "200", "route": "/Metadata"},
     ) == 3.0
 
+    # request: GET
     ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid1}')
     results = ret["results"]
     assert len(results) == 3
@@ -1783,6 +1821,7 @@ async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClient
     #
     # Create - POST /Metadata/actions/bulk_create
     #
+    # request: POST
     request = {
         'bundle_uuid': bundle_uuid,
         'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
@@ -1803,6 +1842,7 @@ async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClient
     # Read - GET /Metadata/{uuid}
     #
     metadata_uuid = ret["metadata"][0]
+    # request: GET
     ret2 = await r.request('GET', f'/Metadata/{metadata_uuid}')
     assert ret2["uuid"] == metadata_uuid
     assert ret2["bundle_uuid"] == bundle_uuid
@@ -1819,6 +1859,7 @@ async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClient
     #
     # Delete - DELETE /Metadata/{uuid}
     #
+    # request: DELETE
     ret3 = await r.request('DELETE', f'/Metadata/{metadata_uuid}')
     assert not ret3
     assert prometheus_client.REGISTRY.get_sample_value(
@@ -1833,6 +1874,7 @@ async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClient
     #
     # Read - GET /Metadata/{uuid}
     #
+    # request: GET
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('GET', f'/Metadata/{metadata_uuid}')
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
@@ -1854,6 +1896,7 @@ async def test_620_metadata_bulk_crud(mongo: LtaCollection, rest: RestClientFact
     #
     # Create - POST /Metadata/actions/bulk_create
     #
+    # request: POST
     request = {
         'bundle_uuid': bundle_uuid,
         'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
@@ -1873,6 +1916,7 @@ async def test_620_metadata_bulk_crud(mongo: LtaCollection, rest: RestClientFact
     #
     # Read - GET /Metadata
     #
+    # request: GET
     ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}')
     results = ret["results"]
     assert len(results) == 3
@@ -1892,6 +1936,7 @@ async def test_620_metadata_bulk_crud(mongo: LtaCollection, rest: RestClientFact
     for result in results:
         uuids.append(result["uuid"])
     request2 = {'metadata': uuids}
+    # request: POST
     ret = await r.request('POST', '/Metadata/actions/bulk_delete', request2)
     assert ret["count"] == 3
     assert ret["metadata"] == uuids
@@ -1907,6 +1952,7 @@ async def test_620_metadata_bulk_crud(mongo: LtaCollection, rest: RestClientFact
     #
     # Read - GET /Metadata
     #
+    # request: GET
     ret = await r.request('GET', '/Metadata')
     results = ret["results"]
     assert len(results) == 0
@@ -1925,6 +1971,7 @@ async def test_630_metadata_actions_bulk_create_errors(rest: RestClientFactory) 
     """Check error conditions for bulk_create."""
     r = rest('system')  # type: ignore[call-arg]
 
+    # request: POST
     request: Dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"bundle_uuid") as exc:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
@@ -1936,31 +1983,31 @@ async def test_630_metadata_actions_bulk_create_errors(rest: RestClientFactory) 
         {"method": "POST", "route": "/Metadata/actions/bulk_create"},
     ) == 1.0
 
+    # request: POST
     request = {'bundle_uuid': '', 'files': ["foo"]}
     with pytest.raises(HTTPError, match=r"bundle_uuid must not be empty") as exc:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Metadata/actions/bulk_create"},
     ) == 2.0
 
+    # request: POST
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27"}
     with pytest.raises(HTTPError, match=r"files") as exc:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Metadata/actions/bulk_create"},
     ) == 3.0
 
+    # request: POST
     request = {'bundle_uuid': "992ae5e1-017c-4a95-b552-bd385020ec27", "files": []}
     with pytest.raises(HTTPError, match=r"files must not be empty") as exc:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Metadata/actions/bulk_create"},
@@ -1972,6 +2019,7 @@ async def test_640_metadata_actions_bulk_delete_errors(rest: RestClientFactory) 
     """Check error conditions for bulk_delete."""
     r = rest('system')  # type: ignore[call-arg]
 
+    # request: POST
     request: Dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"metadata") as exc:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
@@ -1981,6 +2029,7 @@ async def test_640_metadata_actions_bulk_delete_errors(rest: RestClientFactory) 
         {"method": "POST", "route": "/Metadata/actions/bulk_delete"},
     ) == 1.0
 
+    # request: POST
     request = {'metadata': ''}
     with pytest.raises(HTTPError, match=r"metadata") as exc:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
@@ -1990,6 +2039,7 @@ async def test_640_metadata_actions_bulk_delete_errors(rest: RestClientFactory) 
         {"method": "POST", "route": "/Metadata/actions/bulk_delete"},
     ) == 2.0
 
+    # request: POST
     request = {'metadata': []}
     with pytest.raises(HTTPError, match=r"metadata must not be empty") as exc:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
@@ -2005,6 +2055,7 @@ async def test_650_metadata_delete_errors(rest: RestClientFactory) -> None:
     """Check error conditions for DELETE /Metadata."""
     r = rest('system')  # type: ignore[call-arg]
 
+    # request: DELETE
     with pytest.raises(HTTPError, match=r"bundle_uuid") as exc:
         await r.request('DELETE', '/Metadata')
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -2024,6 +2075,7 @@ async def test_660_metadata_results_comprehension(rest: RestClientFactory) -> No
     #
     # Create - POST /Metadata/actions/bulk_create
     #
+    # request: POST
     request = {
         'bundle_uuid': bundle_uuid,
         'files': ["7b5c1f76-e568-4ae7-94d2-5a31d1d2b081", "125d2a44-a664-4166-bf4a-5d5cf13292d7", "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f"]
@@ -2031,7 +2083,6 @@ async def test_660_metadata_results_comprehension(rest: RestClientFactory) -> No
     ret = await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert len(ret["metadata"]) == 3
     assert ret["count"] == 3
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "POST", "route": "/Metadata/actions/bulk_create"},
@@ -2044,10 +2095,10 @@ async def test_660_metadata_results_comprehension(rest: RestClientFactory) -> No
     #
     # Read - GET /Metadata
     #
+    # request: GET
     ret = await r.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}')
     results = ret["results"]
     assert len(results) == 3
-
     assert prometheus_client.REGISTRY.get_sample_value(
         "lta_requests_total",
         {"method": "GET", "route": "/Metadata"},
