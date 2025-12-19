@@ -4,8 +4,6 @@ Long Term Archive REST API server.
 Run with `python -m lta.rest_server`.
 """
 
-# fmt:off
-
 import asyncio
 from datetime import datetime
 import logging
@@ -15,15 +13,24 @@ from typing import Any, cast, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
-from motor.motor_tornado import MotorClient, MotorDatabase
+from pymongo import AsyncMongoClient
+from pymongo.asynchronous.database import AsyncDatabase
 from prometheus_client import Counter, start_http_server
 import pymongo
 from pymongo import MongoClient
 from rest_tools.utils.json_util import json_decode
-from rest_tools.server import RestHandler, RestHandlerSetup, RestServer, ArgumentHandler, ArgumentSource
+from rest_tools.server import (
+    RestHandler,
+    RestHandlerSetup,
+    RestServer,
+    ArgumentHandler,
+    ArgumentSource,
+)
 from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
 from wipac_dev_tools import from_environment, strtobool
+
+# fmt:off
 
 # maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
 DELETE_CHUNK_SIZE = 1000
@@ -54,9 +61,7 @@ FIRST_IN_FIRST_OUT = [("work_priority_timestamp", pymongo.ASCENDING)]
 LOGGING_DENY_LIST = ["LTA_MONGODB_AUTH_PASS"]
 LTA_AUTH_PREFIX = "resource_access.long-term-archive.roles"
 LTA_AUTH_ROLES = ["system"]
-MOST_RECENT_FIRST = [("timestamp", pymongo.DESCENDING)]
 REMOVE_ID = {"_id": False}
-TRUE_SET = {'1', 't', 'true', 'y', 'yes'}
 
 # -----------------------------------------------------------------------------
 
@@ -106,7 +111,7 @@ class BaseLTAHandler(RestHandler):
 
     def initialize(  # type: ignore[override]
             self,
-            db: MotorDatabase[DatabaseType],
+            db: AsyncDatabase[DatabaseType],
             request_counter: Counter,
             response_counter: Counter,
             *args: Any,
@@ -779,8 +784,8 @@ def start(debug: bool = False) -> RestServer:
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
     ensure_mongo_indexes(lta_mongodb_url, mongo_db)
-    motor_client: MotorClient[DatabaseType] = MotorClient(lta_mongodb_url)
-    args['db'] = motor_client[mongo_db]
+    mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
+    args['db'] = mongo_client[mongo_db]
 
     # configure prometheus metrics
     args['request_counter'] = Counter('lta_requests', 'LTA DB requests', ['method', 'route'])
