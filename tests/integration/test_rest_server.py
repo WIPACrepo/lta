@@ -177,44 +177,54 @@ async def test_transfer_request_fail(rest: RestClientFactory) -> None:
     """Check for bad transfer request handling."""
     r = rest()  # type: ignore[call-arg]
     request: Dict[str, Any] = {'dest': ['bar']}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
+    assert e.value.response.status_code == 400
 
     request = {'source': 'foo'}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
+    assert e.value.response.status_code == 400
 
     request = {'source': 'foo', 'dest': 'bar'}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
+    assert e.value.response.status_code == 400
 
     request = {'source': 'foo', 'dest': []}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
+    assert e.value.response.status_code == 400
 
     request = {'source': [], 'dest': 'bar', 'path': 'snafu'}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
+    assert e.value.response.status_code == 400
 
     request = {'source': 'foo', 'dest': [], 'path': 'snafu'}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
+    assert e.value.response.status_code == 400
 
     request = {'source': 'foo', 'dest': 'bar', 'path': []}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
+    assert e.value.response.status_code == 400
 
     request = {'source': "", 'dest': 'bar', 'path': 'snafu'}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
+    assert e.value.response.status_code == 400
 
     request = {'source': 'foo', 'dest': "", 'path': 'snafu'}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
+    assert e.value.response.status_code == 400
 
     request = {'source': 'foo', 'dest': 'bar', 'path': ""}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests', request)
+    assert e.value.response.status_code == 400
     r.close()
 
 
@@ -238,14 +248,16 @@ async def test_transfer_request_crud(mongo: LtaCollection, rest: RestClientFacto
     ret = await r.request('PATCH', f'/TransferRequests/{uuid}', request2)
     assert ret == {}
 
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('PATCH', '/TransferRequests/foo', request2)
+    assert e.value.response.status_code == 404
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
 
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('GET', f'/TransferRequests/{uuid}')
+    assert e.value.response.status_code == 404
 
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
@@ -269,8 +281,9 @@ async def test_transfer_request_pop(rest: RestClientFactory) -> None:
     assert uuid
 
     # I'm being a jerk and claiming without naming myself as claimant
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/TransferRequests/actions/pop?source=JERK_STORE')
+    assert e.value.response.status_code == 400
 
     # I'm at NERSC, and should have no work
     nersc_pop_claimant = {
@@ -376,16 +389,19 @@ async def test_bundles_actions_bulk_create_errors(rest: RestClientFactory) -> No
     r = rest('system')  # type: ignore[call-arg]
 
     request: Dict[str, Any] = {}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
 
     request = {'bundles': ''}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
 
     request = {'bundles': []}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_create', request)
+    assert e.value.response.status_code == 400
     r.close()
 
 
@@ -395,16 +411,19 @@ async def test_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -> No
     r = rest('system')  # type: ignore[call-arg]
 
     request: Dict[str, Any] = {}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
+    assert e.value.response.status_code == 400
 
     request = {'bundles': ''}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
+    assert e.value.response.status_code == 400
 
     request = {'bundles': []}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
+    assert e.value.response.status_code == 400
     r.close()
 
 
@@ -414,24 +433,29 @@ async def test_bundles_actions_bulk_update_errors(rest: RestClientFactory) -> No
     r = rest('system')  # type: ignore[call-arg]
 
     request: Dict[str, Any] = {}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
+    assert e.value.response.status_code == 400
 
     request = {'update': ''}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
+    assert e.value.response.status_code == 400
 
     request = {'update': {}}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
+    assert e.value.response.status_code == 400
 
     request = {'update': {}, 'bundles': ''}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
+    assert e.value.response.status_code == 400
 
     request = {'update': {}, 'bundles': []}
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
+    assert e.value.response.status_code == 400
     r.close()
 
 
@@ -623,8 +647,10 @@ async def test_get_bundles_uuid_error(rest: RestClientFactory) -> None:
     """Check that GET /Bundles/UUID returns 404 on not found."""
     r = rest('system')  # type: ignore[call-arg]
 
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('GET', '/Bundles/d4390bcadac74f9dbb49874b444b448d')
+    assert e.value.response.status_code == 404
+
     r.close()
 
 
@@ -699,14 +725,17 @@ async def test_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFactory)
     assert ret["key"] == "value"
 
     # we try to patch the uuid; error
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         request = {"key": "value", "uuid": "d4390bca-dac7-4f9d-bb49-874b444b448d"}
         await r.request('PATCH', f'/Bundles/{test_uuid}', request)
+    assert e.value.response.status_code == 400
 
     # we try to patch something that doesn't exist; error
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         request = {"key": "value"}
         await r.request('PATCH', '/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
+    assert e.value.response.status_code == 404
+
     r.close()
 
 
@@ -816,20 +845,26 @@ async def test_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestClient
     r = rest('system')  # type: ignore[call-arg]
     request: Dict[str, Any] = {}
 
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/pop?source=AREA-51', request)
+    assert e.value.response.status_code == 400
 
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC', request)
+    assert e.value.response.status_code == 400
 
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=supercalifragilisticexpialidocious', request)
+    assert e.value.response.status_code == 400
 
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=none', request)
+    assert e.value.response.status_code == 400
 
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPError) as e:
         await r.request('POST', '/Bundles/actions/pop?status=taping', request)
+    assert e.value.response.status_code == 400
+
     r.close()
 
 
