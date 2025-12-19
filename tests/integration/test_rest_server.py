@@ -862,7 +862,7 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
     r = rest('system')  # type: ignore[call-arg]
 
     # Missing required query arg: status (raised before handler logic)
-    with pytest.raises(HTTPError, match=r"Missing argument") as exc:
+    with pytest.raises(HTTPError, match=r"Bad Request for url") as exc:
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC', {"claimant": "x"})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
 
