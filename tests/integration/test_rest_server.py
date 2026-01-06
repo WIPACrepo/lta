@@ -27,6 +27,9 @@ from wipac_dev_tools import strtobool
 from lta.rest_server import main, start, unique_id
 
 
+logging.getLogger().setLevel(logging.INFO)
+
+
 LtaCollection = Database[Dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
 
