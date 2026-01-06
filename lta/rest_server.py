@@ -143,27 +143,27 @@ class BaseLTAHandler(RestHandler):
 
     def prepare(self):
         """Prepare before http-method request handlers."""
-        route = path_regex_to_human(getattr(self, "ROUTE"))
-        self.request_counter.labels(
-            method=self.request.method,
-            route=route
-        ).inc()
+        label_kwargs = {
+            "method": self.request.method,
+            "route": path_regex_to_human(getattr(self, "ROUTE")),
+        }
+        self.request_counter.labels(**label_kwargs).inc()
         if os.getenv("CI"):
-            logging.info(f"Prometheus metric incremented for '{route}'")
+            logging.info(f"Prometheus metric incremented for '{label_kwargs}'")
             logging.info(f"Prometheus labels: {self.request_counter.labels=}")
 
         super().prepare()
 
     def on_finish(self):
         """Cleanup after http-method request handlers."""
-        route = path_regex_to_human(getattr(self, "ROUTE"))
-        self.response_counter.labels(
-            method=self.request.method,
-            response=str(self.get_status()),
-            route=route,
-        ).inc()
+        label_kwargs = {
+            "method": self.request.method,
+            "response": str(self.get_status()),
+            "route": path_regex_to_human(getattr(self, "ROUTE")),
+        }
+        self.response_counter.labels(**label_kwargs).inc()
         if os.getenv("CI"):
-            logging.info(f"Prometheus metric incremented for '{route}'")
+            logging.info(f"Prometheus metric incremented: {label_kwargs}")
             logging.info(f"Prometheus labels: {self.response_counter.labels=}")
 
         super().on_finish()
