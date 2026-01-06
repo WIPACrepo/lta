@@ -1136,6 +1136,7 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
     with pytest.raises(HTTPError, match=r"missing source and dest fields") as exc:
         await r.request('POST', '/Bundles/actions/pop?status=taping', {"claimant": "x"})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
+    await asyncio.sleep(0.1)  # wait so on_finish() can be called post-response
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 2.0
     assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 1.0
 
