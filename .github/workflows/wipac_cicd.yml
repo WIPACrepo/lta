@@ -252,6 +252,7 @@ jobs:
           docker run --rm \
               --network='host' \
               --mount type=bind,source="$( realpath ./tests )",target="/app/tests",readonly \
+              --env CI \
               ${{ env.CI_DOCKER_IMAGE_W_TAG }} \
               /bin/bash -c "\
                 pip install $dev_reqs && \

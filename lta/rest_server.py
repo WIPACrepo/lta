@@ -143,19 +143,27 @@ class BaseLTAHandler(RestHandler):
 
     def prepare(self):
         """Prepare before http-method request handlers."""
+        route = path_regex_to_human(getattr(self, "ROUTE"))
         self.request_counter.labels(
             method=self.request.method,
-            route=path_regex_to_human(getattr(self, "ROUTE")),
+            route=route
         ).inc()
+        if os.getenv("CI"):
+            logging.info(f"Prometheus metric incremented for {route}")
+
         super().prepare()
 
     def on_finish(self):
         """Cleanup after http-method request handlers."""
+        route = path_regex_to_human(getattr(self, "ROUTE"))
         self.response_counter.labels(
             method=self.request.method,
             response=str(self.get_status()),
-            route=path_regex_to_human(getattr(self, "ROUTE")),
+            route=route,
         ).inc()
+        if os.getenv("CI"):
+            logging.info(f"Prometheus metric incremented for {route}")
+
         super().on_finish()
 
 
