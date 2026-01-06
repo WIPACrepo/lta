@@ -309,41 +309,41 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
     ret = await r.request('GET', f'/TransferRequests/{uuid}')
     for k in request:
         assert request[k] == ret[k]
-    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/TransferRequests/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/TransferRequests/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/TransferRequests/{request_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/TransferRequests/{request_id}"}) == 1.0
 
     # request: PATCH
     request2 = {'bar': 2}
     ret = await r.request('PATCH', f'/TransferRequests/{uuid}', request2)
     assert ret == {}
-    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/TransferRequests/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "200", "route": "/TransferRequests/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/TransferRequests/{request_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "200", "route": "/TransferRequests/{request_id}"}) == 1.0
 
     # request: PATCH
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('PATCH', '/TransferRequests/foo', request2)
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
-    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/TransferRequests/{uuid}"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "404", "route": "/TransferRequests/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/TransferRequests/{request_id}"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "404", "route": "/TransferRequests/{request_id}"}) == 1.0
 
     # request: DELETE
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/TransferRequests/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/TransferRequests/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/TransferRequests/{request_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/TransferRequests/{request_id}"}) == 1.0
 
     # request: GET
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('GET', f'/TransferRequests/{uuid}')
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
-    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/TransferRequests/{uuid}"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "404", "route": "/TransferRequests/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/TransferRequests/{request_id}"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "404", "route": "/TransferRequests/{request_id}"}) == 1.0
 
     # request: DELETE
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/TransferRequests/{uuid}"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/TransferRequests/{uuid}"}) == 2.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/TransferRequests/{request_id}"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/TransferRequests/{request_id}"}) == 2.0
 
     # request: GET
     ret = await r.request('GET', '/TransferRequests')
