@@ -149,7 +149,7 @@ class BaseLTAHandler(RestHandler):
             route=route
         ).inc()
         if os.getenv("CI"):
-            logging.info(f"Prometheus metric incremented for {route}")
+            logging.info(f"Prometheus metric incremented for '{route}'")
 
         super().prepare()
 
@@ -162,7 +162,7 @@ class BaseLTAHandler(RestHandler):
             route=route,
         ).inc()
         if os.getenv("CI"):
-            logging.info(f"Prometheus metric incremented for {route}")
+            logging.info(f"Prometheus metric incremented for '{route}'")
 
         super().on_finish()
 
