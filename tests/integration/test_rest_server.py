@@ -1145,7 +1145,7 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=inaccessible', {})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 3.0
-    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 3.0
 
 
 @pytest.mark.asyncio
