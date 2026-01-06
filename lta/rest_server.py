@@ -150,6 +150,7 @@ class BaseLTAHandler(RestHandler):
         ).inc()
         if os.getenv("CI"):
             logging.info(f"Prometheus metric incremented for '{route}'")
+            logging.info(f"Prometheus labels: {self.request_counter.labels=}")
 
         super().prepare()
 
@@ -163,6 +164,7 @@ class BaseLTAHandler(RestHandler):
         ).inc()
         if os.getenv("CI"):
             logging.info(f"Prometheus metric incremented for '{route}'")
+            logging.info(f"Prometheus labels: {self.response_counter.labels=}")
 
         super().on_finish()
 
