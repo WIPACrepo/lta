@@ -5,6 +5,8 @@ Run with `python -m lta.rest_server`.
 """
 
 import asyncio
+import functools
+import re
 from datetime import datetime
 import logging
 import os
@@ -106,6 +108,23 @@ def unique_id() -> str:
 DatabaseType = dict[str, Any]
 
 
+@functools.lru_cache()
+def path_regex_to_human(rstring: str) -> str:
+    """Transform a regex-based path string to a human-friendly path.
+
+    Ex: r"/TransferRequests/(?P<request_id>\w+)" -> "/TransferRequests/{request_id}"
+    """
+    out = re.sub(
+        # match named capture groups like "(?P<request_id>\w+)"
+        r"\(\?P<([A-Za-z_][A-Za-z0-9_]*)>(?:\\.|[^\\)])+\)",
+        # and replace with "{request_id}"
+        r"{\1}",
+        rstring
+    )
+    out.rstrip("$")
+    return out
+
+
 class BaseLTAHandler(RestHandler):
     """BaseLTAHandler is a RestHandler for all LTA routes."""
 
@@ -126,7 +145,7 @@ class BaseLTAHandler(RestHandler):
         """Prepare before http-method request handlers."""
         self.request_counter.labels(
             method=self.request.method,
-            route=getattr(self, "ROUTE"),  # TODO
+            route=path_regex_to_human(getattr(self, "ROUTE")),
         ).inc()
         super().prepare()
 
@@ -135,7 +154,7 @@ class BaseLTAHandler(RestHandler):
         self.response_counter.labels(
             method=self.request.method,
             response=str(self.get_status()),
-            route=getattr(self, "ROUTE"),  # TODO
+            route=path_regex_to_human(getattr(self, "ROUTE")),
         ).inc()
         super().on_finish()
 
