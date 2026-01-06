@@ -15,6 +15,7 @@ from typing import Any, cast, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
+import prometheus_client
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 from prometheus_client import Counter, start_http_server
@@ -150,7 +151,7 @@ class BaseLTAHandler(RestHandler):
         self.request_counter.labels(**label_kwargs).inc()
         if os.getenv("CI"):
             logging.info(f"Prometheus metric incremented for '{label_kwargs}'")
-            logging.info(f"Prometheus labels: {self.request_counter.labels=}")
+            logging.info(f"Prometheus labels: {prometheus_client.generate_latest()}")
 
         super().prepare()
 
@@ -164,7 +165,7 @@ class BaseLTAHandler(RestHandler):
         self.response_counter.labels(**label_kwargs).inc()
         if os.getenv("CI"):
             logging.info(f"Prometheus metric incremented: {label_kwargs}")
-            logging.info(f"Prometheus labels: {self.response_counter.labels=}")
+            logging.info(f"Prometheus labels: {prometheus_client.generate_latest()}")
 
         super().on_finish()
 
