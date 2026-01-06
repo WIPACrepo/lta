@@ -416,9 +416,7 @@ class MainHandler(BaseLTAHandler):
 
     def get(self) -> None:
         """Handle GET /."""
-        self.request_counter.labels(method='GET', route='/').inc()
         self.write({})
-        self.response_counter.labels(method='GET', response='200', route='/').inc()
 
 # -----------------------------------------------------------------------------
 
