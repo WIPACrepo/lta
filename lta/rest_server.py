@@ -122,6 +122,24 @@ class BaseLTAHandler(RestHandler):
         self.request_counter = request_counter
         self.response_counter = response_counter
 
+    def prepare(self):
+        """Prepare before http-method request handlers."""
+        self.request_counter.labels(
+            method=self.request.method,
+            route=self.request.path,
+        ).inc()
+        super().prepare()
+
+    def on_finish(self):
+        """Cleanup after http-method request handlers."""
+        self.request_counter.labels(
+            method=self.request.method,
+            response=str(self.get_status()),
+            route=self.request.path,
+        ).inc()
+        super().on_finish()
+
+
 # -----------------------------------------------------------------------------
 
 
