@@ -1124,12 +1124,12 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
     r = rest('system')  # type: ignore[call-arg]
 
     # request: POST
-    # Missing required query arg: status (raised before handler logic)
+    # Missing required query arg: status
     with pytest.raises(HTTPError, match=r"Bad Request for url") as exc:
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC', {"claimant": "x"})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 1.0
-    # NOTE: no response metric
+    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 1.0
 
     # request: POST
     # Missing both dest and source (but status is present, so we reach handler logic)
@@ -1137,8 +1137,7 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
         await r.request('POST', '/Bundles/actions/pop?status=taping', {"claimant": "x"})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 2.0
-    await asyncio.sleep(1.0)  # wait so on_finish() can be called post-response (where label is inc'd)
-    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 2.0
 
     # request: POST
     # Missing claimant (but other required pieces present)

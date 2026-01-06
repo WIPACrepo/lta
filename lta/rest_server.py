@@ -126,7 +126,8 @@ def path_regex_to_human(rstring: str) -> str:
 
 def dump_prometheus_labels() -> None:
     for ln in prometheus_client.generate_latest().decode().split("\n"):
-        logging.info(f"Prometheus label: {ln}")
+        if ln.strip():
+            logging.info(f"Prometheus label: {ln}")
 
 
 # -----------------------------------------------------------------------------
@@ -174,19 +175,6 @@ class BaseLTAHandler(RestHandler):
             dump_prometheus_labels()
 
         super().on_finish()
-
-    async def _execute(self, *args: Any, **kwargs: Any) -> None:
-        """Call implemented methods.
-
-        NOTE: This is the closest common call-stack ancestor of
-            - `prepare()`,
-            - "method handlers" (`get()`, `post()`, ...),
-            - `on_finish()`,
-            - etc.
-        """
-        logging.critical("START")
-        await super()._execute(*args, **kwargs)
-        logging.critical("END")
 
 
 # -----------------------------------------------------------------------------
