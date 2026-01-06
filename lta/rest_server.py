@@ -132,7 +132,7 @@ class BaseLTAHandler(RestHandler):
 
     def on_finish(self):
         """Cleanup after http-method request handlers."""
-        self.request_counter.labels(
+        self.response_counter.labels(
             method=self.request.method,
             response=str(self.get_status()),
             route=self.request.path,
