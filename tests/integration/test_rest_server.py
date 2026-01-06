@@ -27,9 +27,6 @@ from wipac_dev_tools import strtobool
 from lta.rest_server import main, start, unique_id
 
 
-logging.getLogger().setLevel(logging.INFO)
-
-
 LtaCollection = Database[Dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
 
@@ -42,7 +39,7 @@ ALL_DOCUMENTS: Dict[str, str] = {}
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
-    "LOG_LEVEL": "DEBUG",
+    "LOG_LEVEL": "INFO",
     'LTA_MONGODB_AUTH_USER': '',
     'LTA_MONGODB_AUTH_PASS': '',
     'LTA_MONGODB_DATABASE_NAME': 'lta',
@@ -54,6 +51,8 @@ CONFIG = {
 for k in CONFIG:
     if k in os.environ:
         CONFIG[k] = os.environ[k]
+
+logging.getLogger().setLevel(CONFIG['LOG_LEVEL'])
 
 
 @pytest.fixture
