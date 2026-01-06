@@ -112,12 +112,12 @@ DatabaseType = dict[str, Any]
 def path_regex_to_human(rstring: str) -> str:
     """Transform a regex-based path string to a human-friendly path.
 
-    Ex: r"/TransferRequests/(?P<request_id>\w+)" -> "/TransferRequests/{request_id}"
+    Ex: r"/TransferRequests/(?P<request_id>...+)" -> "/TransferRequests/{request_id}"
     """
     out = re.sub(
-        # match named capture groups like "(?P<request_id>\w+)"
+        # match named capture groups like "...(?P<request_id>\w+)..."
         r"\(\?P<([A-Za-z_][A-Za-z0-9_]*)>(?:\\.|[^\\)])+\)",
-        # and replace with "{request_id}"
+        # and replace with "...{request_id}..."
         r"{\1}",
         rstring
     )
