@@ -103,8 +103,6 @@ def unique_id() -> str:
     """Return a unique ID for an LTA database entity."""
     return uuid1().hex
 
-# -----------------------------------------------------------------------------
-
 
 DatabaseType = dict[str, Any]
 
@@ -124,6 +122,14 @@ def path_regex_to_human(rstring: str) -> str:
     )
     out.rstrip("$")
     return out
+
+
+def dump_prometheus_labels() -> None:
+    for ln in prometheus_client.generate_latest().decode().split("\n"):
+        logging.info(f"Prometheus label: {ln}")
+
+
+# -----------------------------------------------------------------------------
 
 
 class BaseLTAHandler(RestHandler):
@@ -151,7 +157,7 @@ class BaseLTAHandler(RestHandler):
         self.request_counter.labels(**label_kwargs).inc()
         if os.getenv("CI"):
             logging.info(f"Prometheus metric incremented for '{label_kwargs}'")
-            logging.info(f"Prometheus labels: {prometheus_client.generate_latest()}")
+            dump_prometheus_labels()
 
         super().prepare()
 
@@ -165,7 +171,7 @@ class BaseLTAHandler(RestHandler):
         self.response_counter.labels(**label_kwargs).inc()
         if os.getenv("CI"):
             logging.info(f"Prometheus metric incremented: {label_kwargs}")
-            logging.info(f"Prometheus labels: {prometheus_client.generate_latest()}")
+            dump_prometheus_labels()
 
         super().on_finish()
 
