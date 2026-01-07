@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
+from wipac_dev_tools.decorator_tools import success_or_exception
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
@@ -118,10 +119,8 @@ class NerscMover(Component):
         # process the Bundle that we were given
         try:
             await self._write_bundle_to_hpss(lta_rc, bundle)
-            success_counter.labels(component='nersc_mover', level='bundle', type='work').inc()
             return True
         except Exception as e:
-            failure_counter.labels(component='nersc_mover', level='bundle', type='exception').inc()
             bundle_id = bundle["uuid"]
             right_now = now()
             patch_body = {
@@ -134,6 +133,10 @@ class NerscMover(Component):
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return False
 
+    @success_or_exception(
+        on_success=lambda _: success_counter.labels(component='nersc_mover', level='bundle', type='work').inc(),
+        on_exception=lambda _: failure_counter.labels(component='nersc_mover', level='bundle', type='exception').inc(),
+    )
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Replicate the supplied bundle using the configured transfer service."""
         bundle_id = bundle["uuid"]
