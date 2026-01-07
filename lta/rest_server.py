@@ -124,7 +124,13 @@ def path_regex_to_human(rstring: str) -> str:
     return out
 
 
-def dump_prometheus_labels() -> None:
+def in_ci_dump_prometheus_labels(recent_label_kwargs: dict[str, Any]) -> None:
+    """Some logging for CI testing."""
+    if not os.getenv("CI"):
+        return
+
+    logging.info(f"Prometheus metric incremented for '{recent_label_kwargs}'")
+
     for ln in prometheus_client.generate_latest().decode().split("\n"):
         if ln.strip():
             logging.info(f"Prometheus label: {ln}")
@@ -156,9 +162,7 @@ class BaseLTAHandler(RestHandler):
             "route": path_regex_to_human(getattr(self, "ROUTE")),
         }
         self.request_counter.labels(**label_kwargs).inc()
-        if os.getenv("CI"):
-            logging.info(f"Prometheus metric incremented for '{label_kwargs}'")
-            dump_prometheus_labels()
+        in_ci_dump_prometheus_labels(label_kwargs)
 
         super().prepare()
 
@@ -170,9 +174,7 @@ class BaseLTAHandler(RestHandler):
             "route": path_regex_to_human(getattr(self, "ROUTE")),
         }
         self.response_counter.labels(**label_kwargs).inc()
-        if os.getenv("CI"):
-            logging.info(f"Prometheus metric incremented: {label_kwargs}")
-            dump_prometheus_labels()
+        in_ci_dump_prometheus_labels(label_kwargs)
 
         super().on_finish()
 
