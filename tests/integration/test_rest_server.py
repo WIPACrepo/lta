@@ -1311,8 +1311,8 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
     # request: DELETE
     ret = await r.request('DELETE', f'/Metadata?bundle_uuid={bundle_uuid0}')
     assert not ret
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Metadata?bundle_uuid={uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/Metadata?bundle_uuid={uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Metadata"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/Metadata"}) == 1.0
 
     #
     # Read - GET /Metadata
@@ -1519,8 +1519,8 @@ async def test_650_metadata_delete_errors(rest: RestClientFactory) -> None:
         await r.request('DELETE', '/Metadata')
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
 
-    # NOTE: response_counter is not incremented on this error path in server code
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Metadata?bundle_uuid={uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Metadata"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "400", "route": "/Metadata"}) == 1.0
 
 
 @pytest.mark.asyncio
