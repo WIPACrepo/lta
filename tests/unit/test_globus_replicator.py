@@ -25,13 +25,13 @@ from unittest.mock import AsyncMock, patch
 # Parametrized implementation helper (Globus)
 # --------------------------------------------------------------------------------------
 
-REPLICATOR_DEST_DIRPATH = Path("/path/to/destination/")
+GLOBUS_REPLICATOR_DEST_DIRPATH = Path("/path/to/destination/")
 
 EXPECTED_CONFIG_KEYS = [
     "USE_FULL_BUNDLE_PATH",
     "WORK_RETRIES",
     "WORK_TIMEOUT_SECONDS",
-    "REPLICATOR_DEST_DIRPATH",
+    "GLOBUS_REPLICATOR_DEST_DIRPATH",
 ]
 
 
@@ -101,7 +101,7 @@ def base_config() -> dict[str, str]:
         "WORK_SLEEP_DURATION_SECONDS": "0.01",  # keep tests snappy
         "WORK_TIMEOUT_SECONDS": "30",
         "USE_FULL_BUNDLE_PATH": "FALSE",
-        "REPLICATOR_DEST_DIRPATH": str(REPLICATOR_DEST_DIRPATH),
+        "GLOBUS_REPLICATOR_DEST_DIRPATH": str(GLOBUS_REPLICATOR_DEST_DIRPATH),
         "GLOBUS_SOURCE_COLLECTION_BIND_ROOT": "/one/two/three",
     }
 
@@ -230,7 +230,10 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     )
     # -- USE_FULL_BUNDLE_PATH is FALSE in base_config → just basename.
     assert str(kwargs["source_path"]) == bundle_src
-    assert kwargs["dest_path"] == REPLICATOR_DEST_DIRPATH / bundle_src.rsplit("/", 1)[0]
+    assert (
+        kwargs["dest_path"]
+        == GLOBUS_REPLICATOR_DEST_DIRPATH / bundle_src.rsplit("/", 1)[0]
+    )
 
     # GlobusTransfer.wait_for_transfer_to_finish
     lta.globus_replicator.GlobusTransfer.return_value.wait_for_transfer_to_finish.assert_called_once()  # type: ignore
@@ -379,7 +382,8 @@ async def test_080_replication_use_full_bundle_path_true(
 
     assert (
         kwargs["dest_path"]
-        == REPLICATOR_DEST_DIRPATH / "data/exp/IC/2015/filtered/level2/0320/bar.zip"
+        == GLOBUS_REPLICATOR_DEST_DIRPATH
+        / "data/exp/IC/2015/filtered/level2/0320/bar.zip"
     )
 
 
@@ -410,4 +414,4 @@ async def test_090_replication_use_full_bundle_path_false(
         lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs  # type: ignore
     )
 
-    assert kwargs["dest_path"] == REPLICATOR_DEST_DIRPATH / "baz.zip"
+    assert kwargs["dest_path"] == GLOBUS_REPLICATOR_DEST_DIRPATH / "baz.zip"
