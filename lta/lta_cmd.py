@@ -378,6 +378,8 @@ async def bundle_update_status(args: Namespace) -> ExitCode:
     patch_body["status"] = args.new_status
     patch_body["reason"] = ""
     patch_body["update_timestamp"] = right_now
+    if args.clear_transfer_reference:
+        patch_body["transfer_reference"] = ""
     if not args.keep_claim:
         patch_body["claimed"] = False
     if not args.keep_priority:
@@ -976,6 +978,10 @@ async def main() -> None:
                                              dest="new_status",
                                              help="new status of the bundle",
                                              required=True)
+    parser_bundle_update_status.add_argument("--clear-transfer-reference",
+                                             dest="clear_transfer_reference",
+                                             help="clear the transfer_reference field",
+                                             action="store_true")
     parser_bundle_update_status.add_argument("--keep-claim",
                                              dest="keep_claim",
                                              help="don't unclaim the bundle",
