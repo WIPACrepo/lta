@@ -232,7 +232,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     assert str(kwargs["source_path"]) == bundle_src
     assert (
         kwargs["dest_path"]
-        == GLOBUS_REPLICATOR_DEST_DIRPATH / bundle_src.rsplit("/", 1)[0]
+        == GLOBUS_REPLICATOR_DEST_DIRPATH / bundle_src.rsplit("/", 1)[-1]
     )
 
     # GlobusTransfer.wait_for_transfer_to_finish
