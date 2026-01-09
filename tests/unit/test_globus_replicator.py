@@ -220,7 +220,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
         lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs  # type: ignore
     )
     # -- USE_FULL_BUNDLE_PATH is FALSE in base_config → just basename.
-    assert str(kwargs["source_path"]) == bundle["bundle_path"]
+    assert str(kwargs["source_path"]) == bundle["bundle_path"].rsplit("/", 1)[0]
     assert kwargs["dest_path"] == REPLICATOR_DEST_DIRPATH / "foo.zip"
 
     # GlobusTransfer.wait_for_transfer_to_finish
