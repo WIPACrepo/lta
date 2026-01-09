@@ -102,7 +102,7 @@ def base_config() -> dict[str, str]:
         "WORK_TIMEOUT_SECONDS": "30",
         "USE_FULL_BUNDLE_PATH": "FALSE",
         "GLOBUS_REPLICATOR_DEST_DIRPATH": str(GLOBUS_REPLICATOR_DEST_DIRPATH),
-        "GLOBUS_SOURCE_COLLECTION_BIND_ROOT": "/one/two/three",
+        "GLOBUS_REPLICATOR_SOURCE_BIND_ROOTPATH": "/one/two/three",
     }
 
     return cfg
