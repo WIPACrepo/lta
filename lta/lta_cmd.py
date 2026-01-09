@@ -379,7 +379,7 @@ async def bundle_update_status(args: Namespace) -> ExitCode:
     patch_body["reason"] = ""
     patch_body["update_timestamp"] = right_now
     if args.clear_transfer_reference:
-        patch_body["transfer_reference"] = "re-globus-for-testing"
+        patch_body["transfer_reference"] = "re-globus"
     if not args.keep_claim:
         patch_body["claimed"] = False
     if not args.keep_priority:
