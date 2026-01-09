@@ -29,7 +29,8 @@ EXPECTED_CONFIG.update({
     "USE_FULL_BUNDLE_PATH": "FALSE",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
-    "REPLICATOR_DEST_DIRPATH": None,  # required
+    "GLOBUS_REPLICATOR_DEST_DIRPATH": None,  # required
+    "GLOBUS_REPLICATOR_SOURCE_BIND_ROOTPATH": "",
 })
 
 
@@ -79,7 +80,8 @@ class GlobusReplicator(Component):
         self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        self.replicator_dest_dirpath = Path(config["REPLICATOR_DEST_DIRPATH"])
+        self.globus_replicator_dest_dirpath = Path(config["GLOBUS_REPLICATOR_DEST_DIRPATH"])
+        self.globus_replicator_source_bind_rootpath = Path(config["GLOBUS_REPLICATOR_SOURCE_BIND_ROOTPATH"])
 
         self.globus_transfer = GlobusTransfer()
 
@@ -169,17 +171,17 @@ class GlobusReplicator(Component):
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""
-        source_path = Path(bundle["bundle_path"])
+        source_path = Path(bundle["bundle_path"]).relative_to(self.globus_replicator_source_bind_rootpath)
 
         # destination logic
         # -- start with basename of /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
         bundle_name = Path(bundle["bundle_path"]).name
         if self.use_full_bundle_path:
             # /data/exp/IceCube/2015/filtered/level2/0320 + BUNDLE_NAME
-            dest_path = self.replicator_dest_dirpath / bundle["path"].lstrip('/') / bundle_name
+            dest_path = self.globus_replicator_dest_dirpath / bundle["path"].lstrip('/') / bundle_name
         else:
             # BUNDLE_NAME
-            dest_path = self.replicator_dest_dirpath / bundle_name
+            dest_path = self.globus_replicator_dest_dirpath / bundle_name
 
         return source_path, dest_path
 
