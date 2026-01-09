@@ -194,12 +194,20 @@ async def test_030_do_work_claim_no_bundle_returns_false(
     assert any(url.startswith("/Bundles/actions/pop") for _, url, _ in rc.calls)
 
 
+@pytest.mark.parametrize(
+    "bundle_src",
+    [
+        "foo.zip",
+        "subdir/foo.zip",
+    ],
+)
 @pytest.mark.asyncio
 async def test_040_do_work_claim_success_calls_transfer_and_patch(
     base_config: dict[str, str],
     mock_join: Callable[[list[str]], str],
     mock_now: str,
     monkeypatch: pytest.MonkeyPatch,
+    bundle_src: str,
 ) -> None:
     """On success, replicator should invoke transfer and PATCH the bundle."""
     rep = lta.globus_replicator.GlobusReplicator(base_config, logging.getLogger())
@@ -207,7 +215,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     bundle: dict[str, Any] = {
         "uuid": "B-123",
         "status": "completed",
-        "bundle_path": "/one/two/three/foo.zip",
+        "bundle_path": f"/one/two/three/{bundle_src}",
         "path": "/data/exp/IceCube/2015/bar",
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
@@ -221,8 +229,8 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
         lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs  # type: ignore
     )
     # -- USE_FULL_BUNDLE_PATH is FALSE in base_config → just basename.
-    assert str(kwargs["source_path"]) == "foo.zip"
-    assert kwargs["dest_path"] == REPLICATOR_DEST_DIRPATH / "foo.zip"
+    assert str(kwargs["source_path"]) == bundle_src
+    assert kwargs["dest_path"] == REPLICATOR_DEST_DIRPATH / bundle_src.rsplit("/", 1)[0]
 
     # GlobusTransfer.wait_for_transfer_to_finish
     lta.globus_replicator.GlobusTransfer.return_value.wait_for_transfer_to_finish.assert_called_once()  # type: ignore
