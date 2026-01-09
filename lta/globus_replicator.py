@@ -30,6 +30,7 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
     "REPLICATOR_DEST_DIRPATH": None,  # required
+    "GLOBUS_SOURCE_COLLECTION_BIND_ROOT": "",
 })
 
 
@@ -80,6 +81,7 @@ class GlobusReplicator(Component):
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.replicator_dest_dirpath = Path(config["REPLICATOR_DEST_DIRPATH"])
+        self.globus_source_collection_bind_root = Path(config["GLOBUS_SOURCE_COLLECTION_BIND_ROOT"])
 
         self.globus_transfer = GlobusTransfer()
 
@@ -169,7 +171,7 @@ class GlobusReplicator(Component):
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""
-        source_path = Path(Path(bundle["bundle_path"]).name)  # basename
+        source_path = Path(bundle["bundle_path"]).relative_to(self.globus_source_collection_bind_root)
 
         # destination logic
         # -- start with basename of /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip

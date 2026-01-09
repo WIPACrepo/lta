@@ -102,6 +102,7 @@ def base_config() -> dict[str, str]:
         "WORK_TIMEOUT_SECONDS": "30",
         "USE_FULL_BUNDLE_PATH": "FALSE",
         "REPLICATOR_DEST_DIRPATH": str(REPLICATOR_DEST_DIRPATH),
+        "GLOBUS_SOURCE_COLLECTION_BIND_ROOT": "/one/two/three",
     }
 
     return cfg
@@ -206,7 +207,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     bundle: dict[str, Any] = {
         "uuid": "B-123",
         "status": "completed",
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/foo.zip",
+        "bundle_path": "/one/two/three/foo.zip",
         "path": "/data/exp/IceCube/2015/bar",
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
@@ -269,7 +270,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     bundle: dict[str, Any] = {
         "uuid": "B-ERR",
         "status": "completed",
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/bad.zip",
+        "bundle_path": "/one/two/three/bad.zip",
         "path": "/data/exp/IceCube/2015/baz",
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
@@ -355,7 +356,7 @@ async def test_080_replication_use_full_bundle_path_true(
     bundle: dict[str, Any] = {
         "uuid": "B-456",
         "status": "completed",
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/bar.zip",
+        "bundle_path": "/one/two/three/bar.zip",
         "path": "/data/exp/IC/2015/filtered/level2/0320",
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
@@ -388,7 +389,7 @@ async def test_090_replication_use_full_bundle_path_false(
     bundle: dict[str, Any] = {
         "uuid": "B-789",
         "status": "completed",
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/baz.zip",
+        "bundle_path": "/one/two/three/baz.zip",
         "path": "/data/exp/IC/irrelevant/when/false",
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
