@@ -169,7 +169,7 @@ class GlobusReplicator(Component):
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""
-        source_path = Path(bundle["bundle_path"])
+        source_path = Path(Path(bundle["bundle_path"]).name)  # basename
 
         # destination logic
         # -- start with basename of /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
