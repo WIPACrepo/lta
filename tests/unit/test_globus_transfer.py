@@ -1,6 +1,5 @@
 """Tests for lta.transfer.globus.GlobusTransfer"""
 
-
 # fmt:off
 import dataclasses
 import datetime
@@ -99,7 +98,7 @@ def test_100_globus_transfer_init_wires_sdk_correctly(
     )
 
     # assert: authorizer + client creation
-        mock_transfer_client.assert_called_once_with(
+    mock_transfer_client.assert_called_once_with(
         authorizer=mock_cc_authorizer.return_value,
     )
     assert gt._transfer_client is mock_transfer_client.return_value
