@@ -49,27 +49,28 @@ class GlobusTransfer:
     # ---------------------------
 
     def _create_client(self) -> globus_sdk.TransferClient:
-        """Create an authenticated TransferClient."""
+        """Create an authenticated TransferClient.
+
+        See https://github.com/globus/globus-sdk-python/blob/main/docs/examples/client_credentials.rst#using-clientcredentialsauthorizer
+        """
 
         # request token
-        auth = globus_sdk.ConfidentialAppAuthClient(
+        confidential_client = globus_sdk.ConfidentialAppAuthClient(
             self._env.GLOBUS_CLIENT_ID,
             self._env.GLOBUS_CLIENT_SECRET,
         )
-        token_resp = auth.oauth2_client_credentials_tokens(
-            requested_scopes=self._env.GLOBUS_TRANSFER_SCOPE,
+        # 'ClientCredentialsAuthorizer' automatically handles token expiration
+        cc_authorizer = globus_sdk.ClientCredentialsAuthorizer(
+            confidential_client, self._env.GLOBUS_TRANSFER_SCOPE
         )
 
-        # assemble transfer client
-        tc = globus_sdk.TransferClient(
-            authorizer=globus_sdk.AccessTokenAuthorizer(
-                token_resp.by_resource_server["transfer.api.globus.org"]["access_token"]
-            )
-        )
+        # create a new client
+        tc = globus_sdk.TransferClient(authorizer=cc_authorizer)
         LOGGER.info(
             f"Initialized Globus TransferClient with source collection "
             f"{self._env.GLOBUS_SOURCE_COLLECTION_ID}",
         )
+
         return tc
 
     def make_transfer_document(
