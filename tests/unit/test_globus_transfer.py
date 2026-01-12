@@ -66,17 +66,17 @@ def test_000_globus_transfer_env_defaults() -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
+@patch("lta.transfer.globus.globus_sdk.ClientCredentialsAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
 @patch("lta.transfer.globus.from_environment_as_dataclass")
 def test_100_globus_transfer_init_wires_sdk_correctly(
     mock_from_env,
     mock_confidential,
+    mock_cc_authorizer,
     mock_transfer_client,
-    mock_authorizer,
 ) -> None:
-    """__init__ loads env and builds a TransferClient with an access token."""
+    """__init__ loads env and builds a TransferClient with a client-credentials authorizer."""
     # arrange: environment + SDK patches
     mock_from_env.return_value = GlobusTransferEnv(
         GLOBUS_CLIENT_ID="cid",
@@ -87,28 +87,20 @@ def test_100_globus_transfer_init_wires_sdk_correctly(
         GLOBUS_POLL_INTERVAL_SECONDS=5,
     )
 
-    token_resp = MagicMock()
-    token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
-    }
-    mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
-        token_resp
-    )
-
     # act
     gt = GlobusTransfer()
 
     # assert: env + auth wiring
     mock_from_env.assert_called_once_with(GlobusTransferEnv)
     mock_confidential.assert_called_once_with("cid", "secret")
-    mock_confidential.return_value.oauth2_client_credentials_tokens.assert_called_once_with(
-        requested_scopes="scope:transfer",
+    mock_cc_authorizer.assert_called_once_with(
+        mock_confidential.return_value,
+        "scope:transfer",
     )
 
     # assert: authorizer + client creation
-    mock_authorizer.assert_called_once_with("ACCESS-TOKEN")
-    mock_transfer_client.assert_called_once_with(
-        authorizer=mock_authorizer.return_value,
+        mock_transfer_client.assert_called_once_with(
+        authorizer=mock_cc_authorizer.return_value,
     )
     assert gt._transfer_client is mock_transfer_client.return_value
 
@@ -118,15 +110,15 @@ def test_100_globus_transfer_init_wires_sdk_correctly(
 # ---------------------------------------------------------------------------
 
 
-@patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
+@patch("lta.transfer.globus.globus_sdk.ClientCredentialsAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
 @patch("lta.transfer.globus.from_environment_as_dataclass")
 def test_200_make_transfer_document_builds_expected_transferdata(
     mock_from_env,
     mock_confidential,
+    mock_cc_authorizer,
     mock_transfer_client,
-    mock_authorizer,
 ) -> None:
     """make_transfer_document builds TransferData with correct label and deadline."""
     # arrange: environment + SDK patches
@@ -138,14 +130,6 @@ def test_200_make_transfer_document_builds_expected_transferdata(
         GLOBUS_DEST_COLLECTION_ID="dst-id",
         GLOBUS_HARD_DEADLINE_SECONDS=deadline,
         GLOBUS_POLL_INTERVAL_SECONDS=5,
-    )
-
-    token_resp = MagicMock()
-    token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
-    }
-    mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
-        token_resp
     )
 
     # arrange: inputs
@@ -189,16 +173,16 @@ def test_200_make_transfer_document_builds_expected_transferdata(
 
 
 @patch("lta.transfer.globus.asyncio.sleep", new_callable=AsyncMock)
-@patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
+@patch("lta.transfer.globus.globus_sdk.ClientCredentialsAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
 @patch("lta.transfer.globus.from_environment_as_dataclass")
 @pytest.mark.asyncio
 async def test_300_submit_transfer_uses_client_and_returns_task_id(
     mock_from_env,
     mock_confidential,
+    mock_cc_authorizer,
     mock_transfer_client,
-    mock_authorizer,
     mock_sleep,
 ) -> None:
     """_submit_transfer calls submit_transfer and returns the task_id."""
@@ -208,14 +192,6 @@ async def test_300_submit_transfer_uses_client_and_returns_task_id(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-    )
-
-    token_resp = MagicMock()
-    token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
-    }
-    mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
-        token_resp
     )
 
     client = MagicMock()
@@ -243,16 +219,16 @@ async def test_300_submit_transfer_uses_client_and_returns_task_id(
 # ---------------------------------------------------------------------------
 
 
-@patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
+@patch("lta.transfer.globus.globus_sdk.ClientCredentialsAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
 @patch("lta.transfer.globus.from_environment_as_dataclass")
 @pytest.mark.asyncio
 async def test_400_transfer_file_rejects_relative_source_path(
     mock_from_env,
     mock_confidential,
+    mock_cc_authorizer,
     mock_transfer_client,
-    mock_authorizer,
 ) -> None:
     """transfer_file enforces absolute source_path."""
     # arrange: environment + SDK patches
@@ -261,14 +237,6 @@ async def test_400_transfer_file_rejects_relative_source_path(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-    )
-
-    token_resp = MagicMock()
-    token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
-    }
-    mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
-        token_resp
     )
     mock_transfer_client.return_value = MagicMock()
 
@@ -281,16 +249,16 @@ async def test_400_transfer_file_rejects_relative_source_path(
     assert "must be absolute" in str(excinfo.value)
 
 
-@patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
+@patch("lta.transfer.globus.globus_sdk.ClientCredentialsAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
 @patch("lta.transfer.globus.from_environment_as_dataclass")
 @pytest.mark.asyncio
 async def test_410_transfer_file_success_on_first_poll(
     mock_from_env,
     mock_confidential,
+    mock_cc_authorizer,
     mock_transfer_client,
-    mock_authorizer,
 ) -> None:
     """If first status is SUCCEEDED, transfer_file returns immediately."""
     # arrange: environment + SDK patches
@@ -300,14 +268,6 @@ async def test_410_transfer_file_success_on_first_poll(
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
         GLOBUS_POLL_INTERVAL_SECONDS=1,
-    )
-
-    token_resp = MagicMock()
-    token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
-    }
-    mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
-        token_resp
     )
 
     client = MagicMock()
@@ -334,16 +294,16 @@ async def test_410_transfer_file_success_on_first_poll(
 
 
 @patch("lta.transfer.globus.asyncio.sleep", new_callable=AsyncMock)
-@patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
+@patch("lta.transfer.globus.globus_sdk.ClientCredentialsAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
 @patch("lta.transfer.globus.from_environment_as_dataclass")
 @pytest.mark.asyncio
 async def test_420_transfer_file_active_then_succeeds(
     mock_from_env,
     mock_confidential,
+    mock_cc_authorizer,
     mock_transfer_client,
-    mock_authorizer,
     mock_sleep,
 ) -> None:
     """ACTIVE status causes a poll + sleep, then SUCCEEDED returns task_id."""
@@ -355,14 +315,6 @@ async def test_420_transfer_file_active_then_succeeds(
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
         GLOBUS_POLL_INTERVAL_SECONDS=poll_interval,
-    )
-
-    token_resp = MagicMock()
-    token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
-    }
-    mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
-        token_resp
     )
 
     client = MagicMock()
@@ -397,16 +349,16 @@ async def test_420_transfer_file_active_then_succeeds(
     assert task_id == "TASK-123"
 
 
-@patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
+@patch("lta.transfer.globus.globus_sdk.ClientCredentialsAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
 @patch("lta.transfer.globus.from_environment_as_dataclass")
 @pytest.mark.asyncio
 async def test_440_transfer_file_failed_raises(
     mock_from_env,
     mock_confidential,
+    mock_cc_authorizer,
     mock_transfer_client,
-    mock_authorizer,
 ) -> None:
     """FAILED status raises GlobusTransferFailedException."""
     # arrange: environment + SDK patches
@@ -415,14 +367,6 @@ async def test_440_transfer_file_failed_raises(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-    )
-
-    token_resp = MagicMock()
-    token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
-    }
-    mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
-        token_resp
     )
 
     client = MagicMock()
@@ -451,16 +395,16 @@ async def test_440_transfer_file_failed_raises(
     client.get_task.assert_called_once_with("TASK-123")
 
 
-@patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
+@patch("lta.transfer.globus.globus_sdk.ClientCredentialsAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
 @patch("lta.transfer.globus.from_environment_as_dataclass")
 @pytest.mark.asyncio
 async def test_450_transfer_file_inactive_raises(
     mock_from_env,
     mock_confidential,
+    mock_cc_authorizer,
     mock_transfer_client,
-    mock_authorizer,
 ) -> None:
     """INACTIVE status raises GlobusTransferFailedException."""
     # arrange: environment + SDK patches
@@ -469,14 +413,6 @@ async def test_450_transfer_file_inactive_raises(
         GLOBUS_CLIENT_SECRET="secret",
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
-    )
-
-    token_resp = MagicMock()
-    token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
-    }
-    mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
-        token_resp
     )
 
     client = MagicMock()
@@ -506,16 +442,16 @@ async def test_450_transfer_file_inactive_raises(
 
 
 @patch("lta.transfer.globus.asyncio.sleep", new_callable=AsyncMock)
-@patch("lta.transfer.globus.globus_sdk.AccessTokenAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.TransferClient")
+@patch("lta.transfer.globus.globus_sdk.ClientCredentialsAuthorizer")
 @patch("lta.transfer.globus.globus_sdk.ConfidentialAppAuthClient")
 @patch("lta.transfer.globus.from_environment_as_dataclass")
 @pytest.mark.asyncio
 async def test_460_transfer_file_unknown_status_then_succeeds(
     mock_from_env,
     mock_confidential,
+    mock_cc_authorizer,
     mock_transfer_client,
-    mock_authorizer,
     mock_sleep,
 ) -> None:
     """Unknown status is ignored and polling continues until success."""
@@ -527,14 +463,6 @@ async def test_460_transfer_file_unknown_status_then_succeeds(
         GLOBUS_SOURCE_COLLECTION_ID="src-id",
         GLOBUS_DEST_COLLECTION_ID="dst-id",
         GLOBUS_POLL_INTERVAL_SECONDS=poll_interval,
-    )
-
-    token_resp = MagicMock()
-    token_resp.by_resource_server = {
-        "transfer.api.globus.org": {"access_token": "ACCESS-TOKEN"},
-    }
-    mock_confidential.return_value.oauth2_client_credentials_tokens.return_value = (
-        token_resp
     )
 
     client = MagicMock()
