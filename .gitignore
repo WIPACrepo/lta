@@ -124,3 +124,9 @@ stderr.txt
 version.py
 
 *globus-lta-env*
+
+nersc_controller.log*
+rdc-2023-logs.tar.xz
+scrontab-log.out*
+slurm-clean.out*
+slurm-logs/
