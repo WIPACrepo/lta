@@ -243,7 +243,7 @@ async def test_deleter_do_work_claim_yes_result(config: TestConfig, mocker: Mock
 
 @pytest.mark.asyncio
 async def test_deleter_delete_bundle_raises(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _do_work_claim both calls _quarantine_bundle and re-raises when _delete_bundle raises."""
+    """Test that _do_work_claim both calls quarantine_bundle and re-raises when _delete_bundle raises."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
@@ -253,7 +253,7 @@ async def test_deleter_delete_bundle_raises(config: TestConfig, mocker: MockerFi
         },
     }
     db_mock = mocker.patch("lta.deleter.Deleter._delete_bundle", new_callable=AsyncMock)
-    qb_mock = mocker.patch("lta.deleter.Deleter._quarantine_bundle", new_callable=AsyncMock)
+    qb_mock = mocker.patch("lta.deleter.quarantine_bundle", new_callable=AsyncMock)
     db_mock.side_effect = Exception("LTA DB unavailable; currently safer at home")
     p = Deleter(config, logger_mock)
     with pytest.raises(Exception):
@@ -275,18 +275,4 @@ async def test_deleter_delete_bundle(config: TestConfig, mocker: MockerFixture) 
         "bundle_path": "/icecube/datawarehouse/path/to/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003.zip",
     })
     remove_mock.assert_called()
-    lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
-
-
-@pytest.mark.asyncio
-async def test_deleter_quarantine_bundle_with_reason(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _do_work_claim attempts to quarantine a Bundle that fails to get deleted."""
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    p = Deleter(config, logger_mock)
-    await p._quarantine_bundle(
-        lta_rc_mock,
-        {"status": "completed", "uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"},
-        "Rucio caught fire, then we roasted marshmellows."
-    )
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)

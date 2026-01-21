@@ -319,7 +319,7 @@ async def test_unpacker_do_work_raise_exception(config: TestConfig, mocker: Mock
     }
     dwb_mock = mocker.patch("lta.unpacker.Unpacker._do_work_bundle", new_callable=AsyncMock)
     dwb_mock.side_effect = Exception("LTA DB started on fire again")
-    qb_mock = mocker.patch("lta.unpacker.Unpacker._quarantine_bundle", new_callable=AsyncMock)
+    qb_mock = mocker.patch("lta.unpacker.quarantine_bundle", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
     with pytest.raises(Exception):
         await p._do_work_claim(lta_rc_mock)
@@ -340,35 +340,6 @@ async def test_unpacker_do_work_bundle_once_and_die(config: TestConfig, mocker: 
     p = Unpacker(once, logger_mock)
     await p._do_work(AsyncMock())
     sys_exit_mock.assert_called()
-
-
-@pytest.mark.asyncio
-async def test_unpacker_quarantine_bundle_with_reason(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
-    """Test that _do_work_claim attempts to quarantine a Bundle that fails to get unpacked."""
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    p = Unpacker(config, logger_mock)
-    await p._quarantine_bundle(
-        lta_rc_mock,
-        {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", "status": "unpacking"},
-        "Rucio caught fire, then we roasted marshmellows."
-    )
-    lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
-
-
-@pytest.mark.asyncio
-async def test_unpacker_quarantine_bundle_with_reason_raises(config: TestConfig, mocker: MockerFixture, path_map_mock: MagicMock) -> None:
-    """Test that _do_work_claim attempts to quarantine a Bundle that fails to get unpacked."""
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    lta_rc_mock.request.side_effect = Exception("Marshmellows were poisoned")
-    p = Unpacker(config, logger_mock)
-    await p._quarantine_bundle(
-        lta_rc_mock,
-        {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", "status": "unpacking"},
-        "Rucio caught fire, then we roasted marshmellows."
-    )
-    lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
 
 
 @pytest.mark.asyncio
