@@ -14,6 +14,7 @@ from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
+from lta.utils import patch_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
@@ -174,34 +175,43 @@ class SiteMoveVerifier(Component):
         else:
             bundle_name = os.path.basename(bundle["bundle_path"])
         bundle_path = join_smart([self.dest_root_path, bundle_name])
+
         # we'll compute the bundle's checksum
         self.logger.info(f"Computing SHA512 checksum for bundle: '{bundle_path}'")
         checksum_sha512 = sha512sum(bundle_path)
         self.logger.info(f"Bundle '{bundle_path}' has SHA512 checksum '{checksum_sha512}'")
+
         # now we'll compare the bundle's checksum
         if bundle["checksum"]["sha512"] != checksum_sha512:
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
-            right_now = now()
-            patch_body: Dict[str, Any] = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Checksum mismatch between creation and destination: {checksum_sha512}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+            await patch_bundle(
+                lta_rc,
+                bundle_id,
+                {
+                    "status": "quarantined",
+                    "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Checksum mismatch between creation and destination: {checksum_sha512}",
+                    "work_priority_timestamp": now(),
+                },
+                self.logger,
+            )
             return False
+
         # update the Bundle in the LTA DB
         self.logger.info("Destination checksum matches bundle creation checksum; the bundle is now verified.")
-        patch_body = {
-            "status": self.output_status,
-            "reason": "",
-            "update_timestamp": now(),
-            "claimed": False,
-        }
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+        await patch_bundle(
+            lta_rc,
+            bundle_id,
+            {
+                "status": self.output_status,
+                "reason": "",
+                "update_timestamp": now(),
+                "claimed": False,
+            },
+            self.logger,
+        )
+
         return True
 
     def _execute_myquota(self) -> Optional[str]:
