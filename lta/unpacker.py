@@ -269,23 +269,7 @@ class Unpacker(Component):
                 return dest_path.replace(prefix, remap)
         return dest_path
 
-    async def _quarantine_bundle(self,
-                                 lta_rc: RestClient,
-                                 bundle: BundleType,
-                                 reason: str) -> None:
-        """Quarantine the supplied bundle using the supplied reason."""
-        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
-        right_now = now()
-        patch_body = {
-            "original_status": bundle["status"],
-            "status": "quarantined",
-            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
-            "work_priority_timestamp": right_now,
-        }
-        try:
-            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
-        except Exception as e:
-            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
+    FOOOOOOO
 
     def _read_manifest_metadata(self, bundle_uuid: str) -> Dict[str, Any]:
         """Read the bundle metadata from the manifest file."""

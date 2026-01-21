@@ -148,23 +148,7 @@ class SiteMoveVerifier(Component):
         # if we were successful at processing work, let the caller know
         return True
 
-    async def _quarantine_bundle(self,
-                                 lta_rc: RestClient,
-                                 bundle: BundleType,
-                                 reason: str) -> None:
-        """Quarantine the supplied bundle using the supplied reason."""
-        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
-        right_now = now()
-        patch_body = {
-            "original_status": bundle["status"],
-            "status": "quarantined",
-            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
-            "work_priority_timestamp": right_now,
-        }
-        try:
-            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
-        except Exception as e:
-            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
+    FOOOOOOO
 
     async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the provided Bundle with the transfer service and update the LTA DB."""
