@@ -24,7 +24,7 @@ from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
 from lta.nersc_mover import main_sync, NerscMover
-from .test_util import ObjectLiteral
+from .utils import ObjectLiteral
 
 TestConfig = Dict[str, str]
 

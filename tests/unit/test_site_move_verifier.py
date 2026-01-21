@@ -25,7 +25,7 @@ from tornado.web import HTTPError
 
 from lta.site_move_verifier import as_nonempty_columns, discard_empty, MYQUOTA_ARGS, parse_myquota
 from lta.site_move_verifier import main_sync, SiteMoveVerifier
-from .test_util import ObjectLiteral
+from .utils import ObjectLiteral
 
 TestConfig = Dict[str, str]
 
