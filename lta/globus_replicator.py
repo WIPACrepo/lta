@@ -217,13 +217,14 @@ class GlobusReplicator(Component):
                 self.logger.warning("OK: globus caught inflight duplicate")
             else:
                 raise
-
-        # Record task_id in the LTA DB
-        if task_id:
+        # No error -> record task_id in the LTA DB
+        else:
             await self._patch_bundle(
                 lta_rc,
                 bundle_id,
                 {
+                    "transfer_dest_path": str(dest_path),
+                    "final_dest_path": str(dest_path),
                     "update_timestamp": now(),
                     "transfer_reference": TransferReferenceToolkit.to_transfer_reference(task_id),
                 }
