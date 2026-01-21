@@ -146,7 +146,7 @@ class SiteMoveVerifier(Component):
             await quarantine_bundle(
                 lta_rc,
                 bundle,
-                f"{e}",
+                e,
                 self.name,
                 self.instance_uuid,
                 self.logger,

@@ -22,12 +22,15 @@ async def patch_bundle(
 async def quarantine_bundle(
     lta_rc: RestClient,
     bundle: BundleType,
-    reason: str,
+    reason: Exception | str,
     name: str,
     instance_uuid: str,
     logger: Logger,
 ) -> None:
     """Quarantine the supplied bundle using the supplied reason."""
+    if isinstance(reason, Exception):
+        reason = repr(reason)
+
     logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
     patch_body = {
         "original_status": bundle["status"],
@@ -35,7 +38,8 @@ async def quarantine_bundle(
         "reason": f"BY:{name}-{instance_uuid} REASON:{reason}",
         "work_priority_timestamp": now(),
     }
+
     try:
-        await lta_rc.request("PATCH", f'/Bundles/{bundle["uuid"]}', patch_body)
+        await patch_bundle(lta_rc, bundle["uuid"], patch_body, logger)
     except Exception as e:
         logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
