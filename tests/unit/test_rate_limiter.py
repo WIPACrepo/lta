@@ -6,6 +6,9 @@
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY
+
+from tests.unit.utils import NicheException
+
 collectors = list(REGISTRY._collector_to_names.keys())
 for collector in collectors:
     REGISTRY.unregister(collector)
@@ -258,13 +261,17 @@ async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: Mock
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
     qb_mock = mocker.patch("lta.rate_limiter.quarantine_bundle", new_callable=AsyncMock)
-    sb_mock.side_effect = Exception("LTA DB unavailable; currently safer at home")
+    sb_mock.side_effect = NicheException("LTA DB unavailable; currently safer at home")
     p = RateLimiter(config, logger_mock)
-    with pytest.raises(Exception):
+    with pytest.raises(NicheException):
         await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
-    qb_mock.assert_called_with(mocker.ANY, {"one": 1}, "LTA DB unavailable; currently safer at home")
+    qb_mock.assert_called_with(
+        mocker.ANY,
+        {"one": 1},
+        "NicheException('LTA DB unavailable; currently safer at home')",
+    )
 
 
 @pytest.mark.asyncio

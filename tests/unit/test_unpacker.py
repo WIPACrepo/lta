@@ -24,7 +24,7 @@ from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
 from lta.unpacker import main, main_sync, Unpacker
-from .utils import ObjectLiteral
+from .utils import NicheException, ObjectLiteral
 
 TestConfig = Dict[str, str]
 
@@ -318,14 +318,18 @@ async def test_unpacker_do_work_raise_exception(config: TestConfig, mocker: Mock
         "bundle": BUNDLE_OBJ,
     }
     dwb_mock = mocker.patch("lta.unpacker.Unpacker._do_work_bundle", new_callable=AsyncMock)
-    dwb_mock.side_effect = Exception("LTA DB started on fire again")
+    dwb_mock.side_effect = NicheException("LTA DB started on fire again")
     qb_mock = mocker.patch("lta.unpacker.quarantine_bundle", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
-    with pytest.raises(Exception):
+    with pytest.raises(NicheException):
         await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
     dwb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ)
-    qb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ, "LTA DB started on fire again")
+    qb_mock.assert_called_with(
+        mocker.ANY,
+        BUNDLE_OBJ,
+        "NicheException('LTA DB started on fire again')",
+    )
 
 
 @pytest.mark.asyncio
