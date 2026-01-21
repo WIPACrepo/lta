@@ -16,6 +16,7 @@ from zipfile import ZIP_STORED, ZipFile
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
+from lta.utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
@@ -117,7 +118,14 @@ class Bundler(Component):
             self.success_counter.labels(component='bundler', level='bundle', type='work').inc()
         except Exception as e:
             self.failure_counter.labels(component='bundler', level='bundle', type='exception').inc()
-            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                f"{e}",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             raise e
         # signal the work was processed successfully
         return True
@@ -275,8 +283,6 @@ class Bundler(Component):
             error_message = f'Bad mojo creating metadata file. Expected {file_count} Metadata records, but only processed {count} records.'
             self.logger.error(error_message)
             raise Exception(error_message)
-
-    FOOOOOOO
 
 
 async def main(bundler: Bundler) -> None:

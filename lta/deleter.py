@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 
+from lta.utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -96,7 +97,14 @@ class Deleter(Component):
             success_counter.labels(component='deleter', level='bundle', type='work').inc()
         except Exception as e:
             failure_counter.labels(component='deleter', level='bundle', type='exception').inc()
-            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                f"{e}",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             raise e
         # if we were successful at processing work, let the caller know
         return True
@@ -121,8 +129,6 @@ class Deleter(Component):
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
-
-    FOOOOOOO
 
 
 async def main(deleter: Deleter) -> None:

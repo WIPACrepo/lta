@@ -13,7 +13,7 @@ from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from lta.utils import patch_bundle
+from lta.utils import patch_bundle, quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -146,13 +146,17 @@ class GlobusReplicator(Component):
             self.logger.error(f'Globus transfer threw an error: {e}')
             self.logger.exception(e)
             self.failure_counter.labels(component='globus_replicator', level='bundle', type='exception').inc()
-            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                f"{e}",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             return False
         # if we were successful at processing work, let the caller know
         return True
-
-    FOOOOOOO
-            self.logger.exception(e)
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""

@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 
+from lta.utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -131,12 +132,17 @@ class RateLimiter(Component):
             success_counter.labels(component='rate_limiter', level='bundle', type='work').inc()
         except Exception as e:
             failure_counter.labels(component='rate_limiter', level='bundle', type='exception').inc()
-            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                f"{e}",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             raise e
         # even if we were successful, take a break between bundles
         return False
-
-    FOOOOOOO
 
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Stage the Bundle to the output directory for transfer."""

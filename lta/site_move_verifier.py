@@ -14,7 +14,7 @@ from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from lta.utils import patch_bundle
+from lta.utils import patch_bundle, quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
@@ -143,12 +143,17 @@ class SiteMoveVerifier(Component):
             success_counter.labels(component='site_move_verifier', level='bundle', type='work').inc()
         except Exception as e:
             failure_counter.labels(component='site_move_verifier', level='bundle', type='exception').inc()
-            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                f"{e}",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             raise e
         # if we were successful at processing work, let the caller know
         return True
-
-    FOOOOOOO
 
     async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the provided Bundle with the transfer service and update the LTA DB."""

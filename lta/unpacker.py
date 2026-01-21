@@ -17,6 +17,7 @@ from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
 
+from lta.utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
@@ -119,7 +120,14 @@ class Unpacker(Component):
             success_counter.labels(component='unpacker', level='bundle', type='work').inc()
         except Exception as e:
             failure_counter.labels(component='unpacker', level='bundle', type='exception').inc()
-            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                f"{e}",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             raise e
         # signal the work was processed successfully
         return True
@@ -268,8 +276,6 @@ class Unpacker(Component):
             if dest_path.startswith(prefix):
                 return dest_path.replace(prefix, remap)
         return dest_path
-
-    FOOOOOOO
 
     def _read_manifest_metadata(self, bundle_uuid: str) -> Dict[str, Any]:
         """Read the bundle metadata from the manifest file."""
