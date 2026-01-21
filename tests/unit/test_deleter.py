@@ -7,7 +7,7 @@
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY
 
-from tests.unit.utils import NicheException
+from .utils import NicheException
 
 collectors = list(REGISTRY._collector_to_names.keys())
 for collector in collectors:
