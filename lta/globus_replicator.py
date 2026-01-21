@@ -175,7 +175,6 @@ class GlobusReplicator(Component):
 
         return source_path, dest_path
 
-
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""
         # get our ducks in a row
