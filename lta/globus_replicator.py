@@ -13,6 +13,7 @@ from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
+from lta.utils import patch_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -186,9 +187,6 @@ class GlobusReplicator(Component):
 
         return source_path, dest_path
 
-    async def _patch_bundle(self, lta_rc: RestClient, bundle_id: str, patch_body: dict) -> None:
-        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""
@@ -219,7 +217,7 @@ class GlobusReplicator(Component):
                 raise
         # No error -> record task_id in the LTA DB
         else:
-            await self._patch_bundle(
+            await patch_bundle(
                 lta_rc,
                 bundle_id,
                 {
@@ -227,7 +225,8 @@ class GlobusReplicator(Component):
                     "final_dest_path": str(dest_path),
                     "update_timestamp": now(),
                     "transfer_reference": TransferReferenceToolkit.to_transfer_reference(task_id),
-                }
+                },
+                self.logger,
             )
 
         # Wait for transfer to finish
@@ -243,7 +242,7 @@ class GlobusReplicator(Component):
             self.logger.info("OK: cannot track transfer, assuming it finished")
 
         # Unclaim and Advance -- update the Bundle in the LTA DB
-        await self._patch_bundle(
+        await patch_bundle(
             lta_rc,
             bundle_id,
             {
@@ -252,7 +251,8 @@ class GlobusReplicator(Component):
                 "update_timestamp": now(),
                 "claimed": False,
                 **extra_updates,
-            }
+            },
+            self.logger,
         )
 
 
