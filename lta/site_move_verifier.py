@@ -14,7 +14,7 @@ from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from lta.utils import InvalidBundlePathException, patch_bundle, quarantine_bundle
+from lta.utils import InvalidBundlePathException, quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
@@ -194,18 +194,14 @@ class SiteMoveVerifier(Component):
 
         # update the Bundle in the LTA DB
         self.logger.info("Destination checksum matches bundle creation checksum; the bundle is now verified.")
-        await patch_bundle(
-            lta_rc,
-            bundle_id,
-            {
-                "status": self.output_status,
-                "reason": "",
-                "update_timestamp": now(),
-                "claimed": False,
-            },
-            self.logger,
-        )
-
+        patch_body = {
+            "status": self.output_status,
+            "reason": "",
+            "update_timestamp": now(),
+            "claimed": False,
+        }
+        self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
+        await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
         return True
 
     def _execute_myquota(self) -> Optional[str]:
