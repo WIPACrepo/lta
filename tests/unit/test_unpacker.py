@@ -326,9 +326,12 @@ async def test_unpacker_do_work_raise_exception(config: TestConfig, mocker: Mock
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
     dwb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ)
     qb_mock.assert_called_with(
-        mocker.ANY,
+        lta_rc_mock,
         BUNDLE_OBJ,
-        "NicheException('LTA DB started on fire again')",
+        NicheException('LTA DB unavailable; currently safer at home'),
+        p.name,
+        p.instance_uuid,
+        logger_mock,
     )
 
 

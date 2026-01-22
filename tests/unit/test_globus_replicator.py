@@ -255,8 +255,8 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     assert body == {
         "update_timestamp": mock_now,
         "transfer_reference": f"globus/{lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value}",  # type: ignore
-        "transfer_dest_path": kwargs["dest_path"],
-        "final_dest_path": kwargs["dest_path"],
+        "transfer_dest_path": str(kwargs["dest_path"]),
+        "final_dest_path": str(kwargs["dest_path"]),
     }
     # -- post wait_for_transfer_to_finish()
     _, url, body = patch_calls[1]

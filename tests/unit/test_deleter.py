@@ -264,9 +264,12 @@ async def test_deleter_delete_bundle_raises(config: TestConfig, mocker: MockerFi
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
     db_mock.assert_called_with(mocker.ANY, {"one": 1})
     qb_mock.assert_called_with(
-        mocker.ANY,
+        lta_rc_mock,
         {"one": 1},
-        "NicheException('LTA DB unavailable; currently safer at home')",
+        NicheException('LTA DB unavailable; currently safer at home'),
+        p.name,
+        p.instance_uuid,
+        logger_mock,
     )
 
 

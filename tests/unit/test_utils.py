@@ -59,16 +59,17 @@ async def test_100_quarantine_str_reason() -> None:
         f'Sending Bundle {bundle["uuid"]} to quarantine: something bad happened.'
     )
 
-    _args, kwargs = patch_bundle.call_args
-    assert kwargs["lta_rc"] is lta_rc
-    assert kwargs["bundle_id"] == bundle["uuid"]
-    assert kwargs["logger"] is logger
-    assert kwargs["patch_body"] == {
-        "original_status": bundle["status"],
-        "status": "quarantined",
-        "reason": f"BY:{name}-{instance_uuid} REASON:something bad happened",
-        "work_priority_timestamp": fixed_now,
-    }
+    patch_bundle.assert_awaited_once_with(
+        lta_rc,
+        bundle["uuid"],
+        {
+            "original_status": bundle["status"],
+            "status": "quarantined",
+            "reason": f"BY:{name}-{instance_uuid} REASON:something bad happened",
+            "work_priority_timestamp": fixed_now,
+        },
+        logger,
+    )
 
 
 @pytest.mark.asyncio
@@ -102,12 +103,17 @@ async def test_110_quarantine_exc_reason() -> None:
         f'Sending Bundle {bundle["uuid"]} to quarantine: {reason_repr}.'
     )
 
-    _args, kwargs = patch_bundle.call_args
-    assert (
-        kwargs["patch_body"]["reason"]
-        == f"BY:{name}-{instance_uuid} REASON:{reason_repr}"
+    patch_bundle.assert_awaited_once_with(
+        lta_rc,
+        bundle["uuid"],
+        {
+            "original_status": bundle["status"],
+            "status": "quarantined",
+            "reason": f"BY:{name}-{instance_uuid} REASON:{reason_repr}",
+            "work_priority_timestamp": fixed_now,
+        },
+        logger,
     )
-    assert kwargs["patch_body"]["work_priority_timestamp"] == fixed_now
 
 
 @pytest.mark.asyncio
