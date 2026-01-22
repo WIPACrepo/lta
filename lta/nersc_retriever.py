@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 
+from build.lib.lta.utils import HSICommandFailedException
 from .utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
@@ -129,9 +130,9 @@ class NerscRetriever(Component):
                 self.instance_uuid,
                 self.logger,
             )
-        return False
+            raise e
 
-    async def _read_bundle_from_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+    async def _read_bundle_from_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Send a command to HPSS to retrieve the supplied bundle from tape."""
         bundle_id = bundle["uuid"]
         # determine the name and path of the bundle
@@ -143,13 +144,14 @@ class NerscRetriever(Component):
         # determine the output path where we stage the bundle for transfer
         stupid_python_path = os.path.sep.join([self.rse_base_path, basename])
         output_path = os.path.normpath(stupid_python_path)
+
         # run an hsi command to get the file from tape
         #     get       -> read the source path from the hpss system to the dest path
         #     -c on     -> turn on the verification of checksums by the hpss system
         #     :         -> HPSS ... ¯\_(ツ)_/¯
         args = ["/usr/bin/hsi", "get", "-c", "on", output_path, ":", hpss_path]
-        if not await self._execute_hsi_command(lta_rc, bundle, args):
-            return False
+        self._execute_hsi_command(args)
+
         # update the Bundle in the LTA DB
         patch_body = {
             "status": self.output_status,
@@ -159,9 +161,8 @@ class NerscRetriever(Component):
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-        return True
 
-    async def _execute_hsi_command(self, lta_rc: RestClient, bundle: BundleType, args: List[str]) -> bool:
+    def _execute_hsi_command(self, args: List[str]) -> None:
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
@@ -169,17 +170,9 @@ class NerscRetriever(Component):
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
+            raise HSICommandFailedException(
                 f"hsi Command Failed - {completed_process.args} - {completed_process.returncode} - {str(completed_process.stdout)} - {str(completed_process.stderr)}",
-                self.name,
-                self.instance_uuid,
-                self.logger,
             )
-            return False
-        # otherwise, we succeeded
-        return True
 
 
 async def main(nersc_retriever: NerscRetriever) -> None:
