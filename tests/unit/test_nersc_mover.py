@@ -6,6 +6,9 @@
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY
+
+from lta.utils import HSICommandFailedException
+
 collectors = list(REGISTRY._collector_to_names.keys())
 for collector in collectors:
     REGISTRY.unregister(collector)
@@ -339,9 +342,12 @@ async def test_nersc_mover_do_work_claim_write_bundle_raise_exception(config: Te
         {}
     ]
     wbth_mock = mocker.patch("lta.nersc_mover.NerscMover._write_bundle_to_hpss", new_callable=AsyncMock)
-    wbth_mock.side_effect = Exception("BAD THING HAPPEN!")
+    exc = Exception("BAD THING HAPPEN!")
+    wbth_mock.side_effect = exc
     p = NerscMover(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    with pytest.raises(type(exc)) as excinfo:
+        await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
     wbth_mock.assert_called_with(
         mocker.ANY,
@@ -368,6 +374,7 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config: TestConfig, mocker
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "status": "taping",
             },
         }
     ]
@@ -398,6 +405,7 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mock
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "status": "taping",
             },
         }
     ]
@@ -477,7 +485,8 @@ async def test_nersc_mover_execute_hsi_command_failed(config: TestConfig, mocker
         },
     ]
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    with pytest.raises(HSICommandFailedException):
+        await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
