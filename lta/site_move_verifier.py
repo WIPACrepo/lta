@@ -14,7 +14,7 @@ from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from lta.utils import patch_bundle, quarantine_bundle
+from lta.utils import InvalidBundlePathException, patch_bundle, quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
@@ -164,6 +164,13 @@ class SiteMoveVerifier(Component):
         else:
             bundle_name = os.path.basename(bundle["bundle_path"])
         bundle_path = join_smart([self.dest_root_path, bundle_name])
+
+        # validate bundle path
+        transfer_dest_path = bundle.get("transfer_dest_path")  # new attr as of Jan 2025
+        if transfer_dest_path and transfer_dest_path != bundle_path:
+            raise InvalidBundlePathException(
+                f"{bundle_path=} is not {transfer_dest_path=} ({self.dest_root_path=})"
+            )
 
         # we'll compute the bundle's checksum
         self.logger.info(f"Computing SHA512 checksum for bundle: '{bundle_path}'")

@@ -8,6 +8,10 @@ from lta.component import now
 from lta.lta_types import BundleType
 
 
+class InvalidBundlePathException(Exception):
+    """Raised when a bundle path is invalid."""
+
+
 async def patch_bundle(
     lta_rc: RestClient,
     bundle_id: str,
