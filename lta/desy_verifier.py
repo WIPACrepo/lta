@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
+from .utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .joiner import join_smart
 from .lta_tools import from_environment
@@ -108,16 +109,14 @@ class DesyVerifier(Component):
             return True
         except Exception as e:
             failure_counter.labels(component='desy_verifier', level='bundle', type='exception').inc()
-            bundle_id = bundle["uuid"]
-            right_now = now()
-            patch_body = {
-                "original_status": bundle["status"],
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Exception during execution: {e}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
         return False
 
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
