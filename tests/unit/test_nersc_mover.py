@@ -1,5 +1,7 @@
 # test_nersc_mover.py
 """Unit tests for lta/nersc_mover.py."""
+from unittest import mock
+
 from globus_sdk import exc
 # fmt:off
 
@@ -378,14 +380,31 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config: TestConfig, mocker
             },
         }
     ]
-    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=AsyncMock)
+    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=MagicMock)
     ehc_mock.side_effect = HSICommandFailedException("from test")
     p = NerscMover(config, logger_mock)
     with pytest.raises(HSICommandFailedException):
         await p._do_work_claim(lta_rc_mock)
     ehc_mock.assert_called_with(['/usr/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'])
-    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
-
+    lta_rc_mock.request.assert_has_calls(
+        [
+            call(
+                "POST",
+                '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping',
+                {'claimant': f'{p.name}-{p.instance_uuid}'},
+            ),
+            call(
+                "PATCH",
+                "/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88",
+                {
+                    "original_status": "taping",
+                    "status": "quarantined",
+                    "reason": mock.ANY,
+                    "work_priority_timestamp": mock.ANY,
+                }
+            ),
+        ]
+    )
 
 @pytest.mark.asyncio
 async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mocker: MockerFixture) -> None:
@@ -410,13 +429,31 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mock
             },
         }
     ]
-    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=AsyncMock)
+    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=MagicMock)
     ehc_mock.side_effect = [None, HSICommandFailedException("from test")]
     p = NerscMover(config, logger_mock)
     with pytest.raises(HSICommandFailedException):
         await p._do_work_claim(lta_rc_mock)
     ehc_mock.assert_called_with(['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
-    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    lta_rc_mock.request.assert_has_calls(
+        [
+            call(
+                "POST",
+                '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping',
+                {'claimant': f'{p.name}-{p.instance_uuid}'},
+            ),
+            call(
+                "PATCH",
+                "/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88",
+                {
+                    "original_status": "taping",
+                    "status": "quarantined",
+                    "reason": mock.ANY,
+                    "work_priority_timestamp": mock.ANY,
+                }
+            ),
+        ]
+    )
 
 
 @pytest.mark.asyncio
@@ -444,8 +481,8 @@ async def test_nersc_mover_write_bundle_to_hpss(config: TestConfig, mocker: Mock
             "type": "Bundle",
         },
     ]
-    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=AsyncMock)
-    ehc_mock.side_effect = [True, True]
+    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=MagicMock)
+    ehc_mock.side_effect = [None, None]
     p = NerscMover(config, logger_mock)
     await p._do_work_claim(lta_rc_mock)
     ehc_mock.assert_called_with(['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])

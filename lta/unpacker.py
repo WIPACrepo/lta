@@ -17,7 +17,7 @@ from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
 
-from lta.utils import quarantine_bundle
+from .utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment

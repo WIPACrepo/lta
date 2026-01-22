@@ -13,7 +13,7 @@ from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from lta.utils import quarantine_bundle
+from .utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
