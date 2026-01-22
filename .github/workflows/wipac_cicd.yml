@@ -121,7 +121,7 @@ jobs:
     needs: [
       # linters so we don't waste compute on faulty code...
       flake8,
-      mypy,
+      # mypy,  # sometimes its useful to see our deps if mypy fails
     ]
     runs-on: ubuntu-latest
     steps:
