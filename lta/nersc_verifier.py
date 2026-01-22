@@ -281,14 +281,14 @@ class NerscVerifier(Component):
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            right_now = now()
-            patch_body = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hsi hashlist Command Failed",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                "hsi hashlist Command Failed",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             return False
         # otherwise, we succeeded; output is on stderr
         # 1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]
@@ -302,14 +302,14 @@ class NerscVerifier(Component):
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
-            right_now = now()
-            patch_body = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Checksum mismatch between creation and destination: {checksum_sha512}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                f"Checksum mismatch between creation and destination: {checksum_sha512}",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             return False
         # run an hsi command to calculate the checksum of the archive as stored
         #     -P            -> ("popen" flag) - specifies that HSI is being run via popen (as a child process).
@@ -328,14 +328,14 @@ class NerscVerifier(Component):
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            right_now = now()
-            patch_body = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hsi hashverify Command Failed",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                "hsi hashverify Command Failed",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             return False
         # otherwise, we succeeded; output is on stderr
         # /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK
@@ -353,14 +353,14 @@ class NerscVerifier(Component):
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             self.logger.info("This result does NOT match, and the Bundle will NOT be verified.")
-            right_now = now()
-            patch_body = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hashverify unable to verify checksum in HPSS: {result}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                f"hashverify unable to verify checksum in HPSS: {result}",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             return False
         # having passed the gauntlet, we indicate the checksums match
         return True

@@ -182,14 +182,12 @@ class SiteMoveVerifier(Component):
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
-            await patch_bundle(
+            await quarantine_bundle(
                 lta_rc,
-                bundle_id,
-                {
-                    "status": "quarantined",
-                    "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Checksum mismatch between creation and destination: {checksum_sha512}",
-                    "work_priority_timestamp": now(),
-                },
+                bundle,
+                f"Checksum mismatch between creation and destination: {checksum_sha512}",
+                self.name,
+                self.instance_uuid,
                 self.logger,
             )
             return False

@@ -179,15 +179,14 @@ class NerscMover(Component):
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            bundle_id = bundle["uuid"]
-            right_now = now()
-            patch_body = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hsi Command Failed - {completed_process.args} - {completed_process.returncode} - {str(completed_process.stdout)} - {str(completed_process.stderr)}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                f"hsi Command Failed - {completed_process.args} - {completed_process.returncode} - {str(completed_process.stdout)} - {str(completed_process.stderr)}",
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             return False
         # otherwise, we succeeded
         return True
