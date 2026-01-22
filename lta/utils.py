@@ -12,6 +12,10 @@ class InvalidBundlePathException(Exception):
     """Raised when a bundle path is invalid."""
 
 
+class InvalidChecksumException(Exception):
+    """Raised when a checksum value is invalid."""
+
+
 async def patch_bundle(
     lta_rc: RestClient,
     bundle_id: str,

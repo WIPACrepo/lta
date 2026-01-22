@@ -14,7 +14,7 @@ from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from lta.utils import InvalidBundlePathException, quarantine_bundle
+from .utils import InvalidBundlePathException, InvalidChecksumException, quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
@@ -155,7 +155,7 @@ class SiteMoveVerifier(Component):
         # if we were successful at processing work, let the caller know
         return True
 
-    async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+    async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Verify the provided Bundle with the transfer service and update the LTA DB."""
         # get our ducks in a row
         bundle_id = bundle["uuid"]
@@ -182,15 +182,10 @@ class SiteMoveVerifier(Component):
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
+            raise InvalidChecksumException(
                 f"Checksum mismatch between creation and destination: {checksum_sha512}",
-                self.name,
-                self.instance_uuid,
                 self.logger,
             )
-            return False
 
         # update the Bundle in the LTA DB
         self.logger.info("Destination checksum matches bundle creation checksum; the bundle is now verified.")
@@ -202,7 +197,6 @@ class SiteMoveVerifier(Component):
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-        return True
 
     def _execute_myquota(self) -> Optional[str]:
         """Run the myquota command to determine disk usage at the site."""
