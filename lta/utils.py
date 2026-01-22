@@ -16,6 +16,10 @@ class InvalidChecksumException(Exception):
     """Raised when a checksum value is invalid."""
 
 
+class HSICommandFailedException(Exception):
+    """Raised when an HSI command fails."""
+
+
 async def patch_bundle(
     lta_rc: RestClient,
     bundle_id: str,
