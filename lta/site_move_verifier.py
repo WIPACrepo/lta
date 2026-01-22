@@ -166,7 +166,7 @@ class SiteMoveVerifier(Component):
         bundle_path = join_smart([self.dest_root_path, bundle_name])
 
         # validate bundle path
-        transfer_dest_path = bundle.get("transfer_dest_path")  # new attr as of Jan 2025
+        transfer_dest_path = bundle.get("transfer_dest_path")  # new attr as of Jan 2026
         if transfer_dest_path and transfer_dest_path != bundle_path:
             raise InvalidBundlePathException(
                 f"{bundle_path=} is not {transfer_dest_path=} ({self.dest_root_path=})"
