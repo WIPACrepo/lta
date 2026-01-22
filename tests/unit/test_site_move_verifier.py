@@ -344,11 +344,13 @@ async def test_site_move_verifier_verify_bundle_bad_checksum(config: TestConfig,
         "checksum": {
             "sha512": "12345",
         },
+        "status": "transferring",
     }
     p = SiteMoveVerifier(config, logger_mock)
     await p._verify_bundle(lta_rc_mock, bundle_obj)
     hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
+        "original_status": "transferring",
         "status": "quarantined",
         "reason": mocker.ANY,
         "work_priority_timestamp": mocker.ANY,

@@ -333,6 +333,7 @@ async def test_nersc_retriever_do_work_claim_write_bundle_raise_exception(config
         {
             "bundle": {
                 "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5",
+                "status": "located",
             },
         },
         {}
@@ -438,6 +439,7 @@ async def test_nersc_retriever_execute_hsi_command_failed(config: TestConfig, mo
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "status": "located",
             },
         },
         {

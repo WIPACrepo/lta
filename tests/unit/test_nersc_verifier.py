@@ -573,6 +573,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hsi_failure_quarantine(confi
         "checksum": {
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
+        "status": "verifying",
     }
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.side_effect = [
@@ -603,6 +604,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_mismatch_checksum_quarantine
         "checksum": {
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
+        "status": "verifying",
     }
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.side_effect = [
@@ -633,6 +635,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_failure_hashverify_quarantin
         "checksum": {
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
+        "status": "verifying",
     }
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.side_effect = [
@@ -669,6 +672,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quaranti
         "checksum": {
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
+        "status": "verifying",
     }
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.side_effect = [
@@ -705,6 +709,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_result_quaran
         "checksum": {
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
+        "status": "verifying",
     }
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.side_effect = [
