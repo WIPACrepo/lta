@@ -257,7 +257,8 @@ async def test_deleter_delete_bundle_raises(config: TestConfig, mocker: MockerFi
     }
     db_mock = mocker.patch("lta.deleter.Deleter._delete_bundle", new_callable=AsyncMock)
     qb_mock = mocker.patch("lta.deleter.quarantine_bundle", new_callable=AsyncMock)
-    db_mock.side_effect = NicheException("LTA DB unavailable; currently safer at home")
+    exc = NicheException("LTA DB unavailable; currently safer at home")
+    db_mock.side_effect = exc
     p = Deleter(config, logger_mock)
     with pytest.raises(NicheException):
         await p._do_work_claim(lta_rc_mock)
@@ -266,7 +267,7 @@ async def test_deleter_delete_bundle_raises(config: TestConfig, mocker: MockerFi
     qb_mock.assert_called_with(
         lta_rc_mock,
         {"one": 1},
-        NicheException('LTA DB unavailable; currently safer at home'),
+        exc,
         p.name,
         p.instance_uuid,
         logger_mock,

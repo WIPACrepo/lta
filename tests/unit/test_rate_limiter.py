@@ -261,7 +261,8 @@ async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: Mock
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
     qb_mock = mocker.patch("lta.rate_limiter.quarantine_bundle", new_callable=AsyncMock)
-    sb_mock.side_effect = NicheException("LTA DB unavailable; currently safer at home")
+    exc = NicheException("LTA DB unavailable; currently safer at home")
+    sb_mock.side_effect = exc
     p = RateLimiter(config, logger_mock)
     with pytest.raises(NicheException):
         await p._do_work_claim(lta_rc_mock)
@@ -270,7 +271,7 @@ async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: Mock
     qb_mock.assert_called_with(
         lta_rc_mock,
         {"one": 1},
-        NicheException('LTA DB unavailable; currently safer at home'),
+        exc,
         p.name,
         p.instance_uuid,
         logger_mock,
