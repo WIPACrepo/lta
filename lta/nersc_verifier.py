@@ -259,7 +259,6 @@ class NerscVerifier(Component):
 
     async def _verify_bundle_in_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Verify the checksum of the bundle in HPSS."""
-        bundle_uuid = bundle["uuid"]
         # determine the path where it is stored on hpss
         data_warehouse_path = bundle["path"]
         basename = os.path.basename(bundle["bundle_path"])
