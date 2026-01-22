@@ -38,6 +38,8 @@ MYQUOTA_ARGS = ["/usr/bin/myquota", "-G"]
 
 OLD_MTIME_EPOCH_SEC = 30 * 60  # 30 MINUTES * 60 SEC_PER_MIN
 
+QUARANTINE_THEN_KEEP_WORKING = [InvalidChecksumException]
+
 # prometheus metrics
 failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
 load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
@@ -151,7 +153,9 @@ class SiteMoveVerifier(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            # does exception warrant stopping the work loop?
+            if type(e) not in QUARANTINE_THEN_KEEP_WORKING:
+                raise e
         # if we were successful at processing work, let the caller know
         return True
 
