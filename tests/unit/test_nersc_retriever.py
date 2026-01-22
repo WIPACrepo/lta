@@ -343,7 +343,7 @@ async def test_nersc_retriever_do_work_claim_write_bundle_raise_exception(config
     p = NerscRetriever(config, logger_mock)
     assert not await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
-    wbth_mock.assert_called_with(mocker.ANY, {"uuid": "8f03a920-49d6-446b-811e-830e3f7942f5"})
+    wbth_mock.assert_called_with(mocker.ANY, {"status": "located", "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5"})
 
 
 @pytest.mark.asyncio
