@@ -6,6 +6,7 @@
 import asyncio
 import logging
 import os
+from pathlib import Path
 from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, Optional
@@ -126,9 +127,9 @@ class NerscVerifier(Component):
             return False
         # process the Bundle that we were given
         try:
-            self._verify_bundle_in_hpss(bundle)
+            hpss_path = self._verify_bundle_in_hpss(bundle)
             await self._add_bundle_to_file_catalog(lta_rc, bundle)  # TODO: move to TRF
-            await self._update_bundle_in_lta_db(lta_rc, bundle)
+            await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
             success_counter.labels(component='nersc_verifier', level='bundle', type='work').inc()
             return True
         except Exception as e:
@@ -194,12 +195,18 @@ class NerscVerifier(Component):
         # indicate that our file catalog updates were successful
         return True
 
-    async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+    async def _update_bundle_in_lta_db(
+            self,
+            lta_rc: RestClient,
+            bundle: BundleType,
+            hpss_path: Path,
+    ) -> bool:
         """Update the LTA DB to indicate the Bundle is verified."""
         bundle_uuid = bundle["uuid"]
         patch_body = {
             "status": self.output_status,
             "reason": "",
+            "final_dest_path": str(hpss_path),
             "update_timestamp": now(),
             "claimed": False,
         }
@@ -264,7 +271,7 @@ class NerscVerifier(Component):
         # the morning sun has vanquished the horrible night
         return True
 
-    def _verify_bundle_in_hpss(self, bundle: BundleType) -> None:
+    def _verify_bundle_in_hpss(self, bundle: BundleType) -> Path:
         """Verify the checksum of the bundle in HPSS."""
         # determine the path where it is stored on hpss
         data_warehouse_path = bundle["path"]
@@ -331,6 +338,8 @@ class NerscVerifier(Component):
             raise HSICommandFailedException(
                 "verify bundle checksum in HPSS (hashverify)", completed_process, self.logger
             )
+
+        return Path(hpss_path)
 
 
 async def main(nersc_verifier: NerscVerifier) -> None:
