@@ -1,5 +1,6 @@
 # test_transfer_request_finisher.py
 """Unit tests for lta/transfer_request_finisher.py."""
+from uuid import uuid1
 
 # fmt:off
 
@@ -50,6 +51,9 @@ def config() -> TestConfig:
         "WORK_RETRIES": "3",
         "WORK_SLEEP_DURATION_SECONDS": "60",
         "WORK_TIMEOUT_SECONDS": "30",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
+        "FILE_CATALOG_REST_URL": "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
     }
 
 
@@ -65,6 +69,9 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     assert p.work_sleep_duration_seconds == 60
     assert p.work_timeout_seconds == 30
     assert p.logger == logger_mock
+    assert p.file_catalog_client_id == "file-catalog-client-id"
+    assert p.file_catalog_client_secret == "file-catalog-client-secret"
+    assert p.file_catalog_rest_url == "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/"
 
 
 def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
@@ -97,6 +104,9 @@ async def test_transfer_request_finisher_logs_configuration(mocker: MockerFixtur
         "WORK_RETRIES": "5",
         "WORK_SLEEP_DURATION_SECONDS": "70",
         "WORK_TIMEOUT_SECONDS": "90",
+        "FILE_CATALOG_CLIENT_ID": "file-catalog-client-id",
+        "FILE_CATALOG_CLIENT_SECRET": "file-catalog-client-secret",
+        "FILE_CATALOG_REST_URL": "logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/",
     }
     TransferRequestFinisher(transfer_request_finisher_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
@@ -118,7 +128,10 @@ async def test_transfer_request_finisher_logs_configuration(mocker: MockerFixtur
         call('TRANSFER_CONFIG_PATH = examples/rucio.json'),
         call('WORK_RETRIES = 5'),
         call('WORK_SLEEP_DURATION_SECONDS = 70'),
-        call('WORK_TIMEOUT_SECONDS = 90')
+        call('WORK_TIMEOUT_SECONDS = 90'),
+        call('FILE_CATALOG_CLIENT_ID = file-catalog-client-id'),
+        call('FILE_CATALOG_CLIENT_SECRET = [秘密]'),
+        call('FILE_CATALOG_REST_URL = logme-http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/'),
     ]
     logger_mock.info.assert_has_calls(EXPECTED_LOGGER_CALLS)
 
@@ -229,10 +242,12 @@ async def test_transfer_request_finisher_do_work_claim_yes_result(config: TestCo
         },
     }
     utr_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._update_transfer_request", new_callable=AsyncMock)
+    mbf_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._migrate_bundle_files_to_file_catalog", new_callable=AsyncMock)
     p = TransferRequestFinisher(config, logger_mock)
     assert not await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
     utr_mock.assert_called_with(mocker.ANY, {"one": 1})
+    mbf_mock.assert_called_with(mocker.ANY, mocker.ANY, {"one": 1})
 
 
 @pytest.mark.asyncio
@@ -311,3 +326,129 @@ async def test_transfer_request_finisher_update_transfer_request_yes(config: Tes
         "reason": "",
         "update_timestamp": mocker.ANY,
     })
+
+@pytest.mark.asyncio
+async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog(config: TestConfig, mocker: MockerFixture) -> None:
+    """Test that _migrate_bundle_files_to_file_catalog adds a record for the bundle and adds its location to constituent files."""
+    logger_mock = mocker.MagicMock()
+    bundle = {
+        "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
+        "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+        "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
+        "checksum": {
+            "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
+        },
+        "size": 12345,
+        "final_dest_path": "/its/now/on-the/moon.tape"
+    }
+    fc_rc_mock = mocker.MagicMock()
+    fc_rc_mock.request = AsyncMock()
+    fc_rc_mock.request.side_effect = [
+        True,  # POST /api/files - create the bundle record
+        {  # GET /api/files/UUID - get the file record
+            "uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e",
+            "logical_name": "/data/exp/IceCube/2019/filtered/PFFilt/1109/file1.tar.gz",
+        },
+        True,  # POST /api/files/UUID/locations - add the location
+        {  # GET /api/files/UUID - get the file record
+            "uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4",
+            "logical_name": "/data/exp/IceCube/2019/filtered/PFFilt/1109/file2.tar.gz",
+        },
+        True,  # POST /api/files/UUID/locations - add the location
+        {  # GET /api/files/UUID - get the file record
+            "uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4",
+            "logical_name": "/data/exp/IceCube/2019/filtered/PFFilt/1109/file3.tar.gz",
+        },
+        True,  # POST /api/files/UUID/locations - add the location
+    ]
+    metadata_uuid0 = uuid1().hex
+    metadata_uuid1 = uuid1().hex
+    metadata_uuid2 = uuid1().hex
+    lta_rc_mock = mocker.MagicMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
+        {  # GET /Metadata?bundle_uuid={bundle_uuid}&limit={limit}
+            "results": [
+                {"uuid": metadata_uuid0, "file_catalog_uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
+                {"uuid": metadata_uuid1, "file_catalog_uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
+                {"uuid": metadata_uuid2, "file_catalog_uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
+            ]
+        },
+        {  # POST /Metadata/actions/bulk_delete
+            "metadata": [metadata_uuid0, metadata_uuid1, metadata_uuid2],
+            "count": 3,
+        },
+        {
+            "results": []
+        },
+    ]
+    p = TransferRequestFinisher(config, logger_mock)
+    await p._migrate_bundle_files_to_file_catalog(fc_rc_mock, lta_rc_mock, bundle)
+    assert lta_rc_mock.request.call_count == 3
+    lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=1000')
+    assert fc_rc_mock.request.call_count == 7
+    fc_rc_mock.request.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
+
+
+@pytest.mark.asyncio
+async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog_patch_after_post_error(config: TestConfig, mocker: MockerFixture) -> None:
+    """Test that _migrate_bundle_files_to_file_catalog patches the record for the bundle already in the file catalog."""
+    logger_mock = mocker.MagicMock()
+    bundle = {
+        "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
+        "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+        "bundle_path": "/path/to/source/rse/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef.zip",
+        "checksum": {
+            "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
+        },
+        "size": 12345,
+        "final_dest_path": "/its/now/on-the/moon.tape"
+    }
+    fc_rc_mock = mocker.MagicMock()
+    fc_rc_mock.request = AsyncMock()
+    fc_rc_mock.request.side_effect = [
+        Exception("409 conflict"),  # POST /api/files - bundle record already exists!!
+        True,  # PATCH /api/files/UUID - bundle record gets updated
+        {  # GET /api/files/UUID - get the file record
+            "uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e",
+            "logical_name": "/data/exp/IceCube/2019/filtered/PFFilt/1109/file1.tar.gz",
+        },
+        True,  # POST /api/files/UUID/locations - add the location
+        {  # GET /api/files/UUID - get the file record
+            "uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4",
+            "logical_name": "/data/exp/IceCube/2019/filtered/PFFilt/1109/file2.tar.gz",
+        },
+        True,  # POST /api/files/UUID/locations - add the location
+        {  # GET /api/files/UUID - get the file record
+            "uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4",
+            "logical_name": "/data/exp/IceCube/2019/filtered/PFFilt/1109/file3.tar.gz",
+        },
+        True,  # POST /api/files/UUID/locations - add the location
+    ]
+    metadata_uuid0 = uuid1().hex
+    metadata_uuid1 = uuid1().hex
+    metadata_uuid2 = uuid1().hex
+    lta_rc_mock = mocker.MagicMock()
+    lta_rc_mock.request = AsyncMock()
+    lta_rc_mock.request.side_effect = [
+        {  # GET /Metadata?bundle_uuid={bundle_uuid}&limit={limit}
+            "results": [
+                {"uuid": metadata_uuid0, "file_catalog_uuid": "e0d15152-fd73-4e98-9aea-a9e5fdd8618e"},
+                {"uuid": metadata_uuid1, "file_catalog_uuid": "e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4"},
+                {"uuid": metadata_uuid2, "file_catalog_uuid": "93bcd96e-0110-4064-9a79-b5bdfa3effb4"},
+            ]
+        },
+        {  # POST /Metadata/actions/bulk_delete
+            "metadata": [metadata_uuid0, metadata_uuid1, metadata_uuid2],
+            "count": 3,
+        },
+        {
+            "results": []
+        },
+    ]
+    p = TransferRequestFinisher(config, logger_mock)
+    await p._migrate_bundle_files_to_file_catalog(fc_rc_mock, lta_rc_mock, bundle)
+    assert lta_rc_mock.request.call_count == 3
+    lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=1000')
+    assert fc_rc_mock.request.call_count == 8
+    fc_rc_mock.request.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)

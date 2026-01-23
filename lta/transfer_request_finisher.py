@@ -107,14 +107,23 @@ class TransferRequestFinisher(Component):
             return False
 
         # 2. update the File Catalog + LTA metadata
-        await self._add_bundle_to_file_catalog(fc_rc, bundle)
-        await self._update_files_in_fc_and_delete_lta_metadata(fc_rc, lta_rc, bundle)
+        await self._migrate_bundle_files_to_file_catalog(fc_rc, lta_rc, bundle)
 
         # 3. update the TransferRequest that spawned the Bundle, if necessary
         await self._update_transfer_request(lta_rc, bundle)
 
         # even if we processed a Bundle, take a break between Bundles
         return False
+
+    async def _migrate_bundle_files_to_file_catalog(
+        self,
+        fc_rc: RestClient,
+        lta_rc: RestClient,
+        bundle: BundleType,
+    ) -> None:
+        """Update the File Catalog + LTA metadata."""
+        await self._add_bundle_to_file_catalog(fc_rc, bundle)
+        await self._update_files_in_fc_and_delete_lta_metadata(fc_rc, lta_rc, bundle)
 
     async def _add_bundle_to_file_catalog(self, fc_rc: RestClient, bundle: BundleType) -> None:
         """Add a FileCatalog entry for the bundle."""
