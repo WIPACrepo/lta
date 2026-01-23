@@ -125,6 +125,7 @@ class NerscVerifier(Component):
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify at NERSC with HPSS. Going on vacation.")
             return False
+
         # process the Bundle that we were given
         try:
             hpss_path = self._verify_bundle_in_hpss(bundle)
@@ -145,8 +146,7 @@ class NerscVerifier(Component):
             # does exception warrant stopping the work loop?
             if type(e) in QUARANTINE_THEN_KEEP_WORKING:
                 return True
-            else:
-                raise e
+            raise e
 
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records.

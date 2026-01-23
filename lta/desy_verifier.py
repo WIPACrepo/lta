@@ -101,6 +101,7 @@ class DesyVerifier(Component):
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to record as verified at DESY. Going on vacation.")
             return False
+
         # process the Bundle that we were given
         try:
             await self._add_bundle_to_file_catalog(lta_rc, bundle)
@@ -117,7 +118,7 @@ class DesyVerifier(Component):
                 self.instance_uuid,
                 self.logger,
             )
-        return False
+            raise e
 
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records."""

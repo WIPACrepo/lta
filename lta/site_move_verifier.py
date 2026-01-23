@@ -139,11 +139,13 @@ class SiteMoveVerifier(Component):
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify. Going on vacation.")
             return False
+
         # process the Bundle that we were given
         try:
             bundle_path = self._get_bundle_path(bundle)
             await self._verify_bundle(lta_rc, bundle, bundle_path)
             success_counter.labels(component='site_move_verifier', level='bundle', type='work').inc()
+            return True
         except Exception as e:
             failure_counter.labels(component='site_move_verifier', level='bundle', type='exception').inc()
             await quarantine_bundle(
@@ -155,10 +157,9 @@ class SiteMoveVerifier(Component):
                 self.logger,
             )
             # does exception warrant stopping the work loop?
-            if type(e) not in QUARANTINE_THEN_KEEP_WORKING:
-                raise e
-        # if we were successful at processing work, let the caller know
-        return True
+            if type(e) in QUARANTINE_THEN_KEEP_WORKING:
+                return True
+            raise e
 
     def _get_bundle_path(self, bundle: BundleType) -> str:
         """Get and validate the bundle path."""

@@ -105,6 +105,7 @@ class DesyMirrorReplicator(Component):
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to transfer. Going on vacation.")
             return False
+
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
@@ -119,7 +120,7 @@ class DesyMirrorReplicator(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            return False
+            raise e
         # if we were successful at processing work, let the caller know
         return True
 
