@@ -588,7 +588,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_mismatch_checksum_quarantine
 
 @pytest.mark.asyncio
 async def test_nersc_verifier_verify_bundle_in_hpss_failure_hashverify_quarantine(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _verify_bundle_in_hpss does not quarantine a bundle if the HSI command succeeds."""
+    """Test that _verify_bundle_in_hpss raises if the HSI hashverify command fails."""
     logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
@@ -623,7 +623,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_failure_hashverify_quarantin
 
 @pytest.mark.asyncio
 async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quarantine(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _verify_bundle_in_hpss does not quarantine a bundle if the HSI command succeeds."""
+    """Test that _verify_bundle_in_hpss raises when hashverify output is not '(sha512) OK'."""
     logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
@@ -658,7 +658,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quaranti
 
 @pytest.mark.asyncio
 async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_result_quarantine(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _verify_bundle_in_hpss does not quarantine a bundle if the HSI command succeeds."""
+    """Test that _verify_bundle_in_hpss raises when hashverify output is not '(sha512) OK'."""
     logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
