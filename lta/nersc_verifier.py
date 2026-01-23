@@ -206,7 +206,7 @@ class NerscVerifier(Component):
         patch_body = {
             "status": self.output_status,
             "reason": "",
-            "final_dest_path": str(hpss_path),
+            "final_dest_path": str(hpss_path),  # overwrite existing value, we know more now
             "update_timestamp": now(),
             "claimed": False,
         }
