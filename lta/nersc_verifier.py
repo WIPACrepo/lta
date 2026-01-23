@@ -37,6 +37,8 @@ EXPECTED_CONFIG.update({
 # maximum number of Metadata UUIDs to work with at a time
 UPDATE_CHUNK_SIZE = 1000
 
+QUARANTINE_THEN_KEEP_WORKING = [InvalidChecksumException]
+
 # prometheus metrics
 failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
 load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
@@ -139,8 +141,11 @@ class NerscVerifier(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            # QUESTION: do we not raise on 'InvalidChecksumException'?
-            raise e
+            # does exception warrant stopping the work loop?
+            if type(e) in QUARANTINE_THEN_KEEP_WORKING:
+                return True
+            else:
+                raise e
 
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records."""
