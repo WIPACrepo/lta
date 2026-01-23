@@ -141,7 +141,8 @@ class SiteMoveVerifier(Component):
             return False
         # process the Bundle that we were given
         try:
-            await self._verify_bundle(lta_rc, bundle)
+            bundle_path = self._get_bundle_path(bundle)
+            await self._verify_bundle(lta_rc, bundle, bundle_path)
             success_counter.labels(component='site_move_verifier', level='bundle', type='work').inc()
         except Exception as e:
             failure_counter.labels(component='site_move_verifier', level='bundle', type='exception').inc()
@@ -159,10 +160,8 @@ class SiteMoveVerifier(Component):
         # if we were successful at processing work, let the caller know
         return True
 
-    async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
-        """Verify the provided Bundle with the transfer service and update the LTA DB."""
-        # get our ducks in a row
-        bundle_id = bundle["uuid"]
+    def _get_bundle_path(self, bundle: BundleType) -> str:
+        """Get and validate the bundle path."""
         if self.use_full_bundle_path:
             bundle_name = join_smart([bundle["path"], os.path.basename(bundle["bundle_path"])])
         else:
@@ -175,6 +174,13 @@ class SiteMoveVerifier(Component):
             raise InvalidBundlePathException(
                 f"{bundle_path=} is not {transfer_dest_path=} ({self.dest_root_path=})"
             )
+
+        return bundle_path
+
+    async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType, bundle_path: str) -> None:
+        """Verify the provided Bundle with the transfer service and update the LTA DB."""
+        # get our ducks in a row
+        bundle_id = bundle["uuid"]
 
         # we'll compute the bundle's checksum
         self.logger.info(f"Computing SHA512 checksum for bundle: '{bundle_path}'")

@@ -316,13 +316,18 @@ async def test_site_move_verifier_do_work_claim_yes_result(config: TestConfig, m
     lta_rc_mock.request.return_value = {
         "bundle": {
             "one": 1,
+            "bundle_path": "/my/bundle/path",
         },
     }
     vb_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._verify_bundle", new_callable=AsyncMock)
     p = SiteMoveVerifier(config, logger_mock)
     assert await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    vb_mock.assert_called_with(mocker.ANY, {"one": 1})
+    vb_mock.assert_called_with(
+        mocker.ANY,
+        {"one": 1, "bundle_path": "/my/bundle/path"},
+        "/path/to/rse/path",
+    )
 
 
 @pytest.mark.asyncio
@@ -351,7 +356,7 @@ async def test_site_move_verifier_verify_bundle_bad_checksum(config: TestConfig,
     }
     p = SiteMoveVerifier(config, logger_mock)
     with pytest.raises(InvalidChecksumException):
-        await p._verify_bundle(lta_rc_mock, bundle_obj)
+        await p._verify_bundle(lta_rc_mock, bundle_obj, mocker.ANY)
     hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     # NOTE: quarantine logic moved to parent function
     # lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
@@ -386,7 +391,7 @@ async def test_site_move_verifier_verify_bundle_good_checksum(config: TestConfig
         },
     }
     p = SiteMoveVerifier(config, logger_mock)
-    await p._verify_bundle(lta_rc_mock, bundle_obj)
+    await p._verify_bundle(lta_rc_mock, bundle_obj, mocker.ANY)
     hash_mock.assert_called_with("/path/to/rse/8286d3ba-fb1b-4923-876d-935bdf7fc99e.zip")
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
         "status": "taping",
