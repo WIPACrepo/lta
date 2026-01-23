@@ -119,7 +119,6 @@ class NerscVerifier(Component):
         # process the Bundle that we were given
         try:
             hpss_path = self._verify_bundle_in_hpss(bundle)
-            await self._add_bundle_to_file_catalog(lta_rc, bundle)  # TODO: move to TRF
             await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
             success_counter.labels(component='nersc_verifier', level='bundle', type='work').inc()
             return True
