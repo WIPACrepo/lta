@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
+from build.lib.lta.utils import HSICommandFailedException, InvalidChecksumException
 from .utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
@@ -123,9 +124,9 @@ class NerscVerifier(Component):
             return False
         # process the Bundle that we were given
         try:
-            if await self._verify_bundle_in_hpss(lta_rc, bundle):
-                await self._add_bundle_to_file_catalog(lta_rc, bundle)
-                await self._update_bundle_in_lta_db(lta_rc, bundle)
+            self._verify_bundle_in_hpss(bundle)
+            await self._add_bundle_to_file_catalog(lta_rc, bundle)  # TODO: move to TRF
+            await self._update_bundle_in_lta_db(lta_rc, bundle)
             success_counter.labels(component='nersc_verifier', level='bundle', type='work').inc()
             return True
         except Exception as e:
@@ -138,7 +139,8 @@ class NerscVerifier(Component):
                 self.instance_uuid,
                 self.logger,
             )
-        return False
+            # QUESTION: do we not raise on 'InvalidChecksumException'?
+            raise e
 
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Add a FileCatalog entry for the bundle, then update existing records."""
@@ -257,13 +259,14 @@ class NerscVerifier(Component):
         # the morning sun has vanquished the horrible night
         return True
 
-    async def _verify_bundle_in_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+    def _verify_bundle_in_hpss(self, bundle: BundleType) -> None:
         """Verify the checksum of the bundle in HPSS."""
         # determine the path where it is stored on hpss
         data_warehouse_path = bundle["path"]
         basename = os.path.basename(bundle["bundle_path"])
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
+
         # run an hsi command to obtain the checksum of the archive as stored
         #     -P            -> ("popen" flag) - specifies that HSI is being run via popen (as a child process).
         #                      All messages (listable output,error message) are written to stdout.
@@ -280,15 +283,8 @@ class NerscVerifier(Component):
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
-                "hsi hashlist Command Failed",
-                self.name,
-                self.instance_uuid,
-                self.logger,
-            )
-            return False
+            raise HSICommandFailedException("hsi hashlist Command Failed")
+
         # otherwise, we succeeded; output is on stderr
         # 1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]
         result = completed_process.stdout.decode("utf-8")
@@ -301,15 +297,8 @@ class NerscVerifier(Component):
             self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
             self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
             self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
-                f"Checksum mismatch between creation and destination: {checksum_sha512}",
-                self.name,
-                self.instance_uuid,
-                self.logger,
-            )
-            return False
+            raise InvalidChecksumException(f"Checksum mismatch between creation and destination: {checksum_sha512}")
+
         # run an hsi command to calculate the checksum of the archive as stored
         #     -P            -> ("popen" flag) - specifies that HSI is being run via popen (as a child process).
         #                      All messages (listable output,error message) are written to stdout.
@@ -327,15 +316,8 @@ class NerscVerifier(Component):
             self.logger.info(f"returncode: {completed_process.returncode}")
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
-                "hsi hashverify Command Failed",
-                self.name,
-                self.instance_uuid,
-                self.logger,
-            )
-            return False
+            raise HSICommandFailedException("hsi hashverify Command Failed")
+
         # otherwise, we succeeded; output is on stderr
         # /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK
         result = completed_process.stdout.decode("utf-8")
@@ -352,17 +334,7 @@ class NerscVerifier(Component):
             self.logger.info(f"stdout: {str(completed_process.stdout)}")
             self.logger.info(f"stderr: {str(completed_process.stderr)}")
             self.logger.info("This result does NOT match, and the Bundle will NOT be verified.")
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
-                f"hashverify unable to verify checksum in HPSS: {result}",
-                self.name,
-                self.instance_uuid,
-                self.logger,
-            )
-            return False
-        # having passed the gauntlet, we indicate the checksums match
-        return True
+            raise InvalidChecksumException(f"hashverify unable to verify checksum in HPSS: {result}")
 
 
 async def main(nersc_verifier: NerscVerifier) -> None:
