@@ -14,8 +14,7 @@ from typing import Any, Dict, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, InvalidChecksumException
-from .utils import quarantine_bundle
+from .utils import HSICommandFailedException, InvalidChecksumException, quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -116,6 +115,7 @@ class NerscVerifier(Component):
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify at NERSC with HPSS. Going on vacation.")
             return False
+
         # process the Bundle that we were given
         try:
             hpss_path = self._verify_bundle_in_hpss(bundle)
@@ -135,8 +135,7 @@ class NerscVerifier(Component):
             # does exception warrant stopping the work loop?
             if type(e) in QUARANTINE_THEN_KEEP_WORKING:
                 return True
-            else:
-                raise e
+            raise e
 
     async def _update_bundle_in_lta_db(
             self,

@@ -138,10 +138,12 @@ class GlobusReplicator(Component):
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to transfer. Going on vacation.")
             return False
+
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
             self.success_counter.labels(component='globus_replicator', level='bundle', type='work').inc()
+            return True
         except Exception as e:
             self.logger.error(f'Globus transfer threw an error: {e}')
             self.logger.exception(e)
@@ -154,9 +156,7 @@ class GlobusReplicator(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            return False
-        # if we were successful at processing work, let the caller know
-        return True
+            raise e
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""
