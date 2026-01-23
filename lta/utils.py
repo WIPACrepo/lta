@@ -16,6 +16,17 @@ class InvalidBundlePathException(Exception):
 class InvalidChecksumException(Exception):
     """Raised when a checksum value is invalid."""
 
+    def __init__(self, creation: str, destination: str, logger: Logger):
+        logger.error(f"SHA512 checksum at the time of bundle creation: {creation}")
+        logger.error(f"SHA512 checksum of the file at the destination: {destination}")
+        logger.error(
+            "These checksums do NOT match, and the Bundle will NOT be verified."
+        )
+        super().__init__(
+            f"Checksum mismatch between creation and destination: "
+            f"{creation=} and {destination=}"
+        )
+
 
 class HSICommandFailedException(Exception):
     """Raised when an HSI command fails."""

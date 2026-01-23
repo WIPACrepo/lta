@@ -295,11 +295,11 @@ class NerscVerifier(Component):
         checksum_sha512 = cols[0]
         # now we'll compare the bundle's checksum
         if bundle["checksum"]["sha512"] != checksum_sha512:
-            self.logger.error("Command to obtain bundle checksum in HPSS returned bad results")
-            self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
-            self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
-            self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
-            raise InvalidChecksumException(f"Checksum mismatch between creation and destination: {checksum_sha512}")
+            raise InvalidChecksumException(
+                bundle['checksum']['sha512'],
+                checksum_sha512,
+                self.logger,
+            )
 
         # run an hsi command to calculate the checksum of the archive as stored
         #     -P            -> ("popen" flag) - specifies that HSI is being run via popen (as a child process).

@@ -183,11 +183,10 @@ class SiteMoveVerifier(Component):
 
         # now we'll compare the bundle's checksum
         if bundle["checksum"]["sha512"] != checksum_sha512:
-            self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
-            self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
-            self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
             raise InvalidChecksumException(
-                f"Checksum mismatch between creation and destination: {checksum_sha512}"
+                bundle['checksum']['sha512'],
+                checksum_sha512,
+                self.logger,
             )
 
         # update the Bundle in the LTA DB
