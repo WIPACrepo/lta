@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from build.lib.lta.utils import HSICommandFailedException, InvalidChecksumException
+from .utils import HSICommandFailedException, InvalidChecksumException
 from .utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment

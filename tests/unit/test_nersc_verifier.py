@@ -6,6 +6,9 @@
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY
+
+from lta.utils import HSICommandFailedException, InvalidChecksumException
+
 collectors = list(REGISTRY._collector_to_names.keys())
 for collector in collectors:
     REGISTRY.unregister(collector)
@@ -270,45 +273,11 @@ async def test_nersc_verifier_do_work_claim_no_result(config: TestConfig, mocker
     lta_rc_mock.request.return_value = {
         "bundle": None
     }
-    vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=AsyncMock)
+    vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=MagicMock)
     p = NerscVerifier(config, logger_mock)
     await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_nersc_verifier_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
-    logger_mock = mocker.MagicMock()
-    run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
-    run_mock.side_effect = [
-        ObjectLiteral(
-            returncode=0,
-            args=["/usr/common/software/bin/hpss_avail", "archive"],
-            stdout="some text on stdout",
-            stderr="some text on stderr",
-        ),
-        ObjectLiteral(
-            returncode=0,
-            args=["/usr/bin/which", "hsi"],
-            stdout="some text on stdout",
-            stderr="some text on stderr",
-        ),
-    ]
-    lta_rc_mock = AsyncMock()
-    lta_rc_mock.request = AsyncMock()
-    lta_rc_mock.request.return_value = {
-        "bundle": {
-            "one": 1,
-        },
-    }
-    vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=AsyncMock)
-    vbih_mock.return_value = False
-    p = NerscVerifier(config, logger_mock)
-    assert await p._do_work_claim(lta_rc_mock)
-    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
 @pytest.mark.asyncio
@@ -337,16 +306,15 @@ async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config:
             "one": 1,
         },
     }
-    vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=AsyncMock)
-    vbih_mock.return_value = True
+    vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=MagicMock)
     abtfc_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._add_bundle_to_file_catalog", new_callable=AsyncMock)
     ubild_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._update_bundle_in_lta_db", new_callable=AsyncMock)
     p = NerscVerifier(config, logger_mock)
     assert await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    vbih_mock.assert_called_with(mocker.ANY, {"one": 1})
-    abtfc_mock.assert_called_with(mocker.ANY, {"one": 1})
-    ubild_mock.assert_called_with(mocker.ANY, {"one": 1})
+    vbih_mock.assert_called_with({"one": 1})
+    abtfc_mock.assert_called_with(lta_rc_mock, {"one": 1})
+    ubild_mock.assert_called_with(lta_rc_mock, {"one": 1})
 
 
 @pytest.mark.asyncio
@@ -380,13 +348,15 @@ async def test_nersc_verifier_do_work_claim_exception_caught(config: TestConfig,
         },
         {}
     ]
-    vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=AsyncMock)
-    vbih_mock.side_effect = Exception("Database totally on fire, guys")
+    vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=MagicMock)
+    exc = Exception("Database totally on fire, guys")
+    vbih_mock.side_effect = exc
     p = NerscVerifier(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    with pytest.raises(type(exc)) as excinfo:
+        assert not await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/45ae2ad39c664fda86e5981be0976d9c', mocker.ANY)
     vbih_mock.assert_called_with(
-        mocker.ANY,
         {"uuid": "45ae2ad39c664fda86e5981be0976d9c", "status": "verifying", "one": 1}
     )
 
@@ -553,13 +523,9 @@ async def test_nersc_verifier_verify_bundle_in_hpss_success_no_quarantine(config
             stderr=b"",
         ),
     ]
-    lta_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_mock.request = lta_rc_mock
     p = NerscVerifier(config, logger_mock)
-    assert await p._verify_bundle_in_hpss(lta_mock, bundle)
+    p._verify_bundle_in_hpss(bundle)
     assert run_mock.call_count == 2
-    lta_rc_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -584,13 +550,11 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hsi_failure_quarantine(confi
             stderr=b"",
         ),
     ]
-    lta_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_mock.request = lta_rc_mock
     p = NerscVerifier(config, logger_mock)
-    assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
+    with pytest.raises(HSICommandFailedException) as excinfo:
+        p._verify_bundle_in_hpss(bundle)
+    assert str(excinfo.value) == "hsi hashlist Command Failed"
     assert run_mock.call_count == 1
-    lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -615,13 +579,11 @@ async def test_nersc_verifier_verify_bundle_in_hpss_mismatch_checksum_quarantine
             stderr=b"",
         ),
     ]
-    lta_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_mock.request = lta_rc_mock
     p = NerscVerifier(config, logger_mock)
-    assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
+    with pytest.raises(InvalidChecksumException) as excinfo:
+        p._verify_bundle_in_hpss(bundle)
+    assert str(excinfo.value).startswith("Checksum mismatch between creation and destination:")
     assert run_mock.call_count == 1
-    lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -652,13 +614,11 @@ async def test_nersc_verifier_verify_bundle_in_hpss_failure_hashverify_quarantin
             stderr=b"",
         ),
     ]
-    lta_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_mock.request = lta_rc_mock
     p = NerscVerifier(config, logger_mock)
-    assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
+    with pytest.raises(HSICommandFailedException) as excinfo:
+        p._verify_bundle_in_hpss(bundle)
+    assert str(excinfo.value).startswith("hsi hashverify Command Failed")
     assert run_mock.call_count == 2
-    lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -689,13 +649,11 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quaranti
             stderr=b"",
         ),
     ]
-    lta_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_mock.request = lta_rc_mock
     p = NerscVerifier(config, logger_mock)
-    assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
+    with pytest.raises(InvalidChecksumException) as excinfo:
+        p._verify_bundle_in_hpss(bundle)
+    assert str(excinfo.value).startswith("hashverify unable to verify checksum in HPSS:")
     assert run_mock.call_count == 2
-    lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
 
 
 @pytest.mark.asyncio
@@ -726,10 +684,8 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_result_quaran
             stderr=b"",
         ),
     ]
-    lta_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_mock.request = lta_rc_mock
     p = NerscVerifier(config, logger_mock)
-    assert not await p._verify_bundle_in_hpss(lta_mock, bundle)
+    with pytest.raises(InvalidChecksumException) as excinfo:
+        p._verify_bundle_in_hpss(bundle)
+    assert str(excinfo.value).startswith("hashverify unable to verify checksum in HPSS:")
     assert run_mock.call_count == 2
-    lta_rc_mock.assert_called_with('PATCH', '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
