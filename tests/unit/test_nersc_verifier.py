@@ -553,7 +553,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hsi_failure_quarantine(confi
     p = NerscVerifier(config, logger_mock)
     with pytest.raises(HSICommandFailedException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
-    assert str(excinfo.value) == "hsi hashlist Command Failed"
+    assert "list checksum in HPSS (hashlist)" in str(excinfo.value)
     assert run_mock.call_count == 1
 
 
@@ -617,7 +617,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_failure_hashverify_quarantin
     p = NerscVerifier(config, logger_mock)
     with pytest.raises(HSICommandFailedException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
-    assert str(excinfo.value).startswith("hsi hashverify Command Failed")
+    assert "verify bundle in HPSS (hashverify)" in str(excinfo.value)
     assert run_mock.call_count == 2
 
 

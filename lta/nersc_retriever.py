@@ -165,12 +165,8 @@ class NerscRetriever(Component):
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
-            self.logger.info(f"Command to read bundle from HPSS failed: {completed_process.args}")
-            self.logger.info(f"returncode: {completed_process.returncode}")
-            self.logger.info(f"stdout: {str(completed_process.stdout)}")
-            self.logger.info(f"stderr: {str(completed_process.stderr)}")
             raise HSICommandFailedException(
-                f"hsi Command Failed - {completed_process.args} - {completed_process.returncode} - {str(completed_process.stdout)} - {str(completed_process.stderr)}",
+                "read bundle from HPSS", completed_process, self.logger
             )
 
 

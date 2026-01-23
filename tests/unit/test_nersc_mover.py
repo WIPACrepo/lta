@@ -1,8 +1,8 @@
 # test_nersc_mover.py
 """Unit tests for lta/nersc_mover.py."""
+
 from unittest import mock
 
-from globus_sdk import exc
 # fmt:off
 
 # -----------------------------------------------------------------------------
@@ -381,10 +381,12 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config: TestConfig, mocker
         }
     ]
     ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=MagicMock)
-    ehc_mock.side_effect = HSICommandFailedException("from test")
+    exc = HSICommandFailedException("from test", MagicMock(), MagicMock())
+    ehc_mock.side_effect = exc
     p = NerscMover(config, logger_mock)
-    with pytest.raises(HSICommandFailedException):
+    with pytest.raises(type(exc)) as excinfo:
         await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
     ehc_mock.assert_called_with(['/usr/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'])
     lta_rc_mock.request.assert_has_calls(
         [
@@ -430,10 +432,12 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mock
         }
     ]
     ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=MagicMock)
-    ehc_mock.side_effect = [None, HSICommandFailedException("from test")]
+    exc = HSICommandFailedException("from test", MagicMock(), MagicMock())
+    ehc_mock.side_effect = [None, exc]
     p = NerscMover(config, logger_mock)
-    with pytest.raises(HSICommandFailedException):
+    with pytest.raises(type(exc)) as excinfo:
         await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
     ehc_mock.assert_called_with(['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.request.assert_has_calls(
         [

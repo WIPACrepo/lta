@@ -379,10 +379,12 @@ async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config: TestConfig,
         },
     ]
     ehc_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._execute_hsi_command", new_callable=MagicMock)
-    ehc_mock.side_effect = HSICommandFailedException("from test")
+    exc = HSICommandFailedException("from test", MagicMock(), MagicMock())
+    ehc_mock.side_effect = exc
     p = NerscRetriever(config, logger_mock)
-    with pytest.raises(HSICommandFailedException):
+    with pytest.raises(type(exc)) as excinfo:
         await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
     ehc_mock.assert_called_with(['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 

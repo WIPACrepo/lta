@@ -1,6 +1,7 @@
 """Common and simple utility functions."""
 
 from logging import Logger
+from subprocess import CompletedProcess
 
 from rest_tools.client import RestClient
 
@@ -18,6 +19,21 @@ class InvalidChecksumException(Exception):
 
 class HSICommandFailedException(Exception):
     """Raised when an HSI command fails."""
+
+    def __init__(
+        self,
+        hsi_cmd_description: str,
+        completed_process: CompletedProcess,
+        logger: Logger,
+    ):
+        logger.info(f"Command '{hsi_cmd_description}' failed: {completed_process.args}")
+        logger.info(f"returncode: {completed_process.returncode}")
+        logger.info(f"stdout: {str(completed_process.stdout)}")
+        logger.info(f"stderr: {str(completed_process.stderr)}")
+        super().__init__(
+            f"{hsi_cmd_description} - {completed_process.args} - {completed_process.returncode}"
+            f" - {str(completed_process.stdout)} - {str(completed_process.stderr)}"
+        )
 
 
 async def patch_bundle(
