@@ -149,17 +149,23 @@ class NerscVerifier(Component):
                 raise e
 
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
-        """Add a FileCatalog entry for the bundle, then update existing records."""
+        """Add a FileCatalog entry for the bundle, then update existing records.
+
+        TODO -- THIS FUNCTION IS SLATED FOR REMOVAL AND MOVED TO TRANSFER REQUEST FINISHER
+        """
         # configure a RestClient to talk to the File Catalog
         fc_rc = ClientCredentialsAuth(address=self.file_catalog_rest_url,
                                       token_url=self.lta_auth_openid_url,
                                       client_id=self.file_catalog_client_id,
                                       client_secret=self.file_catalog_client_secret)
+
         # determine the path where the bundle is stored on hpss
+        # TODO -- WHEN THIS IS IN THE TRF, READ FROM `bundle["final_dest_path"]` INSTEAD
         data_warehouse_path = bundle["path"]
         basename = os.path.basename(bundle["bundle_path"])
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
+
         # create a File Catalog entry for the bundle itself
         bundle_uuid = bundle["uuid"]
         right_now = now()
