@@ -26,10 +26,12 @@ class HSICommandFailedException(Exception):
         completed_process: CompletedProcess,
         logger: Logger,
     ):
-        logger.info(f"Command '{hsi_cmd_description}' failed: {completed_process.args}")
-        logger.info(f"returncode: {completed_process.returncode}")
-        logger.info(f"stdout: {str(completed_process.stdout)}")
-        logger.info(f"stderr: {str(completed_process.stderr)}")
+        logger.error(
+            f"Command '{hsi_cmd_description}' failed: {completed_process.args}"
+        )
+        logger.error(f"returncode: {completed_process.returncode}")
+        logger.error(f"stdout: {str(completed_process.stdout)}")
+        logger.error(f"stderr: {str(completed_process.stderr)}")
         super().__init__(
             f"{hsi_cmd_description} - {completed_process.args} - {completed_process.returncode}"
             f" - {str(completed_process.stdout)} - {str(completed_process.stderr)}"

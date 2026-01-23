@@ -326,14 +326,11 @@ class NerscVerifier(Component):
         checksum_result = cols[2]
         # now we'll compare the bundle's checksum
         if (checksum_type != '(sha512)') or (checksum_result != 'OK'):
-            self.logger.error("Command to verify bundle in HPSS returned bad results")
-            self.logger.info(f"Command: {completed_process.args}")
-            self.logger.info(f"EXPECTED: {hpss_path}: (sha512) OK")
-            self.logger.info(f"returncode: {completed_process.returncode}")
-            self.logger.info(f"stdout: {str(completed_process.stdout)}")
-            self.logger.info(f"stderr: {str(completed_process.stderr)}")
+            self.logger.info(f"EXPECTED: {hpss_path}: (sha512) OK -- ({checksum_type=} {checksum_result=})")
             self.logger.info("This result does NOT match, and the Bundle will NOT be verified.")
-            raise InvalidChecksumException(f"hashverify unable to verify checksum in HPSS: {result}")
+            raise HSICommandFailedException(
+                "verify bundle checksum in HPSS (hashverify)", completed_process, self.logger
+            )
 
 
 async def main(nersc_verifier: NerscVerifier) -> None:

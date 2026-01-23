@@ -650,9 +650,9 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quaranti
         ),
     ]
     p = NerscVerifier(config, logger_mock)
-    with pytest.raises(InvalidChecksumException) as excinfo:
+    with pytest.raises(HSICommandFailedException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
-    assert str(excinfo.value).startswith("hashverify unable to verify checksum in HPSS:")
+    assert "verify bundle checksum in HPSS (hashverify)" in str(excinfo.value)
     assert run_mock.call_count == 2
 
 
@@ -685,7 +685,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_result_quaran
         ),
     ]
     p = NerscVerifier(config, logger_mock)
-    with pytest.raises(InvalidChecksumException) as excinfo:
+    with pytest.raises(HSICommandFailedException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
-    assert str(excinfo.value).startswith("hashverify unable to verify checksum in HPSS:")
+    assert "verify bundle checksum in HPSS (hashverify)" in str(excinfo.value)
     assert run_mock.call_count == 2
