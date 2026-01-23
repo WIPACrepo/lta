@@ -1,5 +1,6 @@
 # test_nersc_verifier.py
 """Unit tests for lta/nersc_verifier.py."""
+from pathlib import Path
 
 # fmt:off
 
@@ -314,7 +315,7 @@ async def test_nersc_verifier_do_work_claim_yes_result_update_fc_and_lta(config:
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_called_with({"one": 1})
     abtfc_mock.assert_called_with(lta_rc_mock, {"one": 1})
-    ubild_mock.assert_called_with(lta_rc_mock, {"one": 1})
+    ubild_mock.assert_called_with(lta_rc_mock, {"one": 1}, vbih_mock.return_value)
 
 
 @pytest.mark.asyncio
@@ -492,7 +493,7 @@ async def test_nersc_verifier_update_bundle_in_lta_db(config: TestConfig, mocker
     lta_rc_mock.return_value = True
     lta_mock.request = lta_rc_mock
     p = NerscVerifier(config, logger_mock)
-    assert await p._update_bundle_in_lta_db(lta_mock, bundle)
+    assert await p._update_bundle_in_lta_db(lta_mock, bundle, Path("foo"))
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
 
 
