@@ -6,6 +6,7 @@
 import asyncio
 import logging
 import os
+from pathlib import Path
 from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, Optional
@@ -13,6 +14,7 @@ from typing import Any, Dict, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
+from .utils import HSICommandFailedException, InvalidChecksumException, log_completed_process_outputs, quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -34,6 +36,8 @@ EXPECTED_CONFIG.update({
 
 # maximum number of Metadata UUIDs to work with at a time
 UPDATE_CHUNK_SIZE = 1000
+
+QUARANTINE_THEN_KEEP_WORKING = [InvalidChecksumException]
 
 # prometheus metrics
 failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
@@ -120,39 +124,47 @@ class NerscVerifier(Component):
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify at NERSC with HPSS. Going on vacation.")
             return False
+
         # process the Bundle that we were given
         try:
-            if await self._verify_bundle_in_hpss(lta_rc, bundle):
-                await self._add_bundle_to_file_catalog(lta_rc, bundle)
-                await self._update_bundle_in_lta_db(lta_rc, bundle)
+            hpss_path = self._verify_bundle_in_hpss(bundle)
+            await self._add_bundle_to_file_catalog(lta_rc, bundle)  # TODO: move to TRF
+            await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
             success_counter.labels(component='nersc_verifier', level='bundle', type='work').inc()
             return True
         except Exception as e:
             failure_counter.labels(component='nersc_verifier', level='bundle', type='exception').inc()
-            bundle_uuid = bundle["uuid"]
-            right_now = now()
-            patch_body = {
-                "original_status": bundle["status"],
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Exception during execution: {e}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
-        return False
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
+            # does exception warrant stopping the work loop?
+            if type(e) in QUARANTINE_THEN_KEEP_WORKING:
+                return True
+            raise e
 
     async def _add_bundle_to_file_catalog(self, lta_rc: RestClient, bundle: BundleType) -> bool:
-        """Add a FileCatalog entry for the bundle, then update existing records."""
+        """Add a FileCatalog entry for the bundle, then update existing records.
+
+        TODO -- THIS FUNCTION IS SLATED FOR REMOVAL AND MOVED TO TRANSFER REQUEST FINISHER
+        """
         # configure a RestClient to talk to the File Catalog
         fc_rc = ClientCredentialsAuth(address=self.file_catalog_rest_url,
                                       token_url=self.lta_auth_openid_url,
                                       client_id=self.file_catalog_client_id,
                                       client_secret=self.file_catalog_client_secret)
+
         # determine the path where the bundle is stored on hpss
+        # TODO -- WHEN THIS IS IN THE TRF, READ FROM `bundle["final_dest_path"]` INSTEAD
         data_warehouse_path = bundle["path"]
         basename = os.path.basename(bundle["bundle_path"])
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
+
         # create a File Catalog entry for the bundle itself
         bundle_uuid = bundle["uuid"]
         right_now = now()
@@ -188,12 +200,18 @@ class NerscVerifier(Component):
         # indicate that our file catalog updates were successful
         return True
 
-    async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+    async def _update_bundle_in_lta_db(
+            self,
+            lta_rc: RestClient,
+            bundle: BundleType,
+            hpss_path: Path,
+    ) -> bool:
         """Update the LTA DB to indicate the Bundle is verified."""
         bundle_uuid = bundle["uuid"]
         patch_body = {
             "status": self.output_status,
             "reason": "",
+            "final_dest_path": str(hpss_path),  # overwrite existing value, we know more now
             "update_timestamp": now(),
             "claimed": False,
         }
@@ -258,15 +276,16 @@ class NerscVerifier(Component):
         # the morning sun has vanquished the horrible night
         return True
 
-    async def _verify_bundle_in_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+    def _verify_bundle_in_hpss(self, bundle: BundleType) -> Path:
         """Verify the checksum of the bundle in HPSS."""
-        bundle_uuid = bundle["uuid"]
         # determine the path where it is stored on hpss
         data_warehouse_path = bundle["path"]
         basename = os.path.basename(bundle["bundle_path"])
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
-        # run an hsi command to obtain the checksum of the archive as stored
+
+        # "What checksum do you have in your metadata?"
+        # run an hsi command to retrieve the stored checksum of the archive (does not perform checksum calculation)
         #     -P            -> ("popen" flag) - specifies that HSI is being run via popen (as a child process).
         #                      All messages (listable output,error message) are written to stdout.
         #                      HSI may not be used to pipe output to stdout if this flag is specified
@@ -277,42 +296,28 @@ class NerscVerifier(Component):
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
-            self.logger.error("Command to list checksum in HPSS failed")
-            self.logger.info(f"Command: {completed_process.args}")
-            self.logger.info(f"returncode: {completed_process.returncode}")
-            self.logger.info(f"stdout: {str(completed_process.stdout)}")
-            self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            right_now = now()
-            patch_body = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hsi hashlist Command Failed",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
-            return False
-        # otherwise, we succeeded; output is on stderr
+            raise HSICommandFailedException(
+                "list checksum in HPSS (hashlist)", completed_process, self.logger
+            )
+
+        # now, check that the checksum value retrieval was ok
         # 1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]
         result = completed_process.stdout.decode("utf-8")
         lines = result.split("\n")
         cols = lines[0].split(" ")
-        checksum_sha512 = cols[0]
+        cached_checksum_sha512 = cols[0]
         # now we'll compare the bundle's checksum
-        if bundle["checksum"]["sha512"] != checksum_sha512:
-            self.logger.error("Command to obtain bundle checksum in HPSS returned bad results")
-            self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
-            self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
-            self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
-            right_now = now()
-            patch_body = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Checksum mismatch between creation and destination: {checksum_sha512}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
-            return False
-        # run an hsi command to calculate the checksum of the archive as stored
+        if bundle["checksum"]["sha512"] != cached_checksum_sha512:
+            log_completed_process_outputs(
+                completed_process, "list checksum in HPSS (hashlist)", self.logger)
+            raise InvalidChecksumException(
+                bundle['checksum']['sha512'],
+                cached_checksum_sha512,
+                self.logger,
+            )
+
+        # "Please read the bytes from tape, compute the checksum, and compare it to what you have in metadata."
+        # run an hsi command to re-calculate the checksum of the archive and *compare against* the stored value
         #     -P            -> ("popen" flag) - specifies that HSI is being run via popen (as a child process).
         #                      All messages (listable output,error message) are written to stdout.
         #                      HSI may not be used to pipe output to stdout if this flag is specified
@@ -324,21 +329,11 @@ class NerscVerifier(Component):
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
-            self.logger.error("Command to verify bundle in HPSS failed")
-            self.logger.info(f"Command: {completed_process.args}")
-            self.logger.info(f"returncode: {completed_process.returncode}")
-            self.logger.info(f"stdout: {str(completed_process.stdout)}")
-            self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            right_now = now()
-            patch_body = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hsi hashverify Command Failed",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
-            return False
-        # otherwise, we succeeded; output is on stderr
+            raise HSICommandFailedException(
+                "verify bundle in HPSS (hashverify)", completed_process, self.logger
+            )
+
+        # now, check that the stored checksum value is consistent with the actual value
         # /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK
         result = completed_process.stdout.decode("utf-8")
         lines = result.split("\n")
@@ -347,24 +342,16 @@ class NerscVerifier(Component):
         checksum_result = cols[2]
         # now we'll compare the bundle's checksum
         if (checksum_type != '(sha512)') or (checksum_result != 'OK'):
-            self.logger.error("Command to verify bundle in HPSS returned bad results")
-            self.logger.info(f"Command: {completed_process.args}")
-            self.logger.info(f"EXPECTED: {hpss_path}: (sha512) OK")
-            self.logger.info(f"returncode: {completed_process.returncode}")
-            self.logger.info(f"stdout: {str(completed_process.stdout)}")
-            self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            self.logger.info("This result does NOT match, and the Bundle will NOT be verified.")
-            right_now = now()
-            patch_body = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hashverify unable to verify checksum in HPSS: {result}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', patch_body)
-            return False
-        # having passed the gauntlet, we indicate the checksums match
-        return True
+            self.logger.info(f"EXPECTED: {hpss_path}: (sha512) OK -- ({checksum_type=} {checksum_result=})")
+            log_completed_process_outputs(
+                completed_process, "verify bundle checksum in HPSS (hashverify)", self.logger)
+            raise InvalidChecksumException(
+                bundle['checksum']['sha512'],
+                "[unknown but confirmed as different by hashverify]",
+                self.logger,
+            )
+
+        return Path(hpss_path)
 
 
 async def main(nersc_verifier: NerscVerifier) -> None:

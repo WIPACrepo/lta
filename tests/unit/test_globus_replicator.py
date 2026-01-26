@@ -252,16 +252,21 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     # -- post transfer_file()
     _, url, body = patch_calls[0]
     assert url == "/Bundles/B-123"
-    assert set(body.keys()) == {"update_timestamp", "transfer_reference"}
-    ref = f"globus/{lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value}"  # type: ignore
-    assert body.get("transfer_reference") == ref
+    assert body == {
+        "update_timestamp": mock_now,
+        "transfer_reference": f"globus/{lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value}",  # type: ignore
+        "transfer_dest_path": str(kwargs["dest_path"]),
+        "final_dest_path": str(kwargs["dest_path"]),
+    }
     # -- post wait_for_transfer_to_finish()
     _, url, body = patch_calls[1]
     assert url == "/Bundles/B-123"
-    assert set(body.keys()) == {"status", "reason", "update_timestamp", "claimed"}
-    assert body.get("claimed") is False
-    assert body.get("status") == rep.output_status
-    assert body.get("reason") == ""
+    assert body == {
+        "status": rep.output_status,
+        "reason": "",
+        "update_timestamp": mock_now,
+        "claimed": False,
+    }
 
 
 @pytest.mark.asyncio
@@ -286,17 +291,20 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
 
+    exc = RuntimeError("boom")
+
     def _raise(*_a: Any, **_k: Any) -> None:
-        raise RuntimeError("boom")
+        raise exc
 
     lta.globus_replicator.GlobusTransfer.return_value.transfer_file.side_effect = _raise  # type: ignore
 
-    ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
+    with pytest.raises(type(exc)) as excinfo:
+        await rep._do_work_claim(rc)  # type: ignore[arg-type]
+    assert excinfo.value == exc
     patch_calls = [c for c in rc.calls if c[0] == "PATCH"]
     assert patch_calls
 
-    # Globus path: quarantined + False
-    assert ok is False
+    # Globus path: quarantined
     quarantine_calls = [c for c in patch_calls if c[1] == "/Bundles/B-ERR"]
     assert quarantine_calls
     _, _, body = quarantine_calls[0]

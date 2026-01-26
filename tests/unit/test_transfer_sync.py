@@ -26,7 +26,7 @@ from lta.transfer.sync import (
     ParallelAsync,
     Sync,
 )
-from .test_util import ObjectLiteral
+from .utils import ObjectLiteral
 
 TestConfig = dict[str, str]
 

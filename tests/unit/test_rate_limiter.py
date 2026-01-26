@@ -6,6 +6,9 @@
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY
+
+from .utils import NicheException
+
 collectors = list(REGISTRY._collector_to_names.keys())
 for collector in collectors:
     REGISTRY.unregister(collector)
@@ -247,7 +250,7 @@ async def test_rate_limiter_do_work_claim_yes_result(config: TestConfig, mocker:
 
 @pytest.mark.asyncio
 async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _do_work_claim both calls _quarantine_bundle and re-raises when _stage_bundle raises."""
+    """Test that _do_work_claim both calls quarantine_bundle and re-raises when _stage_bundle raises."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
@@ -257,14 +260,22 @@ async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: Mock
         },
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
-    qb_mock = mocker.patch("lta.rate_limiter.RateLimiter._quarantine_bundle", new_callable=AsyncMock)
-    sb_mock.side_effect = Exception("LTA DB unavailable; currently safer at home")
+    qb_mock = mocker.patch("lta.rate_limiter.quarantine_bundle", new_callable=AsyncMock)
+    exc = NicheException("LTA DB unavailable; currently safer at home")
+    sb_mock.side_effect = exc
     p = RateLimiter(config, logger_mock)
-    with pytest.raises(Exception):
+    with pytest.raises(NicheException):
         await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
-    qb_mock.assert_called_with(mocker.ANY, {"one": 1}, "LTA DB unavailable; currently safer at home")
+    qb_mock.assert_called_with(
+        lta_rc_mock,
+        {"one": 1},
+        exc,
+        p.name,
+        p.instance_uuid,
+        logger_mock,
+    )
 
 
 @pytest.mark.asyncio
@@ -307,20 +318,6 @@ async def test_rate_limiter_stage_bundle_over_quota(config: TestConfig, mocker: 
         "size": 536870912000,
     })
     move_mock.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_rate_limiter_quarantine_bundle_with_reason(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _do_work_claim attempts to quarantine a Bundle that fails to get deleted."""
-    logger_mock = mocker.MagicMock()
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    p = RateLimiter(config, logger_mock)
-    await p._quarantine_bundle(
-        lta_rc_mock,
-        {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", "status": "created"},
-        "Rucio caught fire, then we roasted marshmellows."
-    )
-    lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
 
 
 @pytest.mark.asyncio

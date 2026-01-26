@@ -14,6 +14,7 @@ from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
+from .utils import InvalidBundlePathException, InvalidChecksumException, quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
@@ -36,6 +37,8 @@ EXPECTED_CONFIG.update({
 MYQUOTA_ARGS = ["/usr/bin/myquota", "-G"]
 
 OLD_MTIME_EPOCH_SEC = 30 * 60  # 30 MINUTES * 60 SEC_PER_MIN
+
+QUARANTINE_THEN_KEEP_WORKING = [InvalidChecksumException]
 
 # prometheus metrics
 failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
@@ -136,62 +139,63 @@ class SiteMoveVerifier(Component):
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify. Going on vacation.")
             return False
+
         # process the Bundle that we were given
         try:
-            await self._verify_bundle(lta_rc, bundle)
+            bundle_path = self._get_bundle_path(bundle)
+            await self._verify_bundle(lta_rc, bundle, bundle_path)
             success_counter.labels(component='site_move_verifier', level='bundle', type='work').inc()
+            return True
         except Exception as e:
             failure_counter.labels(component='site_move_verifier', level='bundle', type='exception').inc()
-            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
+            # does exception warrant stopping the work loop?
+            if type(e) in QUARANTINE_THEN_KEEP_WORKING:
+                return True
             raise e
-        # if we were successful at processing work, let the caller know
-        return True
 
-    async def _quarantine_bundle(self,
-                                 lta_rc: RestClient,
-                                 bundle: BundleType,
-                                 reason: str) -> None:
-        """Quarantine the supplied bundle using the supplied reason."""
-        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
-        right_now = now()
-        patch_body = {
-            "original_status": bundle["status"],
-            "status": "quarantined",
-            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
-            "work_priority_timestamp": right_now,
-        }
-        try:
-            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
-        except Exception as e:
-            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
-
-    async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
-        """Verify the provided Bundle with the transfer service and update the LTA DB."""
-        # get our ducks in a row
-        bundle_id = bundle["uuid"]
+    def _get_bundle_path(self, bundle: BundleType) -> str:
+        """Get and validate the bundle path."""
         if self.use_full_bundle_path:
             bundle_name = join_smart([bundle["path"], os.path.basename(bundle["bundle_path"])])
         else:
             bundle_name = os.path.basename(bundle["bundle_path"])
         bundle_path = join_smart([self.dest_root_path, bundle_name])
+
+        # validate bundle path
+        transfer_dest_path = bundle.get("transfer_dest_path")  # new attr as of Jan 2026
+        if transfer_dest_path and transfer_dest_path != bundle_path:
+            raise InvalidBundlePathException(
+                f"{bundle_path=} is not {transfer_dest_path=} ({self.dest_root_path=})"
+            )
+
+        return bundle_path
+
+    async def _verify_bundle(self, lta_rc: RestClient, bundle: BundleType, bundle_path: str) -> None:
+        """Verify the provided Bundle with the transfer service and update the LTA DB."""
+        # get our ducks in a row
+        bundle_id = bundle["uuid"]
+
         # we'll compute the bundle's checksum
         self.logger.info(f"Computing SHA512 checksum for bundle: '{bundle_path}'")
         checksum_sha512 = sha512sum(bundle_path)
         self.logger.info(f"Bundle '{bundle_path}' has SHA512 checksum '{checksum_sha512}'")
+
         # now we'll compare the bundle's checksum
         if bundle["checksum"]["sha512"] != checksum_sha512:
-            self.logger.info(f"SHA512 checksum at the time of bundle creation: {bundle['checksum']['sha512']}")
-            self.logger.info(f"SHA512 checksum of the file at the destination: {checksum_sha512}")
-            self.logger.info("These checksums do NOT match, and the Bundle will NOT be verified.")
-            right_now = now()
-            patch_body: Dict[str, Any] = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Checksum mismatch between creation and destination: {checksum_sha512}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-            return False
+            raise InvalidChecksumException(
+                bundle['checksum']['sha512'],
+                checksum_sha512,
+                self.logger,
+            )
+
         # update the Bundle in the LTA DB
         self.logger.info("Destination checksum matches bundle creation checksum; the bundle is now verified.")
         patch_body = {
@@ -202,7 +206,6 @@ class SiteMoveVerifier(Component):
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-        return True
 
     def _execute_myquota(self) -> Optional[str]:
         """Run the myquota command to determine disk usage at the site."""

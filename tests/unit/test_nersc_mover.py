@@ -1,11 +1,16 @@
 # test_nersc_mover.py
 """Unit tests for lta/nersc_mover.py."""
 
+from unittest import mock
+
 # fmt:off
 
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY
+
+from lta.utils import HSICommandFailedException
+
 collectors = list(REGISTRY._collector_to_names.keys())
 for collector in collectors:
     REGISTRY.unregister(collector)
@@ -24,7 +29,7 @@ from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
 from lta.nersc_mover import main_sync, NerscMover
-from .test_util import ObjectLiteral
+from .utils import ObjectLiteral
 
 TestConfig = Dict[str, str]
 
@@ -339,9 +344,12 @@ async def test_nersc_mover_do_work_claim_write_bundle_raise_exception(config: Te
         {}
     ]
     wbth_mock = mocker.patch("lta.nersc_mover.NerscMover._write_bundle_to_hpss", new_callable=AsyncMock)
-    wbth_mock.side_effect = Exception("BAD THING HAPPEN!")
+    exc = Exception("BAD THING HAPPEN!")
+    wbth_mock.side_effect = exc
     p = NerscMover(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    with pytest.raises(type(exc)) as excinfo:
+        await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
     wbth_mock.assert_called_with(
         mocker.ANY,
@@ -368,16 +376,37 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config: TestConfig, mocker
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "status": "taping",
             },
         }
     ]
-    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=AsyncMock)
-    ehc_mock.return_value = False
+    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=MagicMock)
+    exc = HSICommandFailedException("from test", MagicMock(), MagicMock())
+    ehc_mock.side_effect = exc
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
-    ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'])
-    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
-
+    with pytest.raises(type(exc)) as excinfo:
+        await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
+    ehc_mock.assert_called_with(['/usr/bin/hsi', 'mkdir', '-p', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109'])
+    lta_rc_mock.request.assert_has_calls(
+        [
+            call(
+                "POST",
+                '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping',
+                {'claimant': f'{p.name}-{p.instance_uuid}'},
+            ),
+            call(
+                "PATCH",
+                "/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88",
+                {
+                    "original_status": "taping",
+                    "status": "quarantined",
+                    "reason": mock.ANY,
+                    "work_priority_timestamp": mock.ANY,
+                }
+            ),
+        ]
+    )
 
 @pytest.mark.asyncio
 async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mocker: MockerFixture) -> None:
@@ -398,15 +427,37 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mock
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "status": "taping",
             },
         }
     ]
-    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=AsyncMock)
-    ehc_mock.side_effect = [True, False]
+    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=MagicMock)
+    exc = HSICommandFailedException("from test", MagicMock(), MagicMock())
+    ehc_mock.side_effect = [None, exc]
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
-    ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
-    lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping', {'claimant': f'{p.name}-{p.instance_uuid}'})
+    with pytest.raises(type(exc)) as excinfo:
+        await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
+    ehc_mock.assert_called_with(['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    lta_rc_mock.request.assert_has_calls(
+        [
+            call(
+                "POST",
+                '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=taping',
+                {'claimant': f'{p.name}-{p.instance_uuid}'},
+            ),
+            call(
+                "PATCH",
+                "/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88",
+                {
+                    "original_status": "taping",
+                    "status": "quarantined",
+                    "reason": mock.ANY,
+                    "work_priority_timestamp": mock.ANY,
+                }
+            ),
+        ]
+    )
 
 
 @pytest.mark.asyncio
@@ -434,11 +485,11 @@ async def test_nersc_mover_write_bundle_to_hpss(config: TestConfig, mocker: Mock
             "type": "Bundle",
         },
     ]
-    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=AsyncMock)
-    ehc_mock.side_effect = [True, True]
+    ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=MagicMock)
+    ehc_mock.side_effect = [None, None]
     p = NerscMover(config, logger_mock)
     await p._do_work_claim(lta_rc_mock)
-    ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    ehc_mock.assert_called_with(['/usr/bin/hsi', 'put', '-c', 'on', '-H', 'sha512', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
@@ -469,6 +520,7 @@ async def test_nersc_mover_execute_hsi_command_failed(config: TestConfig, mocker
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "status": "taping",
             },
         },
         {
@@ -476,7 +528,8 @@ async def test_nersc_mover_execute_hsi_command_failed(config: TestConfig, mocker
         },
     ]
     p = NerscMover(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    with pytest.raises(HSICommandFailedException):
+        await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
