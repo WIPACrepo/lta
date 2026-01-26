@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .utils import HSICommandFailedException, InvalidChecksumException, quarantine_bundle
+from .utils import HSICommandFailedException, InvalidChecksumException, log_completed_process_outputs, quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -284,7 +284,8 @@ class NerscVerifier(Component):
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
 
-        # run an hsi command to obtain the checksum of the archive as stored
+        # "What checksum do you have in your metadata?"
+        # run an hsi command to retrieve the stored checksum of the archive (does not perform checksum calculation)
         #     -P            -> ("popen" flag) - specifies that HSI is being run via popen (as a child process).
         #                      All messages (listable output,error message) are written to stdout.
         #                      HSI may not be used to pipe output to stdout if this flag is specified
@@ -299,21 +300,24 @@ class NerscVerifier(Component):
                 "list checksum in HPSS (hashlist)", completed_process, self.logger
             )
 
-        # otherwise, we succeeded; output is on stderr
+        # now, check that the checksum value retrieval was ok
         # 1693e9d0273e3a2995b917c0e72e6bd2f40ea677f3613b6d57eaa14bd3a285c73e8db8b6e556b886c3929afe324bcc718711f2faddfeb43c3e030d9afe697873 sha512 /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip [hsi]
         result = completed_process.stdout.decode("utf-8")
         lines = result.split("\n")
         cols = lines[0].split(" ")
-        checksum_sha512 = cols[0]
+        cached_checksum_sha512 = cols[0]
         # now we'll compare the bundle's checksum
-        if bundle["checksum"]["sha512"] != checksum_sha512:
+        if bundle["checksum"]["sha512"] != cached_checksum_sha512:
+            log_completed_process_outputs(
+                completed_process, "list checksum in HPSS (hashlist)", self.logger)
             raise InvalidChecksumException(
                 bundle['checksum']['sha512'],
-                checksum_sha512,
+                cached_checksum_sha512,
                 self.logger,
             )
 
-        # run an hsi command to calculate the checksum of the archive as stored
+        # "Please read the bytes from tape, compute the checksum, and compare it to what you have in metadata."
+        # run an hsi command to re-calculate the checksum of the archive and *compare against* the stored value
         #     -P            -> ("popen" flag) - specifies that HSI is being run via popen (as a child process).
         #                      All messages (listable output,error message) are written to stdout.
         #                      HSI may not be used to pipe output to stdout if this flag is specified
@@ -329,7 +333,7 @@ class NerscVerifier(Component):
                 "verify bundle in HPSS (hashverify)", completed_process, self.logger
             )
 
-        # otherwise, we succeeded; output is on stderr
+        # now, check that the stored checksum value is consistent with the actual value
         # /home/projects/icecube/data/exp/IceCube/2018/unbiased/PFDST/1230/50145c5c-01e1-4727-a9a1-324e5af09a29.zip: (sha512) OK
         result = completed_process.stdout.decode("utf-8")
         lines = result.split("\n")
@@ -339,9 +343,12 @@ class NerscVerifier(Component):
         # now we'll compare the bundle's checksum
         if (checksum_type != '(sha512)') or (checksum_result != 'OK'):
             self.logger.info(f"EXPECTED: {hpss_path}: (sha512) OK -- ({checksum_type=} {checksum_result=})")
-            self.logger.info("This result does NOT match, and the Bundle will NOT be verified.")
-            raise HSICommandFailedException(
-                "verify bundle checksum in HPSS (hashverify)", completed_process, self.logger
+            log_completed_process_outputs(
+                completed_process, "verify bundle checksum in HPSS (hashverify)", self.logger)
+            raise InvalidChecksumException(
+                bundle['checksum']['sha512'],
+                "[unknown but confirmed as different by hashverify]",
+                self.logger,
             )
 
         return Path(hpss_path)

@@ -28,6 +28,27 @@ class InvalidChecksumException(Exception):
         )
 
 
+def log_completed_process_outputs(
+    completed_process: CompletedProcess,
+    command_description: str,
+    logger: Logger,
+    is_failure: bool = False,
+) -> None:
+    """Log various outputs of a CompletedProcess."""
+    if is_failure:
+        log_fn = logger.error
+    else:
+        log_fn = logger.info
+
+    log_fn(
+        f"Command '{command_description}' {'FAILED' if is_failure else ''}: "
+        f"{completed_process.args}"
+    )
+    log_fn(f"returncode: {completed_process.returncode}")
+    log_fn(f"stdout: {str(completed_process.stdout)}")
+    log_fn(f"stderr: {str(completed_process.stderr)}")
+
+
 class HSICommandFailedException(Exception):
     """Raised when an HSI command fails."""
 
@@ -37,12 +58,9 @@ class HSICommandFailedException(Exception):
         completed_process: CompletedProcess,
         logger: Logger,
     ):
-        logger.error(
-            f"Command '{hsi_cmd_description}' failed: {completed_process.args}"
+        log_completed_process_outputs(
+            completed_process, hsi_cmd_description, logger, is_failure=True
         )
-        logger.error(f"returncode: {completed_process.returncode}")
-        logger.error(f"stdout: {str(completed_process.stdout)}")
-        logger.error(f"stderr: {str(completed_process.stderr)}")
         super().__init__(
             f"{hsi_cmd_description} - {completed_process.args} - {completed_process.returncode}"
             f" - {str(completed_process.stdout)} - {str(completed_process.stderr)}"

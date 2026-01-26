@@ -651,9 +651,9 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quaranti
         ),
     ]
     p = NerscVerifier(config, logger_mock)
-    with pytest.raises(HSICommandFailedException) as excinfo:
+    with pytest.raises(InvalidChecksumException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
-    assert "verify bundle checksum in HPSS (hashverify)" in str(excinfo.value)
+    assert str(excinfo.value).startswith("Checksum mismatch between creation and destination:")
     assert run_mock.call_count == 2
 
 
@@ -686,7 +686,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_result_quaran
         ),
     ]
     p = NerscVerifier(config, logger_mock)
-    with pytest.raises(HSICommandFailedException) as excinfo:
+    with pytest.raises(InvalidChecksumException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
-    assert "verify bundle checksum in HPSS (hashverify)" in str(excinfo.value)
+    assert str(excinfo.value).startswith("Checksum mismatch between creation and destination:")
     assert run_mock.call_count == 2
