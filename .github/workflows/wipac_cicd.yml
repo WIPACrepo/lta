@@ -224,7 +224,7 @@ jobs:
           python-version: ${{ matrix.py3 }}
       # MONGO
       - name: Start MongoDB v${{ matrix.mongodb-version }}
-        uses: supercharge/mongodb-github-action@1.12.0
+        uses: supercharge/mongodb-github-action@1.12.1
         with:
           mongodb-version: ${{ matrix.mongodb-version }}
       # DOCKER IMAGE
