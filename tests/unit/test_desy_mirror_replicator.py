@@ -368,9 +368,12 @@ async def test_desy_mirror_replicator_do_work_claim_write_bundle_raise_exception
         {}
     ]
     rbtds_mock = mocker.patch("lta.desy_mirror_replicator.DesyMirrorReplicator._replicate_bundle_to_destination_site", new_callable=AsyncMock)
-    rbtds_mock.side_effect = Exception("BAD THING HAPPEN!")
+    exc = Exception("BAD THING HAPPEN!")
+    rbtds_mock.side_effect = exc
     p = DesyMirrorReplicator(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    with pytest.raises(type(exc)) as excinfo:
+        await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
     rbtds_mock.assert_called_with(
         mocker.ANY,
@@ -397,9 +400,12 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site_raise
     sync_class_mock = mocker.patch("lta.desy_mirror_replicator.Sync", new_callable=MagicMock)
     sync_class_mock.return_value = AsyncMock()
     sync_class_mock.return_value.put_path = AsyncMock()
-    sync_class_mock.return_value.put_path.side_effect = Exception("DESY system admins won lottery; nobody left to fix the problems")
+    exc = Exception("DESY system admins won lottery; nobody left to fix the problems")
+    sync_class_mock.return_value.put_path.side_effect = exc
     p = DesyMirrorReplicator(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    with pytest.raises(type(exc)) as excinfo:
+        await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
     sync_class_mock.return_value.put_path.assert_called_with(
         '/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip',
         '/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip',
@@ -422,7 +428,8 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site(confi
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
             },
-        }
+        },
+        {},  # response to PATCH /Bundles/<uuid>
     ]
     sync_class_mock = mocker.patch("lta.desy_mirror_replicator.Sync", new_callable=MagicMock)
     sync_class_mock.return_value = AsyncMock()

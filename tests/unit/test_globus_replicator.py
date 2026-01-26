@@ -291,17 +291,20 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
 
+    exc = RuntimeError("boom")
+
     def _raise(*_a: Any, **_k: Any) -> None:
-        raise RuntimeError("boom")
+        raise exc
 
     lta.globus_replicator.GlobusTransfer.return_value.transfer_file.side_effect = _raise  # type: ignore
 
-    ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
+    with pytest.raises(type(exc)) as excinfo:
+        await rep._do_work_claim(rc)  # type: ignore[arg-type]
+    assert excinfo.value == exc
     patch_calls = [c for c in rc.calls if c[0] == "PATCH"]
     assert patch_calls
 
-    # Globus path: quarantined + False
-    assert ok is False
+    # Globus path: quarantined
     quarantine_calls = [c for c in patch_calls if c[1] == "/Bundles/B-ERR"]
     assert quarantine_calls
     _, _, body = quarantine_calls[0]
