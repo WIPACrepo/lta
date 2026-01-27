@@ -339,7 +339,11 @@ async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog(co
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
         "size": 12345,
-        "final_dest_path": "/its/now/on-the/moon.tape"
+        "dest": "MOON",
+        "final_dest_location": {
+            "path": "/its/now/on-the/moon.tape",
+            "foo": "bar",
+        }
     }
     fc_rc_mock = mocker.MagicMock()
     fc_rc_mock.request = AsyncMock()
@@ -387,7 +391,88 @@ async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog(co
     assert lta_rc_mock.request.call_count == 3
     lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=1000')
     assert fc_rc_mock.request.call_count == 7
-    fc_rc_mock.request.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
+    assert fc_rc_mock.request.await_args_list == [
+        # POST /api/files - create the bundle record
+        call(
+            "POST",
+            '/api/files',
+            {
+                "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
+                "logical_name": "/its/now/on-the/moon.tape",
+                "checksum": {
+                    "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
+                },
+                "locations": [
+                    {
+                        "site": "MOON",
+                        "path": "/its/now/on-the/moon.tape",
+                        "foo": "bar",
+                    }
+                ],
+                "file_size": 12345,
+                "lta": {
+                    "date_archived": mocker.ANY,
+                },
+            },
+        ),
+        # GET /api/files/UUID - get the file record
+        call(
+            "GET",
+            '/api/files/e0d15152-fd73-4e98-9aea-a9e5fdd8618e',
+        ),
+        # POST /api/files/UUID/locations - add the location
+        call(
+            "POST",
+            '/api/files/e0d15152-fd73-4e98-9aea-a9e5fdd8618e/locations',
+            {
+                "locations": [
+                    {
+                        "site": "MOON",
+                        "path": "/its/now/on-the/moon.tape:/data/exp/IceCube/2019/filtered/PFFilt/1109/file1.tar.gz",
+                        "archive": True,
+                    }
+                ]
+            },
+        ),
+        # GET /api/files/UUID - get the file record
+        call(
+            "GET",
+            '/api/files/e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4',
+        ),
+        # POST /api/files/UUID/locations - add the location
+        call(
+            "POST",
+            '/api/files/e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4/locations',
+            {
+                "locations": [
+                    {
+                        "site": "MOON",
+                        "path": "/its/now/on-the/moon.tape:/data/exp/IceCube/2019/filtered/PFFilt/1109/file2.tar.gz",
+                        "archive": True,
+                    }
+                ]
+            },
+        ),
+        # GET /api/files/UUID - get the file record
+        call(
+            "GET",
+            '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4',
+        ),
+        # POST /api/files/UUID/locations - add the location
+        call(
+            "POST",
+            '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations',
+            {
+                "locations": [
+                    {
+                        "site": "MOON",
+                        "path": "/its/now/on-the/moon.tape:/data/exp/IceCube/2019/filtered/PFFilt/1109/file3.tar.gz",
+                        "archive": True,
+                    }
+                ]
+            },
+        ),
+    ]
 
 
 @pytest.mark.asyncio
@@ -402,7 +487,11 @@ async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog_pa
             "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
         },
         "size": 12345,
-        "final_dest_path": "/its/now/on-the/moon.tape"
+        "final_dest_location": {
+            "path": "/its/now/on-the/moon.tape",
+            "foo": "bar",
+        },
+        "dest": "MOON",
     }
     fc_rc_mock = mocker.MagicMock()
     fc_rc_mock.request = AsyncMock()
@@ -451,4 +540,108 @@ async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog_pa
     assert lta_rc_mock.request.call_count == 3
     lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=1000')
     assert fc_rc_mock.request.call_count == 8
-    fc_rc_mock.request.assert_called_with("POST", '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations', mocker.ANY)
+    assert fc_rc_mock.request.await_args_list == [
+        # POST /api/files - bundle record already exists!!
+        call(
+            "POST",
+            '/api/files',
+            {
+                "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
+                "logical_name": "/its/now/on-the/moon.tape",
+                "checksum": {
+                    "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
+                },
+                "locations": [
+                    {
+                        "site": "MOON",
+                        "path": "/its/now/on-the/moon.tape",
+                        "foo": "bar",
+                    }
+                ],
+                "file_size": 12345,
+                "lta": {
+                    "date_archived": mocker.ANY,
+                },
+            },
+        ),
+        # PATCH /api/files/UUID - bundle record gets updated
+        call(
+            "PATCH",
+            '/api/files/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef',
+            {
+                "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
+                "logical_name": "/its/now/on-the/moon.tape",
+                "checksum": {
+                    "sha512": "97de2a6ad728f50a381eb1be6ecf015019887fac27e8bf608334fb72caf8d3f654fdcce68c33b0f0f27de499b84e67b8357cd81ef7bba3cdaa9e23a648f43ad2",
+                },
+                "locations": [
+                    {
+                        "site": "MOON",
+                        "path": "/its/now/on-the/moon.tape",
+                        "foo": "bar",
+                    }
+                ],
+                "file_size": 12345,
+                "lta": {
+                    "date_archived": mocker.ANY,
+                },
+            },
+        ),
+        # GET /api/files/UUID - get the file record
+        call(
+            "GET",
+            '/api/files/e0d15152-fd73-4e98-9aea-a9e5fdd8618e',
+        ),
+        # POST /api/files/UUID/locations - add the location
+        call(
+            "POST",
+            '/api/files/e0d15152-fd73-4e98-9aea-a9e5fdd8618e/locations',
+            {
+                "locations": [
+                    {
+                        "site": "MOON",
+                        "path": "/its/now/on-the/moon.tape:/data/exp/IceCube/2019/filtered/PFFilt/1109/file1.tar.gz",
+                        "archive": True,
+                    }
+                ]
+            },
+        ),
+        # GET /api/files/UUID - get the file record
+        call(
+            "GET",
+            '/api/files/e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4',
+        ),
+        # POST /api/files/UUID/locations - add the location
+        call(
+            "POST",
+            '/api/files/e107a8e8-8a86-41d6-9d4d-b6c8bc3797c4/locations',
+            {
+                "locations": [
+                    {
+                        "site": "MOON",
+                        "path": "/its/now/on-the/moon.tape:/data/exp/IceCube/2019/filtered/PFFilt/1109/file2.tar.gz",
+                        "archive": True,
+                    }
+                ]
+            },
+        ),
+        # GET /api/files/UUID - get the file record
+        call(
+            "GET",
+            '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4',
+        ),
+        # POST /api/files/UUID/locations - add the location
+        call(
+            "POST",
+            '/api/files/93bcd96e-0110-4064-9a79-b5bdfa3effb4/locations',
+            {
+                "locations": [
+                    {
+                        "site": "MOON",
+                        "path": "/its/now/on-the/moon.tape:/data/exp/IceCube/2019/filtered/PFFilt/1109/file3.tar.gz",
+                        "archive": True,
+                    }
+                ]
+            },
+        ),
+    ]

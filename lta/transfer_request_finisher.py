@@ -127,21 +127,18 @@ class TransferRequestFinisher(Component):
 
     async def _add_bundle_to_file_catalog(self, fc_rc: RestClient, bundle: BundleType) -> None:
         """Add a FileCatalog entry for the bundle."""
-        final_dest_path = bundle["final_dest_path"]
 
         # create a File Catalog entry for the bundle itself
         bundle_uuid = bundle["uuid"]
         right_now = now()
         file_record = {
             "uuid": bundle_uuid,
-            "logical_name": final_dest_path,
+            "logical_name": bundle["final_dest_location"]["path"],
             "checksum": bundle["checksum"],
             "locations": [
                 {
-                    "site": self.dest_site.upper(),
-                    "path": final_dest_path,
-                    "hpss": True,  # TODO: how do we know?
-                    "online": False,  # TODO: how do we know?
+                    "site": bundle["dest"],
+                    **bundle["final_dest_location"],  # "path" + other special keys
                 }
             ],
             "file_size": bundle["size"],
@@ -151,11 +148,12 @@ class TransferRequestFinisher(Component):
         }
 
         # add the bundle file to the File Catalog
+        logical_name = file_record["logical_name"]
         try:
-            self.logger.info(f"POST /api/files - {final_dest_path}")
+            self.logger.info(f"POST /api/files - {logical_name}")
             await fc_rc.request("POST", "/api/files", file_record)
         except Exception as e:
-            self.logger.error(f"Error: POST /api/files - {final_dest_path}")
+            self.logger.error(f"Error: POST /api/files - {logical_name}")
             self.logger.error(f"Message: {e}")
             bundle_uuid = bundle["uuid"]
             self.logger.info(f"PATCH /api/files/{bundle_uuid}")
@@ -189,13 +187,12 @@ class TransferRequestFinisher(Component):
                 count = count + 1
                 file_catalog_uuid = metadata_record["file_catalog_uuid"]
                 fc_response = await fc_rc.request('GET', f'/api/files/{file_catalog_uuid}')
-                logical_name = fc_response["logical_name"]
                 # add a location indicating the bundle archive
                 new_location = {
                     "locations": [
                         {
-                            "site": self.dest_site,
-                            "path": f"{bundle['final_dest_path']}:{logical_name}",
+                            "site": bundle['dest'],
+                            "path": f'{bundle["final_dest_location"]["path"]}:{fc_response["logical_name"]}',
                             "archive": True,
                         }
                     ]
