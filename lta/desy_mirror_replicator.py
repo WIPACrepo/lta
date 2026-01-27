@@ -147,7 +147,9 @@ class DesyMirrorReplicator(Component):
             "status": self.output_status,
             "reason": "",
             "transfer_dest_path": dest_path,
-            "final_dest_path": dest_path,
+            "final_dest_location": {
+                "path": dest_path,
+            },
             "update_timestamp": now(),
             "claimed": False,
             "transfer_reference": "desy-mirror-replicator",

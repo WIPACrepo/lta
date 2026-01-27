@@ -16,4 +16,7 @@ export SOURCE_SITE=${SOURCE_SITE:="NERSC"}
 export WORK_RETRIES=${WORK_RETRIES:="3"}
 export WORK_SLEEP_DURATION_SECONDS=${WORK_SLEEP_DURATION_SECONDS:="30"}
 export WORK_TIMEOUT_SECONDS=${WORK_TIMEOUT_SECONDS:="5"}
+export FILE_CATALOG_CLIENT_ID=${FILE_CATALOG_CLIENT_ID:="long-term-archive"}
+export FILE_CATALOG_CLIENT_SECRET=${FILE_CATALOG_CLIENT_SECRET:="$(<keycloak-client-secret)"}
+export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="https://file-catalog.icecube.wisc.edu"}
 python -m lta.transfer_request_finisher

@@ -213,7 +213,9 @@ class GlobusReplicator(Component):
                 bundle_id,
                 {
                     "transfer_dest_path": str(dest_path),
-                    "final_dest_path": str(dest_path),  # in nersc pipelines: this is overwritten by nersc-verifier
+                    "final_dest_location": {  # in nersc pipelines: this is overwritten by nersc-verifier
+                        "path": str(dest_path),
+                    },
                     "update_timestamp": now(),
                     "transfer_reference": TransferReferenceToolkit.to_transfer_reference(task_id),
                 }
