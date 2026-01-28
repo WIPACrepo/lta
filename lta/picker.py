@@ -6,10 +6,11 @@
 import asyncio
 import json
 import logging
+import math
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-from binpacking import to_constant_volume  # type: ignore
+from binpacking import to_constant_bin_number  # type: ignore
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
@@ -39,6 +40,34 @@ EXPECTED_CONFIG.update({
 failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
 load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
 success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
+
+
+async def split_evenly(
+    catalog_files: list[dict[str, Any]],
+    ideal_bundle_size: int,
+    fc_rc: RestClient,
+    logger: Logger
+) -> list[list[tuple[str, int]]]:
+    """Split catalog_files into reasonably even-sized chunks for bundling."""
+    logger.info(f'Processing {len(catalog_files)} UUIDs returned by the File Catalog.')
+
+    packing_list: list[tuple[str, int]] = []
+    for catalog_file in catalog_files:
+        catalog_file_uuid = catalog_file["uuid"]
+        catalog_record = await fc_rc.request('GET', f'/api/files/{catalog_file_uuid}')
+        file_size = catalog_record["file_size"]
+        #                    0: uuid            1: size
+        packing_list.append((catalog_file_uuid, file_size))
+
+    # divide the packing list into an array of packing specifications
+    total_size = sum(tup[1] for tup in packing_list)  # 1: size
+    n_bins = max(
+        round(total_size / ideal_bundle_size),  # we want even bundles...
+        math.ceil(total_size / (ideal_bundle_size * 1.2)),  # but not too big.
+        1,  # edge case
+    )
+    spec = to_constant_bin_number(packing_list, n_bins, 1)  # 1: size
+    return spec
 
 
 class Picker(Component):
@@ -145,7 +174,7 @@ class Picker(Component):
         }
         query_json = json.dumps(query_dict)
         page_start = 0
-        catalog_files = []
+        catalog_files: list[dict[str, Any]] = []
         fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&keys=uuid&limit={self.file_catalog_page_size}&start={page_start}')
         num_files = len(fc_response["files"])
         self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
@@ -161,18 +190,9 @@ class Picker(Component):
         if not catalog_files:
             await self._quarantine_transfer_request(lta_rc, tr, "File Catalog returned zero files for the TransferRequest")
             return
+
         # create a packing list by querying the File Catalog for size information
-        num_catalog_files = len(catalog_files)
-        self.logger.info(f'Processing {num_catalog_files} UUIDs returned by the File Catalog.')
-        packing_list = []
-        for catalog_file in catalog_files:
-            catalog_file_uuid = catalog_file["uuid"]
-            catalog_record = await fc_rc.request('GET', f'/api/files/{catalog_file_uuid}')
-            file_size = catalog_record["file_size"]
-            #                    0: uuid            1: size
-            packing_list.append((catalog_file_uuid, file_size))
-        # divide the packing list into an array of packing specifications
-        packing_spec = to_constant_volume(packing_list, self.max_bundle_size, 1)  # 1: size
+        packing_spec = await split_evenly(catalog_files, self.max_bundle_size, fc_rc, self.logger)
         # for each packing list, we create a bundle in the LTA DB
         self.logger.info(f"Creating {len(packing_spec)} new Bundles in the LTA DB.")
         for spec in packing_spec:
