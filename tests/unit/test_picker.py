@@ -48,7 +48,7 @@ def config() -> TestConfig:
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "localhost:12347",
-        "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
+        "IDEAL_BUNDLE_SIZE": "107374182400",  # 100 GiB
         "OUTPUT_STATUS": "specified",
         "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
@@ -152,7 +152,7 @@ async def test_picker_logs_configuration(mocker: MockerFixture) -> None:
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
+        "IDEAL_BUNDLE_SIZE": "107374182400",  # 100 GiB
         "OUTPUT_STATUS": "specified",
         "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
@@ -177,7 +177,7 @@ async def test_picker_logs_configuration(mocker: MockerFixture) -> None:
         call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
-        call('MAX_BUNDLE_SIZE = 107374182400'),
+        call('IDEAL_BUNDLE_SIZE = 107374182400'),
         call('OUTPUT_STATUS = specified'),
         call('PROMETHEUS_METRICS_PORT = 8080'),
         call('RUN_ONCE_AND_DIE = False'),

@@ -31,7 +31,7 @@ EXPECTED_CONFIG.update({
     "FILE_CATALOG_CLIENT_SECRET": None,
     "FILE_CATALOG_PAGE_SIZE": "1000",
     "FILE_CATALOG_REST_URL": None,
-    "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
+    "IDEAL_BUNDLE_SIZE": "107374182400",  # 100 GiB
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -92,7 +92,7 @@ class Picker(Component):
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_page_size = int(config["FILE_CATALOG_PAGE_SIZE"])
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
-        self.max_bundle_size = int(config["MAX_BUNDLE_SIZE"])
+        self.IDEAL_BUNDLE_SIZE = int(config["IDEAL_BUNDLE_SIZE"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
@@ -192,7 +192,7 @@ class Picker(Component):
             return
 
         # create a packing list by querying the File Catalog for size information
-        packing_spec = await split_evenly(catalog_files, self.max_bundle_size, fc_rc, self.logger)
+        packing_spec = await split_evenly(catalog_files, self.IDEAL_BUNDLE_SIZE, fc_rc, self.logger)
         # for each packing list, we create a bundle in the LTA DB
         self.logger.info(f"Creating {len(packing_spec)} new Bundles in the LTA DB.")
         for spec in packing_spec:
