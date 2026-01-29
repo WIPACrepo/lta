@@ -230,7 +230,7 @@ class Picker(Component):
         packing_spec: list[list[FileCatalogFile]],
         lta_rc: RestClient,
     ) -> None:
-        """Bundle files and give to LTA."""
+        """Bundle files and give to LTA, including metadata objects."""
 
         # for each packing list, we create a bundle in the LTA DB
         self.logger.info(f"Creating {len(packing_spec)} new Bundles in the LTA DB.")
