@@ -148,12 +148,13 @@ class Picker(Component):
         # step 2: bundle those files
         await self._bundle_files_for_lta(tr, catalog_files_groups, lta_rc)
 
-    async def _get_files(
+    async def _get_files_page(
         self,
         fc_rc: RestClient,
         query_json: str,
         start: int,
     ) -> list[FileCatalogFile]:
+        """Query FC for files, return one page according to 'start' + 'limit'."""
         self.logger.info(f'Querying File Catalog. start={start}')
         resp = await fc_rc.request(
             'GET',
@@ -203,7 +204,7 @@ class Picker(Component):
         page_start = 0
         catalog_files: list[FileCatalogFile] = []
         # query (and paginate) until the FC gives us nothing — don't assume 'limit' is respected
-        while files := await self._get_files(fc_rc, query_json, page_start):
+        while files := await self._get_files_page(fc_rc, query_json, page_start):
             page_start += len(files)
             catalog_files.extend(files)
 
