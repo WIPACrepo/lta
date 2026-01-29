@@ -148,6 +148,29 @@ class Picker(Component):
         # step 2: bundle those files
         await self._bundle_files_for_lta(tr, catalog_files_groups, lta_rc)
 
+    async def _get_files(
+        self,
+        fc_rc: RestClient,
+        query_json: str,
+        start: int,
+    ) -> list[FileCatalogFile]:
+        self.logger.info(f'Querying File Catalog. start={start}')
+        resp = await fc_rc.request(
+            'GET',
+            (
+                f'/api/files?query={query_json}'
+                f'&keys=uuid|file_size'
+                f'&limit={self.file_catalog_page_size}'
+                f'&start={start}'
+            )
+        )
+        ret = [
+            FileCatalogFile(f["uuid"], f["file_size"])  # is everyone here?
+            for f in resp["files"]
+        ]
+        self.logger.info(f'File Catalog returned {len(ret)} file(s) to process.')
+        return ret
+
     async def _get_files_from_file_catalog(
         self,
         tr: TransferRequestType,
@@ -158,26 +181,6 @@ class Picker(Component):
                                       token_url=self.lta_auth_openid_url,
                                       client_id=self.file_catalog_client_id,
                                       client_secret=self.file_catalog_client_secret)
-
-        async def _get_files(
-            _query_json: str, _start: int
-        ) -> tuple[list[FileCatalogFile], int]:
-            self.logger.info(f'Querying File Catalog. start={_start}')
-            resp = await fc_rc.request(
-                'GET',
-                (
-                    f'/api/files?query={_query_json}'
-                    f'&keys=uuid|file_size'
-                    f'&limit={self.file_catalog_page_size}'
-                    f'&start={_start}'
-                )
-            )
-            ret = [
-                FileCatalogFile(f["uuid"], f["file_size"])  # is everyone here?
-                for f in resp["files"]
-            ]
-            self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
-            return ret, len(ret)
 
         # figure out which files need to go
         source = tr["source"]
@@ -199,13 +202,9 @@ class Picker(Component):
         query_json = json.dumps(query_dict)
         page_start = 0
         catalog_files: list[FileCatalogFile] = []
-        # first query
-        files, num_files = await _get_files(query_json, page_start)
-        catalog_files.extend(files)
-        # pagination time!
-        while num_files == self.file_catalog_page_size:
-            page_start += num_files
-            files, num_files = await _get_files(query_json, page_start)
+        # query (and paginate) until the FC gives us nothing — don't assume 'limit' is respected
+        while files := await self._get_files(fc_rc, query_json, page_start):
+            page_start += len(files)
             catalog_files.extend(files)
 
         return catalog_files
