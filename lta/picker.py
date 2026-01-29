@@ -216,12 +216,16 @@ class Picker(Component):
     ) -> list[list[FileCatalogFile]]:
         """Group catalog_files into reasonably even-sized chunks for bundling, by file size."""
         self.logger.info(f'Processing {len(catalog_files)} UUIDs returned by the File Catalog.')
+        if not catalog_files:
+            return [[]]
+
         total_size = sum(f.file_size for f in catalog_files)
         n_bins = max(
             round(total_size / self.ideal_bundle_size),  # we want even bundles...
             math.ceil(total_size / (self.ideal_bundle_size * 1.2)),  # but not too big.
             1,  # edge case
         )
+
         return to_constant_bin_number(catalog_files, n_bins, key=lambda f: f.file_size)
 
     async def _bundle_files_for_lta(

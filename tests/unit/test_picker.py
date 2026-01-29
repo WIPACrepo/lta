@@ -15,6 +15,7 @@ platform_collector.PlatformCollector()
 gc_collector.GCCollector()
 # -----------------------------------------------------------------------------
 
+import itertools
 from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
 from uuid import uuid1
@@ -24,7 +25,7 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
-from lta.picker import CREATE_CHUNK_SIZE, main_sync, Picker
+from lta.picker import main_sync, Picker
 
 TestConfig = Dict[str, str]
 
@@ -411,8 +412,11 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config: TestConfig
     ]
 
 
+########################################################################################
+
+
 @pytest.mark.asyncio
-async def test_picker_get_files_from_file_catalog_fc_its_over_9000(config: TestConfig, mocker: MockerFixture) -> None:
+async def test_1000_picker_get_files_from_file_catalog_fc_its_over_9000(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _get_files_from_file_catalog() can handle paginated File Catalog results."""
     logger_mock = mocker.MagicMock()
     tr_uuid = uuid1().hex
@@ -490,3 +494,105 @@ async def test_picker_get_files_from_file_catalog_fc_its_over_9000(config: TestC
         call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=19000'),
     ]
     assert len(ret) == FILE_CATALOG_LIMIT + FILE_CATALOG_LIMIT + 1000
+
+
+########################################################################################
+
+
+def test_1100_group_catalog_files_evenly__edge_case(config: dict[str, str]) -> None:
+    """Empty input yields 1 bin and no files."""
+    logger_mock = MagicMock()
+    p = Picker(config, logger_mock)
+    p.ideal_bundle_size = 100
+
+    bins = p._group_catalog_files_evenly([])
+
+    assert len(bins) == 1
+    assert bins == [[]]
+
+
+def test_1101_group_catalog_files_evenly__edge_case(config: dict[str, str]) -> None:
+    """Empty input yields 1 bin and no files."""
+    logger_mock = MagicMock()
+    p = Picker(config, logger_mock)
+    p.ideal_bundle_size = 100
+
+    files = [MagicMock(uuid="u0", file_size=30)]
+
+    bins = p._group_catalog_files_evenly(files)  # type: ignore
+
+    assert len(bins) == 1
+    assert bins == [[files[0]]]
+
+
+def test_1110_group_catalog_files_evenly_ceil_branch(config: dict[str, str]) -> None:
+    """ceil(total/(ideal*1.2)) dominates round(total/ideal) -> n_bins=2."""
+    logger_mock = MagicMock()
+    p = Picker(config, logger_mock)
+    p.ideal_bundle_size = 100
+
+    # total = 130
+    #   round(130/100)=1
+    #   ceil(130/120)=2  -> n_bins = 2
+    files = [
+        MagicMock(uuid="u0", file_size=30),
+        MagicMock(uuid="u1", file_size=25),
+        MagicMock(uuid="u2", file_size=20),
+        MagicMock(uuid="u3", file_size=20),
+        MagicMock(uuid="u4", file_size=20),
+        MagicMock(uuid="u5", file_size=15),
+    ]
+
+    bins = p._group_catalog_files_evenly(files)  # type: ignore
+    assert len(bins) == 2
+
+    # does every bin have files?
+    assert len(bins[0]) > 0
+    assert len(bins[1]) > 0
+
+    # did every file make it in a bin?
+    got = sorted(f.uuid for f in itertools.chain.from_iterable(bins))
+    assert got == ["u0", "u1", "u2", "u3", "u4", "u5"]
+
+
+def test_1120_group_catalog_files_evenly_round_branch_balanced(config: dict[str, str]) -> None:
+    """round(total/ideal) dominates ceil(total/(ideal*1.2)) and balances equal sizes."""
+    logger_mock = MagicMock()
+    p = Picker(config, logger_mock)
+    p.ideal_bundle_size = 100
+
+    # 8 files * 45 = 360
+    #   round(360/100)=4
+    #   ceil(360/120)=3  -> n_bins = 4
+    files = [
+        MagicMock(uuid="u0", file_size=45),
+        MagicMock(uuid="u1", file_size=45),
+        MagicMock(uuid="u2", file_size=45),
+        MagicMock(uuid="u3", file_size=45),
+        MagicMock(uuid="u4", file_size=45),
+        MagicMock(uuid="u5", file_size=45),
+        MagicMock(uuid="u6", file_size=45),
+        MagicMock(uuid="u7", file_size=45),
+    ]
+
+    bins = p._group_catalog_files_evenly(files)  # type: ignore
+    assert len(bins) == 4
+
+    # does every bin have files?
+    assert len(bins[0]) > 0
+    assert len(bins[1]) > 0
+    assert len(bins[2]) > 0
+    assert len(bins[3]) > 0
+
+    # did every file make it in a bin?
+    got = sorted(f.uuid for f in itertools.chain.from_iterable(bins))
+    assert got == ["u0", "u1", "u2", "u3", "u4", "u5", "u6", "u7"]
+
+    # With equal sizes and 8 items into 4 bins, expect 2 per bin.
+    assert sorted([len(bins[0]), len(bins[1]), len(bins[2]), len(bins[3])]) == [2, 2, 2, 2]
+    assert sorted([
+        sum(f.file_size for f in bins[0]),
+        sum(f.file_size for f in bins[1]),
+        sum(f.file_size for f in bins[2]),
+        sum(f.file_size for f in bins[3]),
+    ]) == [90, 90, 90, 90]
