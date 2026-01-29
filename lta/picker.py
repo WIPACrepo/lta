@@ -143,10 +143,10 @@ class Picker(Component):
             return
 
         # step 3: group those files
-        catalog_files_groups = self._group_catalog_files_evenly(catalog_files)
+        packing_spec = self._group_catalog_files_evenly(catalog_files)
 
         # step 2: bundle those files
-        await self._bundle_files_for_lta(tr, catalog_files_groups, lta_rc)
+        await self._bundle_files_for_lta(tr, packing_spec, lta_rc)
 
     async def _get_files_page(
         self,
@@ -227,14 +227,14 @@ class Picker(Component):
     async def _bundle_files_for_lta(
         self,
         tr: TransferRequestType,
-        catalog_files_groups: list[list[FileCatalogFile]],
+        packing_spec: list[list[FileCatalogFile]],
         lta_rc: RestClient,
     ) -> None:
         """Bundle files and give to LTA."""
 
         # for each packing list, we create a bundle in the LTA DB
-        self.logger.info(f"Creating {len(catalog_files_groups)} new Bundles in the LTA DB.")
-        for spec in catalog_files_groups:
+        self.logger.info(f"Creating {len(packing_spec)} new Bundles in the LTA DB.")
+        for spec in packing_spec:
             self.logger.info(f"Packing specification contains {len(spec)} files.")
             bundle_uuid = await self._create_bundle(lta_rc, {
                 "type": "Bundle",
