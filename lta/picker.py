@@ -4,6 +4,7 @@
 # fmt:off
 
 import asyncio
+import dataclasses
 import json
 import logging
 import math
@@ -42,28 +43,12 @@ load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level'
 success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
-def split_evenly(
-    catalog_files: list[dict[str, Any]],
-    ideal_bundle_size: int,
-    logger: Logger
-) -> list[list[tuple[str, int]]]:
-    """Split catalog_files into reasonably even-sized chunks for bundling, by file size."""
-    logger.info(f'Processing {len(catalog_files)} UUIDs returned by the File Catalog.')
+@dataclasses.dataclass
+class FileCatalogFile:
+    """An encapsulated file object from the file catalog."""
 
-    packing_list: list[tuple[str, int]] = []
-    for f in catalog_files:
-        #                    0: uuid            1: size
-        packing_list.append((f["uuid"], f["file_size"]))
-
-    # divide the packing list into an array of packing specifications
-    total_size = sum(tup[1] for tup in packing_list)  # 1: size
-    n_bins = max(
-        round(total_size / ideal_bundle_size),  # we want even bundles...
-        math.ceil(total_size / (ideal_bundle_size * 1.2)),  # but not too big.
-        1,  # edge case
-    )
-    spec = to_constant_bin_number(packing_list, n_bins, 1)  # 1: size
-    return spec
+    uuid: str
+    file_size: int
 
 
 class Picker(Component):
@@ -157,13 +142,16 @@ class Picker(Component):
             )
             return
 
+        # step 3: group those files
+        catalog_files_groups = self._group_catalog_files_evenly(catalog_files)
+
         # step 2: bundle those files
-        await self._bundle_files_for_lta(tr, catalog_files, lta_rc)
+        await self._bundle_files_for_lta(tr, catalog_files_groups, lta_rc)
 
     async def _get_files_from_file_catalog(
         self,
         tr: TransferRequestType,
-    ) -> list[dict[str, Any]]:
+    ) -> list[FileCatalogFile]:
         """Get the files for the transfer request from the File Catalog."""
 
         fc_rc = ClientCredentialsAuth(address=self.file_catalog_rest_url,
@@ -171,8 +159,11 @@ class Picker(Component):
                                       client_id=self.file_catalog_client_id,
                                       client_secret=self.file_catalog_client_secret)
 
-        async def _get_files(_query_json: str, _start: int) -> dict[str, Any]:
-            return await fc_rc.request(
+        async def _get_files(
+            _query_json: str, _start: int
+        ) -> tuple[list[FileCatalogFile], int]:
+            self.logger.info(f'Querying File Catalog. start={_start}')
+            resp = await fc_rc.request(
                 'GET',
                 (
                     f'/api/files?query={_query_json}'
@@ -181,6 +172,12 @@ class Picker(Component):
                     f'&start={_start}'
                 )
             )
+            ret = [
+                FileCatalogFile(f["uuid"], f["file_size"])  # is everyone here?
+                for f in resp["files"]
+            ]
+            self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
+            return ret, len(ret)
 
         # figure out which files need to go
         source = tr["source"]
@@ -201,35 +198,43 @@ class Picker(Component):
         }
         query_json = json.dumps(query_dict)
         page_start = 0
-        catalog_files: list[dict[str, Any]] = []
-        fc_response = await _get_files(query_json, page_start)
-        num_files = len(fc_response["files"])
-        self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
-        catalog_files.extend(fc_response["files"])
+        catalog_files: list[FileCatalogFile] = []
+        # first query
+        files, num_files = await _get_files(query_json, page_start)
+        catalog_files.extend(files)
+        # pagination time!
         while num_files == self.file_catalog_page_size:
-            self.logger.info(f'Paging File Catalog. start={page_start}')
             page_start += num_files
-            fc_response = await _get_files(query_json, page_start)
-            num_files = len(fc_response["files"])
-            self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
-            catalog_files.extend(fc_response["files"])
+            files, num_files = await _get_files(query_json, page_start)
+            catalog_files.extend(files)
 
         return catalog_files
+
+    def _group_catalog_files_evenly(
+        self,
+        catalog_files: list[FileCatalogFile],
+    ) -> list[list[FileCatalogFile]]:
+        """Group catalog_files into reasonably even-sized chunks for bundling, by file size."""
+        self.logger.info(f'Processing {len(catalog_files)} UUIDs returned by the File Catalog.')
+        total_size = sum(f.file_size for f in catalog_files)
+        n_bins = max(
+            round(total_size / self.ideal_bundle_size),  # we want even bundles...
+            math.ceil(total_size / (self.ideal_bundle_size * 1.2)),  # but not too big.
+            1,  # edge case
+        )
+        return to_constant_bin_number(catalog_files, n_bins, key=lambda f: f.file_size)
 
     async def _bundle_files_for_lta(
         self,
         tr: TransferRequestType,
-        catalog_files: list[dict[str, Any]],
+        catalog_files_groups: list[list[FileCatalogFile]],
         lta_rc: RestClient,
     ) -> None:
         """Bundle files and give to LTA."""
 
-        # create a packing list by querying the File Catalog for size information
-        packing_spec = split_evenly(catalog_files, self.ideal_bundle_size, self.logger)
-
         # for each packing list, we create a bundle in the LTA DB
-        self.logger.info(f"Creating {len(packing_spec)} new Bundles in the LTA DB.")
-        for spec in packing_spec:
+        self.logger.info(f"Creating {len(catalog_files_groups)} new Bundles in the LTA DB.")
+        for spec in catalog_files_groups:
             self.logger.info(f"Packing specification contains {len(spec)} files.")
             bundle_uuid = await self._create_bundle(lta_rc, {
                 "type": "Bundle",
@@ -259,7 +264,7 @@ class Picker(Component):
 
     async def _create_metadata_mapping(self,
                                        lta_rc: RestClient,
-                                       spec: List[Tuple[str, int]],
+                                       spec: list[FileCatalogFile],
                                        bundle_uuid: str) -> None:
         self.logger.info(f'Creating {len(spec)} Metadata mappings between the File Catalog and pending bundle {bundle_uuid}.')
         slice_index = 0
@@ -269,7 +274,7 @@ class Picker(Component):
             create_slice = spec[slice_index:(slice_index + CREATE_CHUNK_SIZE)]
             create_body = {
                 "bundle_uuid": bundle_uuid,
-                "files": [x[0] for x in create_slice],  # 0: uuid
+                "files": [x.uuid for x in create_slice],
             }
             result = await lta_rc.request('POST', '/Metadata/actions/bulk_create', create_body)
             self.logger.info(f'Created {result["count"]} Metadata documents linking to pending bundle {bundle_uuid}.')
