@@ -225,9 +225,9 @@ class Picker(Component):
         n_bins = max(
             # we want even bundles...
             round(total_size / self.ideal_bundle_size),
-            # but not too big.
+            # if that would make bundles too large, then +1 bin count.
             math.ceil(total_size / (self.ideal_bundle_size * BUNDLE_SIZE_MAX_FACTOR)),
-            # and take care of that edge case
+            # edge case: always at least one bundle
             1,
         )
 
