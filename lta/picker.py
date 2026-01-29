@@ -26,6 +26,8 @@ LOG = logging.getLogger(__name__)
 # maximum number of Metadata UUIDs to supply to LTA DB for bulk_create
 CREATE_CHUNK_SIZE = 1000
 
+BUNDLE_SIZE_MAX_FACTOR = 1.2  # between 1 and 1.5
+
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "FILE_CATALOG_CLIENT_ID": None,
@@ -221,9 +223,12 @@ class Picker(Component):
 
         total_size = sum(f.file_size for f in catalog_files)
         n_bins = max(
-            round(total_size / self.ideal_bundle_size),  # we want even bundles...
-            math.ceil(total_size / (self.ideal_bundle_size * 1.2)),  # but not too big.
-            1,  # edge case
+            # we want even bundles...
+            round(total_size / self.ideal_bundle_size),
+            # but not too big.
+            math.ceil(total_size / (self.ideal_bundle_size * BUNDLE_SIZE_MAX_FACTOR)),
+            # and take care of that edge case
+            1,
         )
 
         return to_constant_bin_number(catalog_files, n_bins, key=lambda f: f.file_size)
