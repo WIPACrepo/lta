@@ -15,8 +15,7 @@ platform_collector.PlatformCollector()
 gc_collector.GCCollector()
 # -----------------------------------------------------------------------------
 
-from secrets import token_hex
-from typing import Any, Dict, List, Union
+from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
 from uuid import uuid1
 
@@ -358,8 +357,8 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config: TestConfig
         "dest": "nersc",
         "path": "/tmp/this/is/just/a/test",
     }
-    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    fc_rc_mock.side_effect = [
+    fc_rc_mock_request = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    fc_rc_mock_request.side_effect = [
         {
             "_links": {
                 "parent": {
@@ -370,71 +369,52 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config: TestConfig
                 }
             },
             "files": [
-                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-                 "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4"},
-                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-                 "uuid": "89528506-9950-43dc-a910-f5108a1d25c0"},
-                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-                 "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e"}]
-        },
-        {
-            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-            "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4",
-            "checksum": {
-                "sha512": "63c25d9bcf7bacc8cdb7ccf0a480403eea111a6b8db2d0c54fef0e39c32fe76f75b3632b3582ef888caeaf8a8aac44fb51d0eb051f67e874f9fe694981649b74"
-            },
-            "locations": [
                 {
-                    "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-                    "site": "wipac"
-                }],
-            "file_size": 103166718,
-            "meta_modify_date": "2019-07-26 01:53:20.857303"
-        },
-        {
-            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-            "uuid": "89528506-9950-43dc-a910-f5108a1d25c0",
-            "checksum": {
-                "sha512": "5acee016b1f7a367f549d3a861af32a66e5b577753d6d7b8078a30129f6535108042a74b70b1374a9f7506022e6cc64372a8d01500db5d56afb17071cba6da9e"
-            },
-            "locations": [
+                    "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
+                    "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4",
+                    "file_size": 103166718,
+                },
                 {
-                    "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-                    "site": "wipac"
-                }
+                    "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
+                    "uuid": "89528506-9950-43dc-a910-f5108a1d25c0",
+                    "file_size": 103064762,
+                },
+                {
+                    "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
+                    "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e",
+                    "file_size": 104136149,
+                },
             ],
-            "file_size": 103064762,
-            "meta_modify_date": "2019-07-26 01:53:20.646010"
         },
+        # final empty result
         {
-            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-            "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e",
-            "checksum": {
-                "sha512": "ae7c1639aeaacbd69b8540a117e71a6a92b5e4eff0d7802150609daa98d99fd650f8285e26af23f97f441f3047afbce88ad54bb3feb4fe243a429934d0ee4211"
-            },
-            "locations": [
-                {
-                    "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-                    "site": "wipac"
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
                 }
-            ],
-            "file_size": 104136149,
-            "meta_modify_date": "2019-07-26 01:53:22.591198"
-        },
+            },
+            "files": [],
+        }
     ]
     p = Picker(config, logger_mock)
     await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", '/api/files/1e4a88c6-247e-4e59-9c89-1a4edafafb1e')
-    lta_rc_mock.request.assert_called_with("POST", '/Metadata/actions/bulk_create', mocker.ANY)
+    assert fc_rc_mock_request.call_args_list == [
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=0'),
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=3'),
+    ]
+    assert lta_rc_mock.request.call_args_list == [
+        call("POST", '/Bundles/actions/bulk_create', mocker.ANY),
+        call("POST", '/Metadata/actions/bulk_create', mocker.ANY),
+    ]
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_transfer_request_fc_its_over_9000(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _do_work_transfer_request can handle paginated File Catalog results."""
+async def test_picker_get_files_from_file_catalog_fc_its_over_9000(config: TestConfig, mocker: MockerFixture) -> None:
+    """Test that _get_files_from_file_catalog() can handle paginated File Catalog results."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock_request_side_effects = []
-    lta_rc_mock = mocker.MagicMock()
-    lta_rc_mock.request = AsyncMock()
     tr_uuid = uuid1().hex
     tr = {
         "uuid": tr_uuid,
@@ -443,31 +423,16 @@ async def test_picker_do_work_transfer_request_fc_its_over_9000(config: TestConf
         "path": "/tmp/this/is/just/a/test",
     }
 
-    def gen_file(i: int) -> Dict[str, str]:
+    def gen_file(i: int) -> Dict[str, str|int]:
         return {
             "logical_name": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
             "uuid": uuid1().hex,
-        }
-
-    def gen_record(i: int) -> Dict[str, Union[int, str, Dict[str, str], List[Dict[str, str]]]]:
-        return {
-            "logical_name": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
-            "uuid": uuid1().hex,
-            "checksum": {
-                "sha512": token_hex(128),
-            },
-            "locations": [
-                {
-                    "path": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
-                    "site": "wipac"
-                }],
             "file_size": 103166718,
-            "meta_modify_date": "2019-07-26 01:53:20.857303"
         }
 
-    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    fc_rc_mock_request = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     # these are the three paged queries to find files to bundle
-    side_effects: List[Dict[str, Any]] = [
+    fc_rc_mock_request.side_effect = [
         {
             "_links": {
                 "parent": {
@@ -501,27 +466,27 @@ async def test_picker_do_work_transfer_request_fc_its_over_9000(config: TestConf
             },
             "files": [gen_file(i) for i in range(1000)],
         },
+        # final empty result
+        {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
+            },
+            "files": [],
+        },
     ]
-    # then we add file record responses for each of the files we query
-    records = [gen_record(i) for i in range((FILE_CATALOG_LIMIT * 2) + 1000)]
-    side_effects.extend(records)
-    # finally we add LTA DB for responses to creating Metadata entries
-    NUM_BUNDLES = 19
-    NUM_METADATA_BULK = 2
-    for i in range(NUM_BUNDLES):
-        lta_rc_mock_request_side_effects.append({
-            "bundles": [uuid1().hex, "BUNDLE 0"],
-            "count": 1,
-        })
-        for i in range(NUM_METADATA_BULK):
-            lta_rc_mock_request_side_effects.append({
-                "metadata": [uuid1().hex for i in range(CREATE_CHUNK_SIZE)],
-                "count": CREATE_CHUNK_SIZE,
-            })  # POST /Metadata/actions/bulk_create
+
     # now we're ready to play Dr. Mario!
-    fc_rc_mock.side_effect = side_effects
-    lta_rc_mock.request.side_effect = lta_rc_mock_request_side_effects
     p = Picker(config, logger_mock)
-    await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", mocker.ANY)
-    lta_rc_mock.request.assert_called_with("POST", '/Metadata/actions/bulk_create', mocker.ANY)
+    ret = await p._get_files_from_file_catalog(tr)
+    assert fc_rc_mock_request.call_args_list == [
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=0'),
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=9000'),
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=18000'),
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=19000'),
+    ]
+    assert len(ret) == FILE_CATALOG_LIMIT + FILE_CATALOG_LIMIT + 1000
