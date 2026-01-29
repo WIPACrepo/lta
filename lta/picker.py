@@ -9,7 +9,7 @@ import json
 import logging
 import math
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from binpacking import to_constant_bin_number  # type: ignore
 from prometheus_client import Counter, Gauge, start_http_server
