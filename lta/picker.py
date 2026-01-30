@@ -133,6 +133,7 @@ class Picker(Component):
         lta_rc: RestClient,
         tr: TransferRequestType,
     ) -> None:
+        """Process a TransferRequest by fetching files, grouping them, and bundling for LTA."""
         self.logger.info(f"Processing TransferRequest: {tr}")
 
         # step 1: get files
@@ -263,6 +264,7 @@ class Picker(Component):
     async def _create_bundle(self,
                              lta_rc: RestClient,
                              bundle: BundleType) -> Any:
+        """Create a new Bundle entity in the LTA DB."""
         self.logger.info('Creating new bundle in the LTA DB.')
         create_body = {
             "bundles": [bundle]
@@ -275,6 +277,7 @@ class Picker(Component):
                                        lta_rc: RestClient,
                                        spec: list[FileCatalogFile],
                                        bundle_uuid: str) -> None:
+        """Create metadata mappings between File Catalog and new bundle."""
         self.logger.info(f'Creating {len(spec)} Metadata mappings between the File Catalog and pending bundle {bundle_uuid}.')
         slice_index = 0
         NUM_UUIDS = len(spec)
@@ -292,6 +295,7 @@ class Picker(Component):
                                            lta_rc: RestClient,
                                            tr: TransferRequestType,
                                            reason: str) -> None:
+        """Quarantine a TransferRequest by updating its status in the LTA DB."""
         self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
         right_now = now()
         patch_body = {
