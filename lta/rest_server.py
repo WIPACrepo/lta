@@ -116,11 +116,11 @@ class HistogramBuckets:
     # Default buckets used by prometheus client
     # DEFAULT = [.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10]
 
-    # Database bucket centered around 5ms, with outliers up to 10s
+    # Timer bucket centered around 5ms, with outliers up to 10s
     DB = [.001, .0025, .005, .0075, .01, .025, .05, .1, .25, .5, 1, 10]
 
-    # API bucket centered around 50ms, up to 10s
-    API = [.005, .01, .025, .04, .05, .06, .075, .1, .25, .5, 1, 5, 10]
+    # Timer bucket centered around 50ms, up to 10s
+    HTTP_API = [.005, .01, .025, .04, .05, .06, .075, .1, .25, .5, 1, 5, 10]
 
     # Timer bucket up to 1 second
     SECOND = [.0001, .0005, .001, .0025, .005, .0075, .01, .025, .05, .075, .1, .25, .5, .75, 1]
@@ -187,7 +187,7 @@ class BaseLTAHandler(RestHandler):
             'http_request_duration_seconds',
             'HTTP request duration in seconds',
             labelnames=('method', 'route', 'status'),
-            buckets=HistogramBuckets.API,
+            buckets=HistogramBuckets.HTTP_API,
         )
 
     def prepare(self):
