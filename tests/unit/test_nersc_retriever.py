@@ -6,6 +6,9 @@
 # -----------------------------------------------------------------------------
 # reset prometheus registry for unit tests
 from prometheus_client import REGISTRY
+
+from lta.utils import HSICommandFailedException
+
 collectors = list(REGISTRY._collector_to_names.keys())
 for collector in collectors:
     REGISTRY.unregister(collector)
@@ -24,7 +27,7 @@ from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
 from lta.nersc_retriever import main_sync, NerscRetriever
-from .test_util import ObjectLiteral
+from .utils import ObjectLiteral
 
 TestConfig = Dict[str, str]
 
@@ -333,16 +336,20 @@ async def test_nersc_retriever_do_work_claim_write_bundle_raise_exception(config
         {
             "bundle": {
                 "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5",
+                "status": "located",
             },
         },
         {}
     ]
     wbth_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._read_bundle_from_hpss", new_callable=AsyncMock)
-    wbth_mock.side_effect = Exception("BAD THING HAPPEN!")
+    exc = Exception("BAD THING HAPPEN!")
+    wbth_mock.side_effect = exc
     p = NerscRetriever(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    with pytest.raises(Exception) as excinfo:
+        await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
-    wbth_mock.assert_called_with(mocker.ANY, {"uuid": "8f03a920-49d6-446b-811e-830e3f7942f5"})
+    wbth_mock.assert_called_with(mocker.ANY, {"status": "located", "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5"})
 
 
 @pytest.mark.asyncio
@@ -364,17 +371,21 @@ async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config: TestConfig,
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "status": "located",
             },
         },
         {
             "type": "Bundle",
         },
     ]
-    ehc_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._execute_hsi_command", new_callable=AsyncMock)
-    ehc_mock.side_effect = [True, False]
+    ehc_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._execute_hsi_command", new_callable=MagicMock)
+    exc = HSICommandFailedException("from test", MagicMock(), MagicMock())
+    ehc_mock.side_effect = exc
     p = NerscRetriever(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
-    ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    with pytest.raises(type(exc)) as excinfo:
+        await p._do_work_claim(lta_rc_mock)
+    assert excinfo.value == exc
+    ehc_mock.assert_called_with(['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
@@ -403,11 +414,11 @@ async def test_nersc_retriever_read_bundle_from_hpss(config: TestConfig, mocker:
             "type": "Bundle",
         },
     ]
-    ehc_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._execute_hsi_command", new_callable=AsyncMock)
-    ehc_mock.side_effect = [True, True]
+    ehc_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._execute_hsi_command", new_callable=MagicMock)
+    ehc_mock.side_effect = [None, None]
     p = NerscRetriever(config, logger_mock)
     await p._do_work_claim(lta_rc_mock)
-    ehc_mock.assert_called_with(mocker.ANY, mocker.ANY, ['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
+    ehc_mock.assert_called_with(['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
@@ -438,6 +449,7 @@ async def test_nersc_retriever_execute_hsi_command_failed(config: TestConfig, mo
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "status": "located",
             },
         },
         {
@@ -445,7 +457,8 @@ async def test_nersc_retriever_execute_hsi_command_failed(config: TestConfig, mo
         },
     ]
     p = NerscRetriever(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    with pytest.raises(HSICommandFailedException):
+        await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 

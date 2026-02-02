@@ -25,13 +25,13 @@ from unittest.mock import AsyncMock, patch
 # Parametrized implementation helper (Globus)
 # --------------------------------------------------------------------------------------
 
-REPLICATOR_DEST_DIRPATH = Path("/path/to/destination/")
+GLOBUS_REPLICATOR_DEST_DIRPATH = Path("/path/to/destination/")
 
 EXPECTED_CONFIG_KEYS = [
     "USE_FULL_BUNDLE_PATH",
     "WORK_RETRIES",
     "WORK_TIMEOUT_SECONDS",
-    "REPLICATOR_DEST_DIRPATH",
+    "GLOBUS_REPLICATOR_DEST_DIRPATH",
 ]
 
 
@@ -101,7 +101,8 @@ def base_config() -> dict[str, str]:
         "WORK_SLEEP_DURATION_SECONDS": "0.01",  # keep tests snappy
         "WORK_TIMEOUT_SECONDS": "30",
         "USE_FULL_BUNDLE_PATH": "FALSE",
-        "REPLICATOR_DEST_DIRPATH": str(REPLICATOR_DEST_DIRPATH),
+        "GLOBUS_REPLICATOR_DEST_DIRPATH": str(GLOBUS_REPLICATOR_DEST_DIRPATH),
+        "GLOBUS_REPLICATOR_SOURCE_BIND_ROOTPATH": "/one/two/three",
     }
 
     return cfg
@@ -193,12 +194,20 @@ async def test_030_do_work_claim_no_bundle_returns_false(
     assert any(url.startswith("/Bundles/actions/pop") for _, url, _ in rc.calls)
 
 
+@pytest.mark.parametrize(
+    "bundle_src",
+    [
+        "foo.zip",
+        "subdir/foo.zip",
+    ],
+)
 @pytest.mark.asyncio
 async def test_040_do_work_claim_success_calls_transfer_and_patch(
     base_config: dict[str, str],
     mock_join: Callable[[list[str]], str],
     mock_now: str,
     monkeypatch: pytest.MonkeyPatch,
+    bundle_src: str,
 ) -> None:
     """On success, replicator should invoke transfer and PATCH the bundle."""
     rep = lta.globus_replicator.GlobusReplicator(base_config, logging.getLogger())
@@ -206,7 +215,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     bundle: dict[str, Any] = {
         "uuid": "B-123",
         "status": "completed",
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/foo.zip",
+        "bundle_path": f"/one/two/three/{bundle_src}",
         "path": "/data/exp/IceCube/2015/bar",
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
@@ -220,8 +229,11 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
         lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs  # type: ignore
     )
     # -- USE_FULL_BUNDLE_PATH is FALSE in base_config → just basename.
-    assert str(kwargs["source_path"]) == bundle["bundle_path"]
-    assert kwargs["dest_path"] == REPLICATOR_DEST_DIRPATH / "foo.zip"
+    assert str(kwargs["source_path"]) == "/" + bundle_src
+    assert (
+        kwargs["dest_path"]
+        == GLOBUS_REPLICATOR_DEST_DIRPATH / bundle_src.rsplit("/", 1)[-1]
+    )
 
     # GlobusTransfer.wait_for_transfer_to_finish
     lta.globus_replicator.GlobusTransfer.return_value.wait_for_transfer_to_finish.assert_called_once()  # type: ignore
@@ -240,16 +252,23 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     # -- post transfer_file()
     _, url, body = patch_calls[0]
     assert url == "/Bundles/B-123"
-    assert set(body.keys()) == {"update_timestamp", "transfer_reference"}
-    ref = f"globus/{lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value}"  # type: ignore
-    assert body.get("transfer_reference") == ref
+    assert body == {
+        "update_timestamp": mock_now,
+        "transfer_reference": f"globus/{lta.globus_replicator.GlobusTransfer.return_value.transfer_file.return_value}",  # type: ignore
+        "transfer_dest_path": str(kwargs["dest_path"]),
+        "final_dest_location": {
+            "path": str(kwargs["dest_path"]),
+        },
+    }
     # -- post wait_for_transfer_to_finish()
     _, url, body = patch_calls[1]
     assert url == "/Bundles/B-123"
-    assert set(body.keys()) == {"status", "reason", "update_timestamp", "claimed"}
-    assert body.get("claimed") is False
-    assert body.get("status") == rep.output_status
-    assert body.get("reason") == ""
+    assert body == {
+        "status": rep.output_status,
+        "reason": "",
+        "update_timestamp": mock_now,
+        "claimed": False,
+    }
 
 
 @pytest.mark.asyncio
@@ -269,22 +288,25 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     bundle: dict[str, Any] = {
         "uuid": "B-ERR",
         "status": "completed",
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/bad.zip",
+        "bundle_path": "/one/two/three/bad.zip",
         "path": "/data/exp/IceCube/2015/baz",
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
 
+    exc = RuntimeError("boom")
+
     def _raise(*_a: Any, **_k: Any) -> None:
-        raise RuntimeError("boom")
+        raise exc
 
     lta.globus_replicator.GlobusTransfer.return_value.transfer_file.side_effect = _raise  # type: ignore
 
-    ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
+    with pytest.raises(type(exc)) as excinfo:
+        await rep._do_work_claim(rc)  # type: ignore[arg-type]
+    assert excinfo.value == exc
     patch_calls = [c for c in rc.calls if c[0] == "PATCH"]
     assert patch_calls
 
-    # Globus path: quarantined + False
-    assert ok is False
+    # Globus path: quarantined
     quarantine_calls = [c for c in patch_calls if c[1] == "/Bundles/B-ERR"]
     assert quarantine_calls
     _, _, body = quarantine_calls[0]
@@ -355,7 +377,7 @@ async def test_080_replication_use_full_bundle_path_true(
     bundle: dict[str, Any] = {
         "uuid": "B-456",
         "status": "completed",
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/bar.zip",
+        "bundle_path": "/one/two/three/bar.zip",
         "path": "/data/exp/IC/2015/filtered/level2/0320",
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
@@ -370,7 +392,8 @@ async def test_080_replication_use_full_bundle_path_true(
 
     assert (
         kwargs["dest_path"]
-        == REPLICATOR_DEST_DIRPATH / "data/exp/IC/2015/filtered/level2/0320/bar.zip"
+        == GLOBUS_REPLICATOR_DEST_DIRPATH
+        / "data/exp/IC/2015/filtered/level2/0320/bar.zip"
     )
 
 
@@ -388,7 +411,7 @@ async def test_090_replication_use_full_bundle_path_false(
     bundle: dict[str, Any] = {
         "uuid": "B-789",
         "status": "completed",
-        "bundle_path": "/mnt/lfss/jade-lta/bundler_out/baz.zip",
+        "bundle_path": "/one/two/three/baz.zip",
         "path": "/data/exp/IC/irrelevant/when/false",
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
@@ -401,4 +424,4 @@ async def test_090_replication_use_full_bundle_path_false(
         lta.globus_replicator.GlobusTransfer.return_value.transfer_file.call_args.kwargs  # type: ignore
     )
 
-    assert kwargs["dest_path"] == REPLICATOR_DEST_DIRPATH / "baz.zip"
+    assert kwargs["dest_path"] == GLOBUS_REPLICATOR_DEST_DIRPATH / "baz.zip"

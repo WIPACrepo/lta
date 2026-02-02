@@ -5,9 +5,6 @@ export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
 export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-pipe0-nersc-verifier"}
 export DEST_SITE=${DEST_SITE:="NERSC"}
-export FILE_CATALOG_CLIENT_ID=${FILE_CATALOG_CLIENT_ID:="long-term-archive"}
-export FILE_CATALOG_CLIENT_SECRET=${FILE_CATALOG_CLIENT_SECRET:="$(<keycloak-client-secret)"}
-export FILE_CATALOG_REST_URL=${FILE_CATALOG_REST_URL:="https://file-catalog.icecube.wisc.edu"}
 export HPSS_AVAIL_PATH=${HPSS_AVAIL_PATH:="/usr/bin/hpss_avail.py"}
 export INPUT_STATUS=${INPUT_STATUS:="verifying"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}

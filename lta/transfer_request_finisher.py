@@ -9,7 +9,7 @@ import sys
 from typing import Any, Dict, Optional, Union
 
 from prometheus_client import Counter, Gauge, start_http_server
-from rest_tools.client import RestClient
+from rest_tools.client import ClientCredentialsAuth, RestClient
 
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
@@ -23,7 +23,13 @@ EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
+    "FILE_CATALOG_CLIENT_ID": None,
+    "FILE_CATALOG_CLIENT_SECRET": None,
+    "FILE_CATALOG_REST_URL": None,
 })
+
+# maximum number of Metadata UUIDs to work with at a time
+UPDATE_CHUNK_SIZE = 1000
 
 # prometheus metrics
 failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
@@ -53,6 +59,9 @@ class TransferRequestFinisher(Component):
         super(TransferRequestFinisher, self).__init__("transfer_request_finisher", config, logger)
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
+        self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
+        self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
+        self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
 
     def _do_status(self) -> Dict[str, Any]:
         """Provide no additional status."""
@@ -78,6 +87,13 @@ class TransferRequestFinisher(Component):
 
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
+        fc_rc = ClientCredentialsAuth(
+            address=self.file_catalog_rest_url,
+            token_url=self.lta_auth_openid_url,
+            client_id=self.file_catalog_client_id,
+            client_secret=self.file_catalog_client_secret,
+        )
+
         # 1. Ask the LTA DB for the next Bundle to be deleted
         self.logger.info("Asking the LTA DB for a Bundle to check for TransferRequest being finished.")
         pop_body = {
@@ -89,10 +105,113 @@ class TransferRequestFinisher(Component):
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to check. Going on vacation.")
             return False
-        # update the TransferRequest that spawned the Bundle, if necessary
+
+        # 2. update the File Catalog + LTA metadata
+        await self._migrate_bundle_files_to_file_catalog(fc_rc, lta_rc, bundle)
+
+        # 3. update the TransferRequest that spawned the Bundle, if necessary
         await self._update_transfer_request(lta_rc, bundle)
+
         # even if we processed a Bundle, take a break between Bundles
         return False
+
+    async def _migrate_bundle_files_to_file_catalog(
+        self,
+        fc_rc: RestClient,
+        lta_rc: RestClient,
+        bundle: BundleType,
+    ) -> None:
+        """Update the File Catalog + LTA metadata."""
+        await self._add_bundle_to_file_catalog(fc_rc, bundle)
+        await self._update_files_in_fc_and_delete_lta_metadata(fc_rc, lta_rc, bundle)
+
+    async def _add_bundle_to_file_catalog(self, fc_rc: RestClient, bundle: BundleType) -> None:
+        """Add a FileCatalog entry for the bundle."""
+
+        # create a File Catalog entry for the bundle itself
+        bundle_uuid = bundle["uuid"]
+        right_now = now()
+        file_record = {
+            "uuid": bundle_uuid,
+            "logical_name": bundle["final_dest_location"]["path"],
+            "checksum": bundle["checksum"],
+            "locations": [
+                {
+                    "site": bundle["dest"],
+                    **bundle["final_dest_location"],  # "path" + other special keys
+                }
+            ],
+            "file_size": bundle["size"],
+            "lta": {
+                "date_archived": right_now,
+            },
+        }
+
+        # add the bundle file to the File Catalog
+        logical_name = file_record["logical_name"]
+        try:
+            self.logger.info(f"POST /api/files - {logical_name}")
+            await fc_rc.request("POST", "/api/files", file_record)
+        except Exception as e:
+            self.logger.error(f"Error: POST /api/files - {logical_name}")
+            self.logger.error(f"Message: {e}")
+            bundle_uuid = bundle["uuid"]
+            self.logger.info(f"PATCH /api/files/{bundle_uuid}")
+            await fc_rc.request("PATCH", f"/api/files/{bundle_uuid}", file_record)
+
+    async def _update_files_in_fc_and_delete_lta_metadata(
+        self,
+        fc_rc: RestClient,
+        lta_rc: RestClient,
+        bundle: BundleType,
+    ) -> None:
+        """Update the file records in the File Catalog, then delete their LTA metadata."""
+        bundle_uuid = bundle["uuid"]
+        count = 0
+        done = False
+        limit = UPDATE_CHUNK_SIZE
+
+        # until we've finished processing all the Metadata records
+        while not done:
+            # ask the LTA DB for the next chunk of Metadata records
+            self.logger.info(f"GET /Metadata?bundle_uuid={bundle_uuid}&limit={limit}")
+            lta_response = await lta_rc.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}&limit={limit}')
+            results = lta_response["results"]
+            num_files = len(results)
+            done = (num_files == 0)
+            self.logger.info(f'LTA returned {num_files} Metadata documents to process.')
+
+            # for each Metadata record returned by the LTA DB
+            for metadata_record in results:
+                # load the record from the File Catalog and add the new location to the record
+                count = count + 1
+                file_catalog_uuid = metadata_record["file_catalog_uuid"]
+                fc_response = await fc_rc.request('GET', f'/api/files/{file_catalog_uuid}')
+                # add a location indicating the bundle archive
+                new_location = {
+                    "locations": [
+                        {
+                            "site": bundle['dest'],
+                            "path": f'{bundle["final_dest_location"]["path"]}:{fc_response["logical_name"]}',
+                            "archive": True,
+                        }
+                    ]
+                }
+                self.logger.info(f"POST /api/files/{file_catalog_uuid}/locations - {new_location}")
+                # POST /api/files/{uuid}/locations will de-dupe locations for us
+                await fc_rc.request("POST", f"/api/files/{file_catalog_uuid}/locations", new_location)
+
+            # if we processed any Metadata records, we can now delete them
+            if num_files > 0:
+                delete_query = {
+                    "metadata": [x['uuid'] for x in results]
+                }
+                self.logger.info(f"POST /Metadata/actions/bulk_delete - {num_files} Metadata records")
+                bulk_response = await lta_rc.request('POST', '/Metadata/actions/bulk_delete', delete_query)
+                delete_count = bulk_response['count']
+                self.logger.info(f"LTA DB reports {delete_count} Metadata records are deleted.")
+                if delete_count != num_files:
+                    raise Exception(f"LTA DB gave us {num_files} records to process, but we only deleted {delete_count} records! BAD MOJO!")
 
     async def _update_transfer_request(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """

@@ -13,6 +13,7 @@ from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
+from .utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -29,7 +30,8 @@ EXPECTED_CONFIG.update({
     "USE_FULL_BUNDLE_PATH": "FALSE",
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
-    "REPLICATOR_DEST_DIRPATH": None,  # required
+    "GLOBUS_REPLICATOR_DEST_DIRPATH": None,  # required
+    "GLOBUS_REPLICATOR_SOURCE_BIND_ROOTPATH": None,  # required
 })
 
 
@@ -79,7 +81,8 @@ class GlobusReplicator(Component):
         self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        self.replicator_dest_dirpath = Path(config["REPLICATOR_DEST_DIRPATH"])
+        self.globus_replicator_dest_dirpath = Path(config["GLOBUS_REPLICATOR_DEST_DIRPATH"])
+        self.globus_replicator_source_bind_rootpath = Path(config["GLOBUS_REPLICATOR_SOURCE_BIND_ROOTPATH"])
 
         self.globus_transfer = GlobusTransfer()
 
@@ -135,51 +138,40 @@ class GlobusReplicator(Component):
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to transfer. Going on vacation.")
             return False
+
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
             self.success_counter.labels(component='globus_replicator', level='bundle', type='work').inc()
+            return True
         except Exception as e:
             self.logger.error(f'Globus transfer threw an error: {e}')
             self.logger.exception(e)
             self.failure_counter.labels(component='globus_replicator', level='bundle', type='exception').inc()
-            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
-            return False
-        # if we were successful at processing work, let the caller know
-        return True
-
-    async def _quarantine_bundle(self,
-                                 lta_rc: RestClient,
-                                 bundle: BundleType,
-                                 reason: str) -> None:
-        """Quarantine the supplied bundle using the supplied reason."""
-        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
-        right_now = now()
-        patch_body = {
-            "original_status": bundle["status"],
-            "status": "quarantined",
-            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
-            "work_priority_timestamp": right_now,
-        }
-        try:
-            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
-        except Exception as e:
-            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
-            self.logger.exception(e)
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
+            raise e
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""
-        source_path = Path(bundle["bundle_path"])
+        rel = Path(bundle["bundle_path"]).relative_to(self.globus_replicator_source_bind_rootpath)
+        source_path = Path("/") / rel  # the path on the destination globus collection
 
         # destination logic
         # -- start with basename of /mnt/lfss/jade-lta/bundler_out/fdd3c3865d1011eb97bb6224ddddaab7.zip
         bundle_name = Path(bundle["bundle_path"]).name
         if self.use_full_bundle_path:
             # /data/exp/IceCube/2015/filtered/level2/0320 + BUNDLE_NAME
-            dest_path = self.replicator_dest_dirpath / bundle["path"].lstrip('/') / bundle_name
+            dest_path = self.globus_replicator_dest_dirpath / bundle["path"].lstrip('/') / bundle_name
         else:
             # BUNDLE_NAME
-            dest_path = self.replicator_dest_dirpath / bundle_name
+            dest_path = self.globus_replicator_dest_dirpath / bundle_name
 
         return source_path, dest_path
 
@@ -214,13 +206,16 @@ class GlobusReplicator(Component):
                 self.logger.warning("OK: globus caught inflight duplicate")
             else:
                 raise
-
-        # Record task_id in the LTA DB
-        if task_id:
+        # No error -> record task_id in the LTA DB
+        else:
             await self._patch_bundle(
                 lta_rc,
                 bundle_id,
                 {
+                    "transfer_dest_path": str(dest_path),
+                    "final_dest_location": {  # in nersc pipelines: this is overwritten by nersc-verifier
+                        "path": str(dest_path),
+                    },
                     "update_timestamp": now(),
                     "transfer_reference": TransferReferenceToolkit.to_transfer_reference(task_id),
                 }

@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 
+from .utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -131,28 +132,17 @@ class RateLimiter(Component):
             success_counter.labels(component='rate_limiter', level='bundle', type='work').inc()
         except Exception as e:
             failure_counter.labels(component='rate_limiter', level='bundle', type='exception').inc()
-            await self._quarantine_bundle(lta_rc, bundle, f"{e}")
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             raise e
         # even if we were successful, take a break between bundles
         return False
-
-    async def _quarantine_bundle(self,
-                                 lta_rc: RestClient,
-                                 bundle: BundleType,
-                                 reason: str) -> None:
-        """Quarantine the supplied bundle using the supplied reason."""
-        self.logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
-        right_now = now()
-        patch_body = {
-            "original_status": bundle["status"],
-            "status": "quarantined",
-            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
-            "work_priority_timestamp": right_now,
-        }
-        try:
-            await lta_rc.request('PATCH', f'/Bundles/{bundle["uuid"]}', patch_body)
-        except Exception as e:
-            self.logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
 
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Stage the Bundle to the output directory for transfer."""

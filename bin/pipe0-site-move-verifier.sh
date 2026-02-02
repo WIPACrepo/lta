@@ -4,7 +4,7 @@ source env/bin/activate
 export CLIENT_ID=${CLIENT_ID:="long-term-archive"}
 export CLIENT_SECRET=${CLIENT_SECRET:="$(<keycloak-client-secret)"}
 export COMPONENT_NAME=${COMPONENT_NAME:="$(hostname)-pipe0-site-move-verifier"}
-export DEST_ROOT_PATH=${DEST_ROOT_PATH:="/global/cfs/cdirs/icecubed"}
+export DEST_ROOT_PATH=${DEST_ROOT_PATH:="/global/cfs/cdirs/icecubed/lta-bundles"}
 export DEST_SITE=${DEST_SITE:="NERSC"}
 export INPUT_STATUS=${INPUT_STATUS:="transferring"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}

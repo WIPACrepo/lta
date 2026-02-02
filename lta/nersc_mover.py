@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 
+from .utils import HSICommandFailedException, quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -122,19 +123,17 @@ class NerscMover(Component):
             return True
         except Exception as e:
             failure_counter.labels(component='nersc_mover', level='bundle', type='exception').inc()
-            bundle_id = bundle["uuid"]
-            right_now = now()
-            patch_body = {
-                "original_status": bundle["status"],
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:Exception during execution: {e}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-        return False
+            await quarantine_bundle(
+                lta_rc,
+                bundle,
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
+            raise e
 
-    async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> bool:
+    async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""
         bundle_id = bundle["uuid"]
         # determine the name and path of the bundle
@@ -146,22 +145,23 @@ class NerscMover(Component):
         # determine the output path where it should be stored on hpss
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
         hpss_path = os.path.normpath(stupid_python_path)
+
         # run an hsi command to create the destination directory
         #     mkdir     -> create a directory to store the bundle on tape
         #     -p        -> create any intermediate (parent) directories as necessary
         hpss_base = os.path.dirname(hpss_path)
         args = ["/usr/bin/hsi", "mkdir", "-p", hpss_base]
-        if not await self._execute_hsi_command(lta_rc, bundle, args):
-            return False
+        self._execute_hsi_command(args)
+
         # run an hsi command to put the file on tape
         #     put       -> write the source path to the hpss system at the dest path
         #     -c on     -> turn on the calculation of checksums by the hpss system
         #     -H sha512 -> specify that the SHA512 algorithm be used to calculate the checksum
         #     :         -> HPSS ... ¯\_(ツ)_/¯
         args = ["/usr/bin/hsi", "put", "-c", "on", "-H", "sha512", input_path, ":", hpss_path]
-        if not await self._execute_hsi_command(lta_rc, bundle, args):
-            return False
-        # otherwise, update the Bundle in the LTA DB
+        self._execute_hsi_command(args)
+
+        # update the Bundle in the LTA DB
         patch_body = {
             "status": self.output_status,
             "reason": "",
@@ -170,28 +170,14 @@ class NerscMover(Component):
         }
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-        return True
 
-    async def _execute_hsi_command(self, lta_rc: RestClient, bundle: BundleType, args: List[str]) -> bool:
+    def _execute_hsi_command(self, args: List[str]) -> None:
         completed_process = run(args, stdout=PIPE, stderr=PIPE)
         # if our command failed
         if completed_process.returncode != 0:
-            self.logger.info(f"Command to tape bundle to HPSS failed: {completed_process.args}")
-            self.logger.info(f"returncode: {completed_process.returncode}")
-            self.logger.info(f"stdout: {str(completed_process.stdout)}")
-            self.logger.info(f"stderr: {str(completed_process.stderr)}")
-            bundle_id = bundle["uuid"]
-            right_now = now()
-            patch_body = {
-                "status": "quarantined",
-                "reason": f"BY:{self.name}-{self.instance_uuid} REASON:hsi Command Failed - {completed_process.args} - {completed_process.returncode} - {str(completed_process.stdout)} - {str(completed_process.stderr)}",
-                "work_priority_timestamp": right_now,
-            }
-            self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
-            await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-            return False
-        # otherwise, we succeeded
-        return True
+            raise HSICommandFailedException(
+                "tape bundle to HPSS", completed_process, self.logger
+            )
 
 
 async def main(nersc_mover: NerscMover) -> None:

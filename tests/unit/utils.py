@@ -1,4 +1,3 @@
-# test_util.py
 """Module to provide testing utility functions, objects, etc."""
 
 # fmt:off
@@ -19,3 +18,7 @@ class ObjectLiteral:
     def __init__(self, **kwds: Any) -> None:
         """Add attributes to ourself with the provided named arguments."""
         self.__dict__.update(kwds)
+
+
+class NicheException(Exception):
+    """Raised when we want to make sure the exception detected is ours!"""

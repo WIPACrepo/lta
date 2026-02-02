@@ -15,7 +15,7 @@ export LTA_REST_URL=${LTA_REST_URL:="https://lta.icecube.aq:443"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="staged"}
 export PROMETHEUS_METRICS_PORT=${PROMETHEUS_METRICS_PORT:="8080"}
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION="python"
-export RSE_BASE_PATH=${RSE_BASE_PATH:="/global/cfs/cdirs/icecubed"}
+export RSE_BASE_PATH=${RSE_BASE_PATH:="/global/cfs/cdirs/icecubed/lta-bundles"}
 export RUN_ONCE_AND_DIE=${RUN_ONCE_AND_DIE:="True"}
 export RUN_UNTIL_NO_WORK=${RUN_UNTIL_NO_WORK:="FALSE"}
 export SOURCE_SITE=${SOURCE_SITE:="NERSC"}
