@@ -145,10 +145,10 @@ class Picker(Component):
             )
             return
 
-        # step 3: group those files
+        # step 2: group those files
         packing_spec = self._group_catalog_files_evenly(catalog_files)
 
-        # step 2: bundle those files
+        # step 3: bundle those files
         await self._bundle_files_for_lta(tr, packing_spec, lta_rc)
 
     async def _get_files_page(
