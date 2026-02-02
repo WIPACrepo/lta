@@ -5,8 +5,8 @@ Run with `python -m lta.rest_server`.
 """
 
 import asyncio
-import functools
 import re
+import time
 from datetime import datetime
 import logging
 import os
@@ -18,7 +18,7 @@ from uuid import uuid1
 import prometheus_client
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
-from prometheus_client import Counter, start_http_server
+from prometheus_client import Counter, Histogram, start_http_server
 import pymongo
 from pymongo import MongoClient
 from rest_tools.utils.json_util import json_decode
@@ -103,13 +103,41 @@ def unique_id() -> str:
     """Return a unique ID for an LTA database entity."""
     return uuid1().hex
 
-# -----------------------------------------------------------------------------
-
 
 DatabaseType = dict[str, Any]
 
 
-@functools.lru_cache()
+# -----------------------------------------------------------------------------
+
+
+class HistogramBuckets:
+    """Prometheus histogram buckets"""
+
+    # Default buckets used by prometheus client
+    # DEFAULT = [.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10]
+
+    # Database bucket centered around 5ms, with outliers up to 10s
+    DB = [.001, .0025, .005, .0075, .01, .025, .05, .1, .25, .5, 1, 10]
+
+    # API bucket centered around 50ms, up to 10s
+    API = [.005, .01, .025, .04, .05, .06, .075, .1, .25, .5, 1, 5, 10]
+
+    # Timer bucket up to 1 second
+    SECOND = [.0001, .0005, .001, .0025, .005, .0075, .01, .025, .05, .075, .1, .25, .5, .75, 1]
+
+    # Timer bucket up to 10 seconds
+    TENSECOND = [.001, .0025, .005, .0075, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 10]
+
+    # Timer bucket up to 1 minute
+    MINUTE = [.1, .5, 1, 2.5, 5, 7.5, 10, 15, 20, 25, 30, 45, 60]
+
+    # Timer bucket up to 10 minutes
+    TENMINUTE = [1, 5, 10, 15, 20, 25, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 420, 480, 540, 600]
+
+    # Timer bucket up to 1 hour
+    HOUR = [10, 60, 120, 300, 600, 1200, 1800, 2400, 3000, 3600]
+
+
 def path_regex_to_human(rstring: str) -> str:
     """Transform a regex-based path string to a human-friendly path.
 
@@ -147,38 +175,34 @@ class BaseLTAHandler(RestHandler):
     def initialize(  # type: ignore[override]
             self,
             db: AsyncDatabase[DatabaseType],
-            request_counter: Counter,
-            response_counter: Counter,
+            prometheus_route_name: str,
             *args: Any,
             **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.db = db
-        self.request_counter = request_counter
-        self.response_counter = response_counter
+
+        self.prometheus_route_name = prometheus_route_name
+        self.prometheus_histogram = Histogram(
+            'http_request_duration_seconds',
+            'HTTP request duration in seconds',
+            labelnames=('method', 'route', 'status'),
+            buckets=HistogramBuckets.API,
+        )
 
     def prepare(self):
         """Prepare before http-method request handlers."""
-        label_kwargs = {
-            "method": self.request.method,
-            "route": path_regex_to_human(getattr(self, "ROUTE")),
-        }
-        self.request_counter.labels(**label_kwargs).inc()
-        in_ci_dump_prometheus_labels(label_kwargs)
-
         super().prepare()
+        self._prom_start_time = time.monotonic()
 
     def on_finish(self):
         """Cleanup after http-method request handlers."""
-        label_kwargs = {
-            "method": self.request.method,
-            "response": str(self.get_status()),
-            "route": path_regex_to_human(getattr(self, "ROUTE")),
-        }
-        self.response_counter.labels(**label_kwargs).inc()
-        in_ci_dump_prometheus_labels(label_kwargs)
-
         super().on_finish()
+        self.prometheus_histogram.labels(
+            method=str(self.request.method).lower(),
+            route=self.prometheus_route_name,
+            status=str(self.get_status()),
+        ).observe(time.monotonic() - self._prom_start_time)
 
 
 # -----------------------------------------------------------------------------
@@ -781,20 +805,31 @@ def start(debug: bool = False) -> RestServer:
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
     max_body_size = int(config["LTA_MAX_BODY_SIZE"])
     server = RestServer(debug=debug, max_body_size=max_body_size)  # type: ignore[no-untyped-call]
-    server.add_route(r'/', MainHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles', BundlesHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles/actions/bulk_create', BundlesActionsBulkCreateHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles/actions/bulk_delete', BundlesActionsBulkDeleteHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles/actions/pop', BundlesActionsPopHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Metadata', MetadataHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Metadata/actions/bulk_create', MetadataActionsBulkCreateHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Metadata/actions/bulk_delete', MetadataActionsBulkDeleteHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Metadata/(?P<metadata_id>\w+)', MetadataSingleHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/TransferRequests', TransferRequestsHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)  # type: ignore[no-untyped-call]
+    route_handler_pairs = [
+        (r'/', MainHandler),
+        (r'/Bundles', BundlesHandler),
+        (r'/Bundles/actions/bulk_create', BundlesActionsBulkCreateHandler),
+        (r'/Bundles/actions/bulk_delete', BundlesActionsBulkDeleteHandler),
+        (r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler),
+        (r'/Bundles/actions/pop', BundlesActionsPopHandler),
+        (r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler),
+        (r'/Metadata', MetadataHandler),
+        (r'/Metadata/actions/bulk_create', MetadataActionsBulkCreateHandler),
+        (r'/Metadata/actions/bulk_delete', MetadataActionsBulkDeleteHandler),
+        (r'/Metadata/(?P<metadata_id>\w+)', MetadataSingleHandler),
+        (r'/TransferRequests', TransferRequestsHandler),
+        (r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler),
+        (r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler),
+    ]
+    for route, handler in route_handler_pairs:
+        server.add_route(  # type: ignore[no-untyped-call]
+            route,
+            handler,
+            {
+                "prometheus_route_name": path_regex_to_human(route),
+                **args,
+            },
+        )
 
     server.startup(address=config['LTA_REST_HOST'],
                    port=int(config['LTA_REST_PORT']))  # type: ignore[no-untyped-call]
