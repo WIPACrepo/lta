@@ -103,6 +103,8 @@ def unique_id() -> str:
     """Return a unique ID for an LTA database entity."""
     return uuid1().hex
 
+# -----------------------------------------------------------------------------
+
 
 DatabaseType = dict[str, Any]
 
@@ -185,8 +187,6 @@ class BaseLTAHandler(RestHandler):
 class BundlesActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_create."""
 
-    ROUTE = r"/Bundles/actions/bulk_create"
-
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_create."""
@@ -224,8 +224,6 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
 class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_delete."""
 
-    ROUTE = r"/Bundles/actions/bulk_delete"
-
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_delete."""
@@ -252,8 +250,6 @@ class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
 
 class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
     """Handler for /Bundles/actions/bulk_update."""
-
-    ROUTE = r"/Bundles/actions/bulk_update"
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
@@ -286,8 +282,6 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
 
 class BundlesHandler(BaseLTAHandler):
     """BundlesHandler handles collection level routes for Bundles."""
-
-    ROUTE = r"/Bundles"
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self) -> None:
@@ -329,8 +323,6 @@ class BundlesHandler(BaseLTAHandler):
 
 class BundlesActionsPopHandler(BaseLTAHandler):
     """BundlesActionsPopHandler handles /Bundles/actions/pop."""
-
-    ROUTE = r"/Bundles/actions/pop"
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
@@ -380,8 +372,6 @@ class BundlesActionsPopHandler(BaseLTAHandler):
 
 class BundlesSingleHandler(BaseLTAHandler):
     """BundlesSingleHandler handles object level routes for Bundles."""
-
-    ROUTE = r"/Bundles/(?P<bundle_id>\w+)"
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self, bundle_id: str) -> None:
@@ -433,8 +423,6 @@ class BundlesSingleHandler(BaseLTAHandler):
 class MainHandler(BaseLTAHandler):
     """MainHandler is a BaseLTAHandler that handles the root route."""
 
-    ROUTE = r"/"
-
     def get(self) -> None:
         """Handle GET /."""
         self.write({})
@@ -444,8 +432,6 @@ class MainHandler(BaseLTAHandler):
 
 class MetadataActionsBulkCreateHandler(BaseLTAHandler):
     """Handler for /Metadata/actions/bulk_create."""
-
-    ROUTE = r"/Metadata/actions/bulk_create"
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
@@ -487,8 +473,6 @@ class MetadataActionsBulkCreateHandler(BaseLTAHandler):
 class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
     """Handler for /Metadata/actions/bulk_delete."""
 
-    ROUTE = r"/Metadata/actions/bulk_delete"
-
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_delete."""
@@ -516,8 +500,6 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
 
 class MetadataHandler(BaseLTAHandler):
     """MetadataHandler handles collection level routes for Metadata."""
-
-    ROUTE = r"/Metadata"
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self) -> None:
@@ -563,8 +545,6 @@ class MetadataHandler(BaseLTAHandler):
 class MetadataSingleHandler(BaseLTAHandler):
     """MetadataSingleHandler handles object level routes for Metadata."""
 
-    ROUTE = r"/Metadata/(?P<metadata_id>\w+)"
-
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self, metadata_id: str) -> None:
         """Handle GET /Metadata/{uuid}."""
@@ -592,8 +572,6 @@ class MetadataSingleHandler(BaseLTAHandler):
 
 class TransferRequestsHandler(BaseLTAHandler):
     """TransferRequestsHandler is a BaseLTAHandler that handles TransferRequests routes."""
-
-    ROUTE = r"/TransferRequests"
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self) -> None:
@@ -649,8 +627,6 @@ class TransferRequestsHandler(BaseLTAHandler):
 class TransferRequestSingleHandler(BaseLTAHandler):
     """TransferRequestSingleHandler is a BaseLTAHandler that handles routes related to single TransferRequest objects."""
 
-    ROUTE = r"/TransferRequests/(?P<request_id>\w+)"
-
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self, request_id: str) -> None:
         """Handle GET /TransferRequests/{uuid}."""
@@ -695,8 +671,6 @@ class TransferRequestSingleHandler(BaseLTAHandler):
 
 class TransferRequestActionsPopHandler(BaseLTAHandler):
     """TransferRequestActionsPopHandler handles /TransferRequests/actions/pop."""
-
-    ROUTE = r"/TransferRequests/actions/pop"
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
@@ -807,23 +781,20 @@ def start(debug: bool = False) -> RestServer:
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
     max_body_size = int(config["LTA_MAX_BODY_SIZE"])
     server = RestServer(debug=debug, max_body_size=max_body_size)  # type: ignore[no-untyped-call]
-    for handler in [
-        MainHandler,
-        BundlesHandler,
-        BundlesActionsBulkCreateHandler,
-        BundlesActionsBulkDeleteHandler,
-        BundlesActionsBulkUpdateHandler,
-        BundlesActionsPopHandler,
-        BundlesSingleHandler,
-        MetadataHandler,
-        MetadataActionsBulkCreateHandler,
-        MetadataActionsBulkDeleteHandler,
-        MetadataSingleHandler,
-        TransferRequestsHandler,
-        TransferRequestSingleHandler,
-        TransferRequestActionsPopHandler,
-    ]:
-        server.add_route(getattr(handler, "ROUTE"), handler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/', MainHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles', BundlesHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles/actions/bulk_create', BundlesActionsBulkCreateHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles/actions/bulk_delete', BundlesActionsBulkDeleteHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles/actions/pop', BundlesActionsPopHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Metadata', MetadataHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Metadata/actions/bulk_create', MetadataActionsBulkCreateHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Metadata/actions/bulk_delete', MetadataActionsBulkDeleteHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/Metadata/(?P<metadata_id>\w+)', MetadataSingleHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/TransferRequests', TransferRequestsHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)  # type: ignore[no-untyped-call]
+    server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)  # type: ignore[no-untyped-call]
 
     server.startup(address=config['LTA_REST_HOST'],
                    port=int(config['LTA_REST_PORT']))  # type: ignore[no-untyped-call]
