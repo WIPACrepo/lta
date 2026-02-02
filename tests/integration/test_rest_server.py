@@ -39,7 +39,7 @@ ALL_DOCUMENTS: Dict[str, str] = {}
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
-    "LOG_LEVEL": "DEBUG",
+    "LOG_LEVEL": "INFO",
     'LTA_MONGODB_AUTH_USER': '',
     'LTA_MONGODB_AUTH_PASS': '',
     'LTA_MONGODB_DATABASE_NAME': 'lta',
@@ -51,6 +51,8 @@ CONFIG = {
 for k in CONFIG:
     if k in os.environ:
         CONFIG[k] = os.environ[k]
+
+logging.getLogger().setLevel(CONFIG['LOG_LEVEL'])
 
 
 @pytest.fixture
@@ -309,41 +311,41 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
     ret = await r.request('GET', f'/TransferRequests/{uuid}')
     for k in request:
         assert request[k] == ret[k]
-    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/TransferRequests/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/TransferRequests/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/TransferRequests/{request_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/TransferRequests/{request_id}"}) == 1.0
 
     # request: PATCH
     request2 = {'bar': 2}
     ret = await r.request('PATCH', f'/TransferRequests/{uuid}', request2)
     assert ret == {}
-    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/TransferRequests/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "200", "route": "/TransferRequests/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/TransferRequests/{request_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "200", "route": "/TransferRequests/{request_id}"}) == 1.0
 
     # request: PATCH
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('PATCH', '/TransferRequests/foo', request2)
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
-    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/TransferRequests/{uuid}"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "404", "route": "/TransferRequests/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/TransferRequests/{request_id}"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "404", "route": "/TransferRequests/{request_id}"}) == 1.0
 
     # request: DELETE
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/TransferRequests/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/TransferRequests/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/TransferRequests/{request_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/TransferRequests/{request_id}"}) == 1.0
 
     # request: GET
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('GET', f'/TransferRequests/{uuid}')
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
-    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/TransferRequests/{uuid}"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "404", "route": "/TransferRequests/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/TransferRequests/{request_id}"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "404", "route": "/TransferRequests/{request_id}"}) == 1.0
 
     # request: DELETE
     ret = await r.request('DELETE', f'/TransferRequests/{uuid}')
     assert not ret
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/TransferRequests/{uuid}"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/TransferRequests/{uuid}"}) == 2.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/TransferRequests/{request_id}"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/TransferRequests/{request_id}"}) == 2.0
 
     # request: GET
     ret = await r.request('GET', '/TransferRequests')
@@ -488,8 +490,8 @@ async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFacto
         assert ret["name"] in ["one", "two"]
         assert ret["key"] == "value"
 
-        assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/Bundles/{uuid}"}) == float(idx)
-        assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/Bundles/{uuid}"}) == float(idx)
+        assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/Bundles/{bundle_id}"}) == float(idx)
+        assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/Bundles/{bundle_id}"}) == float(idx)
 
     #
     # Delete - POST /Bundles/actions/bulk_delete
@@ -873,8 +875,8 @@ async def test_460_get_bundles_uuid_error(rest: RestClientFactory) -> None:
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('GET', '/Bundles/d4390bcadac74f9dbb49874b444b448d')
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
-    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/Bundles/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "404", "route": "/Bundles/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/Bundles/{bundle_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "404", "route": "/Bundles/{bundle_id}"}) == 1.0
 
 
 @pytest.mark.asyncio
@@ -914,8 +916,8 @@ async def test_470_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFac
     # we delete it when it exists
     ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
     assert not ret
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Bundles/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/Bundles/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Bundles/{bundle_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/Bundles/{bundle_id}"}) == 1.0
 
     # request: GET
     # we verify that it has been deleted
@@ -929,8 +931,8 @@ async def test_470_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFac
     # we try to delete it again!
     ret = await r.request('DELETE', f'/Bundles/{test_uuid}')
     assert not ret
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Bundles/{uuid}"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/Bundles/{uuid}"}) == 2.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Bundles/{bundle_id}"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/Bundles/{bundle_id}"}) == 2.0
 
 
 @pytest.mark.asyncio
@@ -971,8 +973,8 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
     request = {"key": "value"}
     ret = await r.request('PATCH', f'/Bundles/{test_uuid}', request)
     assert ret["key"] == "value"
-    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/Bundles/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "200", "route": "/Bundles/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/Bundles/{bundle_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "200", "route": "/Bundles/{bundle_id}"}) == 1.0
 
     # request: PATCH
     # we try to patch the uuid; error
@@ -980,8 +982,8 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
     with pytest.raises(HTTPError, match=r"bad request") as exc:
         await r.request('PATCH', f'/Bundles/{test_uuid}', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
-    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/Bundles/{uuid}"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "400", "route": "/Bundles/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/Bundles/{bundle_id}"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "400", "route": "/Bundles/{bundle_id}"}) == 1.0
 
     # request: PATCH
     # we try to patch something that doesn't exist; error
@@ -989,8 +991,8 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('PATCH', '/Bundles/048c812c780648de8f39a2422e2dcdb0', request)
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
-    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/Bundles/{uuid}"}) == 3.0
-    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "404", "route": "/Bundles/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "PATCH", "route": "/Bundles/{bundle_id}"}) == 3.0
+    assert get_prom(RESP_TOTAL, {"method": "PATCH", "response": "404", "route": "/Bundles/{bundle_id}"}) == 1.0
 
 
 @pytest.mark.asyncio
@@ -1122,12 +1124,12 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
     r = rest('system')  # type: ignore[call-arg]
 
     # request: POST
-    # Missing required query arg: status (raised before handler logic)
+    # Missing required query arg: status
     with pytest.raises(HTTPError, match=r"Bad Request for url") as exc:
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC', {"claimant": "x"})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 1.0
-    # NOTE: no response metric
+    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 1.0
 
     # request: POST
     # Missing both dest and source (but status is present, so we reach handler logic)
@@ -1135,7 +1137,7 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
         await r.request('POST', '/Bundles/actions/pop?status=taping', {"claimant": "x"})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 2.0
 
     # request: POST
     # Missing claimant (but other required pieces present)
@@ -1143,7 +1145,7 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
         await r.request('POST', '/Bundles/actions/pop?source=WIPAC&status=inaccessible', {})
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
     assert get_prom(REQ_TOTAL, {"method": "POST", "route": "/Bundles/actions/pop"}) == 3.0
-    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "POST", "response": "400", "route": "/Bundles/actions/pop"}) == 3.0
 
 
 @pytest.mark.asyncio
@@ -1309,8 +1311,8 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
     # request: DELETE
     ret = await r.request('DELETE', f'/Metadata?bundle_uuid={bundle_uuid0}')
     assert not ret
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Metadata?bundle_uuid={uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/Metadata?bundle_uuid={uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Metadata"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/Metadata"}) == 1.0
 
     #
     # Read - GET /Metadata
@@ -1360,8 +1362,8 @@ async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClient
     assert ret2["uuid"] == metadata_uuid
     assert ret2["bundle_uuid"] == bundle_uuid
     assert ret2["file_catalog_uuid"] == "7b5c1f76-e568-4ae7-94d2-5a31d1d2b081"
-    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/Metadata/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/Metadata/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/Metadata/{metadata_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "200", "route": "/Metadata/{metadata_id}"}) == 1.0
 
     #
     # Delete - DELETE /Metadata/{uuid}
@@ -1369,8 +1371,8 @@ async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClient
     # request: DELETE
     ret3 = await r.request('DELETE', f'/Metadata/{metadata_uuid}')
     assert not ret3
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Metadata/{uuid}"}) == 1.0
-    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/Metadata/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Metadata/{metadata_id}"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "204", "route": "/Metadata/{metadata_id}"}) == 1.0
 
     #
     # Read - GET /Metadata/{uuid}
@@ -1379,8 +1381,8 @@ async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClient
     with pytest.raises(HTTPError, match=r"not found") as exc:
         await r.request('GET', f'/Metadata/{metadata_uuid}')
     assert exc.value.response.status_code == 404  # type: ignore[union-attr]
-    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/Metadata/{uuid}"}) == 2.0
-    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "404", "route": "/Metadata/{uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "GET", "route": "/Metadata/{metadata_id}"}) == 2.0
+    assert get_prom(RESP_TOTAL, {"method": "GET", "response": "404", "route": "/Metadata/{metadata_id}"}) == 1.0
 
 
 @pytest.mark.asyncio
@@ -1517,8 +1519,8 @@ async def test_650_metadata_delete_errors(rest: RestClientFactory) -> None:
         await r.request('DELETE', '/Metadata')
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
 
-    # NOTE: response_counter is not incremented on this error path in server code
-    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Metadata?bundle_uuid={uuid}"}) == 1.0
+    assert get_prom(REQ_TOTAL, {"method": "DELETE", "route": "/Metadata"}) == 1.0
+    assert get_prom(RESP_TOTAL, {"method": "DELETE", "response": "400", "route": "/Metadata"}) == 1.0
 
 
 @pytest.mark.asyncio
