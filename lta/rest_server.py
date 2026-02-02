@@ -154,12 +154,10 @@ def path_regex_to_human(rstring: str) -> str:
     return out
 
 
-def in_ci_dump_prometheus_labels(recent_label_kwargs: dict[str, Any]) -> None:
+def in_ci_dump_prometheus_labels() -> None:
     """Some logging for CI testing."""
     if not os.getenv("CI"):
         return
-
-    logging.info(f"Prometheus metric incremented for '{recent_label_kwargs}'")
 
     for ln in prometheus_client.generate_latest().decode().split("\n"):
         if ln.strip():
@@ -194,6 +192,7 @@ class BaseLTAHandler(RestHandler):
         """Prepare before http-method request handlers."""
         super().prepare()
         self._prom_start_time = time.monotonic()
+        in_ci_dump_prometheus_labels()
 
     def on_finish(self):
         """Cleanup after http-method request handlers."""
@@ -203,6 +202,7 @@ class BaseLTAHandler(RestHandler):
             route=self.prometheus_route_name,
             status=str(self.get_status()),
         ).observe(time.monotonic() - self._prom_start_time)
+        in_ci_dump_prometheus_labels()
 
 
 # -----------------------------------------------------------------------------
