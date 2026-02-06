@@ -123,7 +123,8 @@ class Component:
         except Exception as e:
             # ut oh, something went wrong; log about it
             self.logger.error(f"Error occurred during the {self.type} work cycle")
-            self.logger.error(f"Error was: '{e}'", exc_info=True)
+            self.logger.error(f"Error was: '{e}'")
+            self.logger.exception(e)  # logs the stack trace
         # stop the work cycle stopwatch
         self.last_work_end_timestamp = datetime.utcnow().isoformat()
         self.logger.info(f"Ending {self.type} work cycle")
