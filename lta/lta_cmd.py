@@ -125,10 +125,11 @@ def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
         and "\n" in d[multiline_key]
     ):
         d2 = copy.deepcopy(d)
-        if multiline_key in d2:
-            d2[multiline_key] = "<multiline field omitted; printed below>"
-        _print_it(d)
-        print("\n" + d[multiline_key].rstrip("\n"))
+        d2[multiline_key] = "<multiline field omitted; printed below>"
+        _print_it(d2)
+        print(f"### start '{multiline_key}' field ###")
+        print(d[multiline_key].rstrip("\n"))
+        print(f"### end '{multiline_key}' field ###")
 
     # -> no multiline 'reason_details' field
     else:
