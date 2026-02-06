@@ -118,7 +118,7 @@ def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
     def _print_it(_out: Dict[str, Any]):
         print(json.dumps(_out, indent=4, sort_keys=True))
 
-    # do we want to pretty-print the multiline from the 'reason_details' field?
+    # can we pretty-print the multiline from the 'reason_details' field?
     if (
         d.get(multiline_key)
         and isinstance(d[multiline_key], str)
