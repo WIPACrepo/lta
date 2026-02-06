@@ -11,7 +11,7 @@ export INPUT_STATUS=${INPUT_STATUS:="ethereal"}
 export LOG_LEVEL=${LOG_LEVEL:="DEBUG"}
 export LTA_AUTH_OPENID_URL=${LTA_AUTH_OPENID_URL:="https://keycloak.icecube.wisc.edu/auth/realms/IceCube"}
 export LTA_REST_URL=${LTA_REST_URL:="http://127.0.0.1:8080"}
-export MAX_BUNDLE_SIZE=${MAX_BUNDLE_SIZE:="107374182400"}  # 100 GiB
+export IDEAL_BUNDLE_SIZE=${IDEAL_BUNDLE_SIZE:="107374182400"}  # 100 GiB
 # export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:="https://telemetry.dev.icecube.aq/v1/traces"}
 export OUTPUT_STATUS=${OUTPUT_STATUS:="specified"}
 export PROMETHEUS_METRICS_PORT=${PROMETHEUS_METRICS_PORT:="8080"}

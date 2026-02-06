@@ -15,8 +15,8 @@ platform_collector.PlatformCollector()
 gc_collector.GCCollector()
 # -----------------------------------------------------------------------------
 
-from secrets import token_hex
-from typing import Any, Dict, List, Union
+import itertools
+from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
 from uuid import uuid1
 
@@ -25,7 +25,7 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
-from lta.picker import CREATE_CHUNK_SIZE, main_sync, Picker
+from lta.picker import main_sync, Picker, BUNDLE_SIZE_MAX_FACTOR
 
 TestConfig = Dict[str, str]
 
@@ -48,7 +48,7 @@ def config() -> TestConfig:
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "localhost:12347",
-        "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
+        "IDEAL_BUNDLE_SIZE": "107374182400",  # 100 GiB
         "OUTPUT_STATUS": "specified",
         "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
@@ -152,7 +152,7 @@ async def test_picker_logs_configuration(mocker: MockerFixture) -> None:
         "LOG_LEVEL": "DEBUG",
         "LTA_AUTH_OPENID_URL": "localhost:12345",
         "LTA_REST_URL": "logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/",
-        "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
+        "IDEAL_BUNDLE_SIZE": "107374182400",  # 100 GiB
         "OUTPUT_STATUS": "specified",
         "PROMETHEUS_METRICS_PORT": "8080",
         "RUN_ONCE_AND_DIE": "False",
@@ -177,7 +177,7 @@ async def test_picker_logs_configuration(mocker: MockerFixture) -> None:
         call('LOG_LEVEL = DEBUG'),
         call('LTA_AUTH_OPENID_URL = localhost:12345'),
         call('LTA_REST_URL = logme-http://RmMNHdPhHpH2ZxfaFAC9d2jiIbf5pZiHDqy43rFLQiM.com/'),
-        call('MAX_BUNDLE_SIZE = 107374182400'),
+        call('IDEAL_BUNDLE_SIZE = 107374182400'),
         call('OUTPUT_STATUS = specified'),
         call('PROMETHEUS_METRICS_PORT = 8080'),
         call('RUN_ONCE_AND_DIE = False'),
@@ -358,8 +358,8 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config: TestConfig
         "dest": "nersc",
         "path": "/tmp/this/is/just/a/test",
     }
-    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    fc_rc_mock.side_effect = [
+    fc_rc_mock_request = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    fc_rc_mock_request.side_effect = [
         {
             "_links": {
                 "parent": {
@@ -370,71 +370,55 @@ async def test_picker_do_work_transfer_request_fc_yes_results(config: TestConfig
                 }
             },
             "files": [
-                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-                 "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4"},
-                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-                 "uuid": "89528506-9950-43dc-a910-f5108a1d25c0"},
-                {"logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-                 "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e"}]
-        },
-        {
-            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-            "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4",
-            "checksum": {
-                "sha512": "63c25d9bcf7bacc8cdb7ccf0a480403eea111a6b8db2d0c54fef0e39c32fe76f75b3632b3582ef888caeaf8a8aac44fb51d0eb051f67e874f9fe694981649b74"
-            },
-            "locations": [
                 {
-                    "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
-                    "site": "wipac"
-                }],
-            "file_size": 103166718,
-            "meta_modify_date": "2019-07-26 01:53:20.857303"
-        },
-        {
-            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-            "uuid": "89528506-9950-43dc-a910-f5108a1d25c0",
-            "checksum": {
-                "sha512": "5acee016b1f7a367f549d3a861af32a66e5b577753d6d7b8078a30129f6535108042a74b70b1374a9f7506022e6cc64372a8d01500db5d56afb17071cba6da9e"
-            },
-            "locations": [
+                    "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000000.tar.bz2",
+                    "uuid": "58a334e6-642e-475e-b642-e92bf08e96d4",
+                    "file_size": 103166718,
+                },
                 {
-                    "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
-                    "site": "wipac"
-                }
+                    "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000001.tar.bz2",
+                    "uuid": "89528506-9950-43dc-a910-f5108a1d25c0",
+                    "file_size": 103064762,
+                },
+                {
+                    "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
+                    "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e",
+                    "file_size": 104136149,
+                },
             ],
-            "file_size": 103064762,
-            "meta_modify_date": "2019-07-26 01:53:20.646010"
         },
+        # final empty result
         {
-            "logical_name": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-            "uuid": "1e4a88c6-247e-4e59-9c89-1a4edafafb1e",
-            "checksum": {
-                "sha512": "ae7c1639aeaacbd69b8540a117e71a6a92b5e4eff0d7802150609daa98d99fd650f8285e26af23f97f441f3047afbce88ad54bb3feb4fe243a429934d0ee4211"
-            },
-            "locations": [
-                {
-                    "path": "/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_00000002.tar.bz2",
-                    "site": "wipac"
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
                 }
-            ],
-            "file_size": 104136149,
-            "meta_modify_date": "2019-07-26 01:53:22.591198"
-        },
+            },
+            "files": [],
+        }
     ]
     p = Picker(config, logger_mock)
     await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", '/api/files/1e4a88c6-247e-4e59-9c89-1a4edafafb1e')
-    lta_rc_mock.request.assert_called_with("POST", '/Metadata/actions/bulk_create', mocker.ANY)
+    assert fc_rc_mock_request.call_args_list == [
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=0'),
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=3'),
+    ]
+    assert lta_rc_mock.request.call_args_list == [
+        call("POST", '/Bundles/actions/bulk_create', mocker.ANY),
+        call("POST", '/Metadata/actions/bulk_create', mocker.ANY),
+    ]
+
+
+########################################################################################
 
 
 @pytest.mark.asyncio
-async def test_picker_do_work_transfer_request_fc_its_over_9000(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _do_work_transfer_request can handle paginated File Catalog results."""
+async def test_1000_picker_get_files_from_file_catalog_fc_its_over_9000(config: TestConfig, mocker: MockerFixture) -> None:
+    """Test that _get_files_from_file_catalog() can handle paginated File Catalog results."""
     logger_mock = mocker.MagicMock()
-    lta_rc_mock_request_side_effects = []
-    lta_rc_mock = mocker.MagicMock()
-    lta_rc_mock.request = AsyncMock()
     tr_uuid = uuid1().hex
     tr = {
         "uuid": tr_uuid,
@@ -443,31 +427,16 @@ async def test_picker_do_work_transfer_request_fc_its_over_9000(config: TestConf
         "path": "/tmp/this/is/just/a/test",
     }
 
-    def gen_file(i: int) -> Dict[str, str]:
+    def gen_file(i: int) -> Dict[str, str|int]:
         return {
             "logical_name": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
             "uuid": uuid1().hex,
-        }
-
-    def gen_record(i: int) -> Dict[str, Union[int, str, Dict[str, str], List[Dict[str, str]]]]:
-        return {
-            "logical_name": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
-            "uuid": uuid1().hex,
-            "checksum": {
-                "sha512": token_hex(128),
-            },
-            "locations": [
-                {
-                    "path": f"/data/exp/IceCube/2013/filtered/PFFilt/1109/PFFilt_PhysicsFiltering_Run00123231_Subrun00000000_{i:08}.tar.bz2",
-                    "site": "wipac"
-                }],
             "file_size": 103166718,
-            "meta_modify_date": "2019-07-26 01:53:20.857303"
         }
 
-    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
+    fc_rc_mock_request = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     # these are the three paged queries to find files to bundle
-    side_effects: List[Dict[str, Any]] = [
+    fc_rc_mock_request.side_effect = [
         {
             "_links": {
                 "parent": {
@@ -501,27 +470,122 @@ async def test_picker_do_work_transfer_request_fc_its_over_9000(config: TestConf
             },
             "files": [gen_file(i) for i in range(1000)],
         },
+        # final empty result
+        {
+            "_links": {
+                "parent": {
+                    "href": "/api"
+                },
+                "self": {
+                    "href": "/api/files"
+                }
+            },
+            "files": [],
+        },
     ]
-    # then we add file record responses for each of the files we query
-    records = [gen_record(i) for i in range((FILE_CATALOG_LIMIT * 2) + 1000)]
-    side_effects.extend(records)
-    # finally we add LTA DB for responses to creating Metadata entries
-    NUM_BUNDLES = 19
-    NUM_METADATA_BULK = 2
-    for i in range(NUM_BUNDLES):
-        lta_rc_mock_request_side_effects.append({
-            "bundles": [uuid1().hex, "BUNDLE 0"],
-            "count": 1,
-        })
-        for i in range(NUM_METADATA_BULK):
-            lta_rc_mock_request_side_effects.append({
-                "metadata": [uuid1().hex for i in range(CREATE_CHUNK_SIZE)],
-                "count": CREATE_CHUNK_SIZE,
-            })  # POST /Metadata/actions/bulk_create
+
     # now we're ready to play Dr. Mario!
-    fc_rc_mock.side_effect = side_effects
-    lta_rc_mock.request.side_effect = lta_rc_mock_request_side_effects
     p = Picker(config, logger_mock)
-    await p._do_work_transfer_request(lta_rc_mock, tr)
-    fc_rc_mock.assert_called_with("GET", mocker.ANY)
-    lta_rc_mock.request.assert_called_with("POST", '/Metadata/actions/bulk_create', mocker.ANY)
+    ret = await p._get_files_from_file_catalog(tr)
+    assert fc_rc_mock_request.call_args_list == [
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=0'),
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=9000'),
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=18000'),
+        call("GET", '/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}&keys=uuid|file_size&limit=9000&start=19000'),
+    ]
+    assert len(ret) == FILE_CATALOG_LIMIT + FILE_CATALOG_LIMIT + 1000
+
+
+########################################################################################
+
+IDEAL_BUNDLE_SIZE = 100
+
+
+def test_1100_group_catalog_files_evenly__edge_case(config: dict[str, str]) -> None:
+    """Empty input yields 1 bin and no files."""
+    logger_mock = MagicMock()
+    p = Picker(config, logger_mock)
+    p.ideal_bundle_size = IDEAL_BUNDLE_SIZE
+
+    bins = p._group_catalog_files_evenly([])
+
+    assert len(bins) == 1
+    assert bins == [[]]
+
+
+def test_1101_group_catalog_files_evenly__edge_case(config: dict[str, str]) -> None:
+    """1 file input yields 1 bin."""
+    logger_mock = MagicMock()
+    p = Picker(config, logger_mock)
+    p.ideal_bundle_size = IDEAL_BUNDLE_SIZE
+
+    files = [MagicMock(uuid="u0", file_size=30)]
+
+    bins = p._group_catalog_files_evenly(files)  # type: ignore
+
+    assert len(bins) == 1
+    assert bins == [files]
+
+
+def test_1110_group_catalog_files_evenly_exact_ideal_size(config: dict[str, str]) -> None:
+    """Exact ideal size total yields 1 bin."""
+    logger_mock = MagicMock()
+    p = Picker(config, logger_mock)
+    p.ideal_bundle_size = IDEAL_BUNDLE_SIZE
+
+    files = [
+        MagicMock(uuid="u0", file_size=60),
+        MagicMock(uuid="u1", file_size=40),
+    ]
+
+    bins = p._group_catalog_files_evenly(files)  # type: ignore
+    assert len(bins) == 1
+    assert bins == [files]
+
+
+@pytest.mark.parametrize(
+    ("file_sizes", "expected_bins"),
+    [
+        # ceil: 1→2 boundary (ideal=100 ⇒ ideal*1.2=120)
+        ([20, 20, 20, 20, 20, 20], 1),  # 120: ceil=1, round=1
+        ([21, 20, 20, 20, 20, 20], 2),  # 121: ceil=2, round=1
+
+        # ceil: 2→3 boundary
+        ([40, 40, 40, 40, 40, 40], 2),  # 240: ceil=2, round=2
+        ([41, 40, 40, 40, 40, 40], 3),  # 241: ceil=3, round=2
+
+        # round dominates (then ceil catches up)
+        ([60, 60, 60, 60, 60, 60], 4),  # 360: ceil=3, round=4
+        ([61, 60, 60, 60, 60, 60], 4),  # 361: ceil=4, round=4
+
+        # round: 3→4 boundary
+        ([60, 60, 60, 60, 60, 49], 3),  # 349: ceil=3, round=3
+        ([60, 60, 60, 60, 60, 50], 4),  # 350: ceil=3, round=4
+    ],
+)
+def test_1120_group_catalog_files_evenly_boundaries(
+    config: dict[str, str],
+    file_sizes: list[int],
+    expected_bins: int,
+) -> None:
+    """Test n_bins boundaries for round vs ceil and the max(..., 1) guard."""
+    logger_mock = MagicMock()
+    p = Picker(config, logger_mock)
+    p.ideal_bundle_size = IDEAL_BUNDLE_SIZE
+
+    assert BUNDLE_SIZE_MAX_FACTOR == 1.2
+    # ^^^ important b/c our tests parameters depend on this boundary value
+
+    files = []
+    for i, sz in enumerate(file_sizes):
+        files.append(MagicMock(uuid=f"u{i}", file_size=sz))
+
+    bins = p._group_catalog_files_evenly(files)  # type: ignore
+    assert len(bins) == expected_bins
+
+    # does every bin have files?
+    assert all(len(b) for b in bins)
+
+    # did every file make it in a bin?
+    got = sorted(f.uuid for f in itertools.chain.from_iterable(bins))
+    assert got == ["u0", "u1", "u2", "u3", "u4", "u5"]

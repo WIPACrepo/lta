@@ -4,12 +4,14 @@
 # fmt:off
 
 import asyncio
+import dataclasses
 import json
 import logging
+import math
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
-from binpacking import to_constant_volume  # type: ignore
+from binpacking import to_constant_bin_number  # type: ignore
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
@@ -24,13 +26,15 @@ LOG = logging.getLogger(__name__)
 # maximum number of Metadata UUIDs to supply to LTA DB for bulk_create
 CREATE_CHUNK_SIZE = 1000
 
+BUNDLE_SIZE_MAX_FACTOR = 1.2  # between 1 and 1.5
+
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
     "FILE_CATALOG_CLIENT_ID": None,
     "FILE_CATALOG_CLIENT_SECRET": None,
     "FILE_CATALOG_PAGE_SIZE": "1000",
     "FILE_CATALOG_REST_URL": None,
-    "MAX_BUNDLE_SIZE": "107374182400",  # 100 GiB
+    "IDEAL_BUNDLE_SIZE": "107374182400",  # 100 GiB
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
@@ -39,6 +43,14 @@ EXPECTED_CONFIG.update({
 failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
 load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
 success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
+
+
+@dataclasses.dataclass
+class FileCatalogFile:
+    """An encapsulated file object from the file catalog."""
+
+    uuid: str
+    file_size: int
 
 
 class Picker(Component):
@@ -63,7 +75,7 @@ class Picker(Component):
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_page_size = int(config["FILE_CATALOG_PAGE_SIZE"])
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
-        self.max_bundle_size = int(config["MAX_BUNDLE_SIZE"])
+        self.ideal_bundle_size = int(config["IDEAL_BUNDLE_SIZE"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
@@ -116,18 +128,66 @@ class Picker(Component):
         # if we were successful at processing work, let the caller know
         return True
 
-    async def _do_work_transfer_request(self,
-                                        lta_rc: RestClient,
-                                        tr: TransferRequestType) -> None:
+    async def _do_work_transfer_request(
+        self,
+        lta_rc: RestClient,
+        tr: TransferRequestType,
+    ) -> None:
+        """Process a TransferRequest by fetching files, grouping them, and bundling for LTA."""
         self.logger.info(f"Processing TransferRequest: {tr}")
-        # configure a RestClient to talk to the File Catalog
+
+        # step 1: get files
+        catalog_files = await self._get_files_from_file_catalog(tr)
+        # if we didn't get any files, this is bad mojo
+        if not catalog_files:
+            await self._quarantine_transfer_request(
+                lta_rc, tr, "File Catalog returned zero files for the TransferRequest"
+            )
+            return
+
+        # step 2: group those files
+        packing_spec = self._group_catalog_files_evenly(catalog_files)
+
+        # step 3: bundle those files
+        await self._bundle_files_for_lta(tr, packing_spec, lta_rc)
+
+    async def _get_files_page(
+        self,
+        fc_rc: RestClient,
+        query_json: str,
+        start: int,
+    ) -> list[FileCatalogFile]:
+        """Query FC for files, return one page according to 'start' + 'limit'."""
+        self.logger.info(f'Querying File Catalog. start={start}')
+        resp = await fc_rc.request(
+            'GET',
+            (
+                f'/api/files?query={query_json}'
+                f'&keys=uuid|file_size'
+                f'&limit={self.file_catalog_page_size}'
+                f'&start={start}'
+            )
+        )
+        ret = [
+            FileCatalogFile(f["uuid"], f["file_size"])  # is everyone here?
+            for f in resp["files"]
+        ]
+        self.logger.info(f'File Catalog returned {len(ret)} file(s) to process.')
+        return ret
+
+    async def _get_files_from_file_catalog(
+        self,
+        tr: TransferRequestType,
+    ) -> list[FileCatalogFile]:
+        """Get the files for the transfer request from the File Catalog."""
+
         fc_rc = ClientCredentialsAuth(address=self.file_catalog_rest_url,
                                       token_url=self.lta_auth_openid_url,
                                       client_id=self.file_catalog_client_id,
                                       client_secret=self.file_catalog_client_secret)
+
         # figure out which files need to go
         source = tr["source"]
-        dest = tr["dest"]
         path = tr["path"]
         # query the file catalog for the source files
         self.logger.info(f"Asking the File Catalog about files in {source}:{path}")
@@ -145,34 +205,43 @@ class Picker(Component):
         }
         query_json = json.dumps(query_dict)
         page_start = 0
-        catalog_files = []
-        fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&keys=uuid&limit={self.file_catalog_page_size}&start={page_start}')
-        num_files = len(fc_response["files"])
-        self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
-        catalog_files.extend(fc_response["files"])
-        while num_files == self.file_catalog_page_size:
-            self.logger.info(f'Paging File Catalog. start={page_start}')
-            page_start += num_files
-            fc_response = await fc_rc.request('GET', f'/api/files?query={query_json}&keys=uuid&limit={self.file_catalog_page_size}&start={page_start}')
-            num_files = len(fc_response["files"])
-            self.logger.info(f'File Catalog returned {num_files} file(s) to process.')
-            catalog_files.extend(fc_response["files"])
-        # if we didn't get any files, this is bad mojo
+        catalog_files: list[FileCatalogFile] = []
+        # query (and paginate) until the FC gives us nothing — don't assume 'limit' is respected
+        while files := await self._get_files_page(fc_rc, query_json, page_start):
+            page_start += len(files)
+            catalog_files.extend(files)
+
+        return catalog_files
+
+    def _group_catalog_files_evenly(
+        self,
+        catalog_files: list[FileCatalogFile],
+    ) -> list[list[FileCatalogFile]]:
+        """Group catalog_files into reasonably even-sized chunks for bundling, by file size."""
+        self.logger.info(f'Processing {len(catalog_files)} UUIDs returned by the File Catalog.')
         if not catalog_files:
-            await self._quarantine_transfer_request(lta_rc, tr, "File Catalog returned zero files for the TransferRequest")
-            return
-        # create a packing list by querying the File Catalog for size information
-        num_catalog_files = len(catalog_files)
-        self.logger.info(f'Processing {num_catalog_files} UUIDs returned by the File Catalog.')
-        packing_list = []
-        for catalog_file in catalog_files:
-            catalog_file_uuid = catalog_file["uuid"]
-            catalog_record = await fc_rc.request('GET', f'/api/files/{catalog_file_uuid}')
-            file_size = catalog_record["file_size"]
-            #                    0: uuid            1: size
-            packing_list.append((catalog_file_uuid, file_size))
-        # divide the packing list into an array of packing specifications
-        packing_spec = to_constant_volume(packing_list, self.max_bundle_size, 1)  # 1: size
+            return [[]]
+
+        total_size = sum(f.file_size for f in catalog_files)
+        n_bins = max(
+            # we want even bundles...
+            round(total_size / self.ideal_bundle_size),
+            # if that would make bundles too large, then +1 bin count.
+            math.ceil(total_size / (self.ideal_bundle_size * BUNDLE_SIZE_MAX_FACTOR)),
+            # edge case: always at least one bundle
+            1,
+        )
+
+        return to_constant_bin_number(catalog_files, n_bins, key=lambda f: f.file_size)
+
+    async def _bundle_files_for_lta(
+        self,
+        tr: TransferRequestType,
+        packing_spec: list[list[FileCatalogFile]],
+        lta_rc: RestClient,
+    ) -> None:
+        """Bundle files and give to LTA, including metadata objects."""
+
         # for each packing list, we create a bundle in the LTA DB
         self.logger.info(f"Creating {len(packing_spec)} new Bundles in the LTA DB.")
         for spec in packing_spec:
@@ -185,9 +254,9 @@ class Picker(Component):
                 # "create_timestamp": right_now,  # provided by LTA DB
                 # "update_timestamp": right_now,  # provided by LTA DB
                 "request": tr["uuid"],
-                "source": source,
-                "dest": dest,
-                "path": path,
+                "source": tr["source"],
+                "dest": tr["dest"],
+                "path": tr["path"],
                 "file_count": len(spec),
             })
             await self._create_metadata_mapping(lta_rc, spec, bundle_uuid)
@@ -195,6 +264,7 @@ class Picker(Component):
     async def _create_bundle(self,
                              lta_rc: RestClient,
                              bundle: BundleType) -> Any:
+        """Create a new Bundle entity in the LTA DB."""
         self.logger.info('Creating new bundle in the LTA DB.')
         create_body = {
             "bundles": [bundle]
@@ -205,8 +275,9 @@ class Picker(Component):
 
     async def _create_metadata_mapping(self,
                                        lta_rc: RestClient,
-                                       spec: List[Tuple[str, int]],
+                                       spec: list[FileCatalogFile],
                                        bundle_uuid: str) -> None:
+        """Create metadata mappings between File Catalog and new bundle."""
         self.logger.info(f'Creating {len(spec)} Metadata mappings between the File Catalog and pending bundle {bundle_uuid}.')
         slice_index = 0
         NUM_UUIDS = len(spec)
@@ -215,7 +286,7 @@ class Picker(Component):
             create_slice = spec[slice_index:(slice_index + CREATE_CHUNK_SIZE)]
             create_body = {
                 "bundle_uuid": bundle_uuid,
-                "files": [x[0] for x in create_slice],  # 0: uuid
+                "files": [x.uuid for x in create_slice],
             }
             result = await lta_rc.request('POST', '/Metadata/actions/bulk_create', create_body)
             self.logger.info(f'Created {result["count"]} Metadata documents linking to pending bundle {bundle_uuid}.')
@@ -224,6 +295,7 @@ class Picker(Component):
                                            lta_rc: RestClient,
                                            tr: TransferRequestType,
                                            reason: str) -> None:
+        """Quarantine a TransferRequest by updating its status in the LTA DB."""
         self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
         right_now = now()
         patch_body = {
