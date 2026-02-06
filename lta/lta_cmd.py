@@ -8,6 +8,7 @@ Run with `python -m lta.lta_cmd $@`.
 
 import argparse
 import asyncio
+import copy
 from datetime import datetime, timedelta
 import json
 import logging
@@ -107,9 +108,36 @@ def print_catalog_record_as_line(d: Dict[str, Any]) -> None:
     print(f"{date} | {size} | {uuid} | {logical_name}")
 
 
+# fmt:on
+
+
 def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
     """Print the provided Dict as pretty-print JSON."""
-    print(json.dumps(d, indent=4, sort_keys=True))
+    multiline_key = "reason_details"
+
+    def _print_it(_out: Dict[str, Any]):
+        print(json.dumps(_out, indent=4, sort_keys=True))
+
+    # can we pretty-print the multiline from the 'reason_details' field?
+    if (
+        d.get(multiline_key)
+        and isinstance(d[multiline_key], str)
+        and "\n" in d[multiline_key]
+    ):
+        d2 = copy.deepcopy(d)
+        d2[multiline_key] = "<multiline field omitted; printed below>"
+        _print_it(d2)
+        print(f"### start '{multiline_key}' field ###")
+        print(d[multiline_key].rstrip("\n"))
+        print(f"### end '{multiline_key}' field ###")
+
+    # -> no multiline 'reason_details' field
+    else:
+        _print_it(d)
+
+
+# fmt:off
+
 
 # -----------------------------------------------------------------------------
 

@@ -1,5 +1,6 @@
 """Common and simple utility functions."""
 
+import traceback
 from logging import Logger
 from subprocess import CompletedProcess
 
@@ -7,6 +8,8 @@ from rest_tools.client import RestClient
 
 from lta.component import now
 from lta.lta_types import BundleType
+
+_MAX_QUARANTINE_TRACEBACK_LINES = 500
 
 
 class InvalidBundlePathException(Exception):
@@ -78,6 +81,30 @@ async def patch_bundle(
     await lta_rc.request("PATCH", f"/Bundles/{bundle_id}", patch_body)
 
 
+def truncate_traceback(exc: Exception) -> str:
+    """Return a potentially-truncated traceback string for the Exception instance.
+
+    If the traceback is too long, the middle of the traceback will be omitted.
+    """
+    lines = traceback.format_exception(exc)
+
+    # Note on traceback.format_exception():
+    #   There may be internal newlines in the list entries, so the truncation logic
+    #   is best effort. So, assuming no line has unusually many internal
+    #   '\n'-concatenations, this should be fine.
+    # See https://docs.python.org/3/library/traceback.html#traceback.format_exception
+
+    if len(lines) > _MAX_QUARANTINE_TRACEBACK_LINES:
+        half = _MAX_QUARANTINE_TRACEBACK_LINES // 2
+        return (
+            "".join(lines[:half])
+            + f"... truncated middle {len(lines) - _MAX_QUARANTINE_TRACEBACK_LINES} lines ..."
+            + "".join(lines[-half:])
+        )
+    else:
+        return "".join(lines)
+
+
 async def quarantine_bundle(
     lta_rc: RestClient,
     bundle: BundleType,
@@ -85,9 +112,33 @@ async def quarantine_bundle(
     name: str,
     instance_uuid: str,
     logger: Logger,
+    reason_details: str = "",
 ) -> None:
-    """Quarantine the supplied bundle using the supplied reason."""
+    """Quarantine the supplied bundle using the supplied reason.
+
+    Args:
+        lta_rc:
+            RestClient instance for making API requests
+        bundle:
+            BundleType dictionary containing bundle object
+        reason:
+            Exception or string reason for quarantining the bundle (for the bundle's
+            'reason' field). If an Exception instance is provided, the 'repr()' of the
+            Exception will be used. If a string is provided, it will be used as-is.
+        name:
+            Name of the component performing the quarantine
+        instance_uuid:
+            UUID of the component instance
+        logger:
+            Logger instance for logging messages
+        reason_details:
+            (Optional)
+            If 'reason' is an Exception, the stack trace will be recorded in the
+            bundle's 'reason_details' field. Otherwise, the caller may provide a string
+            for this field.
+    """
     if isinstance(reason, Exception):
+        reason_details = truncate_traceback(reason)  # get stack trace
         reason = repr(reason)
 
     logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
@@ -95,6 +146,7 @@ async def quarantine_bundle(
         "original_status": bundle["status"],
         "status": "quarantined",
         "reason": f"BY:{name}-{instance_uuid} REASON:{reason}",
+        "reason_details": reason_details,
         "work_priority_timestamp": now(),
     }
 

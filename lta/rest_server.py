@@ -363,8 +363,15 @@ class BundlesSingleHandler(BaseLTAHandler):
         if 'uuid' in req and req['uuid'] != bundle_id:
             self.response_counter.labels(method='PATCH', response='400', route='/Bundles/{uuid}').inc()
             raise tornado.web.HTTPError(400, reason="bad request")
+
+        # prep mongo pieces
         query = {"uuid": bundle_id}
+        # -- if requestor is resetting the 'reason' field, also reset 'reason_details'
+        if req.get('reason', None) == "":
+            req['reason_details'] = ""
         update_doc = {"$set": req}
+
+        # update
         logging.debug(f"MONGO-START: db.Bundles.find_one_and_update(filter={query}, update={update_doc}, projection={REMOVE_ID}, return_document={AFTER})")
         ret = await self.db.Bundles.find_one_and_update(filter=query,
                                                         update=update_doc,
@@ -374,6 +381,8 @@ class BundlesSingleHandler(BaseLTAHandler):
         if not ret:
             self.response_counter.labels(method='PATCH', response='404', route='/Bundles/{uuid}').inc()
             raise tornado.web.HTTPError(404, reason="not found")
+
+        # done
         logging.info(f"patched Bundle {bundle_id} with {req}")
         self.write(ret)
         self.response_counter.labels(method='PATCH', response='200', route='/Bundles/{uuid}').inc()
