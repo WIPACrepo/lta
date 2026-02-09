@@ -68,6 +68,10 @@ PATH_PREFIX_ALLOW_LIST = [
     "/data/sim",
 ]
 
+BUNDLE_MULTILINE_FIELDS = [
+    "reason_details",
+]
+
 # -----------------------------------------------------------------------------
 
 
@@ -111,29 +115,43 @@ def print_catalog_record_as_line(d: Dict[str, Any]) -> None:
 # fmt:on
 
 
-def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
-    """Print the provided Dict as pretty-print JSON."""
-    multiline_key = "reason_details"
+def print_dict_as_pretty_json(
+    d: Dict[str, Any],
+    *,
+    pretty_multilines: list[str] | None = None,
+) -> None:
+    """Print the provided Dict as pretty-print JSON.
 
-    def _print_it(_out: Dict[str, Any]):
+    If 'pretty_multilines' is given, those multiline fields are printed separately.
+    """
+
+    def _print_dict(_out: Dict[str, Any]):
         print(json.dumps(_out, indent=4, sort_keys=True))
 
-    # can we pretty-print the multiline from the 'reason_details' field?
-    if (
-        d.get(multiline_key)
-        and isinstance(d[multiline_key], str)
-        and "\n" in d[multiline_key]
-    ):
-        d2 = copy.deepcopy(d)
-        d2[multiline_key] = "<multiline field omitted; printed below>"
-        _print_it(d2)
+    if not pretty_multilines:
+        _print_dict(d)
+        return
+
+    # now, let's see if there are any multiline fields to print separately...
+
+    d2 = copy.deepcopy(d)
+    confirmed = []
+    for multiline_key in sorted(pretty_multilines):
+        # can we pretty-print the multiline field?
+        if (
+            d.get(multiline_key)
+            and isinstance(d[multiline_key], str)
+            and "\n" in d[multiline_key]
+        ):
+            d2[multiline_key] = "<multiline field omitted; printed below>"
+            confirmed.append(multiline_key)  # print later
+
+    _print_dict(d2)
+
+    for multiline_key in sorted(confirmed):
         print(f"### start '{multiline_key}' field ###")
         print(d[multiline_key].rstrip("\n"))
         print(f"### end '{multiline_key}' field ###")
-
-    # -> no multiline 'reason_details' field
-    else:
-        _print_it(d)
 
 
 # fmt:off
@@ -306,8 +324,11 @@ def _is_nersc_bundle_record(d: Dict[str, Any]) -> bool:
 async def bundle_ls(args: Namespace) -> ExitCode:
     """List all of the Bundle objects in the LTA DB."""
     response = await args.di["lta_rc"].request("GET", "/Bundles")
-    if args.json:
-        print_dict_as_pretty_json(response)
+    if args.json or args.pretty:
+        print_dict_as_pretty_json(
+            response,
+            pretty_multilines=BUNDLE_MULTILINE_FIELDS if args.pretty else None,
+        )
     else:
         results = response["results"]
         print(f"total {len(results)}")
@@ -365,8 +386,11 @@ async def bundle_priority_reset(args: Namespace) -> ExitCode:
 async def bundle_status(args: Namespace) -> ExitCode:
     """Query the status of a Bundle in the LTA DB."""
     response = await args.di["lta_rc"].request("GET", f"/Bundles/{args.uuid}")
-    if args.json:
-        print_dict_as_pretty_json(response)
+    if args.json or args.pretty:
+        print_dict_as_pretty_json(
+            response,
+            pretty_multilines=BUNDLE_MULTILINE_FIELDS if args.pretty else None,
+        )
     else:
         # display information about the core fields
         print(f"Bundle {args.uuid}")
@@ -963,6 +987,9 @@ async def main() -> None:
                                   dest="show_status",
                                   help="display the status of the bundle",
                                   action="store_true")
+    parser_bundle_ls.add_argument("--pretty",
+                                  help="display output in pretty-ly",
+                                  action="store_true")
     parser_bundle_ls.set_defaults(func=bundle_ls)
 
     # define a subparser for the 'bundle overdue' subcommand
@@ -994,6 +1021,9 @@ async def main() -> None:
                                       action="store_true")
     parser_bundle_status.add_argument("--json",
                                       help="display output in JSON",
+                                      action="store_true")
+    parser_bundle_status.add_argument("--pretty",
+                                      help="display output in pretty-ly",
                                       action="store_true")
     parser_bundle_status.set_defaults(func=bundle_status)
 
