@@ -125,26 +125,21 @@ def print_dict_as_pretty_json(
     def _print_dict(_out: Dict[str, Any]):
         print(json.dumps(_out, indent=4, sort_keys=True))
 
+    _print_dict(d)
+
     if not extract_print_fields:
-        _print_dict(d)
         return
 
     # now, let's see if there are any multiline fields to print separately...
-
-    d_copy = copy.deepcopy(d)
-    confirmed = []
     for key in sorted(extract_print_fields):
-        # can we extract the multiline field?
-        if d.get(key) and isinstance(d[key], str):
-            d_copy[key] = "<field omitted; printed below>"
-            confirmed.append(key)  # print later
-
-    _print_dict(d_copy)
-
-    for key in sorted(confirmed):
-        print(f"### start '{key}' field ###")
-        print(d[key].rstrip("\n"))
-        print(f"### end '{key}' field ###")
+        if key not in d:
+            continue
+        print()
+        print(f"<<< FIELD: {key} >>>")
+        if isinstance(d[key], str):
+            print(d[key].rstrip("\n"))
+        else:
+            _print_dict(d[key])
 
 
 # fmt:off
