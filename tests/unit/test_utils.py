@@ -66,6 +66,7 @@ async def test_100_quarantine_str_reason() -> None:
             "original_status": bundle["status"],
             "status": "quarantined",
             "reason": f"BY:{name}-{instance_uuid} REASON:something bad happened",
+            "reason_details": "",  # no details b/c no Exception
             "work_priority_timestamp": fixed_now,
         },
         logger,
@@ -110,6 +111,83 @@ async def test_110_quarantine_exc_reason() -> None:
             "original_status": bundle["status"],
             "status": "quarantined",
             "reason": f"BY:{name}-{instance_uuid} REASON:{reason_repr}",
+            "reason_details": "ValueError: nope\n",
+            # ^^^ no stacktrace b/c we just passed verbatim -- see test_111 below
+            "work_priority_timestamp": fixed_now,
+        },
+        logger,
+    )
+
+
+@pytest.mark.asyncio
+async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
+    """Quarantine uses repr() for Exception reason."""
+    lta_rc = MagicMock()
+    logger = MagicMock()
+
+    bundle = {"uuid": "U-2", "status": "queued"}
+    name = "scanner"
+    instance_uuid = "I-123"
+    fixed_now = "2026-01-21T00:00:00Z"
+
+    # ------------------------------
+    # setup some convoluted exception chain so we can test stacktrace handling
+
+    def _inner_func() -> None:
+        raise ValueError("nope")
+
+    def my_func() -> None:
+        _inner_func()
+
+    try:
+        my_func()
+    except ValueError as e:
+        reason_exc = e
+    reason_repr = repr(reason_exc)
+    # ------------------------------
+
+    with (
+        patch.object(lta.utils, "now", return_value=fixed_now),
+        patch.object(lta.utils, "patch_bundle", new=AsyncMock()) as patch_bundle,
+    ):
+        await lta.utils.quarantine_bundle(
+            lta_rc=lta_rc,
+            bundle=bundle,
+            reason=reason_exc,
+            name=name,
+            instance_uuid=instance_uuid,
+            logger=logger,
+        )
+
+    logger.error.assert_called_once_with(
+        f'Sending Bundle {bundle["uuid"]} to quarantine: {reason_repr}.'
+    )
+
+    patch_bundle.assert_awaited_once_with(
+        lta_rc,
+        bundle["uuid"],
+        {
+            "original_status": bundle["status"],
+            "status": "quarantined",
+            "reason": f"BY:{name}-{instance_uuid} REASON:{reason_repr}",
+            # *******************************************************************
+            # NOTE:
+            #   IF LINES ARE ADDED OR REMOVED FROM ABOVE, THE LINE NUMBERS IN THE
+            #   EXPECTED STACKTRACE VALUE NEED TO BE UPDATED AS WELL!
+            "reason_details": (
+                "Traceback (most recent call last):\n"
+                f'  File "{__file__}", '
+                "line 143, in test_111_quarantine_exc_reason_more_stacktrace\n"
+                "    my_func()\n"
+                f'  File "{__file__}", '
+                "line 140, in my_func\n"
+                "    _inner_func()\n"
+                f'  File "{__file__}", '
+                "line 137, in _inner_func\n"
+                '    raise ValueError("nope")\n'
+                "ValueError: nope\n"
+            ),
+            # *******************************************************************
             "work_priority_timestamp": fixed_now,
         },
         logger,
