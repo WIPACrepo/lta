@@ -1,5 +1,7 @@
 """Tests for lta/utils.py"""
 
+import sys
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -179,9 +181,11 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
                 f'  File "{__file__}", '
                 "line 143, in test_111_quarantine_exc_reason_more_stacktrace\n"
                 "    my_func()\n"
+                f"{'    ~~~~~~~^^\n' if sys.version_info >= (3, 10) else ''}"
                 f'  File "{__file__}", '
                 "line 140, in my_func\n"
                 "    _inner_func()\n"
+                f"{'    ~~~~~~~~~~~^^\n' if sys.version_info >= (3, 10) else ''}"
                 f'  File "{__file__}", '
                 "line 137, in _inner_func\n"
                 '    raise ValueError("nope")\n'
