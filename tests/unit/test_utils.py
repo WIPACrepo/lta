@@ -165,6 +165,8 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
         f'Sending Bundle {bundle["uuid"]} to quarantine: {reason_repr}.'
     )
 
+    nl = "\n"  # python 3.11 does not allow '\n's in f-strings
+
     patch_bundle.assert_awaited_once_with(
         lta_rc,
         bundle["uuid"],
@@ -179,15 +181,15 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
             "reason_details": (
                 "Traceback (most recent call last):\n"
                 f'  File "{__file__}", '
-                "line 143, in test_111_quarantine_exc_reason_more_stacktrace\n"
+                "line 145, in test_111_quarantine_exc_reason_more_stacktrace\n"
                 "    my_func()\n"
-                f"{'    ~~~~~~~^^\n' if sys.version_info >= (3, 10) else ''}"
+                f"{'    ~~~~~~~^^'+nl if sys.version_info >= (3, 13) else ''}"
                 f'  File "{__file__}", '
-                "line 140, in my_func\n"
+                "line 142, in my_func\n"
                 "    _inner_func()\n"
-                f"{'    ~~~~~~~~~~~^^\n' if sys.version_info >= (3, 10) else ''}"
+                f"{'    ~~~~~~~~~~~^^'+nl if sys.version_info >= (3, 13) else ''}"
                 f'  File "{__file__}", '
-                "line 137, in _inner_func\n"
+                "line 139, in _inner_func\n"
                 '    raise ValueError("nope")\n'
                 "ValueError: nope\n"
             ),
