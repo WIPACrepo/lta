@@ -312,11 +312,8 @@ def _is_nersc_bundle_record(d: Dict[str, Any]) -> bool:
 async def bundle_ls(args: Namespace) -> ExitCode:
     """List all of the Bundle objects in the LTA DB."""
     response = await args.di["lta_rc"].request("GET", "/Bundles")
-    if args.json or args.extract_print:
-        print_dict_as_pretty_json(
-            response,
-            extract_print_fields=args.extract_print,
-        )
+    if args.json:
+        print_dict_as_pretty_json(response)
     else:
         results = response["results"]
         print(f"total {len(results)}")
@@ -907,8 +904,11 @@ async def request_status(args: Namespace) -> ExitCode:
     response = await args.di["lta_rc"].request("GET", f"/TransferRequests/{args.uuid}")
     res2 = await args.di["lta_rc"].request("GET", f"/Bundles?request={args.uuid}")
     response["bundles"] = await _get_bundles_status(args.di["lta_rc"], res2["results"])
-    if args.json:
-        print_dict_as_pretty_json(response)
+    if args.json or args.extract_print:
+        print_dict_as_pretty_json(
+            response,
+            extract_print_fields=args.extract_print,
+        )
     else:
         # display information about the core fields
         print(f"TransferRequest {args.uuid}")
@@ -975,12 +975,6 @@ async def main() -> None:
                                   dest="show_status",
                                   help="display the status of the bundle",
                                   action="store_true")
-    parser_bundle_ls.add_argument("--extract-print",
-                                  metavar="FIELD",
-                                  nargs="+",
-                                  default=[],
-                                  required=False,
-                                  help="Fields to extract and print separately after a JSON dump.")
     parser_bundle_ls.set_defaults(func=bundle_ls)
 
     # define a subparser for the 'bundle overdue' subcommand
@@ -1222,6 +1216,12 @@ async def main() -> None:
     parser_request_status.add_argument("--json",
                                        help="display output in JSON",
                                        action="store_true")
+    parser_request_status.add_argument("--extract-print",
+                                       metavar="FIELD",
+                                       nargs="+",
+                                       default=[],
+                                       required=False,
+                                       help="Fields to extract and print separately after a JSON dump.")
     parser_request_status.set_defaults(func=request_status)
 
     # define a subparser for the 'request update-status' subcommand
