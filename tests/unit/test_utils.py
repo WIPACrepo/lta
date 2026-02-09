@@ -141,6 +141,28 @@ async def test_110_quarantine_exc_reason() -> None:
     )
 
 
+# *******************************************************************
+# NOTE:
+#   IF LINES ARE ADDED OR REMOVED ABOVE 'raise' IN USE CASE, THE LINE
+#   NUMBERS IN THE EXPECTED STACKTRACE VALUE NEED TO BE UPDATED TOO!
+TRACEBACK_111 = f"""Traceback (most recent call last):
+  File "{__file__}", line 187, in test_111_quarantine_exc_reason_more_stacktrace
+    my_func()
+    ~~~~~~~^^
+  File "{__file__}", line 184, in my_func
+    _inner_func()
+    ~~~~~~~~~~~^^
+  File "{__file__}", line 181, in _inner_func
+    raise ValueError("nope")
+ValueError: nope
+"""
+
+# python pre-3.13 did not have '~~~^^' arrows
+TRACEBACK_111_PY_OLD = TRACEBACK_111.replace("    ~~~~~~~^^\n", "")
+TRACEBACK_111_PY_OLD = TRACEBACK_111_PY_OLD.replace("    ~~~~~~~~~~~^^\n", "")
+# *******************************************************************
+
+
 @pytest.mark.asyncio
 async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
     """Quarantine uses repr() for Exception reason."""
@@ -185,8 +207,6 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
         f'Sending Bundle {bundle["uuid"]} to quarantine: {reason_repr}.'
     )
 
-    nl = "\n"  # python 3.11 does not allow '\n's in f-strings
-
     patch_bundle.assert_awaited_once_with(
         lta_rc,
         bundle["uuid"],
@@ -194,26 +214,9 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
             "original_status": bundle["status"],
             "status": "quarantined",
             "reason": f"BY:{name}-{instance_uuid} REASON:{reason_repr}",
-            # *******************************************************************
-            # NOTE:
-            #   IF LINES ARE ADDED OR REMOVED FROM ABOVE, THE LINE NUMBERS IN THE
-            #   EXPECTED STACKTRACE VALUE NEED TO BE UPDATED AS WELL!
             "reason_details": (
-                "Traceback (most recent call last):\n"
-                f'  File "{__file__}", '
-                "line 165, in test_111_quarantine_exc_reason_more_stacktrace\n"
-                "    my_func()\n"
-                f"{'    ~~~~~~~^^'+nl if sys.version_info >= (3, 13) else ''}"
-                f'  File "{__file__}", '
-                "line 162, in my_func\n"
-                "    _inner_func()\n"
-                f"{'    ~~~~~~~~~~~^^'+nl if sys.version_info >= (3, 13) else ''}"
-                f'  File "{__file__}", '
-                "line 159, in _inner_func\n"
-                '    raise ValueError("nope")\n'
-                "ValueError: nope\n"
+                TRACEBACK_111 if sys.version_info >= (3, 13) else TRACEBACK_111_PY_OLD
             ),
-            # *******************************************************************
             "work_priority_timestamp": fixed_now,
         },
         logger,
