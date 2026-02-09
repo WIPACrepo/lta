@@ -33,8 +33,23 @@ async def test_000_patch_bundle() -> None:
 ########################################################################################
 
 
+class _DontPassAnything:
+    """Sentinel in tests."""
+
+
+@pytest.mark.parametrize(
+    "reason_details",
+    # because we're passing a string as 'reason' (as opposed to an Exception),
+    #   we have the option of passing a custom 'reason_details' string
+    [
+        # in              out
+        ("custom string", "custom string"),
+        (_DontPassAnything, ""),
+        ("", ""),
+    ],
+)
 @pytest.mark.asyncio
-async def test_100_quarantine_str_reason() -> None:
+async def test_100_quarantine_str_reason(reason_details: tuple[str, str]) -> None:
     """Quarantine builds patch body for string reason."""
     lta_rc = MagicMock()
     logger = MagicMock()
@@ -55,6 +70,11 @@ async def test_100_quarantine_str_reason() -> None:
             name=name,
             instance_uuid=instance_uuid,
             logger=logger,
+            **(
+                {"reason_details": reason_details[0]}
+                if reason_details[0] != _DontPassAnything
+                else {}
+            ),
         )
 
     logger.error.assert_called_once_with(
@@ -68,7 +88,7 @@ async def test_100_quarantine_str_reason() -> None:
             "original_status": bundle["status"],
             "status": "quarantined",
             "reason": f"BY:{name}-{instance_uuid} REASON:something bad happened",
-            "reason_details": "",  # no details b/c no Exception
+            "reason_details": reason_details[1],
             "work_priority_timestamp": fixed_now,
         },
         logger,
@@ -181,15 +201,15 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
             "reason_details": (
                 "Traceback (most recent call last):\n"
                 f'  File "{__file__}", '
-                "line 145, in test_111_quarantine_exc_reason_more_stacktrace\n"
+                "line 165, in test_111_quarantine_exc_reason_more_stacktrace\n"
                 "    my_func()\n"
                 f"{'    ~~~~~~~^^'+nl if sys.version_info >= (3, 13) else ''}"
                 f'  File "{__file__}", '
-                "line 142, in my_func\n"
+                "line 162, in my_func\n"
                 "    _inner_func()\n"
                 f"{'    ~~~~~~~~~~~^^'+nl if sys.version_info >= (3, 13) else ''}"
                 f'  File "{__file__}", '
-                "line 139, in _inner_func\n"
+                "line 159, in _inner_func\n"
                 '    raise ValueError("nope")\n'
                 "ValueError: nope\n"
             ),
