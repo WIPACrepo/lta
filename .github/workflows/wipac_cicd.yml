@@ -254,6 +254,7 @@ jobs:
               --network='host' \
               --mount type=bind,source="$( realpath ./tests )",target="/app/tests",readonly \
               --env CI \
+              --env DUMP_PROMETHEUS_METRICS_FILE="/app/tests/integration/metrics.json" \
               ${{ env.CI_DOCKER_IMAGE_W_TAG }} \
               /bin/bash -c "\
                 pip install $dev_reqs && \
@@ -261,6 +262,12 @@ jobs:
                 pytest -vvvvv tests/integration/test_rest_server.py --exitfirst && \
                 resources/profile_queries.py \
               "
+
+      - name: dump prometheus metrics
+        if: always()
+        run: |
+          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
+          cat ./tests/integration/metrics.json || echo "<no metrics file>"
 
 
   #############################################################################

@@ -8,23 +8,25 @@ import logging
 import os
 import socket
 import tracemalloc
-from typing import Any, AsyncGenerator, Callable, cast, Dict, List
+from pathlib import Path
+from typing import Any, AsyncGenerator, Callable, Dict, List, cast
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
 
+import pytest
+import pytest_asyncio
+from prometheus_client import REGISTRY
+from prometheus_client.exposition import generate_latest
 from pymongo import MongoClient
 from pymongo.database import Database
-import pytest
 from pytest import MonkeyPatch
-import pytest_asyncio
 from pytest_mock import MockerFixture
+from requests.exceptions import HTTPError
 from rest_tools.client import RestClient
 from rest_tools.utils import Auth
-from requests.exceptions import HTTPError
 from wipac_dev_tools import strtobool
 
 from lta.rest_server import main, start, unique_id
-
 
 LtaCollection = Database[Dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
@@ -44,7 +46,7 @@ CONFIG = {
     'LTA_MONGODB_DATABASE_NAME': 'lta',
     'LTA_MONGODB_HOST': 'localhost',
     'LTA_MONGODB_PORT': '27017',
-    'OTEL_EXPORTER_OTLP_ENDPOINT': 'localhost:4317',
+    # 'OTEL_EXPORTER_OTLP_ENDPOINT': 'localhost:4317',
     'PROMETHEUS_METRICS_PORT': '8090',
 }
 for k in CONFIG:
@@ -52,6 +54,14 @@ for k in CONFIG:
         CONFIG[k] = os.environ[k]
 
 logging.getLogger().setLevel(CONFIG['LOG_LEVEL'])
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
+    """Runs after all tests have completed."""
+    metrics_path = Path(os.environ["DUMP_PROMETHEUS_METRICS_FILE"])
+    metrics_path.write_bytes(generate_latest(REGISTRY))
+
+    terminalreporter.write_line(f"Wrote Prometheus metrics to {metrics_path}")
 
 
 @pytest.fixture
@@ -93,7 +103,7 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
     monkeypatch.setenv("LTA_MONGODB_DATABASE_NAME", CONFIG['LTA_MONGODB_DATABASE_NAME'])
     monkeypatch.setenv("LTA_REST_PORT", str(port))
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+    # monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
     monkeypatch.setenv("PROMETHEUS_METRICS_PORT", "8090")
     s = start(debug=True)
 
