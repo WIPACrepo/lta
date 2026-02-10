@@ -402,6 +402,7 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config: TestConfig, mocker
                     "original_status": "taping",
                     "status": "quarantined",
                     "reason": mock.ANY,
+                    "reason_details": mock.ANY,  # stacktrace logic is tested in test_utils.py
                     "work_priority_timestamp": mock.ANY,
                 }
             ),
@@ -453,6 +454,7 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mock
                     "original_status": "taping",
                     "status": "quarantined",
                     "reason": mock.ANY,
+                    "reason_details": mock.ANY,  # stacktrace logic is tested in test_utils.py
                     "work_priority_timestamp": mock.ANY,
                 }
             ),
