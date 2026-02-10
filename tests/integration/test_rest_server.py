@@ -8,15 +8,12 @@ import logging
 import os
 import socket
 import tracemalloc
-from pathlib import Path
 from typing import Any, AsyncGenerator, Callable, Dict, List, cast
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
 
 import pytest
 import pytest_asyncio
-from prometheus_client import REGISTRY
-from prometheus_client.exposition import generate_latest
 from pymongo import MongoClient
 from pymongo.database import Database
 from pytest import MonkeyPatch
@@ -54,14 +51,6 @@ for k in CONFIG:
         CONFIG[k] = os.environ[k]
 
 logging.getLogger().setLevel(CONFIG['LOG_LEVEL'])
-
-
-def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
-    """Runs after all tests have completed."""
-    metrics_path = Path(os.environ["DUMP_PROMETHEUS_METRICS_FILE"])
-    metrics_path.write_bytes(generate_latest(REGISTRY))
-
-    terminalreporter.write_line(f"Wrote Prometheus metrics to {metrics_path}")
 
 
 @pytest.fixture
