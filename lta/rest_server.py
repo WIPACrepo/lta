@@ -807,10 +807,6 @@ def start(debug: bool = False) -> RestServer:
     mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
     args['db'] = mongo_client[mongo_db]
 
-    # configure prometheus metrics
-    args['request_counter'] = Counter('lta_requests', 'LTA DB requests', ['method', 'route'])
-    args['response_counter'] = Counter('lta_responses', 'LTA DB responses', ['method', 'response', 'route'])
-
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
     max_body_size = int(config["LTA_MAX_BODY_SIZE"])
     server = RestServer(debug=debug, max_body_size=max_body_size)  # type: ignore[no-untyped-call]
