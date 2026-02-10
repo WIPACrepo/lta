@@ -18,7 +18,7 @@ from uuid import uuid1
 import prometheus_client
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
-from prometheus_client import Counter, Histogram, start_http_server
+from prometheus_client import Histogram, start_http_server
 import pymongo
 from pymongo import MongoClient
 from rest_tools.utils.json_util import json_decode
