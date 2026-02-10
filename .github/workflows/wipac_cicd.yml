@@ -250,11 +250,13 @@ jobs:
           
           # run pytest in container
           set -x
+          mkdir ./metrics
           docker run --rm \
               --network='host' \
               --mount type=bind,source="$( realpath ./tests )",target="/app/tests",readonly \
+              --mount type=bind,source="$( realpath ./metrics )",target="/app/metrics" \
               --env CI \
-              --env DUMP_PROMETHEUS_METRICS_FILE="/app/tests/integration/metrics.json" \
+              --env DUMP_PROMETHEUS_METRICS_FILE="/app/metrics/metrics.json" \
               ${{ env.CI_DOCKER_IMAGE_W_TAG }} \
               /bin/bash -c "\
                 pip install $dev_reqs && \
@@ -267,7 +269,7 @@ jobs:
         if: always()
         run: |
           set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
-          cat ./tests/integration/metrics.json || echo "<no metrics file>"
+          cat ./metrics/metrics.json || echo "<no metrics file>"
 
 
   #############################################################################
