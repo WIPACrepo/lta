@@ -280,7 +280,8 @@ jobs:
           head -n 40 ./metrics/metrics.prom
 
           # prom2json (Go tool)
-          go install "github.com/prometheus/prom2json/cmd/prom2json@latest"
+          go install github.com/prometheus/prom2json/cmd/prom2json@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
           # termgraph (Python tool)
           pip install --disable-pip-version-check -q termgraph
@@ -334,8 +335,7 @@ jobs:
           echo
           echo "=== per-bucket counts (delta) ==="
           termgraph /tmp/hist-delta.dat --width 60
-  
-  
+
 
   #############################################################################
   # GIT TAG & GITHUB RELEASE
