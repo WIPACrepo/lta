@@ -252,7 +252,7 @@ jobs:
           set -x
           docker run --rm \
               --network='host' \
-              --mount type=bind,source="$( realpath ./tests )",target="/app/tests",readonly \
+              --mount type=bind,source="$( realpath ./tests )",target="/app/tests" \
               --env CI \
               --env DUMP_PROMETHEUS_METRICS_FILE="/app/tests/integration/metrics.json" \
               ${{ env.CI_DOCKER_IMAGE_W_TAG }} \
