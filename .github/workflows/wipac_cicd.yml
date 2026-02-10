@@ -257,7 +257,7 @@ jobs:
               --mount type=bind,source="$( realpath ./tests )",target="/app/tests",readonly \
               --mount type=bind,source="$( realpath ./metrics )",target="/app/metrics" \
               --env CI \
-              --env DUMP_PROMETHEUS_METRICS_FILE="/app/metrics/metrics.json" \
+              --env DUMP_PROMETHEUS_METRICS_FILE="/app/metrics/metrics.prom" \
               ${{ env.CI_DOCKER_IMAGE_W_TAG }} \
               /bin/bash -c "\
                 pip install $dev_reqs && \
@@ -270,8 +270,72 @@ jobs:
         if: always()
         run: |
           set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
-          cat ./metrics/metrics.json || echo "<no metrics file>"
 
+          if [[ ! -f ./metrics/metrics.prom ]]; then
+              echo "<no metrics file>"
+              exit 0
+          fi
+
+          echo "=== metrics file (head) ==="
+          head -n 40 ./metrics/metrics.prom
+
+          # prom2json (Go tool)
+          go install "github.com/prometheus/prom2json/cmd/prom2json@latest"
+
+          # termgraph (Python tool)
+          pip install --disable-pip-version-check -q termgraph
+
+          # Convert once, reuse
+          prom2json ./metrics/metrics.prom > /tmp/metrics.json
+
+          # Pick one histogram series
+          # NOTE: if the metric isn't present, jq will exit 0 but produce no output.
+          # We'll detect that and just print a note instead of failing the job.
+          jq -r '
+            .[]
+            | select(.name=="http_request_duration_seconds")
+            | .metrics[]
+            | select(.labels.method=="get" and .labels.route=="/" and .labels.status=="200")
+            | .buckets
+            | to_entries
+            | sort_by(.key|sub("\\+Inf";"999999999")|tonumber)
+            | .[]
+            | "\(.key) \(.value)"
+          ' /tmp/metrics.json > /tmp/hist-cumulative.dat
+
+          if [[ ! -s /tmp/hist-cumulative.dat ]]; then
+              echo "No matching histogram series found (method=get route=/ status=200)."
+              exit 0
+          fi
+
+          echo
+          echo "=== cumulative buckets (Prometheus-style) ==="
+          termgraph /tmp/hist-cumulative.dat --width 60
+
+          # Convert cumulative -> per-bucket (delta) in jq, then render
+          jq -r '
+            def le_num:
+              if .key=="+Inf" then 1e100 else (.key|tonumber) end;
+
+            .[]
+            | select(.name=="http_request_duration_seconds")
+            | .metrics[]
+            | select(.labels.method=="get" and .labels.route=="/" and .labels.status=="200")
+            | (.buckets | to_entries | sort_by(le_num)) as $b
+            | reduce range(0; $b|length) as $i (
+                {prev:0, out:[]};
+                .out += [ {le: $b[$i].key, v: ($b[$i].value|tonumber) - .prev} ]
+                | .prev = ($b[$i].value|tonumber)
+              )
+            | .out[]
+            | "\(.le) \(.v)"
+          ' /tmp/metrics.json > /tmp/hist-delta.dat
+
+          echo
+          echo "=== per-bucket counts (delta) ==="
+          termgraph /tmp/hist-delta.dat --width 60
+  
+  
 
   #############################################################################
   # GIT TAG & GITHUB RELEASE
