@@ -8,6 +8,7 @@ Run with `python -m lta.lta_cmd $@`.
 
 import argparse
 import asyncio
+import copy
 from datetime import datetime, timedelta
 import json
 import logging
@@ -67,6 +68,7 @@ PATH_PREFIX_ALLOW_LIST = [
     "/data/sim",
 ]
 
+
 # -----------------------------------------------------------------------------
 
 
@@ -107,9 +109,41 @@ def print_catalog_record_as_line(d: Dict[str, Any]) -> None:
     print(f"{date} | {size} | {uuid} | {logical_name}")
 
 
-def print_dict_as_pretty_json(d: Dict[str, Any]) -> None:
-    """Print the provided Dict as pretty-print JSON."""
-    print(json.dumps(d, indent=4, sort_keys=True))
+# fmt:on
+
+
+def print_dict_as_pretty_json(
+    d: Dict[str, Any],
+    *,
+    extract_print_fields: list[str] | None = None,
+) -> None:
+    """Print the provided Dict as pretty-print JSON.
+
+    If 'extract_print_fields' is given, those fields are printed separately.
+    """
+
+    def _print_dict(_out: Dict[str, Any]):
+        print(json.dumps(_out, indent=4, sort_keys=True))
+
+    _print_dict(d)
+
+    if not extract_print_fields:
+        return
+
+    # now, let's see if there are any multiline fields to print separately...
+    for key in sorted(extract_print_fields):
+        if key not in d:
+            continue
+        print()
+        print(f"<<< FIELD: {key} >>>")
+        if isinstance(d[key], str):
+            print(d[key].rstrip("\n"))
+        else:
+            _print_dict(d[key])
+
+
+# fmt:off
+
 
 # -----------------------------------------------------------------------------
 
@@ -337,8 +371,11 @@ async def bundle_priority_reset(args: Namespace) -> ExitCode:
 async def bundle_status(args: Namespace) -> ExitCode:
     """Query the status of a Bundle in the LTA DB."""
     response = await args.di["lta_rc"].request("GET", f"/Bundles/{args.uuid}")
-    if args.json:
-        print_dict_as_pretty_json(response)
+    if args.json or args.extract_print:
+        print_dict_as_pretty_json(
+            response,
+            extract_print_fields=args.extract_print,
+        )
     else:
         # display information about the core fields
         print(f"Bundle {args.uuid}")
@@ -867,8 +904,11 @@ async def request_status(args: Namespace) -> ExitCode:
     response = await args.di["lta_rc"].request("GET", f"/TransferRequests/{args.uuid}")
     res2 = await args.di["lta_rc"].request("GET", f"/Bundles?request={args.uuid}")
     response["bundles"] = await _get_bundles_status(args.di["lta_rc"], res2["results"])
-    if args.json:
-        print_dict_as_pretty_json(response)
+    if args.json or args.extract_print:
+        print_dict_as_pretty_json(
+            response,
+            extract_print_fields=args.extract_print,
+        )
     else:
         # display information about the core fields
         print(f"TransferRequest {args.uuid}")
@@ -967,6 +1007,12 @@ async def main() -> None:
     parser_bundle_status.add_argument("--json",
                                       help="display output in JSON",
                                       action="store_true")
+    parser_bundle_status.add_argument("--extract-print",
+                                      metavar="FIELD",
+                                      nargs="+",
+                                      default=[],
+                                      required=False,
+                                      help="Fields to extract and print separately after a JSON dump.")
     parser_bundle_status.set_defaults(func=bundle_status)
 
     # define a subparser for the 'bundle update-status' subcommand
@@ -1170,6 +1216,12 @@ async def main() -> None:
     parser_request_status.add_argument("--json",
                                        help="display output in JSON",
                                        action="store_true")
+    parser_request_status.add_argument("--extract-print",
+                                       metavar="FIELD",
+                                       nargs="+",
+                                       default=[],
+                                       required=False,
+                                       help="Fields to extract and print separately after a JSON dump.")
     parser_request_status.set_defaults(func=request_status)
 
     # define a subparser for the 'request update-status' subcommand
