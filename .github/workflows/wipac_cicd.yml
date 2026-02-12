@@ -276,8 +276,8 @@ jobs:
               exit 0
           fi
 
-          echo "=== metrics file (head) ==="
-          head -n 40 ./metrics/metrics.prom
+          echo "=== metrics file (cat) ==="
+          cat ./metrics/metrics.prom
 
           # prom2json (Go tool)
           go install github.com/prometheus/prom2json/cmd/prom2json@latest
@@ -360,7 +360,11 @@ jobs:
                   return 0
               fi
           
-              termgraph /tmp/hist.dat --width 60
+              if [[ ! -s /tmp/hist.dat ]]; then
+                  echo "<no non-zero buckets for this series>"
+              else
+                  termgraph /tmp/hist.dat --width 60
+              fi
               echo
           }
           
