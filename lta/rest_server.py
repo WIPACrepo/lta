@@ -117,6 +117,7 @@ PROMETHEUS_HISTOGRAM = Histogram(
     buckets=prometheus_tools.HistogramBuckets.HTTP_API,
 )
 
+
 def path_regex_to_human(rstring: str) -> str:
     """Transform a regex-based path string to a human-friendly path.
 
