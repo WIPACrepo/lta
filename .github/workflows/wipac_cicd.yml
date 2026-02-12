@@ -320,7 +320,7 @@ jobs:
           jq -r '
             def le_num:
               if .key=="+Inf" then 1e100 else (.key|tonumber) end;
-
+          
             .[]
             | select(.name=="http_request_duration_seconds")
             | .metrics[]
@@ -328,7 +328,7 @@ jobs:
             | (.buckets | to_entries | sort_by(le_num)) as $b
             | reduce range(0; $b|length) as $i (
                 {prev:0, out:[]};
-                .out += [ {le: $b[$i].key, v: ($b[$i].value|tonumber) - .prev} ]
+                .out += [ {le: $b[$i].key, v: ((($b[$i].value|tonumber) - .prev))} ]
                 | .prev = ($b[$i].value|tonumber)
               )
             | .out[]
