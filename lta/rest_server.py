@@ -122,7 +122,7 @@ def path_regex_to_human(rstring: str) -> str:
         r"{\1}",
         rstring
     )
-    out.rstrip("$")
+    out = out.rstrip("$")
     return out
 
 
