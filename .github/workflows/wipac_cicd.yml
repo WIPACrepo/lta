@@ -321,13 +321,13 @@ jobs:
             def le_num:
               if .key=="+Inf" then 1e100 else (.key|tonumber) end;
           
-            def fmt_edge(x):
-              if x=="+Inf" then "+Inf" else x end;
-          
             def fmt_range(prev; le):
               if le=="+Inf" then ">(" + prev + ")"
               else "(" + prev + "," + le + "]"
               end;
+          
+            def clamp0(x):
+              if x < 0 then 0 else x end;
           
             .[]
             | select(.name=="http_request_duration_seconds")
@@ -337,17 +337,26 @@ jobs:
             | reduce range(0; ($b|length)) as $i (
                 {prev_edge: "0", prev_val: 0, out: []};
                 ($b[$i].key) as $le
-                | ($b[$i].value|tonumber) as $cur
-                | .out += [ {label: fmt_range(.prev_edge; $le), v: (($cur - .prev_val))} ]
-                | .prev_edge = fmt_edge($le)
+                | (($b[$i].value|tonumber)) as $cur
+                | (($cur - .prev_val) | clamp0(.)) as $delta
+                | .out += [ {label: fmt_range(.prev_edge; $le), v: $delta} ]
+                | .prev_edge = $le
                 | .prev_val = $cur
               )
             | .out[]
-            | select(.v > 0)          # keep only buckets that actually got hits
+            | select(.v > 0.0000001)
             | "\(.label) \(.v)"
           ' /tmp/metrics.json > /tmp/hist-delta.dat
           
-          termgraph /tmp/hist-delta.dat --width 60
+          if [[ ! -s /tmp/hist-delta.dat ]]; then
+              echo
+              echo "=== per-bucket counts (delta) ==="
+              echo "<no non-zero buckets>"
+          else
+              echo
+              echo "=== per-bucket counts (delta) ==="
+              termgraph /tmp/hist-delta.dat --width 60
+          fi
 
 
   #############################################################################
