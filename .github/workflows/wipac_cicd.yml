@@ -291,72 +291,83 @@ jobs:
 
           # Convert once, reuse
           prom2json ./metrics/metrics.prom > /tmp/metrics.json
-
-          # Pick one histogram series
-          # NOTE: if the metric isn't present, jq will exit 0 but produce no output.
-          # We'll detect that and just print a note instead of failing the job.
-          jq -r '
+          
+          # Enumerate every histogram series labelset (method/route/status, plus anything else present)
+          jq -c '
             .[]
             | select(.name=="http_request_duration_seconds")
             | .metrics[]
-            | select(.labels.method=="get" and .labels.route=="/" and .labels.status=="200")
-            | .buckets
-            | to_entries
-            | sort_by(.key|sub("\\+Inf";"999999999")|tonumber)
-            | .[]
-            | "\(.key) \(.value)"
-          ' /tmp/metrics.json > /tmp/hist-cumulative.dat
-
-          if [[ ! -s /tmp/hist-cumulative.dat ]]; then
-              echo "No matching histogram series found (method=get route=/ status=200)."
-              exit 0
-          fi
-
-          echo
-          echo "=== cumulative buckets (Prometheus-style) ==="
-          termgraph /tmp/hist-cumulative.dat --width 60
-
-          # Convert cumulative -> per-bucket (delta) in jq, then render
-          jq -r '
-            def le_num:
-              if .key=="+Inf" then 1e100 else (.key|tonumber) end;
+            | .labels
+          ' /tmp/metrics.json | sort -u > /tmp/histo-labels.jsonl
           
-            def fmt_range(prev; le):
-              if le=="+Inf" then ">(" + prev + ")"
-              else "(" + prev + "," + le + "]"
-              end;
+          echo "Found $(wc -l < /tmp/histo-labels.jsonl) histogram series"
           
-            def clamp0(x):
-              if x < 0 then 0 else x end;
+          # Helper: render one series (delta buckets with range labels)
+          render_one() {
+              _labels_json="$1"
           
-            .[]
-            | select(.name=="http_request_duration_seconds")
-            | .metrics[]
-            | select(.labels.method=="get" and .labels.route=="/" and .labels.status=="200")
-            | (.buckets | to_entries | sort_by(le_num)) as $b
-            | reduce range(0; ($b|length)) as $i (
-                {prev_edge: "0", prev_val: 0, out: []};
-                ($b[$i].key) as $le
-                | (($b[$i].value|tonumber)) as $cur
-                | (($cur - .prev_val) | clamp0(.)) as $delta
-                | .out += [ {label: fmt_range(.prev_edge; $le), v: $delta} ]
-                | .prev_edge = $le
-                | .prev_val = $cur
-              )
-            | .out[]
-            | select(.v > 0.0000001)
-            | "\(.label) \(.v)"
-          ' /tmp/metrics.json > /tmp/hist-delta.dat
+              # Header: labels + count/sum/avg if available
+              jq -r --argjson L "$_labels_json" '
+                .[]
+                | select(.name=="http_request_duration_seconds")
+                | .metrics[]
+                | select(.labels == $L)
+                | . as $m
+                | "=== http_request_duration_seconds "
+                  + ($m.labels | to_entries | sort_by(.key) | map("\(.key)=\(.value)") | join(" "))
+                  + (if ($m.count? != null) then
+                       " | count=\($m.count) sum=\($m.sum) avg=\((($m.sum|tonumber)/($m.count|tonumber)))"
+                     else
+                       ""
+                     end)
+              ' /tmp/metrics.json
           
-          if [[ ! -s /tmp/hist-delta.dat ]]; then
+              # Build delta buckets for this series
+              jq -r --argjson L "$_labels_json" '
+                def le_num:
+                  if .key=="+Inf" then 1e100 else (.key|tonumber) end;
+          
+                def fmt_range(prev; le):
+                  if le=="+Inf" then ">(" + prev + ")"
+                  else "(" + prev + "," + le + "]"
+                  end;
+          
+                def clamp0(x):
+                  if x < 0 then 0 else x end;
+          
+                .[]
+                | select(.name=="http_request_duration_seconds")
+                | .metrics[]
+                | select(.labels == $L)
+                | (.buckets | to_entries | sort_by(le_num)) as $b
+                | reduce range(0; ($b|length)) as $i (
+                    {prev_edge: "0", prev_val: 0, out: []};
+                    ($b[$i].key) as $le
+                    | (($b[$i].value|tonumber)) as $cur
+                    | (($cur - .prev_val) | clamp0(.)) as $delta
+                    | .out += [ {label: fmt_range(.prev_edge; $le), v: $delta} ]
+                    | .prev_edge = $le
+                    | .prev_val = $cur
+                  )
+                | .out[]
+                | select(.v > 0.0000001)
+                | "\(.label) \(.v)"
+              ' /tmp/metrics.json > /tmp/hist.dat
+          
+              if [[ ! -s /tmp/hist.dat ]]; then
+                  echo "<no observations>"
+                  echo
+                  return 0
+              fi
+          
+              termgraph /tmp/hist.dat --width 60
               echo
-              echo "=== per-bucket counts (delta) ==="
-              echo "<no non-zero buckets>"
-          else
-              echo
-              echo "=== per-bucket counts (delta) ==="
-              termgraph /tmp/hist-delta.dat --width 60
-          fi
+          }
+          
+          # Render them all
+          while IFS= read -r _labels; do
+              render_one "$_labels"
+          done < /tmp/histo-labels.jsonl
 
 
   #############################################################################
