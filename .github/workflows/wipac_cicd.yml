@@ -36,7 +36,7 @@ jobs:
       - id: versions
         uses: WIPACrepo/wipac-dev-mongo-versions-action@v2
         with:
-          mongo_min: "5.0"
+          mongo_min: "6.0"
 
   py-versions:
     runs-on: ubuntu-latest
