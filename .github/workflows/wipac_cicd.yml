@@ -281,7 +281,10 @@ jobs:
 
           # prom2json (Go tool)
           go install github.com/prometheus/prom2json/cmd/prom2json@latest
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          _gobin="$(go env GOPATH)/bin"
+          export PATH="${_gobin}:${PATH}"
+          echo "${_gobin}" >> "$GITHUB_PATH"
+          command -v prom2json
 
           # termgraph (Python tool)
           pip install --disable-pip-version-check -q termgraph
