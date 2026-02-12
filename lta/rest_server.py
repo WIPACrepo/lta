@@ -146,6 +146,7 @@ class BaseLTAHandler(RestHandler):
             self,
             db: AsyncDatabase[DatabaseType],
             prometheus_route_name: str,
+            prometheus_histogram: Histogram,
             *args: Any,
             **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
@@ -153,12 +154,7 @@ class BaseLTAHandler(RestHandler):
         self.db = db
 
         self.prometheus_route_name = prometheus_route_name
-        self.prometheus_histogram = Histogram(
-            'http_request_duration_seconds',
-            'HTTP request duration in seconds',
-            labelnames=('method', 'route', 'status'),
-            buckets=prometheus_tools.HistogramBuckets.HTTP_API,
-        )
+        self.prometheus_histogram = prometheus_histogram
 
     def prepare(self):
         """Prepare before http-method request handlers."""
@@ -778,6 +774,14 @@ def start(debug: bool = False) -> RestServer:
     ensure_mongo_indexes(lta_mongodb_url, mongo_db)
     mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
     args['db'] = mongo_client[mongo_db]
+
+    # configure common instance(s) for Prometheus
+    args['prometheus_histogram'] = Histogram(
+        'http_request_duration_seconds',
+        'HTTP request duration in seconds',
+        labelnames=('method', 'route', 'status'),
+        buckets=prometheus_tools.HistogramBuckets.HTTP_API,
+    )
 
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
     max_body_size = int(config["LTA_MAX_BODY_SIZE"])
