@@ -354,17 +354,24 @@ jobs:
                 | "\(.label) \(.v)"
               ' /tmp/metrics.json > /tmp/hist.dat
           
-              if [[ ! -s /tmp/hist.dat ]]; then
-                  echo "<no observations>"
+              # termgraph is picky: ensure we have at least one parseable "label <number>" row
+              awk '
+                  NF >= 2 {
+                      v = $NF
+                      # Accept ints/floats/scientific notation
+                      if (v ~ /^-?[0-9]+([.][0-9]+)?([eE]-?[0-9]+)?$/) {
+                          print
+                      }
+                  }
+              ' /tmp/hist.dat > /tmp/hist.clean
+              
+              if [[ ! -s /tmp/hist.clean ]]; then
+                  echo "<no non-zero buckets for this series>"
                   echo
                   return 0
               fi
-          
-              if [[ ! -s /tmp/hist.dat ]]; then
-                  echo "<no non-zero buckets for this series>"
-              else
-                  termgraph /tmp/hist.dat --width 60
-              fi
+              
+              termgraph /tmp/hist.clean --width 60
               echo
           }
           
