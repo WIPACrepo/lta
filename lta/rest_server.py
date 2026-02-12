@@ -31,7 +31,7 @@ from rest_tools.server import (
 )
 from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
-from wipac_dev_tools import from_environment, strtobool
+from wipac_dev_tools import from_environment, strtobool, prometheus_tools
 
 # fmt:off
 
@@ -110,34 +110,6 @@ DatabaseType = dict[str, Any]
 # -----------------------------------------------------------------------------
 
 
-class HistogramBuckets:
-    """Prometheus histogram buckets"""
-
-    # Default buckets used by prometheus client
-    # DEFAULT = [.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10]
-
-    # Timer bucket centered around 5ms, with outliers up to 10s
-    DB = [.001, .0025, .005, .0075, .01, .025, .05, .1, .25, .5, 1, 10]
-
-    # Timer bucket centered around 50ms, up to 10s
-    HTTP_API = [.005, .01, .025, .04, .05, .06, .075, .1, .25, .5, 1, 5, 10]
-
-    # Timer bucket up to 1 second
-    SECOND = [.0001, .0005, .001, .0025, .005, .0075, .01, .025, .05, .075, .1, .25, .5, .75, 1]
-
-    # Timer bucket up to 10 seconds
-    TENSECOND = [.001, .0025, .005, .0075, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 10]
-
-    # Timer bucket up to 1 minute
-    MINUTE = [.1, .5, 1, 2.5, 5, 7.5, 10, 15, 20, 25, 30, 45, 60]
-
-    # Timer bucket up to 10 minutes
-    TENMINUTE = [1, 5, 10, 15, 20, 25, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 420, 480, 540, 600]
-
-    # Timer bucket up to 1 hour
-    HOUR = [10, 60, 120, 300, 600, 1200, 1800, 2400, 3000, 3600]
-
-
 def path_regex_to_human(rstring: str) -> str:
     """Transform a regex-based path string to a human-friendly path.
 
@@ -185,7 +157,7 @@ class BaseLTAHandler(RestHandler):
             'http_request_duration_seconds',
             'HTTP request duration in seconds',
             labelnames=('method', 'route', 'status'),
-            buckets=HistogramBuckets.HTTP_API,
+            buckets=prometheus_tools.HistogramBuckets.HTTP_API,
         )
 
     def prepare(self):
