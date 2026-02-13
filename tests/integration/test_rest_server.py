@@ -354,7 +354,7 @@ async def test_300_script_main(mocker: MockerFixture) -> None:
     """Ensure that main sets up logging, starts a server, and runs the event loop."""
     mock_basicConfig = mocker.patch("logging.basicConfig")
     mock_start = mocker.patch("lta.rest_server.start")
-    mock_start_http_server = mocker.patch("lta.rest_server.start_http_server")
+    mock_start_http_server = mocker.patch("prometheus_client.start_http_server")
     mock_Event = AsyncMock(spec=asyncio.Event)
     mock_asyncio_event = mocker.patch("asyncio.Event")
     mock_asyncio_event.return_value = mock_Event
