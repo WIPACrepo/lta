@@ -5,7 +5,6 @@ Run with `python -m lta.rest_server`.
 """
 
 import asyncio
-import re
 import time
 from datetime import datetime
 import logging
@@ -31,6 +30,7 @@ from rest_tools.server import (
 from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
 from wipac_dev_tools import from_environment, strtobool, prometheus_tools
+from wipac_dev_tools.string_tools import regex_named_groups_to_template
 
 # fmt:off
 
@@ -115,22 +115,6 @@ PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
     labelnames=('method', 'route', 'status'),
     buckets=prometheus_tools.HistogramBuckets.HTTP_API,
 )
-
-
-def path_regex_to_human(rstring: str) -> str:
-    """Transform a regex-based path string to a human-friendly path.
-
-    Ex: r"/TransferRequests/(?P<request_id>...+)" -> "/TransferRequests/{request_id}"
-    """
-    out = re.sub(
-        # match named capture groups like "...(?P<request_id>\w+)..."
-        r"\(\?P<([A-Za-z_][A-Za-z0-9_]*)>(?:\\.|[^\\)])+\)",
-        # and replace with "...{request_id}..."
-        r"{\1}",
-        rstring
-    )
-    out = out.rstrip("$")
-    return out
 
 
 def in_ci_dump_prometheus_labels() -> None:
@@ -803,7 +787,7 @@ def start(debug: bool = False) -> RestServer:
             route,
             handler,
             {
-                "prometheus_route_name": path_regex_to_human(route),
+                "prometheus_route_name": regex_named_groups_to_template(route),
                 **args,
             },
         )
