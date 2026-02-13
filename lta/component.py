@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
+from wipac_dev_tools.prometheus_tools import GlobalLabels
 
 from .lta_const import drain_semaphore_filename
 
@@ -104,6 +105,16 @@ class Component:
                 self.logger.info(f"{name} = [秘密]")
             else:
                 self.logger.info(f"{name} = {config[name]}")
+        # set up Prometheus metrics
+        self.prometheus = GlobalLabels({
+            # define everything identifiable to the component variety, but not the process
+            #   IOW, we don't want new procs (k8s pods) to produce unique histograms
+            'source_site': str(self.source_site),
+            'dest_site': str(self.dest_site),
+            'type': str(self.type),
+            'input_status': str(self.input_status),
+            'output_status': str(self.output_status),
+        })
 
     async def run(self) -> None:
         """Perform the Component's work cycle."""

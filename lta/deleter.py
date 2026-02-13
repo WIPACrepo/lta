@@ -9,8 +9,9 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import Counter, start_http_server
 from rest_tools.client import RestClient
+from wipac_dev_tools.prometheus_tools import AsyncPromTimer, AsyncPromWrapper, HistogramBuckets
 
 from .utils import quarantine_bundle
 from .component import COMMON_CONFIG, Component, now, work_loop
@@ -27,11 +28,6 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
-
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class Deleter(Component):
@@ -75,10 +71,15 @@ class Deleter(Component):
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
-        load_gauge.labels(component='deleter', level='bundle', type='work').set(load_level)
         self.logger.info("Ending work on Bundles.")
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    @AsyncPromWrapper(lambda self: self.prometheus.counter(
+        'deleter_bundles', 'LTA Deleter bundles processed', labels=['bundle'], finalize=False
+    ))
+    @AsyncPromTimer(lambda self: self.prometheus.histogram(
+        'deleter_work_claim', 'LTA Deleter Work-Claim Loop', buckets=HistogramBuckets.SECOND
+    ))
+    async def _do_work_claim(self, prom_counter: Counter, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be deleted
         self.logger.info("Asking the LTA DB for a Bundle to delete.")
@@ -94,9 +95,9 @@ class Deleter(Component):
         # process the Bundle that we were given
         try:
             await self._delete_bundle(lta_rc, bundle)
-            success_counter.labels(component='deleter', level='bundle', type='work').inc()
+            prom_counter.labels({'bundle': 'success'}).inc()
         except Exception as e:
-            failure_counter.labels(component='deleter', level='bundle', type='exception').inc()
+            prom_counter.labels({'bundle': 'failure'}).inc()
             await quarantine_bundle(
                 lta_rc,
                 bundle,
@@ -109,6 +110,9 @@ class Deleter(Component):
         # if we were successful at processing work, let the caller know
         return True
 
+    @AsyncPromTimer(lambda self: self.prometheus.histogram(
+        'deleter_action', 'LTA Deleter Action', buckets=HistogramBuckets.SECOND
+    ))
     async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Delete the provided Bundle and update the LTA DB."""
         # determine the name of the file to be deleted
@@ -154,8 +158,7 @@ def main_sync() -> None:
     LOG.info("Starting synchronous code")
     deleter = Deleter(config, LOG)
     # let's get to work
-    metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
-    start_http_server(metrics_port)
+    start_http_server(int(config["PROMETHEUS_METRICS_PORT"]))
     asyncio.run(main(deleter))
     LOG.info("Ending synchronous code")
 
