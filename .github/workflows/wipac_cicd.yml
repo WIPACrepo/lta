@@ -250,9 +250,14 @@ jobs:
           
           # run pytest in container
           set -x
+          mkdir -p ./metrics
+          chmod 777 ./metrics
           docker run --rm \
               --network='host' \
               --mount type=bind,source="$( realpath ./tests )",target="/app/tests",readonly \
+              --mount type=bind,source="$( realpath ./metrics )",target="/app/metrics" \
+              --env CI \
+              --env DUMP_PROMETHEUS_METRICS_FILE="/app/metrics/metrics.prom" \
               ${{ env.CI_DOCKER_IMAGE_W_TAG }} \
               /bin/bash -c "\
                 pip install $dev_reqs && \
@@ -260,6 +265,19 @@ jobs:
                 pytest -vvvvv tests/integration/test_rest_server.py --exitfirst && \
                 resources/profile_queries.py \
               "
+
+      - name: dump prometheus metrics
+        if: always()
+        run: |
+          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
+
+          if [[ ! -f ./metrics/metrics.prom ]]; then
+              echo "<no metrics file>"
+              exit 0
+          fi
+
+          echo "=== metrics file (cat) ==="
+          cat ./metrics/metrics.prom
 
 
   #############################################################################
