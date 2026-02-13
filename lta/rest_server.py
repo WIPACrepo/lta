@@ -15,10 +15,9 @@ from typing import Any, cast, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
-import prometheus_client
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
-from prometheus_client import Histogram, start_http_server
+import prometheus_client
 import pymongo
 from pymongo import MongoClient
 from rest_tools.utils.json_util import json_decode
@@ -109,8 +108,8 @@ DatabaseType = dict[str, Any]
 
 # -----------------------------------------------------------------------------
 
-# make module-level so multiple server instances can share histogram (important for testing)
-PROMETHEUS_HISTOGRAM = Histogram(
+# make module-level so same histogram is shared within this process (else, overwrites)
+PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
     'http_request_duration_seconds',
     'HTTP request duration in seconds',
     labelnames=('method', 'route', 'status'),
@@ -826,9 +825,13 @@ async def main() -> None:
         stream=sys.stdout,
         style="{",
     )
+
+    # Start Servers
+    # -- REST server
     start(debug=True)
-    metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
-    start_http_server(metrics_port)
+    # -- Prometheus metrics server (has handlers for '/metrics' endpoints)
+    prometheus_client.start_http_server(int(config["PROMETHEUS_METRICS_PORT"]))
+    # -- let the background tasks run
     await asyncio.Event().wait()
 
 
