@@ -108,6 +108,7 @@ DatabaseType = dict[str, Any]
 
 # -----------------------------------------------------------------------------
 
+
 # make module-level so same histogram is shared within this process (else, overwrites)
 PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
     'http_request_duration_seconds',
@@ -115,16 +116,6 @@ PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
     labelnames=('method', 'route', 'status'),
     buckets=prometheus_tools.HistogramBuckets.HTTP_API,
 )
-
-
-def in_ci_dump_prometheus_labels() -> None:
-    """Some logging for CI testing."""
-    if not os.getenv("CI"):
-        return
-
-    for ln in prometheus_client.generate_latest().decode().split("\n"):
-        if ln.strip():
-            logging.info(f"Prometheus label: {ln}")
 
 
 # -----------------------------------------------------------------------------
@@ -148,7 +139,6 @@ class BaseLTAHandler(RestHandler):
         """Prepare before http-method request handlers."""
         super().prepare()
         self._prom_start_time = time.monotonic()
-        in_ci_dump_prometheus_labels()
 
     def on_finish(self):
         """Cleanup after http-method request handlers."""
@@ -158,7 +148,6 @@ class BaseLTAHandler(RestHandler):
             route=self.prometheus_route_name,
             status=str(self.get_status()),
         ).observe(time.monotonic() - self._prom_start_time)
-        in_ci_dump_prometheus_labels()
 
 
 # -----------------------------------------------------------------------------

@@ -343,8 +343,6 @@ async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
     ret = await r.request('POST', '/TransferRequests/actions/pop?source=WIPAC', wipac_pop_claimant)
     assert not ret['transfer_request']
 
-    assert 0
-
 
 # -----------------------------------------------------------------------------
 # 300s - Script main
