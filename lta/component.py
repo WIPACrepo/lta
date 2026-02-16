@@ -186,7 +186,7 @@ class Component:
         work_claimed = True
         while work_claimed:
             try:
-                work_claimed = await self._do_work_claim(prom_counter, lta_rc)
+                work_claimed = await self._do_work_claim(lta_rc)
                 if work_claimed:
                     prom_counter.labels({self.lta_noun: "success"}).inc()
             except QuarantineNowException as e:
@@ -207,7 +207,7 @@ class Component:
                 sys.exit()
         self.logger.info(f"Ending work on {self.lta_noun} objects.")
 
-    async def _do_work_claim(self, prom_counter: Counter, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a [insert component's LTA object here] and perform work on it.
 
         Returns:

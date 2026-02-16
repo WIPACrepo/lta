@@ -60,10 +60,7 @@ class Deleter(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    @AsyncPromTimer(lambda self: self.prometheus.histogram(
-        'deleter_work_claim', 'LTA Deleter Work-Claim Loop', buckets=HistogramBuckets.SECOND
-    ))
-    async def _do_work_claim(self, prom_counter: Counter, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it.
 
         Returns:
