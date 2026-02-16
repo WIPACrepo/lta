@@ -1,5 +1,6 @@
 """Common and simple utility functions."""
 
+import enum
 import traceback
 from logging import Logger
 from subprocess import CompletedProcess
@@ -10,6 +11,13 @@ from lta.component import now
 from lta.lta_types import BundleType
 
 _MAX_QUARANTINE_TRACEBACK_LINES = 500
+
+
+class DatabaseNounEnum(enum.StrEnum):
+    """Enum of database nouns."""
+
+    BUNDLE = enum.auto()  # maps to "bundle"
+    TRANSFER_REQUEST = enum.auto()
 
 
 class QuarantineNowException(Exception):

@@ -18,7 +18,7 @@ from wipac_dev_tools import strtobool
 from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels
 
 from .lta_const import drain_semaphore_filename
-from .utils import QuarantineNowException, quarantine_bundle
+from .utils import DatabaseNounEnum, QuarantineNowException, quarantine_bundle
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "CLIENT_ID": None,
@@ -169,20 +169,27 @@ class Component:
         """Override this to return expected configuration."""
         raise NotImplementedError()
 
+    def _get_lta_noun(self) -> DatabaseNounEnum:
+        """Get the LTA database noun for the component: "bundle", "transfer_request", ..."""
+        raise NotImplementedError()
+
     @AsyncPromWrapper(lambda self: self.prometheus.counter(
-        'result', 'processing result counts', labels=['bundle'], finalize=False
+        "work result",
+        f"finished {self._get_lta_noun()} counts",
+        labels=[self._get_lta_noun()],
+        finalize=False,
     ))
     async def _do_work(self, prom_counter: Counter, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
-        self.logger.info("Starting work on Bundles.")  # TODO: "bundles", or "transfer requests"
+        self.logger.info(f"Starting work on {self._get_lta_noun()} objects.")
         work_claimed = True
         while work_claimed:
             try:
                 work_claimed = await self._do_work_claim(prom_counter, lta_rc)
                 if work_claimed:
-                    prom_counter.labels({'bundle': 'success'}).inc()
+                    prom_counter.labels({self._get_lta_noun(): "success"}).inc()
             except QuarantineNowException as e:
-                prom_counter.labels({'bundle': 'failure'}).inc()
+                prom_counter.labels({self._get_lta_noun(): "failure"}).inc()
                 await quarantine_bundle(
                     lta_rc,
                     e.bundle,
@@ -196,7 +203,7 @@ class Component:
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
-        self.logger.info("Ending work on Bundles.")
+        self.logger.info(f"Ending work on {self._get_lta_noun()} objects.")
 
     async def _do_work_claim(self, prom_counter: Counter, lta_rc: RestClient) -> bool:
         """Claim a [insert component's LTA object here] and perform work on it.
