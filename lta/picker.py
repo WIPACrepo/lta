@@ -284,24 +284,6 @@ class Picker(Component):
             result = await lta_rc.request('POST', '/Metadata/actions/bulk_create', create_body)
             self.logger.info(f'Created {result["count"]} Metadata documents linking to pending bundle {bundle_uuid}.')
 
-    async def _quarantine_transfer_request(self,
-                                           lta_rc: RestClient,
-                                           tr: TransferRequestType,
-                                           reason: str) -> None:
-        """Quarantine a TransferRequest by updating its status in the LTA DB."""
-        self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
-        right_now = now()
-        patch_body = {
-            "original_status": tr["status"],
-            "status": "quarantined",
-            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
-            "work_priority_timestamp": right_now,
-        }
-        try:
-            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
-        except Exception as e:
-            self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
-
 
 async def main(picker: Picker) -> None:
     """Execute the work loop of the Picker component."""

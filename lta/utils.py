@@ -8,12 +8,12 @@ from subprocess import CompletedProcess
 from rest_tools.client import RestClient
 
 from lta.component import now
-from lta.lta_types import BundleType
+from lta.lta_types import BundleType, TransferRequestType
 
 _MAX_QUARANTINE_TRACEBACK_LINES = 500
 
 
-class DatabaseNounEnum(enum.StrEnum):
+class LTANounEnum(enum.StrEnum):
     """Enum of database nouns."""
 
     BUNDLE = enum.auto()  # maps to "bundle"
@@ -23,11 +23,15 @@ class DatabaseNounEnum(enum.StrEnum):
 class QuarantineNowException(Exception):
     """Raised when a bundle should be quarantined immediately."""
 
-    def __init__(self, bundle: BundleType, original_exception: Exception):
+    def __init__(
+        self,
+        lta_object: BundleType | TransferRequestType,
+        original_exception: Exception,
+    ):
         super().__init__(
-            f"Bundle {bundle['uuid']} should be quarantined immediately: {original_exception}"
+            f"LTA object {lta_object['uuid']} should be quarantined immediately: {original_exception}"
         )
-        self.bundle = bundle
+        self.lta_object = lta_object
         self.original_exception = original_exception
 
 
@@ -100,6 +104,17 @@ async def patch_bundle(
     await lta_rc.request("PATCH", f"/Bundles/{bundle_id}", patch_body)
 
 
+async def patch_transfer_request(
+    lta_rc: RestClient,
+    tr_id: str,
+    patch_body: dict,
+    logger: Logger,
+) -> None:
+    """Send PATCH request to LTA REST API for a transfer request."""
+    logger.info(f"PATCH /TransferRequests/{tr_id} - '{patch_body}'")
+    await lta_rc.request("PATCH", f"/TransferRequests/{tr_id}", patch_body)
+
+
 def truncate_traceback(exc: Exception) -> str:
     """Return a potentially-truncated traceback string for the Exception instance.
 
@@ -124,24 +139,27 @@ def truncate_traceback(exc: Exception) -> str:
         return "".join(lines)
 
 
-async def quarantine_bundle(
+async def quarantine(
+    lta_noun: LTANounEnum,
     lta_rc: RestClient,
-    bundle: BundleType,
+    lta_object: BundleType | TransferRequestType,
     reason: Exception | str,
     name: str,
     instance_uuid: str,
     logger: Logger,
     reason_details: str = "",
 ) -> None:
-    """Quarantine the supplied bundle using the supplied reason.
+    """Quarantine the supplied 'lta_noun'-type using the supplied reason.
 
     Args:
+        lta_noun:
+            LTANounEnum value indicating the type of object to quarantine
         lta_rc:
             RestClient instance for making API requests
-        bundle:
-            BundleType dictionary containing bundle object
+        lta_object:
+            BundleType or TransferRequestType dictionary containing object to quarantine
         reason:
-            Exception or string reason for quarantining the bundle (for the bundle's
+            Exception or string reason for quarantining the lta object (for the object's
             'reason' field). If an Exception instance is provided, the 'repr()' of the
             Exception will be used. If a string is provided, it will be used as-is.
         name:
@@ -153,16 +171,16 @@ async def quarantine_bundle(
         reason_details:
             (Optional)
             If 'reason' is an Exception, the stack trace will be recorded in the
-            bundle's 'reason_details' field. Otherwise, the caller may provide a string
+            object's 'reason_details' field. Otherwise, the caller may provide a string
             for this field.
     """
     if isinstance(reason, Exception):
         reason_details = truncate_traceback(reason)  # get stack trace
         reason = repr(reason)
 
-    logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
+    logger.error(f'Sending {lta_noun} {lta_object["uuid"]} to quarantine: {reason}.')
     patch_body = {
-        "original_status": bundle["status"],
+        "original_status": lta_object["status"],
         "status": "quarantined",
         "reason": f"BY:{name}-{instance_uuid} REASON:{reason}",
         "reason_details": reason_details,
@@ -170,6 +188,11 @@ async def quarantine_bundle(
     }
 
     try:
-        await patch_bundle(lta_rc, bundle["uuid"], patch_body, logger)
+        if lta_noun == LTANounEnum.TRANSFER_REQUEST:
+            await patch_transfer_request(lta_rc, lta_object["uuid"], patch_body, logger)
+        elif lta_noun == LTANounEnum.BUNDLE:
+            await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
+        else:
+            raise ValueError(f"Invalid lta_noun: {lta_noun}")
     except Exception as e:
-        logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
+        logger.error(f'Unable to quarantine {lta_noun} {lta_object["uuid"]}: {e}.')
