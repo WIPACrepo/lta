@@ -100,7 +100,14 @@ class RateLimiter(Component):
         return (disk_files, size)
 
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a bundle and perform work on it."""
+        """Claim a bundle and perform work on it.
+
+        Returns:
+            False - if no work was claimed.
+            True  - if work was claimed, and the component was successful in processing it.
+        Raises:
+            Any Exception - if an error occurs during work claim processing.
+        """
         # 1. Ask the LTA DB for the next Bundle to be staged
         self.logger.info("Asking the LTA DB for a Bundle to stage.")
         pop_body = {

@@ -179,13 +179,22 @@ class Component:
         while work_claimed:
             load_level += 1
             work_claimed = await self._do_work_claim(prom_counter, lta_rc)
+            #                    ^^^ if this raises an exception, then loop breaks
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
         self.logger.info("Ending work on Bundles.")
 
     async def _do_work_claim(self, prom_counter: Counter, lta_rc: RestClient) -> bool:
-        """Override this to provide work cycle behavior."""
+        """Claim a [insert component's LTA object here] and perform work on it.
+
+        Returns:
+            False - if no work was claimed.
+            True  - if work was claimed, and the component was successful in processing it.
+        Raises:
+            Any Exception - stops the work cycle, pauses the component,
+                            then resumes after some time (work_sleep_duration_seconds).
+        """
         raise NotImplementedError()
 
 

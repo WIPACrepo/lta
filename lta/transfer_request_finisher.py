@@ -72,7 +72,14 @@ class TransferRequestFinisher(Component):
         return EXPECTED_CONFIG
 
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a bundle and perform work on it."""
+        """Claim a bundle and perform work on it.
+
+        Returns:
+            False - if no work was claimed.
+            True  - if work was claimed, and the component was successful in processing it.
+        Raises:
+            Any Exception - if an error occurs during work claim processing.
+        """
         fc_rc = ClientCredentialsAuth(
             address=self.file_catalog_rest_url,
             token_url=self.lta_auth_openid_url,

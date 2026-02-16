@@ -81,7 +81,14 @@ class NerscVerifier(Component):
         return EXPECTED_CONFIG
 
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a bundle and perform work on it."""
+        """Claim a bundle and perform work on it.
+
+        Returns:
+            False - if no work was claimed.
+            True  - if work was claimed, and the component was successful in processing it.
+        Raises:
+            Any Exception - if an error occurs during work claim processing.
+        """
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
         args = [self.hpss_avail_path, "archive"]
