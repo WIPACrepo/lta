@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, QuarantineNowException
+from .utils import HSICommandFailedException, LTANounEnum, QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -60,7 +60,7 @@ class NerscMover(Component):
         config - A dictionary of required configuration values.
         logger - The object the nersc_mover should use for logging.
         """
-        super(NerscMover, self).__init__("nersc_mover", config, logger)
+        super().__init__("nersc_mover", LTANounEnum.BUNDLE, config, logger)
         self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.max_count = int(config["MAX_COUNT"])
         self.rse_base_path = config["RSE_BASE_PATH"]

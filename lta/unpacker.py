@@ -17,7 +17,7 @@ from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import QuarantineNowException
+from .utils import LTANounEnum, QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
@@ -62,7 +62,7 @@ class Unpacker(Component):
         config - A dictionary of required configuration values.
         logger - The object the unpacker should use for logging.
         """
-        super(Unpacker, self).__init__("unpacker", config, logger)
+        super().__init__("unpacker", LTANounEnum.BUNDLE, config, logger)
         self.clean_outbox = strtobool(config["CLEAN_OUTBOX"])
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]

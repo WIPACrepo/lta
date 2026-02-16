@@ -13,7 +13,7 @@ from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import QuarantineNowException
+from .utils import LTANounEnum, QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -77,7 +77,7 @@ class GlobusReplicator(Component):
         config - A dictionary of required configuration values.
         logger - The object the replicator should use for logging.
         """
-        super().__init__("replicator", config, logger)
+        super().__init__("replicator", LTANounEnum.BUNDLE, config, logger)
         self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])

@@ -47,7 +47,7 @@ class Deleter(Component):
         config - A dictionary of required configuration values.
         logger - The object the deleter should use for logging.
         """
-        super(Deleter, self).__init__("deleter", config, logger)
+        super().__init__("deleter", LTANounEnum.BUNDLE, config, logger)
         self.disk_base_path = config["DISK_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])

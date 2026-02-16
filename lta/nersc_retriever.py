@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, QuarantineNowException
+from .utils import HSICommandFailedException, LTANounEnum, QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -59,7 +59,7 @@ class NerscRetriever(Component):
         config - A dictionary of required configuration values.
         logger - The object the nersc_retriever should use for logging.
         """
-        super(NerscRetriever, self).__init__("nersc_retriever", config, logger)
+        super().__init__("nersc_retriever", LTANounEnum.BUNDLE, config, logger)
         self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.rse_base_path = config["RSE_BASE_PATH"]
         self.tape_base_path = config["TAPE_BASE_PATH"]

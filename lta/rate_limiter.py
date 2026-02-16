@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import QuarantineNowException
+from .utils import LTANounEnum, QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -50,7 +50,7 @@ class RateLimiter(Component):
         config - A dictionary of required configuration values.
         logger - The object the rate_limiter should use for logging.
         """
-        super(RateLimiter, self).__init__("rate_limiter", config, logger)
+        super().__init__("rate_limiter", LTANounEnum.BUNDLE, config, logger)
         self.input_path = config["INPUT_PATH"]
         self.output_path = config["OUTPUT_PATH"]
         self.output_quota = int(config["OUTPUT_QUOTA"])

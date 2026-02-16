@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional, Union
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
+from lta.utils import LTANounEnum
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -51,7 +52,7 @@ class TransferRequestFinisher(Component):
         config - A dictionary of required configuration values.
         logger - The object the transfer_request_finisher should use for logging.
         """
-        super(TransferRequestFinisher, self).__init__("transfer_request_finisher", config, logger)
+        super().__init__("transfer_request_finisher", LTANounEnum.BUNDLE, config, logger)
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]

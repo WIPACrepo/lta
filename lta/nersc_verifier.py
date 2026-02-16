@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, InvalidChecksumException, QuarantineNowException, \
+from .utils import HSICommandFailedException, InvalidChecksumException, LTANounEnum, QuarantineNowException, \
     log_completed_process_outputs
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
@@ -60,7 +60,7 @@ class NerscVerifier(Component):
         config - A dictionary of required configuration values.
         logger - The object the nersc_verifier should use for logging.
         """
-        super(NerscVerifier, self).__init__("nersc_verifier", config, logger)
+        super().__init__("nersc_verifier", LTANounEnum.BUNDLE, config, logger)
         self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])

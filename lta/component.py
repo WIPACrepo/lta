@@ -64,6 +64,7 @@ class Component:
 
     def __init__(self,
                  component_type: str,
+                 lta_noun: LTANounEnum,
                  config: Dict[str, str],
                  logger: Logger) -> None:
         """
@@ -79,6 +80,7 @@ class Component:
         # assimilate provided arguments
         self.type = component_type  # common name of the component
         self.name = config["COMPONENT_NAME"]  # unique name of the component instance
+        self.lta_noun = lta_noun  # the type of object this component works on, e.g. "bundle"
         self.instance_uuid = unique_id()
         self.config = config
         self.logger = logger
@@ -169,11 +171,6 @@ class Component:
 
     def _expected_config(self) -> Dict[str, Optional[str]]:
         """Override this to return expected configuration."""
-        raise NotImplementedError()
-
-    @property
-    def lta_noun(self) -> LTANounEnum:
-        """Get the LTA database noun for the component: "bundle", "transfer_request", ..."""
         raise NotImplementedError()
 
     @AsyncPromWrapper(lambda self: self.prometheus.counter(

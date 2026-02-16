@@ -14,7 +14,7 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import InvalidBundlePathException, InvalidChecksumException, QuarantineNowException
+from .utils import InvalidBundlePathException, InvalidChecksumException, LTANounEnum, QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
@@ -86,7 +86,7 @@ class SiteMoveVerifier(Component):
         config - A dictionary of required configuration values.
         logger - The object the site_move_verifier should use for logging.
         """
-        super(SiteMoveVerifier, self).__init__("site_move_verifier", config, logger)
+        super().__init__("site_move_verifier", LTANounEnum.BUNDLE, config, logger)
         self.dest_root_path = config["DEST_ROOT_PATH"]
         self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])

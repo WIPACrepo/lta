@@ -15,7 +15,7 @@ from binpacking import to_constant_bin_number  # type: ignore
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from lta.utils import NoFileCatalogFilesException, QuarantineNowException
+from lta.utils import LTANounEnum, NoFileCatalogFilesException, QuarantineNowException
 from .component import COMMON_CONFIG, Component, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
@@ -66,7 +66,7 @@ class Picker(Component):
         config - A dictionary of required configuration values.
         logger - The object the picker should use for logging.
         """
-        super(Picker, self).__init__("picker", config, logger)
+        super().__init__("picker", LTANounEnum.TRANSFER_REQUEST, config, logger)
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_page_size = int(config["FILE_CATALOG_PAGE_SIZE"])

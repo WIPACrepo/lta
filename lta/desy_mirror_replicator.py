@@ -13,7 +13,7 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import QuarantineNowException
+from .utils import LTANounEnum, QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -59,7 +59,7 @@ class DesyMirrorReplicator(Component):
         config - A dictionary of required configuration values.
         logger - The object the replicator should use for logging.
         """
-        super(DesyMirrorReplicator, self).__init__("desy_mirror_replicator", config, logger)
+        super().__init__("desy_mirror_replicator", LTANounEnum.BUNDLE, config, logger)
         self.ci_test = strtobool(config["CI_TEST"])
         self.dest_base_path = config["DEST_BASE_PATH"]
         self.dest_url = config["DEST_URL"]
