@@ -16,7 +16,7 @@ from zipfile import ZIP_STORED, ZipFile
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from lta.utils import LTANounEnum, QuarantinableException
+from .utils import LTANounEnum, QuarantinableException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment

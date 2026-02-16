@@ -10,11 +10,11 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from lta.utils import LTANounEnum, NoFileCatalogFilesException, QuarantinableException
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .utils import LTANounEnum, NoFileCatalogFilesException, QuarantinableException
+from .component import COMMON_CONFIG, Component, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
 
