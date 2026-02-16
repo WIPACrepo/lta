@@ -31,11 +31,6 @@ EXPECTED_CONFIG.update({
 # maximum number of Metadata UUIDs to work with at a time
 UPDATE_CHUNK_SIZE = 1000
 
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
-
 
 class TransferRequestFinisher(Component):
     """

@@ -11,10 +11,11 @@ from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, InvalidChecksumException, log_completed_process_outputs, quarantine_bundle
+from .utils import HSICommandFailedException, InvalidChecksumException, QuarantineNowException, \
+    log_completed_process_outputs
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -30,13 +31,6 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
-
-QUARANTINE_THEN_KEEP_WORKING = [InvalidChecksumException]
-
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class NerscVerifier(Component):
@@ -71,6 +65,7 @@ class NerscVerifier(Component):
         self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
+        self.quarantine_then_keep_working_exceptions = [InvalidChecksumException]
 
     def _do_status(self) -> Dict[str, Any]:
         """NerscVerifier has no additional status to contribute."""
@@ -113,22 +108,9 @@ class NerscVerifier(Component):
         try:
             hpss_path = self._verify_bundle_in_hpss(bundle)
             await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
-            success_counter.labels(component='nersc_verifier', level='bundle', type='work').inc()
             return True
         except Exception as e:
-            failure_counter.labels(component='nersc_verifier', level='bundle', type='exception').inc()
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
-                e,
-                self.name,
-                self.instance_uuid,
-                self.logger,
-            )
-            # does exception warrant stopping the work loop?
-            if type(e) in QUARANTINE_THEN_KEEP_WORKING:
-                return True
-            raise e
+            raise QuarantineNowException(bundle, e)
 
     async def _update_bundle_in_lta_db(
             self,

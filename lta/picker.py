@@ -39,11 +39,6 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
-
 
 @dataclasses.dataclass
 class FileCatalogFile:

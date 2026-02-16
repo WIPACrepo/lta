@@ -10,10 +10,10 @@ from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, List, Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, quarantine_bundle
+from .utils import HSICommandFailedException, QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -31,11 +31,6 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
-
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class NerscMover(Component):
@@ -112,19 +107,9 @@ class NerscMover(Component):
         # process the Bundle that we were given
         try:
             await self._write_bundle_to_hpss(lta_rc, bundle)
-            success_counter.labels(component='nersc_mover', level='bundle', type='work').inc()
             return True
         except Exception as e:
-            failure_counter.labels(component='nersc_mover', level='bundle', type='exception').inc()
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
-                e,
-                self.name,
-                self.instance_uuid,
-                self.logger,
-            )
-            raise e
+            raise QuarantineNowException(bundle, e)
 
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""

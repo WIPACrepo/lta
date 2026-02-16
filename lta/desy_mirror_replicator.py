@@ -9,11 +9,11 @@ import os
 import sys
 from typing import Any, Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import quarantine_bundle
+from .utils import QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -37,11 +37,6 @@ EXPECTED_CONFIG.update({
 # logging
 Logger = logging.Logger
 LOG = logging.getLogger(__name__)
-
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class DesyMirrorReplicator(Component):
@@ -102,20 +97,9 @@ class DesyMirrorReplicator(Component):
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
-            success_counter.labels(component='desy_mirror_replicator', level='bundle', type='work').inc()
+            return True
         except Exception as e:
-            failure_counter.labels(component='desy_mirror_replicator', level='bundle', type='exception').inc()
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
-                e,
-                self.name,
-                self.instance_uuid,
-                self.logger,
-            )
-            raise e
-        # if we were successful at processing work, let the caller know
-        return True
+            raise QuarantineNowException(bundle, e)
 
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""

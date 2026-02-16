@@ -13,7 +13,7 @@ from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import quarantine_bundle
+from .utils import QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -86,22 +86,6 @@ class GlobusReplicator(Component):
 
         self.globus_transfer = GlobusTransfer()
 
-        # prometheus metrics
-        self.failure_counter = Counter(
-            "lta_failures",
-            "lta processing failures",
-            ["component", "level", "type"],
-        )
-        self.load_gauge = Gauge(
-            "lta_load_level",
-            "lta work processed",
-            ["component", "level", "type"],
-        )
-        self.success_counter = Counter(
-            "lta_successes",
-            "lta processing successes",
-            ["component", "level", "type"],
-        )
 
     def _do_status(self) -> Dict[str, Any]:
         """GlobusReplicator has no additional status to contribute."""
@@ -135,21 +119,9 @@ class GlobusReplicator(Component):
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
-            self.success_counter.labels(component='globus_replicator', level='bundle', type='work').inc()
             return True
         except Exception as e:
-            self.logger.error(f'Globus transfer threw an error: {e}')
-            self.logger.exception(e)
-            self.failure_counter.labels(component='globus_replicator', level='bundle', type='exception').inc()
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
-                e,
-                self.name,
-                self.instance_uuid,
-                self.logger,
-            )
-            raise e
+            raise QuarantineNowException(bundle, e)
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""
