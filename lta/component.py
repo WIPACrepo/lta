@@ -12,9 +12,10 @@ import sys
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
+from prometheus_client import Counter
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
-from wipac_dev_tools.prometheus_tools import GlobalLabels
+from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels
 
 from .lta_const import drain_semaphore_filename
 
@@ -75,8 +76,8 @@ class Component:
         # validate the provided configuration
         self.validate_config(config)
         # assimilate provided arguments
-        self.type = component_type
-        self.name = config["COMPONENT_NAME"]
+        self.type = component_type  # common name of the component
+        self.name = config["COMPONENT_NAME"]  # unique name of the component instance
         self.instance_uuid = unique_id()
         self.config = config
         self.logger = logger
@@ -167,7 +168,23 @@ class Component:
         """Override this to return expected configuration."""
         raise NotImplementedError()
 
-    async def _do_work(self, lta_rc: RestClient) -> None:
+    @AsyncPromWrapper(lambda self: self.prometheus.counter(
+        'result', 'processing result counts', labels=['bundle'], finalize=False
+    ))
+    async def _do_work(self, prom_counter: Counter, lta_rc: RestClient) -> None:
+        """Perform a work cycle for this component."""
+        self.logger.info("Starting work on Bundles.")  # TODO: "bundles", or "transfer requests"
+        load_level = -1
+        work_claimed = True
+        while work_claimed:
+            load_level += 1
+            work_claimed = await self._do_work_claim(prom_counter, lta_rc)
+            # if we are configured to run once and die, then die
+            if self.run_once_and_die:
+                sys.exit()
+        self.logger.info("Ending work on Bundles.")
+
+    async def _do_work_claim(self, prom_counter: Counter, lta_rc: RestClient) -> bool:
         """Override this to provide work cycle behavior."""
         raise NotImplementedError()
 

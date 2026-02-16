@@ -87,20 +87,6 @@ class Picker(Component):
         """Picker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work(self, lta_rc: RestClient) -> None:
-        """Perform a work cycle for this component."""
-        self.logger.info("Starting work on TransferRequests.")
-        load_level = -1
-        work_claimed = True
-        while work_claimed:
-            load_level += 1
-            work_claimed = await self._do_work_claim(lta_rc)
-            # if we are configured to run once and die, then die
-            if self.run_once_and_die:
-                sys.exit()
-        load_gauge.labels(component='picker', level='transfer_request', type='work').set(load_level)
-        self.logger.info("Ending work on TransferRequests.")
-
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a transfer request and perform work on it."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked

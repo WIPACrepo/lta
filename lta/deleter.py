@@ -60,22 +60,6 @@ class Deleter(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work(self, lta_rc: RestClient) -> None:
-        """Perform a work cycle for this component."""
-        self.logger.info("Starting work on Bundles.")
-        load_level = -1
-        work_claimed = True
-        while work_claimed:
-            load_level += 1
-            work_claimed = await self._do_work_claim(lta_rc)
-            # if we are configured to run once and die, then die
-            if self.run_once_and_die:
-                sys.exit()
-        self.logger.info("Ending work on Bundles.")
-
-    @AsyncPromWrapper(lambda self: self.prometheus.counter(
-        'deleter_bundles', 'LTA Deleter bundles processed', labels=['bundle'], finalize=False
-    ))
     @AsyncPromTimer(lambda self: self.prometheus.histogram(
         'deleter_work_claim', 'LTA Deleter Work-Claim Loop', buckets=HistogramBuckets.SECOND
     ))
