@@ -10,11 +10,11 @@ from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, List, Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import InvalidBundlePathException, InvalidChecksumException, quarantine_bundle
+from .utils import InvalidBundlePathException, InvalidChecksumException, QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
@@ -37,8 +37,6 @@ EXPECTED_CONFIG.update({
 MYQUOTA_ARGS = ["/usr/bin/myquota", "-G"]
 
 OLD_MTIME_EPOCH_SEC = 30 * 60  # 30 MINUTES * 60 SEC_PER_MIN
-
-QUARANTINE_THEN_KEEP_WORKING = [InvalidChecksumException]
 
 
 def as_nonempty_columns(s: str) -> List[str]:
@@ -93,7 +91,7 @@ class SiteMoveVerifier(Component):
         self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        pass
+        self.quarantine_then_keep_working_exceptions = [InvalidChecksumException]
 
     def _do_status(self) -> Dict[str, Any]:
         """Provide additional status for the SiteMoveVerifier."""
@@ -132,22 +130,9 @@ class SiteMoveVerifier(Component):
         try:
             bundle_path = self._get_bundle_path(bundle)
             await self._verify_bundle(lta_rc, bundle, bundle_path)
-            success_counter.labels(component='site_move_verifier', level='bundle', type='work').inc()
             return True
         except Exception as e:
-            failure_counter.labels(component='site_move_verifier', level='bundle', type='exception').inc()
-            await quarantine_bundle(
-                lta_rc,
-                bundle,
-                e,
-                self.name,
-                self.instance_uuid,
-                self.logger,
-            )
-            # does exception warrant stopping the work loop?
-            if type(e) in QUARANTINE_THEN_KEEP_WORKING:
-                return True
-            raise e
+            raise QuarantineNowException(bundle, e)
 
     def _get_bundle_path(self, bundle: BundleType) -> str:
         """Get and validate the bundle path."""
