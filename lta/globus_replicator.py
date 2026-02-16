@@ -13,7 +13,7 @@ from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import LTANounEnum, QuarantineNowException
+from .utils import LTANounEnum, QuarantinableException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -121,7 +121,7 @@ class GlobusReplicator(Component):
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantineNowException(bundle, e)
+            raise QuarantinableException(bundle, e)
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""

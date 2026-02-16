@@ -16,7 +16,7 @@ from zipfile import ZIP_STORED, ZipFile
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from lta.utils import LTANounEnum, QuarantineNowException
+from lta.utils import LTANounEnum, QuarantinableException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
@@ -106,7 +106,7 @@ class Bundler(Component):
             await self._do_work_bundle(fc_rc, lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantineNowException(bundle, e)
+            raise QuarantinableException(bundle, e)
 
     async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here

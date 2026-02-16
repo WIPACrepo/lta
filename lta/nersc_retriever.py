@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, LTANounEnum, QuarantineNowException
+from .utils import HSICommandFailedException, LTANounEnum, QuarantinableException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -107,7 +107,7 @@ class NerscRetriever(Component):
             await self._read_bundle_from_hpss(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantineNowException(bundle, e)
+            raise QuarantinableException(bundle, e)
 
     async def _read_bundle_from_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Send a command to HPSS to retrieve the supplied bundle from tape."""

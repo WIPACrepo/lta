@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from lta.utils import LTANounEnum, NoFileCatalogFilesException, QuarantineNowException
+from lta.utils import LTANounEnum, NoFileCatalogFilesException, QuarantinableException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
@@ -114,7 +114,7 @@ class Locator(Component):
             await self._do_work_transfer_request(lta_rc, tr)
             return True
         except Exception as e:
-            raise QuarantineNowException(tr, e)
+            raise QuarantinableException(tr, e)
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,

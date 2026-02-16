@@ -13,7 +13,7 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools.prometheus_tools import AsyncPromTimer, HistogramBuckets
 
-from .utils import QuarantineNowException
+from .utils import QuarantinableException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -85,7 +85,7 @@ class Deleter(Component):
             await self._delete_bundle(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantineNowException(bundle, e)
+            raise QuarantinableException(bundle, e)
 
     @AsyncPromTimer(lambda self: self.prometheus.histogram(
         'deleter_action', 'LTA Deleter Action', buckets=HistogramBuckets.SECOND

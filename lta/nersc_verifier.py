@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, InvalidChecksumException, LTANounEnum, QuarantineNowException, \
+from .utils import HSICommandFailedException, InvalidChecksumException, LTANounEnum, QuarantinableException, \
     log_completed_process_outputs
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
@@ -110,7 +110,7 @@ class NerscVerifier(Component):
             await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
             return True
         except Exception as e:
-            raise QuarantineNowException(bundle, e)
+            raise QuarantinableException(bundle, e)
 
     async def _update_bundle_in_lta_db(
             self,

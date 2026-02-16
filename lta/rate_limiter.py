@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import LTANounEnum, QuarantineNowException
+from .utils import LTANounEnum, QuarantinableException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -122,7 +122,7 @@ class RateLimiter(Component):
             await self._stage_bundle(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantineNowException(bundle, e)
+            raise QuarantinableException(bundle, e)
 
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Stage the Bundle to the output directory for transfer."""

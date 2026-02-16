@@ -20,7 +20,7 @@ class LTANounEnum(enum.StrEnum):
     TRANSFER_REQUEST = enum.auto()
 
 
-class QuarantineNowException(Exception):
+class QuarantinableException(Exception):
     """Raised when a bundle should be quarantined immediately."""
 
     def __init__(
@@ -143,7 +143,7 @@ def truncate_traceback(exc: Exception) -> str:
         return "".join(lines)
 
 
-async def quarantine(
+async def quarantine_now(
     lta_noun: LTANounEnum,
     lta_rc: RestClient,
     lta_object: BundleType | TransferRequestType,

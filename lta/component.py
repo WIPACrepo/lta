@@ -19,7 +19,7 @@ from wipac_dev_tools import strtobool
 from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels
 
 from .lta_const import drain_semaphore_filename
-from .utils import LTANounEnum, QuarantineNowException, quarantine
+from .utils import LTANounEnum, QuarantinableException, quarantine_now
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "CLIENT_ID": None,
@@ -200,9 +200,9 @@ class Component:
                         break
                 else:  # -> no work claimed -- take a pause
                     break
-            except QuarantineNowException as e:
+            except QuarantinableException as e:
                 prom_counter.labels({self.lta_noun: "failure"}).inc()
-                await quarantine(
+                await quarantine_now(
                     self.lta_noun,
                     lta_rc,
                     e.lta_object,
