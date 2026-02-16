@@ -9,11 +9,11 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-from prometheus_client import Counter, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import RestClient
-from wipac_dev_tools.prometheus_tools import AsyncPromTimer, AsyncPromWrapper, HistogramBuckets
+from wipac_dev_tools.prometheus_tools import AsyncPromTimer, HistogramBuckets
 
-from .utils import QuarantineNowException, quarantine_bundle
+from .utils import QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType

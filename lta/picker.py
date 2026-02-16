@@ -12,10 +12,11 @@ import sys
 from typing import Any, Dict, Optional
 
 from binpacking import to_constant_bin_number  # type: ignore
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .component import COMMON_CONFIG, Component, now, work_loop
+from lta.utils import NoFileCatalogFilesException, QuarantineNowException
+from .component import COMMON_CONFIG, Component, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
 
@@ -105,16 +106,9 @@ class Picker(Component):
         # process the TransferRequest that we were given
         try:
             await self._do_work_transfer_request(lta_rc, tr)
-            success_counter.labels(component='picker', level='transfer_request', type='work').inc()
+            return True
         except Exception as e:
-            failure_counter.labels(component='picker', level='transfer_request', type='exception').inc()
-            self.logger.info(f"There was an error while processing the transfer request: {e}")
-            self.logger.info("Will now attempt to send the transfer request to 'quarantined' status.")
-            await self._quarantine_transfer_request(lta_rc, tr, f"{e}")
-            self.logger.info("Done sending the transfer request to 'quarantined' status, will end work cycle.")
-            return False
-        # if we were successful at processing work, let the caller know
-        return True
+            raise QuarantineNowException(tr, e)
 
     async def _do_work_transfer_request(
         self,
@@ -128,10 +122,9 @@ class Picker(Component):
         catalog_files = await self._get_files_from_file_catalog(tr)
         # if we didn't get any files, this is bad mojo
         if not catalog_files:
-            await self._quarantine_transfer_request(
-                lta_rc, tr, "File Catalog returned zero files for the TransferRequest"
+            raise NoFileCatalogFilesException(
+                f"LTA File Catalog returned zero files for the TransferRequest: {tr['uuid']}"
             )
-            return
 
         # step 2: group those files
         packing_spec = self._group_catalog_files_evenly(catalog_files)

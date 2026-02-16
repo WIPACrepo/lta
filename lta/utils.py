@@ -35,6 +35,10 @@ class QuarantineNowException(Exception):
         self.original_exception = original_exception
 
 
+class NoFileCatalogFilesException(Exception):
+    """Raised when a query's files cannot be found in the File Catalog."""
+
+
 class InvalidBundlePathException(Exception):
     """Raised when a bundle path is invalid."""
 

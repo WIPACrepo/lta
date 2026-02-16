@@ -58,6 +58,9 @@ class TransferRequestFinisher(Component):
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
 
+        # even if we are successful, take breaks between bundles
+        self.pause_after_each_success = True
+
     def _do_status(self) -> Dict[str, Any]:
         """Provide no additional status."""
         return {}
@@ -100,8 +103,7 @@ class TransferRequestFinisher(Component):
         # 3. update the TransferRequest that spawned the Bundle, if necessary
         await self._update_transfer_request(lta_rc, bundle)
 
-        # even if we processed a Bundle, take a break between Bundles
-        return False
+        return True
 
     async def _migrate_bundle_files_to_file_catalog(
         self,
@@ -250,7 +252,6 @@ class TransferRequestFinisher(Component):
         }
         self.logger.info(f"PATCH /TransferRequests/{request_uuid} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/TransferRequests/{request_uuid}', patch_body)
-        success_counter.labels(component='transfer_request_finisher', level='transfer_request', type='work').inc()
         # update each of the constituent bundles to status "finished"
         for bundle_id in results:
             patch_body = {
@@ -263,7 +264,6 @@ class TransferRequestFinisher(Component):
             }
             self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
             await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
-            success_counter.labels(component='transfer_request_finisher', level='bundle', type='work').inc()
 
 
 async def main(transfer_request_finisher: TransferRequestFinisher) -> None:

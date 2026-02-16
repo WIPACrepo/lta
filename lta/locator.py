@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
+from lta.utils import NoFileCatalogFilesException, QuarantineNowException
 from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
@@ -111,13 +112,9 @@ class Locator(Component):
         # process the TransferRequest that we were given
         try:
             await self._do_work_transfer_request(lta_rc, tr)
-            success_counter.labels(component='locator', level='transfer_request', type='work').inc()
+            return True
         except Exception as e:
-            failure_counter.labels(component='locator', level='transfer_request', type='exception').inc()
-            await self._quarantine_transfer_request(lta_rc, tr, f"{e}")
-            raise e
-        # if we were successful at processing work, let the caller know
-        return True
+            raise QuarantineNowException(tr, e)
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,
@@ -170,8 +167,9 @@ class Locator(Component):
                 bundle_uuids = self._reduce_unique_archive_uuid(bundle_uuids, catalog_record, source)
         # if we didn't get any bundle_uuids, this is bad mojo
         if not bundle_uuids:
-            await self._quarantine_transfer_request(lta_rc, tr, "File Catalog returned zero files for the TransferRequest")
-            return
+            raise NoFileCatalogFilesException(
+                f"LTA File Catalog returned zero files for the TransferRequest: {tr['uuid']}"
+            )
         # query the file catalog for the bundle records
         bundle_records = []
         for bundle_uuid in bundle_uuids:
@@ -210,24 +208,6 @@ class Locator(Component):
         result = await lta_rc.request('POST', '/Bundles/actions/bulk_create', create_body)
         uuid = result["bundles"][0]
         return uuid
-
-    async def _quarantine_transfer_request(self,
-                                           lta_rc: RestClient,
-                                           tr: TransferRequestType,
-                                           reason: str) -> None:
-        """Update the LTA DB to indicate the TransferRequest should be quarantined."""
-        self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
-        right_now = now()
-        patch_body = {
-            "original_status": tr["status"],
-            "status": "quarantined",
-            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
-            "work_priority_timestamp": right_now,
-        }
-        try:
-            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
-        except Exception as e:
-            self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
 
     def _reduce_unique_archive_uuid(self,
                                     bundle_uuids: List[str],
