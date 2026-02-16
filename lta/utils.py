@@ -12,6 +12,17 @@ from lta.lta_types import BundleType
 _MAX_QUARANTINE_TRACEBACK_LINES = 500
 
 
+class QuarantineNowException(Exception):
+    """Raised when a bundle should be quarantined immediately."""
+
+    def __init__(self, bundle: BundleType, original_exception: Exception):
+        super().__init__(
+            f"Bundle {bundle['uuid']} should be quarantined immediately: {original_exception}"
+        )
+        self.bundle = bundle
+        self.original_exception = original_exception
+
+
 class InvalidBundlePathException(Exception):
     """Raised when a bundle path is invalid."""
 

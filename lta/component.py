@@ -18,7 +18,7 @@ from wipac_dev_tools import strtobool
 from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels
 
 from .lta_const import drain_semaphore_filename
-
+from .utils import QuarantineNowException, quarantine_bundle
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "CLIENT_ID": None,
@@ -116,6 +116,7 @@ class Component:
             'input_status': str(self.input_status),
             'output_status': str(self.output_status),
         })
+        self.quarantine_then_keep_working_exceptions: list[type] = []
 
     async def run(self) -> None:
         """Perform the Component's work cycle."""
@@ -174,12 +175,24 @@ class Component:
     async def _do_work(self, prom_counter: Counter, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info("Starting work on Bundles.")  # TODO: "bundles", or "transfer requests"
-        load_level = -1
         work_claimed = True
         while work_claimed:
-            load_level += 1
-            work_claimed = await self._do_work_claim(prom_counter, lta_rc)
-            #                    ^^^ if this raises an exception, then loop breaks
+            try:
+                work_claimed = await self._do_work_claim(prom_counter, lta_rc)
+                if work_claimed:
+                    prom_counter.labels({'bundle': 'success'}).inc()
+            except QuarantineNowException as e:
+                prom_counter.labels({'bundle': 'failure'}).inc()
+                await quarantine_bundle(
+                    lta_rc,
+                    e.bundle,
+                    e,
+                    self.name,
+                    self.instance_uuid,
+                    self.logger,
+                )
+                if type(e.original_exception) not in self.quarantine_then_keep_working_exceptions:
+                    raise e
             # if we are configured to run once and die, then die
             if self.run_once_and_die:
                 sys.exit()
