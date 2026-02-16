@@ -4,6 +4,7 @@
 # fmt:off
 
 import asyncio
+import itertools
 from datetime import datetime
 from logging import Logger
 import os
@@ -117,6 +118,7 @@ class Component:
             'output_status': str(self.output_status),
         })
         self.quarantine_then_keep_working_exceptions: list[type] = []
+        self.pause_after_each_success = False  # rare, but used
 
     async def run(self) -> None:
         """Perform the Component's work cycle."""
@@ -183,12 +185,24 @@ class Component:
     async def _do_work(self, prom_counter: Counter, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         self.logger.info(f"Starting work on {self.lta_noun} objects.")
-        work_claimed = True
-        while work_claimed:
+
+        for i in itertools.count():
+
+            # if run once already, AND we are configured to run once and die, then die
+            if i > 0:
+                if self.run_once_and_die:
+                    sys.exit()
+
+            self.logger.info(f"Requesting work on {self.lta_noun} #{i}...")
+
+            # process a single work item
             try:
-                work_claimed = await self._do_work_claim(lta_rc)
-                if work_claimed:
+                if await self._do_work_claim(lta_rc):
                     prom_counter.labels({self.lta_noun: "success"}).inc()
+                    if self.pause_after_each_success:
+                        break
+                else:  # -> no work claimed -- take a pause
+                    break
             except QuarantineNowException as e:
                 prom_counter.labels({self.lta_noun: "failure"}).inc()
                 await quarantine(
@@ -202,9 +216,7 @@ class Component:
                 )
                 if type(e.original_exception) not in self.quarantine_then_keep_working_exceptions:
                     raise e
-            # if we are configured to run once and die, then die
-            if self.run_once_and_die:
-                sys.exit()
+
         self.logger.info(f"Ending work on {self.lta_noun} objects.")
 
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
