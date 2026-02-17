@@ -92,7 +92,7 @@ class DesyMirrorReplicator(Component):
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(bundle, e)
+            raise QuarantinableException(e, bundle)
 
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""

@@ -103,7 +103,7 @@ class NerscVerifier(Component):
             await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
             return True
         except Exception as e:
-            raise QuarantinableException(bundle, e)
+            raise QuarantinableException(e, bundle)
 
     async def _update_bundle_in_lta_db(
             self,

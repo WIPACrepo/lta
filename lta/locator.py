@@ -107,7 +107,7 @@ class Locator(Component):
             await self._do_work_transfer_request(lta_rc, tr)
             return True
         except Exception as e:
-            raise QuarantinableException(tr, e)
+            raise QuarantinableException(e, tr)
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,

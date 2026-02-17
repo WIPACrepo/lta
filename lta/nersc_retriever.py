@@ -100,7 +100,7 @@ class NerscRetriever(Component):
             await self._read_bundle_from_hpss(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(bundle, e)
+            raise QuarantinableException(e, bundle)
 
     async def _read_bundle_from_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Send a command to HPSS to retrieve the supplied bundle from tape."""

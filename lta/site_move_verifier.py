@@ -125,7 +125,7 @@ class SiteMoveVerifier(Component):
             await self._verify_bundle(lta_rc, bundle, bundle_path)
             return True
         except Exception as e:
-            raise QuarantinableException(bundle, e)
+            raise QuarantinableException(e, bundle)
 
     def _get_bundle_path(self, bundle: BundleType) -> str:
         """Get and validate the bundle path."""

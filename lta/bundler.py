@@ -99,7 +99,7 @@ class Bundler(Component):
             await self._do_work_bundle(fc_rc, lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(bundle, e)
+            raise QuarantinableException(e, bundle)
 
     async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here

@@ -78,7 +78,7 @@ class Deleter(Component):
             await self._delete_bundle(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(bundle, e)
+            raise QuarantinableException(e, bundle)
 
     @AsyncPromTimer(lambda self: self.prometheus.histogram(
         'deleter_action', 'LTA Deleter Action', buckets=HistogramBuckets.SECOND

@@ -25,14 +25,14 @@ class QuarantinableException(Exception):
 
     def __init__(
         self,
-        lta_object: BundleType | TransferRequestType,
         original_exception: Exception,
+        lta_object: BundleType | TransferRequestType,
     ):
         super().__init__(
             f"LTA object {lta_object['uuid']} should be quarantined immediately: {original_exception}"
         )
-        self.lta_object = lta_object
         self.original_exception = original_exception
+        self.lta_object = lta_object
 
 
 class NoFileCatalogFilesException(Exception):

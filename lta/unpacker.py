@@ -100,7 +100,7 @@ class Unpacker(Component):
             await self._do_work_bundle(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(bundle, e)
+            raise QuarantinableException(e, bundle)
 
     async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""

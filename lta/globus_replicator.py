@@ -114,7 +114,7 @@ class GlobusReplicator(Component):
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(bundle, e)
+            raise QuarantinableException(e, bundle)
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""

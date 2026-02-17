@@ -115,7 +115,7 @@ class RateLimiter(Component):
             await self._stage_bundle(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(bundle, e)
+            raise QuarantinableException(e, bundle)
 
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Stage the Bundle to the output directory for transfer."""

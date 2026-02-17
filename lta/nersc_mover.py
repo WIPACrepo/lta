@@ -102,7 +102,7 @@ class NerscMover(Component):
             await self._write_bundle_to_hpss(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(bundle, e)
+            raise QuarantinableException(e, bundle)
 
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""
