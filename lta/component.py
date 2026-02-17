@@ -219,6 +219,11 @@ class Component:
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a [insert component's LTA object here] and perform work on it.
 
+        This function is only called by '_do_work()', and the return values control
+        the work cycle and whether the component should continue or pause.
+
+        Also, see self.pause_after_each_success and quarantine_then_keep_working_exceptions
+
         Returns:
             False - if no work was claimed.
             True  - if work was claimed, and the component was successful in processing it.
