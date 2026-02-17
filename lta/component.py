@@ -120,7 +120,7 @@ class Component:
             'output_status': str(self.output_status),
         })
         self.quarantine_then_keep_working_exceptions: list[type] = []
-        self.pause_after_each_success = False  # rare, but used
+        self.max_iters_per_work_cycle: int | None = None  # rare, but used
 
     async def run(self) -> None:
         """Perform the Component's work cycle."""
@@ -185,10 +185,18 @@ class Component:
 
         for i in itertools.count():
 
-            # if run once already, AND we are configured to run once and die, then die
+            # if run once already, AND we are configured to run once and die, then DIE
             if i > 0:
                 if self.run_once_and_die:
                     sys.exit()
+
+            # if applicable, and we've reached the max number of iterations, then STOP
+            if self.max_iters_per_work_cycle and i >= self.max_iters_per_work_cycle:
+                self.logger.info(
+                    f"Reached max work cycle iterations ({self.max_iters_per_work_cycle})"
+                    f" -- stopping for now."
+                )
+                break
 
             self.logger.info(f"Requesting work on {self.lta_noun} #{i}...")
 
@@ -196,8 +204,6 @@ class Component:
             try:
                 if await self._do_work_claim(lta_rc):
                     prom_counter.labels({self.lta_noun: "success"}).inc()
-                    if self.pause_after_each_success:
-                        break
                 else:  # -> no work claimed -- take a pause
                     break
             except QuarantinableException as e:
@@ -222,7 +228,7 @@ class Component:
         This function is only called by '_do_work()', and the return values control
         the work cycle and whether the component should continue or pause.
 
-        Also, see self.pause_after_each_success and quarantine_then_keep_working_exceptions
+        Also, see self.max_iters_per_work_cycle and quarantine_then_keep_working_exceptions
 
         Returns:
             False - if no work was claimed.

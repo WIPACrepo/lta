@@ -59,8 +59,8 @@ class TransferRequestFinisher(Component):
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
 
-        # even if we are successful, take breaks between bundles
-        self.pause_after_each_success = True
+        # even if we are successful, take a break between each bundle
+        self.max_iters_per_work_cycle = 1
 
     def _do_status(self) -> Dict[str, Any]:
         """Provide no additional status."""

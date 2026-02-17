@@ -57,8 +57,8 @@ class RateLimiter(Component):
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
-        # even if we are successful, take breaks between bundles
-        self.pause_after_each_success = True
+        # even if we are successful, take a break between each bundle
+        self.max_iters_per_work_cycle = 1
 
     def _do_status(self) -> Dict[str, Any]:
         """Contribute no additional status."""
