@@ -5,6 +5,7 @@ Run with `python -m lta.rest_server`.
 """
 
 import asyncio
+import time
 from datetime import datetime
 import logging
 import os
@@ -15,7 +16,7 @@ from uuid import uuid1
 
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
-from prometheus_client import Counter, start_http_server
+import prometheus_client
 import pymongo
 from pymongo import MongoClient
 from rest_tools.utils.json_util import json_decode
@@ -28,7 +29,8 @@ from rest_tools.server import (
 )
 from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
-from wipac_dev_tools import from_environment, strtobool
+from wipac_dev_tools import from_environment, strtobool, prometheus_tools
+from wipac_dev_tools.string_tools import regex_named_groups_to_template
 
 # fmt:off
 
@@ -100,10 +102,23 @@ def unique_id() -> str:
     """Return a unique ID for an LTA database entity."""
     return uuid1().hex
 
+
+DatabaseType = dict[str, Any]
+
+
 # -----------------------------------------------------------------------------
 
 
-DatabaseType = dict[str, Any]
+# make module-level so same histogram is shared within this process (else, overwrites)
+PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
+    'http_request_duration_seconds',
+    'HTTP request duration in seconds',
+    labelnames=('method', 'route', 'status'),
+    buckets=prometheus_tools.HistogramBuckets.HTTP_API,
+)
+
+
+# -----------------------------------------------------------------------------
 
 
 class BaseLTAHandler(RestHandler):
@@ -112,15 +127,28 @@ class BaseLTAHandler(RestHandler):
     def initialize(  # type: ignore[override]
             self,
             db: AsyncDatabase[DatabaseType],
-            request_counter: Counter,
-            response_counter: Counter,
+            prometheus_route_name: str,
             *args: Any,
             **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
         super(BaseLTAHandler, self).initialize(*args, **kwargs)
         self.db = db
-        self.request_counter = request_counter
-        self.response_counter = response_counter
+        self.prometheus_route_name = prometheus_route_name
+
+    def prepare(self):
+        """Prepare before http-method request handlers."""
+        super().prepare()
+        self._prom_start_time = time.monotonic()
+
+    def on_finish(self):
+        """Cleanup after http-method request handlers."""
+        super().on_finish()
+        PROMETHEUS_HISTOGRAM.labels(
+            method=str(self.request.method).lower(),
+            route=self.prometheus_route_name,
+            status=str(self.get_status()),
+        ).observe(time.monotonic() - self._prom_start_time)
+
 
 # -----------------------------------------------------------------------------
 
@@ -131,16 +159,12 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_create."""
-        self.request_counter.labels(method='POST', route='/Bundles/actions/bulk_create').inc()
         req = json_decode(self.request.body)
         if 'bundles' not in req:
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_create').inc()
             raise tornado.web.HTTPError(400, reason="missing bundles field")
         if not isinstance(req['bundles'], list):
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_create').inc()
             raise tornado.web.HTTPError(400, reason="bundles field is not a list")
         if not req['bundles']:
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_create').inc()
             raise tornado.web.HTTPError(400, reason="bundles field is empty")
 
         for xfer_bundle in req["bundles"]:
@@ -164,7 +188,6 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
 
         self.set_status(201)
         self.write({'bundles': uuids, 'count': create_count})
-        self.response_counter.labels(method='POST', response='201', route='/Bundles/actions/bulk_create').inc()
 
 
 class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
@@ -173,16 +196,12 @@ class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_delete."""
-        self.request_counter.labels(method='POST', route='/Bundles/actions/bulk_delete').inc()
         req = json_decode(self.request.body)
         if 'bundles' not in req:
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_delete').inc()
             raise tornado.web.HTTPError(400, reason="missing bundles field")
         if not isinstance(req['bundles'], list):
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_delete').inc()
             raise tornado.web.HTTPError(400, reason="bundles field is not a list")
         if not req['bundles']:
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_delete').inc()
             raise tornado.web.HTTPError(400, reason="bundles field is empty")
 
         results = []
@@ -196,7 +215,6 @@ class BundlesActionsBulkDeleteHandler(BaseLTAHandler):
                 results.append(uuid)
 
         self.write({'bundles': results, 'count': len(results)})
-        self.response_counter.labels(method='POST', response='200', route='/Bundles/actions/bulk_delete').inc()
 
 
 class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
@@ -205,22 +223,16 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Bundles/actions/bulk_update."""
-        self.request_counter.labels(method='POST', route='/Bundles/actions/bulk_update').inc()
         req = json_decode(self.request.body)
         if 'update' not in req:
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_update').inc()
             raise tornado.web.HTTPError(400, reason="missing update field")
         if not isinstance(req['update'], dict):
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_update').inc()
             raise tornado.web.HTTPError(400, reason="update field is not an object")
         if 'bundles' not in req:
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_update').inc()
             raise tornado.web.HTTPError(400, reason="missing bundles field")
         if not isinstance(req['bundles'], list):
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_update').inc()
             raise tornado.web.HTTPError(400, reason="bundles field is not a list")
         if not req['bundles']:
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/bulk_update').inc()
             raise tornado.web.HTTPError(400, reason="bundles field is empty")
 
         results = []
@@ -235,7 +247,6 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
                 results.append(uuid)
 
         self.write({'bundles': results, 'count': len(results)})
-        self.response_counter.labels(method='POST', response='200', route='/Bundles/actions/bulk_update').inc()
 
 
 class BundlesHandler(BaseLTAHandler):
@@ -244,7 +255,6 @@ class BundlesHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self) -> None:
         """Handle GET /Bundles."""
-        self.request_counter.labels(method='GET', route='/Bundles').inc()
         location = self.get_query_argument("location", default=None)
         request = self.get_query_argument("request", default=None)
         status = self.get_query_argument("status", default=None)
@@ -278,7 +288,6 @@ class BundlesHandler(BaseLTAHandler):
             'results': results,
         }
         self.write(ret)
-        self.response_counter.labels(method='GET', response='200', route='/Bundles').inc()
 
 
 class BundlesActionsPopHandler(BaseLTAHandler):
@@ -287,16 +296,13 @@ class BundlesActionsPopHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Bundles/actions/pop."""
-        self.request_counter.labels(method='POST', route='/Bundles/actions/pop').inc()
         dest: Optional[str] = self.get_argument('dest', default=None)
         source: Optional[str] = self.get_argument('source', default=None)
         status: str = self.get_argument('status')
         if (not dest) and (not source):
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/pop').inc()
             raise tornado.web.HTTPError(400, reason="missing source and dest fields")
         pop_body = json_decode(self.request.body)
         if 'claimant' not in pop_body:
-            self.response_counter.labels(method='POST', response='400', route='/Bundles/actions/pop').inc()
             raise tornado.web.HTTPError(400, reason="missing claimant field")
         claimant = pop_body["claimant"]
         # find and claim a bundle for the specified source
@@ -331,7 +337,6 @@ class BundlesActionsPopHandler(BaseLTAHandler):
         else:
             logging.info(f"Bundle {bundle['uuid']} claimed by {claimant}")
         self.write({'bundle': bundle})
-        self.response_counter.labels(method='POST', response='200', route='/Bundles/actions/pop').inc()
 
 
 class BundlesSingleHandler(BaseLTAHandler):
@@ -340,7 +345,6 @@ class BundlesSingleHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self, bundle_id: str) -> None:
         """Handle GET /Bundles/{uuid}."""
-        self.request_counter.labels(method='GET', route='/Bundles/{uuid}').inc()
         query = {"uuid": bundle_id}
         projection = {
             "_id": False,
@@ -350,18 +354,14 @@ class BundlesSingleHandler(BaseLTAHandler):
         ret = await self.db.Bundles.find_one(filter=query, projection=projection)
         logging.debug("MONGO-END:   db.Bundles.find_one(filter, projection)")
         if not ret:
-            self.response_counter.labels(method='GET', response='404', route='/Bundles/{uuid}').inc()
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
-        self.response_counter.labels(method='GET', response='200', route='/Bundles/{uuid}').inc()
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def patch(self, bundle_id: str) -> None:
         """Handle PATCH /Bundles/{uuid}."""
-        self.request_counter.labels(method='PATCH', route='/Bundles/{uuid}').inc()
         req = json_decode(self.request.body)
         if 'uuid' in req and req['uuid'] != bundle_id:
-            self.response_counter.labels(method='PATCH', response='400', route='/Bundles/{uuid}').inc()
             raise tornado.web.HTTPError(400, reason="bad request")
 
         # prep mongo pieces
@@ -379,25 +379,21 @@ class BundlesSingleHandler(BaseLTAHandler):
                                                         return_document=AFTER)
         logging.debug("MONGO-END:   db.Bundles.find_one_and_update(filter, update, projection, return_document)")
         if not ret:
-            self.response_counter.labels(method='PATCH', response='404', route='/Bundles/{uuid}').inc()
             raise tornado.web.HTTPError(404, reason="not found")
 
         # done
         logging.info(f"patched Bundle {bundle_id} with {req}")
         self.write(ret)
-        self.response_counter.labels(method='PATCH', response='200', route='/Bundles/{uuid}').inc()
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def delete(self, bundle_id: str) -> None:
         """Handle DELETE /Bundles/{uuid}."""
-        self.request_counter.labels(method='DELETE', route='/Bundles/{uuid}').inc()
         query = {"uuid": bundle_id}
         logging.debug(f"MONGO-START: db.Bundles.delete_one(filter={query})")
         await self.db.Bundles.delete_one(filter=query)
         logging.debug("MONGO-END:   db.Bundles.delete_one(filter)")
         logging.info(f"deleted Bundle {bundle_id}")
         self.set_status(204)
-        self.response_counter.labels(method='DELETE', response='204', route='/Bundles/{uuid}').inc()
 
 # -----------------------------------------------------------------------------
 
@@ -407,9 +403,7 @@ class MainHandler(BaseLTAHandler):
 
     def get(self) -> None:
         """Handle GET /."""
-        self.request_counter.labels(method='GET', route='/').inc()
         self.write({})
-        self.response_counter.labels(method='GET', response='200', route='/').inc()
 
 # -----------------------------------------------------------------------------
 
@@ -420,7 +414,6 @@ class MetadataActionsBulkCreateHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_create."""
-        self.request_counter.labels(method='POST', route='/Metadata/actions/bulk_create').inc()
         argo = ArgumentHandler(ArgumentSource.JSON_BODY_ARGUMENTS, self)
         argo.add_argument('bundle_uuid', type=str)
         argo.add_argument("files", type=list)
@@ -453,7 +446,6 @@ class MetadataActionsBulkCreateHandler(BaseLTAHandler):
 
         self.set_status(201)
         self.write({'metadata': uuids, 'count': create_count})
-        self.response_counter.labels(method='POST', response='201', route='/Metadata/actions/bulk_create').inc()
 
 
 class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
@@ -462,7 +454,6 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /Metadata/actions/bulk_delete."""
-        self.request_counter.labels(method='POST', route='/Metadata/actions/bulk_delete').inc()
         argo = ArgumentHandler(ArgumentSource.JSON_BODY_ARGUMENTS, self)
         argo.add_argument("metadata", type=list)
         args = argo.parse_args()
@@ -483,7 +474,6 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
             count = count + ret.deleted_count
 
         self.write({'metadata': metadata, 'count': count})
-        self.response_counter.labels(method='POST', response='200', route='/Metadata/actions/bulk_delete').inc()
 
 
 class MetadataHandler(BaseLTAHandler):
@@ -492,7 +482,6 @@ class MetadataHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self) -> None:
         """Handle GET /Metadata."""
-        self.request_counter.labels(method='GET', route='/Metadata').inc()
         bundle_uuid = self.get_query_argument("bundle_uuid", default=None)
         limit = int(self.get_query_argument("limit", default="1000"))
         skip = int(self.get_query_argument("skip", default="0"))
@@ -516,12 +505,10 @@ class MetadataHandler(BaseLTAHandler):
             'results': results,
         }
         self.write(ret)
-        self.response_counter.labels(method='GET', response='200', route='/Metadata').inc()
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def delete(self) -> None:
         """Handle DELETE /Metadata?bundle_uuid={uuid}."""
-        self.request_counter.labels(method='DELETE', route='/Metadata?bundle_uuid={uuid}').inc()
         bundle_uuid = self.get_argument("bundle_uuid", None)
         if not bundle_uuid:
             raise tornado.web.HTTPError(400, reason='bundle_uuid must not be empty')
@@ -531,7 +518,6 @@ class MetadataHandler(BaseLTAHandler):
         logging.debug("MONGO-END:   db.Metadata.delete_many(filter)")
         logging.info(f"deleted all Metadata records for Bundle {bundle_uuid}")
         self.set_status(204)
-        self.response_counter.labels(method='DELETE', response='204', route='/Metadata?bundle_uuid={uuid}').inc()
 
 
 class MetadataSingleHandler(BaseLTAHandler):
@@ -540,29 +526,24 @@ class MetadataSingleHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self, metadata_id: str) -> None:
         """Handle GET /Metadata/{uuid}."""
-        self.request_counter.labels(method='GET', route='/Metadata/{uuid}').inc()
         query = {"uuid": metadata_id}
         projection = {"_id": False}
         logging.debug(f"MONGO-START: db.Metadata.find_one(filter={query}, projection={projection})")
         ret = await self.db.Metadata.find_one(filter=query, projection=projection)
         logging.debug("MONGO-END:   db.Metadata.find_one(filter, projection)")
         if not ret:
-            self.response_counter.labels(method='GET', response='404', route='/Metadata/{uuid}').inc()
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
-        self.response_counter.labels(method='GET', response='200', route='/Metadata/{uuid}').inc()
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def delete(self, metadata_id: str) -> None:
         """Handle DELETE /Metadata/{uuid}."""
-        self.request_counter.labels(method='DELETE', route='/Metadata/{uuid}').inc()
         query = {"uuid": metadata_id}
         logging.debug(f"MONGO-START: db.Metadata.delete_one(filter={query})")
         await self.db.Metadata.delete_one(filter=query)
         logging.debug("MONGO-END:   db.Metadata.delete_one(filter)")
         logging.info(f"deleted Bundle {metadata_id}")
         self.set_status(204)
-        self.response_counter.labels(method='DELETE', response='204', route='/Metadata/{uuid}').inc()
 
 # -----------------------------------------------------------------------------
 
@@ -573,7 +554,6 @@ class TransferRequestsHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self) -> None:
         """Handle GET /TransferRequests."""
-        self.request_counter.labels(method='GET', route='/TransferRequests').inc()
         ret = []
         logging.debug(f"MONGO-START: db.TransferRequests.find(filter={ALL_DOCUMENTS}, projection={REMOVE_ID})")
         async for row in self.db.TransferRequests.find(filter=ALL_DOCUMENTS,
@@ -581,39 +561,28 @@ class TransferRequestsHandler(BaseLTAHandler):
             ret.append(row)
         logging.debug("MONGO-END*:  db.TransferRequests.find(filter, projection)")
         self.write({'results': ret})
-        self.response_counter.labels(method='GET', response='200', route='/TransferRequests').inc()
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /TransferRequests."""
-        self.request_counter.labels(method='POST', route='/TransferRequests').inc()
         req = json_decode(self.request.body)
         if 'source' not in req:
-            self.response_counter.labels(method='POST', response='400', route='/TransferRequests').inc()
             raise tornado.web.HTTPError(400, reason="missing source field")
         if 'dest' not in req:
-            self.response_counter.labels(method='POST', response='400', route='/TransferRequests').inc()
             raise tornado.web.HTTPError(400, reason="missing dest field")
         if 'path' not in req:
-            self.response_counter.labels(method='POST', response='400', route='/TransferRequests').inc()
             raise tornado.web.HTTPError(400, reason="missing path field")
         if not isinstance(req['source'], str):
-            self.response_counter.labels(method='POST', response='400', route='/TransferRequests').inc()
             raise tornado.web.HTTPError(400, reason="source field is not a string")
         if not isinstance(req['dest'], str):
-            self.response_counter.labels(method='POST', response='400', route='/TransferRequests').inc()
             raise tornado.web.HTTPError(400, reason="dest field is not a string")
         if not isinstance(req['path'], str):
-            self.response_counter.labels(method='POST', response='400', route='/TransferRequests').inc()
             raise tornado.web.HTTPError(400, reason="path field is not a string")
         if not req['source']:
-            self.response_counter.labels(method='POST', response='400', route='/TransferRequests').inc()
             raise tornado.web.HTTPError(400, reason="source field is empty")
         if not req['dest']:
-            self.response_counter.labels(method='POST', response='400', route='/TransferRequests').inc()
             raise tornado.web.HTTPError(400, reason="dest field is empty")
         if not req['path']:
-            self.response_counter.labels(method='POST', response='400', route='/TransferRequests').inc()
             raise tornado.web.HTTPError(400, reason="path field is empty")
 
         right_now = now()  # https://www.youtube.com/watch?v=He0p5I0b8j8
@@ -631,7 +600,6 @@ class TransferRequestsHandler(BaseLTAHandler):
         logging.info(f"created TransferRequest {req['uuid']}")
         self.set_status(201)
         self.write({'TransferRequest': req['uuid']})
-        self.response_counter.labels(method='POST', response='201', route='/TransferRequests').inc()
 
 
 class TransferRequestSingleHandler(BaseLTAHandler):
@@ -640,24 +608,19 @@ class TransferRequestSingleHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def get(self, request_id: str) -> None:
         """Handle GET /TransferRequests/{uuid}."""
-        self.request_counter.labels(method='GET', route='/TransferRequests/{uuid}').inc()
         query = {'uuid': request_id}
         logging.debug(f"MONGO-START: db.TransferRequests.find_one(filter={query}, projection={REMOVE_ID}")
         ret = await self.db.TransferRequests.find_one(filter=query, projection=REMOVE_ID)
         logging.debug("MONGO-END:   db.TransferRequests.find_one(filter, projection)")
         if not ret:
-            self.response_counter.labels(method='GET', response='404', route='/TransferRequests/{uuid}').inc()
             raise tornado.web.HTTPError(404, reason="not found")
         self.write(ret)
-        self.response_counter.labels(method='GET', response='200', route='/TransferRequests/{uuid}').inc()
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def patch(self, request_id: str) -> None:
         """Handle PATCH /TransferRequests/{uuid}."""
-        self.request_counter.labels(method='PATCH', route='/TransferRequests/{uuid}').inc()
         req = json_decode(self.request.body)
         if 'uuid' in req and req['uuid'] != request_id:
-            self.response_counter.labels(method='PATCH', response='400', route='/TransferRequests/{uuid}').inc()
             raise tornado.web.HTTPError(400, reason="bad request")
         sbtr = self.db.TransferRequests
         query = {"uuid": request_id}
@@ -669,23 +632,19 @@ class TransferRequestSingleHandler(BaseLTAHandler):
                                              return_document=AFTER)
         logging.debug("MONGO-END:   db.TransferRequests.find_one_and_update(filter, update, projection, return_document")
         if not ret:
-            self.response_counter.labels(method='PATCH', response='404', route='/TransferRequests/{uuid}').inc()
             raise tornado.web.HTTPError(404, reason="not found")
         logging.info(f"patched TransferRequest {request_id} with {req}")
         self.write({})
-        self.response_counter.labels(method='PATCH', response='200', route='/TransferRequests/{uuid}').inc()
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def delete(self, request_id: str) -> None:
         """Handle DELETE /TransferRequests/{uuid}."""
-        self.request_counter.labels(method='DELETE', route='/TransferRequests/{uuid}').inc()
         query = {"uuid": request_id}
         logging.debug(f"MONGO-START: db.TransferRequests.delete_one(filter={query})")
         await self.db.TransferRequests.delete_one(filter=query)
         logging.debug("MONGO-END:   db.TransferRequests.delete_one(filter)")
         logging.info(f"deleted TransferRequest {request_id}")
         self.set_status(204)
-        self.response_counter.labels(method='DELETE', response='204', route='/TransferRequests/{uuid}').inc()
 
 
 class TransferRequestActionsPopHandler(BaseLTAHandler):
@@ -694,11 +653,9 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def post(self) -> None:
         """Handle POST /TransferRequests/actions/pop."""
-        self.request_counter.labels(method='POST', route='/TransferRequests/actions/pop').inc()
         source = self.get_argument("source")
         pop_body = json_decode(self.request.body)
         if 'claimant' not in pop_body:
-            self.response_counter.labels(method='POST', response='400', route='/TransferRequests/actions/pop').inc()
             raise tornado.web.HTTPError(400, reason="missing claimant field")
         claimant = pop_body["claimant"]
         # find and claim a transfer request for the specified source
@@ -730,7 +687,6 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
         else:
             logging.info(f"TransferRequest {tr['uuid']} claimed by {claimant}")
         self.write({'transfer_request': tr})
-        self.response_counter.labels(method='POST', response='200', route='/TransferRequests/actions/pop').inc()
 
 # -----------------------------------------------------------------------------
 
@@ -796,27 +752,34 @@ def start(debug: bool = False) -> RestServer:
     mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
     args['db'] = mongo_client[mongo_db]
 
-    # configure prometheus metrics
-    args['request_counter'] = Counter('lta_requests', 'LTA DB requests', ['method', 'route'])
-    args['response_counter'] = Counter('lta_responses', 'LTA DB responses', ['method', 'response', 'route'])
-
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
     max_body_size = int(config["LTA_MAX_BODY_SIZE"])
     server = RestServer(debug=debug, max_body_size=max_body_size)  # type: ignore[no-untyped-call]
-    server.add_route(r'/', MainHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles', BundlesHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles/actions/bulk_create', BundlesActionsBulkCreateHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles/actions/bulk_delete', BundlesActionsBulkDeleteHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles/actions/pop', BundlesActionsPopHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Metadata', MetadataHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Metadata/actions/bulk_create', MetadataActionsBulkCreateHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Metadata/actions/bulk_delete', MetadataActionsBulkDeleteHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/Metadata/(?P<metadata_id>\w+)', MetadataSingleHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/TransferRequests', TransferRequestsHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler, args)  # type: ignore[no-untyped-call]
-    server.add_route(r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler, args)  # type: ignore[no-untyped-call]
+    route_handler_pairs = [
+        (r'/', MainHandler),
+        (r'/Bundles', BundlesHandler),
+        (r'/Bundles/actions/bulk_create', BundlesActionsBulkCreateHandler),
+        (r'/Bundles/actions/bulk_delete', BundlesActionsBulkDeleteHandler),
+        (r'/Bundles/actions/bulk_update', BundlesActionsBulkUpdateHandler),
+        (r'/Bundles/actions/pop', BundlesActionsPopHandler),
+        (r'/Bundles/(?P<bundle_id>\w+)', BundlesSingleHandler),
+        (r'/Metadata', MetadataHandler),
+        (r'/Metadata/actions/bulk_create', MetadataActionsBulkCreateHandler),
+        (r'/Metadata/actions/bulk_delete', MetadataActionsBulkDeleteHandler),
+        (r'/Metadata/(?P<metadata_id>\w+)', MetadataSingleHandler),
+        (r'/TransferRequests', TransferRequestsHandler),
+        (r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler),
+        (r'/TransferRequests/actions/pop', TransferRequestActionsPopHandler),
+    ]
+    for route, handler in route_handler_pairs:
+        server.add_route(  # type: ignore[no-untyped-call]
+            route,
+            handler,
+            {
+                "prometheus_route_name": regex_named_groups_to_template(route),
+                **args,
+            },
+        )
 
     server.startup(address=config['LTA_REST_HOST'],
                    port=int(config['LTA_REST_PORT']))  # type: ignore[no-untyped-call]
@@ -835,9 +798,13 @@ async def main() -> None:
         stream=sys.stdout,
         style="{",
     )
+
+    # Start Servers
+    # -- REST server
     start(debug=True)
-    metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
-    start_http_server(metrics_port)
+    # -- Prometheus metrics server (has handlers for '/metrics' endpoints)
+    prometheus_client.start_http_server(int(config["PROMETHEUS_METRICS_PORT"]))
+    # -- let the background tasks run
     await asyncio.Event().wait()
 
 
