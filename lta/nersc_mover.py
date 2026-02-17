@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, LTANounEnum
+from .utils import HSICommandFailedException
 from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -60,7 +60,7 @@ class NerscMover(Component):
         config - A dictionary of required configuration values.
         logger - The object the nersc_mover should use for logging.
         """
-        super().__init__("nersc_mover", LTANounEnum.BUNDLE, config, logger)
+        super(NerscMover, self).__init__("nersc_mover", config, logger)
         self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.max_count = int(config["MAX_COUNT"])
         self.rse_base_path = config["RSE_BASE_PATH"]
@@ -102,7 +102,7 @@ class NerscMover(Component):
             await self._write_bundle_to_hpss(lta_rc, bundle)
             return True
         except Exception as e:
-            return QuarantineNow(bundle, e)
+            return QuarantineNow(bundle, "bundle", e)
 
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""

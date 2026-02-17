@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, LTANounEnum
+from .utils import HSICommandFailedException
 from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -59,7 +59,7 @@ class NerscRetriever(Component):
         config - A dictionary of required configuration values.
         logger - The object the nersc_retriever should use for logging.
         """
-        super().__init__("nersc_retriever", LTANounEnum.BUNDLE, config, logger)
+        super(NerscRetriever, self).__init__("nersc_retriever", config, logger)
         self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.rse_base_path = config["RSE_BASE_PATH"]
         self.tape_base_path = config["TAPE_BASE_PATH"]
@@ -100,7 +100,7 @@ class NerscRetriever(Component):
             await self._read_bundle_from_hpss(lta_rc, bundle)
             return True
         except Exception as e:
-            return QuarantineNow(bundle, e)
+            return QuarantineNow(bundle, "bundle", e)
 
     async def _read_bundle_from_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Send a command to HPSS to retrieve the supplied bundle from tape."""

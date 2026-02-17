@@ -16,7 +16,6 @@ from zipfile import ZIP_STORED, ZipFile
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .utils import LTANounEnum
 from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
@@ -59,7 +58,7 @@ class Bundler(Component):
         config - A dictionary of required configuration values.
         logger - The object the bundler should use for logging.
         """
-        super().__init__("bundler", LTANounEnum.BUNDLE, config, logger)
+        super(Bundler, self).__init__("bundler", config, logger)
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
@@ -99,7 +98,7 @@ class Bundler(Component):
             await self._do_work_bundle(fc_rc, lta_rc, bundle)
             return True
         except Exception as e:
-            return QuarantineNow(bundle, e)
+            return QuarantineNow(bundle, "bundle", e)
 
     async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here

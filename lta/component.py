@@ -21,7 +21,7 @@ from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels
 
 from .lta_const import drain_semaphore_filename
 from .lta_types import BundleType, TransferRequestType
-from .utils import LTANounEnum, quarantine_now
+from .utils import LtaObjectType, quarantine_now
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "CLIENT_ID": None,
@@ -60,6 +60,7 @@ class QuarantineNow:
     """A dataclass for holding info about an LTA object that needs to be quarantined."""
 
     lta_object: BundleType | TransferRequestType
+    lta_object_type: LtaObjectType
     causal_exception: Exception
 
 
@@ -74,7 +75,6 @@ class Component:
 
     def __init__(self,
                  component_type: str,
-                 lta_noun: LTANounEnum,
                  config: Dict[str, str],
                  logger: Logger) -> None:
         """
@@ -90,7 +90,6 @@ class Component:
         # assimilate provided arguments
         self.type = component_type  # common name of the component
         self.name = config["COMPONENT_NAME"]  # unique name of the component instance
-        self.lta_noun = lta_noun  # the type of object this component works on, e.g. "bundle"
         self.instance_uuid = unique_id()
         self.config = config
         self.logger = logger
@@ -185,14 +184,13 @@ class Component:
         raise NotImplementedError()
 
     @AsyncPromWrapper(lambda self: self.prometheus.counter(
-        "work result",
-        f"finished {self.lta_noun} counts",
-        labels=[self.lta_noun],
+        "work_counts",
+        f"finished work counts",
+        labels=["work"],
         finalize=False,
     ))
     async def _do_work(self, prom_counter: Counter, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
-        self.logger.info(f"Starting work on {self.lta_noun} objects.")
 
         for i in itertools.count():
 
@@ -210,40 +208,37 @@ class Component:
                 )
                 break
 
-            self.logger.info(f"Requesting work on {self.lta_noun} #{i} (0-indexed)...")
+            self.logger.info(f"Requesting work on #{i} (0-indexed)...")
 
             # process a single work item
             ret = await self._do_work_claim(lta_rc)
             if ret is True:  # note: *this is not* `if ret` -- we need to detect 'Quarantine'
                 self.logger.info(
-                    f"Successfully claimed and processed {self.lta_noun} "
-                    f"#{i} (0-indexed)."
+                    f"Successfully claimed and processed #{i} (0-indexed)."
                 )
-                prom_counter.labels({self.lta_noun: "success"}).inc()
+                prom_counter.labels({"work": "success"}).inc()
             elif ret is False:
                 # -> no work claimed -- take a pause
-                self.logger.info(f"No {self.lta_noun} claimed -- pausing for now.")
+                self.logger.info(f"Nothing to claim -- pausing for now.")
                 break
             elif isinstance(ret, QuarantineNow):
-                prom_counter.labels({self.lta_noun: "failure"}).inc()
+                prom_counter.labels({"work": "failure"}).inc()
                 await quarantine_now(  # function logs
-                    self.lta_noun,
                     lta_rc,
                     ret.lta_object,
+                    ret.lta_object_type,
                     ret.causal_exception,
                     self.name,
                     self.instance_uuid,
                     self.logger,
                 )
-                self.logger.error(f"Quarantined {self.lta_noun} #{i} (0-indexed).")
+                self.logger.error(f"Quarantined #{i} (0-indexed).")
                 self.logger.exception(ret.causal_exception)
                 if type(ret.causal_exception) in self.quarantine_then_keep_working_exceptions:
-                    self.logger.info(f"Continuing despite quarantining previous {self.lta_noun}.")
+                    self.logger.info("Continuing despite quarantining previous.")
                 else:
-                    self.logger.info(f"Pausing for now.")
+                    self.logger.info("Pausing for now.")
                     break
-
-        self.logger.info(f"Ending work on {self.lta_noun} objects.")
 
     async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
         """Claim a [insert component's LTA object here] and perform work on it.

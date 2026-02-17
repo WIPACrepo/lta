@@ -1,23 +1,20 @@
 """Common and simple utility functions."""
 
-import enum
 import traceback
 from logging import Logger
 from subprocess import CompletedProcess
+from typing import Literal
 
 from rest_tools.client import RestClient
 
 from lta.component import now
 from lta.lta_types import BundleType, TransferRequestType
 
+
+LtaObjectType = Literal["bundle", "transfer_request"]
+
+
 _MAX_QUARANTINE_TRACEBACK_LINES = 500
-
-
-class LTANounEnum(enum.StrEnum):
-    """Enum of database nouns."""
-
-    BUNDLE = enum.auto()  # maps to "bundle"
-    TRANSFER_REQUEST = enum.auto()
 
 
 class NoFileCatalogFilesException(Exception):
@@ -129,9 +126,9 @@ def truncate_traceback(exc: Exception) -> str:
 
 
 async def quarantine_now(
-    lta_noun: LTANounEnum,
     lta_rc: RestClient,
     lta_object: BundleType | TransferRequestType,
+    lta_object_type: LtaObjectType,
     causal_exception: Exception,
     name: str,
     instance_uuid: str,
@@ -140,12 +137,12 @@ async def quarantine_now(
     """Quarantine the supplied 'lta_noun'-type using the supplied reason.
 
     Args:
-        lta_noun:
-            LTANounEnum value indicating the type of object to quarantine
         lta_rc:
             RestClient instance for making API requests
         lta_object:
             BundleType or TransferRequestType dictionary containing object to quarantine
+        lta_object_type:
+            The type of the LTA object to quarantine: 'bundle' or 'transfer_request'
         causal_exception:
             Exception instance for quarantining the lta object. The exception's 'repr()'
             will be used for the 'reason' field. The exception's stack trace will be
@@ -160,7 +157,9 @@ async def quarantine_now(
     reason_details = truncate_traceback(causal_exception)  # get stack trace
     reason = repr(causal_exception)
 
-    logger.error(f'Sending {lta_noun} {lta_object["uuid"]} to quarantine: {reason}.')
+    logger.error(
+        f'Sending {lta_object_type} {lta_object["uuid"]} to quarantine: {reason}.'
+    )
     patch_body = {
         "original_status": lta_object["status"],
         "status": "quarantined",
@@ -170,11 +169,16 @@ async def quarantine_now(
     }
 
     try:
-        if lta_noun == LTANounEnum.TRANSFER_REQUEST:
-            await patch_transfer_request(lta_rc, lta_object["uuid"], patch_body, logger)
-        elif lta_noun == LTANounEnum.BUNDLE:
-            await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
-        else:
-            raise ValueError(f"Invalid lta_noun: {lta_noun}")
+        match lta_object_type:
+            case "transfer_request":
+                await patch_transfer_request(
+                    lta_rc, lta_object["uuid"], patch_body, logger
+                )
+            case "bundle":
+                await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
+            case _unknown:
+                raise ValueError(f"Invalid {lta_object_type=}")
     except Exception as e:
-        logger.error(f'Unable to quarantine {lta_noun} {lta_object["uuid"]}: {e}.')
+        logger.error(
+            f'Unable to quarantine {lta_object_type} {lta_object["uuid"]}: {e}.'
+        )

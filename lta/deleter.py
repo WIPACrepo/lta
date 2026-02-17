@@ -13,7 +13,6 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools.prometheus_tools import AsyncPromTimer, HistogramBuckets
 
-from lta.utils import LTANounEnum
 from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -47,7 +46,7 @@ class Deleter(Component):
         config - A dictionary of required configuration values.
         logger - The object the deleter should use for logging.
         """
-        super().__init__("deleter", LTANounEnum.BUNDLE, config, logger)
+        super(Deleter, self).__init__("deleter", config, logger)
         self.disk_base_path = config["DISK_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
@@ -78,7 +77,7 @@ class Deleter(Component):
             await self._delete_bundle(lta_rc, bundle)
             return True
         except Exception as e:
-            return QuarantineNow(bundle, e)
+            return QuarantineNow(bundle, "bundle", e)
 
     @AsyncPromTimer(lambda self: self.prometheus.histogram(
         'deleter_action', 'LTA Deleter Action', buckets=HistogramBuckets.SECOND

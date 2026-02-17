@@ -17,7 +17,6 @@ from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import LTANounEnum
 from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
@@ -62,7 +61,7 @@ class Unpacker(Component):
         config - A dictionary of required configuration values.
         logger - The object the unpacker should use for logging.
         """
-        super().__init__("unpacker", LTANounEnum.BUNDLE, config, logger)
+        super(Unpacker, self).__init__("unpacker", config, logger)
         self.clean_outbox = strtobool(config["CLEAN_OUTBOX"])
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
@@ -100,7 +99,7 @@ class Unpacker(Component):
             await self._do_work_bundle(lta_rc, bundle)
             return True
         except Exception as e:
-            return QuarantineNow(bundle, e)
+            return QuarantineNow(bundle, "bundle", e)
 
     async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""

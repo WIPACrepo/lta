@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .utils import LTANounEnum, NoFileCatalogFilesException
+from .utils import NoFileCatalogFilesException
 from .component import COMMON_CONFIG, Component, QuarantineNow, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
@@ -73,7 +73,7 @@ class Locator(Component):
         config - A dictionary of required configuration values.
         logger - The object the locator should use for logging.
         """
-        super().__init__("locator", LTANounEnum.TRANSFER_REQUEST, config, logger)
+        super(Locator, self).__init__("locator", config, logger)
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_page_size = int(config["FILE_CATALOG_PAGE_SIZE"])
@@ -107,7 +107,7 @@ class Locator(Component):
             await self._do_work_transfer_request(lta_rc, tr)
             return True
         except Exception as e:
-            return QuarantineNow(tr, e)
+            return QuarantineNow(tr, "transfer_request", e)
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,
