@@ -13,8 +13,8 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, LTANounEnum, QuarantinableException
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .utils import HSICommandFailedException, LTANounEnum
+from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -76,7 +76,7 @@ class NerscMover(Component):
         """NerscMover provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
@@ -102,7 +102,7 @@ class NerscMover(Component):
             await self._write_bundle_to_hpss(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(e, bundle)
+            return QuarantineNow(bundle, e)
 
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""

@@ -12,7 +12,7 @@ from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
 from .utils import LTANounEnum
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -70,7 +70,7 @@ class TransferRequestFinisher(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         fc_rc = ClientCredentialsAuth(
             address=self.file_catalog_rest_url,

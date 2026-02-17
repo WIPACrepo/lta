@@ -15,8 +15,8 @@ from binpacking import to_constant_bin_number  # type: ignore
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .utils import LTANounEnum, NoFileCatalogFilesException, QuarantinableException
-from .component import COMMON_CONFIG, Component, work_loop
+from .utils import LTANounEnum, NoFileCatalogFilesException
+from .component import COMMON_CONFIG, Component, QuarantineNow, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
 
@@ -83,7 +83,7 @@ class Picker(Component):
         """Picker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
         """Claim a transfer request and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
         self.logger.info("Asking the LTA DB for a TransferRequest to work on.")
@@ -101,7 +101,7 @@ class Picker(Component):
             await self._do_work_transfer_request(lta_rc, tr)
             return True
         except Exception as e:
-            raise QuarantinableException(e, tr)
+            return QuarantineNow(tr, e)
 
     async def _do_work_transfer_request(
         self,

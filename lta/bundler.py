@@ -16,8 +16,8 @@ from zipfile import ZIP_STORED, ZipFile
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .utils import LTANounEnum, QuarantinableException
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .utils import LTANounEnum
+from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -76,7 +76,7 @@ class Bundler(Component):
         """Bundler provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be built
         self.logger.info("Asking the LTA DB for a Bundle to build.")
@@ -99,7 +99,7 @@ class Bundler(Component):
             await self._do_work_bundle(fc_rc, lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(e, bundle)
+            return QuarantineNow(bundle, e)
 
     async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here

@@ -5,6 +5,7 @@
 
 import asyncio
 import itertools
+from dataclasses import dataclass
 from datetime import datetime
 from logging import Logger
 import os
@@ -19,7 +20,8 @@ from wipac_dev_tools import strtobool
 from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels
 
 from .lta_const import drain_semaphore_filename
-from .utils import LTANounEnum, QuarantinableException, quarantine_now
+from .lta_types import BundleType, TransferRequestType
+from .utils import LTANounEnum, quarantine_now
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "CLIENT_ID": None,
@@ -51,6 +53,14 @@ def now() -> str:
 def unique_id() -> str:
     """Return a unique ID for a module instance."""
     return str(uuid4())
+
+
+@dataclass(frozen=True)
+class QuarantineNow:
+    """A dataclass for holding info about an LTA object that needs to be quarantined."""
+
+    lta_object: BundleType | TransferRequestType
+    causal_exception: Exception
 
 
 class Component:
@@ -203,43 +213,51 @@ class Component:
             self.logger.info(f"Requesting work on {self.lta_noun} #{i} (0-indexed)...")
 
             # process a single work item
-            try:
-                if await self._do_work_claim(lta_rc):
-                    self.logger.info(
-                        f"Successfully claimed and processed {self.lta_noun} "
-                        f"#{i} (0-indexed)."
-                    )
-                    prom_counter.labels({self.lta_noun: "success"}).inc()
-                else:  # -> no work claimed -- take a pause
-                    self.logger.info(f"No {self.lta_noun} claimed -- pausing for now.")
-                    break
-            except QuarantinableException as e:
+            ret = await self._do_work_claim(lta_rc)
+            if ret is True:  # note: *this is not* `if ret` -- we need to detect 'Quarantine'
+                self.logger.info(
+                    f"Successfully claimed and processed {self.lta_noun} "
+                    f"#{i} (0-indexed)."
+                )
+                prom_counter.labels({self.lta_noun: "success"}).inc()
+            elif ret is False:
+                # -> no work claimed -- take a pause
+                self.logger.info(f"No {self.lta_noun} claimed -- pausing for now.")
+                break
+            elif isinstance(ret, QuarantineNow):
                 prom_counter.labels({self.lta_noun: "failure"}).inc()
                 await quarantine_now(  # function logs
                     self.lta_noun,
                     lta_rc,
-                    e.lta_object,
-                    e,
+                    ret.lta_object,
+                    ret.causal_exception,
                     self.name,
                     self.instance_uuid,
                     self.logger,
                 )
-                if type(e.original_exception) not in self.quarantine_then_keep_working_exceptions:
-                    raise e
+                self.logger.error(f"Quarantined {self.lta_noun} #{i} (0-indexed).")
+                self.logger.exception(ret.causal_exception)
+                if type(ret.causal_exception) in self.quarantine_then_keep_working_exceptions:
+                    self.logger.info(f"Continuing despite quarantining previous {self.lta_noun}.")
+                else:
+                    self.logger.info(f"Pausing for now.")
+                    break
 
         self.logger.info(f"Ending work on {self.lta_noun} objects.")
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
         """Claim a [insert component's LTA object here] and perform work on it.
 
         This function is only called by '_do_work()', and the return values control
         the work cycle and whether the component should continue or pause.
 
-        Also, see self.max_iters_per_work_cycle and quarantine_then_keep_working_exceptions
+        See `self.max_iters_per_work_cycle` and `self.quarantine_then_keep_working_exceptions`
 
         Returns:
             False - if no work was claimed.
             True  - if work was claimed, and the component was successful in processing it.
+            Quarantine - if work was claimed, and the component encountered an error
+                         that warrants the lta-object should be quarantined.
         Raises:
             Any Exception - stops the work cycle, pauses the component,
                             then resumes after some time (work_sleep_duration_seconds).

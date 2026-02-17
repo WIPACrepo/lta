@@ -20,21 +20,6 @@ class LTANounEnum(enum.StrEnum):
     TRANSFER_REQUEST = enum.auto()
 
 
-class QuarantinableException(Exception):
-    """Raised when a bundle should be quarantined immediately."""
-
-    def __init__(
-        self,
-        original_exception: Exception,
-        lta_object: BundleType | TransferRequestType,
-    ):
-        super().__init__(
-            f"LTA object {lta_object['uuid']} should be quarantined immediately: {original_exception}"
-        )
-        self.original_exception = original_exception
-        self.lta_object = lta_object
-
-
 class NoFileCatalogFilesException(Exception):
     """Raised when a query's files cannot be found in the File Catalog."""
 
@@ -147,11 +132,10 @@ async def quarantine_now(
     lta_noun: LTANounEnum,
     lta_rc: RestClient,
     lta_object: BundleType | TransferRequestType,
-    reason: Exception | str,
+    causal_exception: Exception,
     name: str,
     instance_uuid: str,
     logger: Logger,
-    reason_details: str = "",
 ) -> None:
     """Quarantine the supplied 'lta_noun'-type using the supplied reason.
 
@@ -162,25 +146,19 @@ async def quarantine_now(
             RestClient instance for making API requests
         lta_object:
             BundleType or TransferRequestType dictionary containing object to quarantine
-        reason:
-            Exception or string reason for quarantining the lta object (for the object's
-            'reason' field). If an Exception instance is provided, the 'repr()' of the
-            Exception will be used. If a string is provided, it will be used as-is.
+        causal_exception:
+            Exception instance for quarantining the lta object. The exception's 'repr()'
+            will be used for the 'reason' field. The exception's stack trace will be
+            used for the 'reason_details' field.
         name:
             Name of the component performing the quarantine
         instance_uuid:
             UUID of the component instance
         logger:
             Logger instance for logging messages
-        reason_details:
-            (Optional)
-            If 'reason' is an Exception, the stack trace will be recorded in the
-            object's 'reason_details' field. Otherwise, the caller may provide a string
-            for this field.
     """
-    if isinstance(reason, Exception):
-        reason_details = truncate_traceback(reason)  # get stack trace
-        reason = repr(reason)
+    reason_details = truncate_traceback(causal_exception)  # get stack trace
+    reason = repr(causal_exception)
 
     logger.error(f'Sending {lta_noun} {lta_object["uuid"]} to quarantine: {reason}.')
     patch_body = {

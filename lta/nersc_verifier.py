@@ -14,9 +14,9 @@ from typing import Any, Dict, Optional
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, InvalidChecksumException, LTANounEnum, QuarantinableException, \
+from .utils import HSICommandFailedException, InvalidChecksumException, LTANounEnum, \
     log_completed_process_outputs
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -75,7 +75,7 @@ class NerscVerifier(Component):
         """NerscVerifier provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
@@ -103,7 +103,7 @@ class NerscVerifier(Component):
             await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
             return True
         except Exception as e:
-            raise QuarantinableException(e, bundle)
+            return QuarantineNow(bundle, e)
 
     async def _update_bundle_in_lta_db(
             self,

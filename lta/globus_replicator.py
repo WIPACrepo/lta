@@ -13,8 +13,8 @@ from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import LTANounEnum, QuarantinableException
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .utils import LTANounEnum
+from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .transfer.globus import GlobusTransfer
@@ -95,7 +95,7 @@ class GlobusReplicator(Component):
         """GlobusReplicator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be transferred
         self.logger.info("Asking the LTA DB for a Bundle to transfer.")
@@ -114,7 +114,7 @@ class GlobusReplicator(Component):
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(e, bundle)
+            return QuarantineNow(bundle, e)
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""

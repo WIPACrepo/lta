@@ -14,8 +14,8 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import InvalidBundlePathException, InvalidChecksumException, LTANounEnum, QuarantinableException
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .utils import InvalidBundlePathException, InvalidChecksumException, LTANounEnum
+from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
 from .lta_tools import from_environment
@@ -105,7 +105,7 @@ class SiteMoveVerifier(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be verified
         self.logger.info("Asking the LTA DB for a Bundle to verify.")
@@ -125,7 +125,7 @@ class SiteMoveVerifier(Component):
             await self._verify_bundle(lta_rc, bundle, bundle_path)
             return True
         except Exception as e:
-            raise QuarantinableException(e, bundle)
+            return QuarantineNow(bundle, e)
 
     def _get_bundle_path(self, bundle: BundleType) -> str:
         """Get and validate the bundle path."""

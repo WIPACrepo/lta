@@ -13,8 +13,8 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools.prometheus_tools import AsyncPromTimer, HistogramBuckets
 
-from .utils import QuarantinableException
-from .component import COMMON_CONFIG, Component, now, work_loop
+from lta.utils import LTANounEnum
+from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -60,7 +60,7 @@ class Deleter(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be deleted
         self.logger.info("Asking the LTA DB for a Bundle to delete.")
@@ -78,7 +78,7 @@ class Deleter(Component):
             await self._delete_bundle(lta_rc, bundle)
             return True
         except Exception as e:
-            raise QuarantinableException(e, bundle)
+            return QuarantineNow(bundle, e)
 
     @AsyncPromTimer(lambda self: self.prometheus.histogram(
         'deleter_action', 'LTA Deleter Action', buckets=HistogramBuckets.SECOND
