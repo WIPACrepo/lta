@@ -90,14 +90,7 @@ class Locator(Component):
         return EXPECTED_CONFIG
 
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a transfer request and perform work on it.
-
-        Returns:
-            False - if no work was claimed.
-            True  - if work was claimed, and the component was successful in processing it.
-        Raises:
-            Any Exception - if an error occurs during work claim processing.
-        """
+        """Claim a transfer request and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
         self.logger.info("Asking the LTA DB for a TransferRequest to work on.")
         pop_body = {

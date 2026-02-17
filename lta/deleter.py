@@ -61,14 +61,7 @@ class Deleter(Component):
         return EXPECTED_CONFIG
 
     async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a bundle and perform work on it.
-
-        Returns:
-            False - if no work was claimed.
-            True  - if work was claimed, and the component was successful in processing it.
-        Raises:
-            Any Exception - if an error occurs during work claim processing.
-        """
+        """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be deleted
         self.logger.info("Asking the LTA DB for a Bundle to delete.")
         pop_body = {
