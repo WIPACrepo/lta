@@ -127,7 +127,8 @@ def main_sync() -> None:
     LOG.info("Starting synchronous code")
     deleter = Deleter(config, LOG)
     # let's get to work
-    start_http_server(int(config["PROMETHEUS_METRICS_PORT"]))
+    metrics_port = int(config["PROMETHEUS_METRICS_PORT"])
+    start_http_server(metrics_port)
     asyncio.run(main(deleter))
     LOG.info("Ending synchronous code")
 

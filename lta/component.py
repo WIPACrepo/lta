@@ -185,7 +185,7 @@ class Component:
 
     @AsyncPromWrapper(lambda self: self.prometheus.counter(
         "work_counts",
-        f"finished work counts",
+        "finished work counts by success/failure",
         labels=["work"],
         finalize=False,
     ))
