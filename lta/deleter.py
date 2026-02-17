@@ -79,9 +79,6 @@ class Deleter(Component):
         except Exception as e:
             return QuarantineNow(bundle, "bundle", e)
 
-    @AsyncPromTimer(lambda self: self.prometheus.histogram(
-        'deleter_action', 'LTA Deleter Action', buckets=HistogramBuckets.SECOND
-    ))
     async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Delete the provided Bundle and update the LTA DB."""
         # determine the name of the file to be deleted
