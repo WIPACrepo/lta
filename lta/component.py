@@ -147,6 +147,7 @@ class Component:
         self.logger.info(f"Ending {self.type} work cycle")
         # if we are configured to run until no work, then die
         if self.run_until_no_work:
+            self.logger.warning(f"Run until no work configured -- exiting.")
             sys.exit()
 
     def validate_config(self, config: Dict[str, str]) -> None:
@@ -188,27 +189,33 @@ class Component:
             # if run once already, AND we are configured to run once and die, then DIE
             if i > 0:
                 if self.run_once_and_die:
+                    self.logger.warning(f"Run once and die configured -- exiting.")
                     sys.exit()
 
             # if applicable, and we've reached the max number of iterations, then STOP
             if self.max_iters_per_work_cycle and i >= self.max_iters_per_work_cycle:
                 self.logger.info(
                     f"Reached max work cycle iterations ({self.max_iters_per_work_cycle})"
-                    f" -- stopping for now."
+                    f" -- pausing for now."
                 )
                 break
 
-            self.logger.info(f"Requesting work on {self.lta_noun} #{i}...")
+            self.logger.info(f"Requesting work on {self.lta_noun} #{i} (0-indexed)...")
 
             # process a single work item
             try:
                 if await self._do_work_claim(lta_rc):
+                    self.logger.info(
+                        f"Successfully claimed and processed {self.lta_noun} "
+                        f"#{i} (0-indexed)."
+                    )
                     prom_counter.labels({self.lta_noun: "success"}).inc()
                 else:  # -> no work claimed -- take a pause
+                    self.logger.info(f"No {self.lta_noun} claimed -- pausing for now.")
                     break
             except QuarantinableException as e:
                 prom_counter.labels({self.lta_noun: "failure"}).inc()
-                await quarantine_now(
+                await quarantine_now(  # function logs
                     self.lta_noun,
                     lta_rc,
                     e.lta_object,
