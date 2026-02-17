@@ -5,6 +5,7 @@
 
 import asyncio
 import itertools
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from logging import Logger
@@ -17,7 +18,7 @@ from uuid import uuid4
 from prometheus_client import Counter
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
-from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels
+from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels, HistogramBuckets
 
 from .lta_const import drain_semaphore_filename
 from .lta_types import BundleType, TransferRequestType
@@ -191,16 +192,19 @@ class Component:
     ))
     async def _do_work(self, prom_counter: Counter, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
+        prometheus_histogram = self.prometheus.histogram(
+            "single_work_latency_seconds",
+            "time taken to process a single work item (only successes are recorded)",
+            buckets=HistogramBuckets.TENMINUTE,  # TODO: do we want to make this configurable?
+        )
 
         for i in itertools.count():
-
-            # if run once already, AND we are configured to run once and die, then DIE
-            if i > 0:
-                if self.run_once_and_die:
-                    self.logger.warning(f"Run once and die configured -- exiting.")
-                    sys.exit()
-
-            # if applicable, and we've reached the max number of iterations, then STOP
+            # initial checks
+            # 1. if applicable, AND run once already, then DIE
+            if self.run_once_and_die and i > 0:
+                self.logger.warning(f"Run once and die configured -- exiting.")
+                sys.exit()
+            # 2. if applicable, AND we've reached the max number of iterations, then STOP
             if self.max_iters_per_work_cycle and i >= self.max_iters_per_work_cycle:
                 self.logger.info(
                     f"Reached max work cycle iterations ({self.max_iters_per_work_cycle})"
@@ -208,15 +212,15 @@ class Component:
                 )
                 break
 
-            self.logger.info(f"Requesting work on #{i} (0-indexed)...")
-
             # process a single work item
+            self.logger.info(f"Requesting work on #{i} (0-indexed)...")
+            _start_ts = time.monotonic()
             ret = await self._do_work_claim(lta_rc)
             if ret is True:  # note: *this is not* `if ret` -- we need to detect 'Quarantine'
-                self.logger.info(
-                    f"Successfully claimed and processed #{i} (0-indexed)."
-                )
+                self.logger.info(f"Successfully claimed and processed #{i} (0-indexed)")
                 prom_counter.labels({"work": "success"}).inc()
+                # only record the current work cycle's latency if it was a success
+                prometheus_histogram.observe(time.monotonic() - _start_ts)
             elif ret is False:
                 # -> no work claimed -- take a pause
                 self.logger.info(f"Nothing to claim -- pausing for now.")
@@ -232,7 +236,7 @@ class Component:
                     self.instance_uuid,
                     self.logger,
                 )
-                self.logger.error(f"Quarantined #{i} (0-indexed).")
+                self.logger.error(f"Quarantined #{i} (0-indexed)")
                 self.logger.exception(ret.causal_exception)
                 if type(ret.causal_exception) in self.quarantine_then_keep_working_exceptions:
                     self.logger.info("Continuing despite quarantining previous.")
