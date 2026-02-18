@@ -129,7 +129,7 @@ class Component:
             'input_status': str(self.input_status),
             'output_status': str(self.output_status),
         })
-        self.quarantine_then_keep_working_exceptions: list[type] = []
+        self.quarantine_then_keep_working_exceptions: list[type[Exception]] = []
         self.max_iters_per_work_cycle: int | None = None  # rare, but used
 
     async def run(self) -> None:

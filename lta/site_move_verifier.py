@@ -38,6 +38,8 @@ MYQUOTA_ARGS = ["/usr/bin/myquota", "-G"]
 
 OLD_MTIME_EPOCH_SEC = 30 * 60  # 30 MINUTES * 60 SEC_PER_MIN
 
+QUARANTINE_THEN_KEEP_WORKING: list[type[Exception]] = [InvalidChecksumException]
+
 
 def as_nonempty_columns(s: str) -> List[str]:
     """Split the provided string into columns and return the non-empty ones."""
@@ -91,7 +93,7 @@ class SiteMoveVerifier(Component):
         self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        self.quarantine_then_keep_working_exceptions = [InvalidChecksumException]
+        self.quarantine_then_keep_working_exceptions = QUARANTINE_THEN_KEEP_WORKING
 
     def _do_status(self) -> Dict[str, Any]:
         """Provide additional status for the SiteMoveVerifier."""

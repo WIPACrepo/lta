@@ -32,6 +32,8 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
+QUARANTINE_THEN_KEEP_WORKING: list[type[Exception]] = [InvalidChecksumException]
+
 
 class NerscVerifier(Component):
     """
@@ -65,7 +67,7 @@ class NerscVerifier(Component):
         self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        self.quarantine_then_keep_working_exceptions = [InvalidChecksumException]
+        self.quarantine_then_keep_working_exceptions = QUARANTINE_THEN_KEEP_WORKING
 
     def _do_status(self) -> Dict[str, Any]:
         """NerscVerifier has no additional status to contribute."""
