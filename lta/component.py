@@ -47,11 +47,6 @@ COMMON_CONFIG: Dict[str, Optional[str]] = {
 LOGGING_DENY_LIST = ["CLIENT_SECRET", "FILE_CATALOG_CLIENT_SECRET"]
 
 
-def now() -> str:
-    """Return string timestamp for current time, to the second."""
-    return datetime.utcnow().isoformat(timespec='seconds')
-
-
 def unique_id() -> str:
     """Return a unique ID for a module instance."""
     return str(uuid4())

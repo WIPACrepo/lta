@@ -1,5 +1,6 @@
 """Common and simple utility functions."""
 
+import datetime
 import traceback
 from logging import Logger
 from subprocess import CompletedProcess
@@ -7,7 +8,6 @@ from typing import Literal
 
 from rest_tools.client import RestClient
 
-from lta.component import now
 from lta.lta_types import BundleType, TransferRequestType
 
 
@@ -15,6 +15,11 @@ LtaObjectType = Literal["BUNDLE", "TRANSFER_REQUEST"]
 
 
 _MAX_QUARANTINE_TRACEBACK_LINES = 500
+
+
+def now() -> str:
+    """Return string timestamp for current time, to the second."""
+    return datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
 
 
 class NoFileCatalogFilesException(Exception):
