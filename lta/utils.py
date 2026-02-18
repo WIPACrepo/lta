@@ -176,7 +176,7 @@ async def quarantine_now(
                 )
             case "BUNDLE":
                 await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
-            case _unknown:
+            case _:
                 raise ValueError(f"Invalid {lta_object_type=}")
     except Exception as e:
         logger.error(

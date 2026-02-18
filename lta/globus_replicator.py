@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import globus_sdk
-from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[import-not-found]
+from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
@@ -84,7 +84,6 @@ class GlobusReplicator(Component):
         self.globus_replicator_source_bind_rootpath = Path(config["GLOBUS_REPLICATOR_SOURCE_BIND_ROOTPATH"])
 
         self.globus_transfer = GlobusTransfer()
-
 
     def _do_status(self) -> Dict[str, Any]:
         """GlobusReplicator has no additional status to contribute."""

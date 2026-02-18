@@ -187,7 +187,7 @@ class Component:
         self.logger.info(f"Ending {self.type} work cycle")
         # if we are configured to run until no work, then die
         if self.run_until_no_work:
-            self.logger.warning(f"Run until no work configured -- exiting.")
+            self.logger.warning("Run until no work configured -- exiting.")
             sys.exit()
 
     def validate_config(self, config: Dict[str, str]) -> None:
@@ -231,7 +231,7 @@ class Component:
         for i in itertools.count():
             # if applicable, AND run once already, then DIE
             if self.run_once_and_die and i > 0:
-                self.logger.warning(f"Run once and die configured -- exiting.")
+                self.logger.warning("Run once and die configured -- exiting.")
                 sys.exit()
 
             # process a single work item
@@ -246,7 +246,7 @@ class Component:
                 # only record the current work cycle's latency if it was a success
                 prometheus_histogram.observe(time.monotonic() - _start_ts)
             elif isinstance(ret, DoWorkClaimResult.NothingClaimed):
-                self.logger.info(f"Found nothing to claim.")
+                self.logger.info("Found nothing to claim.")
             elif isinstance(ret, DoWorkClaimResult.QuarantineNow):
                 prom_counter.labels({"work": "failure"}).inc()
                 await quarantine_now(  # function logs
