@@ -16,7 +16,7 @@ from zipfile import ZIP_STORED, ZipFile
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .component import COMMON_CONFIG, Component, WorkIterationResult, now, work_loop
+from .component import COMMON_CONFIG, Component, DoWorkClaimResult, now, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -75,7 +75,7 @@ class Bundler(Component):
         """Bundler provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be built
         self.logger.info("Asking the LTA DB for a Bundle to build.")
@@ -87,7 +87,7 @@ class Bundler(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to build. Going on vacation.")
-            return WorkIterationResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("pause")
         # configure a RestClient to talk to the File Catalog
         fc_rc = ClientCredentialsAuth(address=self.file_catalog_rest_url,
                                       token_url=self.lta_auth_openid_url,
@@ -96,9 +96,9 @@ class Bundler(Component):
         # process the Bundle that we were given
         try:
             await self._do_work_bundle(fc_rc, lta_rc, bundle)
-            return WorkIterationResult.Successful("continue")
+            return DoWorkClaimResult.Successful("continue")
         except Exception as e:
-            return WorkIterationResult.QuarantineNow("pause", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("pause", bundle, "bundle", e)
 
     async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here

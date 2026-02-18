@@ -16,7 +16,7 @@ from rest_tools.client import RestClient
 
 from .utils import HSICommandFailedException, InvalidChecksumException, \
     log_completed_process_outputs
-from .component import COMMON_CONFIG, Component, WorkIterationResult, now, work_loop
+from .component import COMMON_CONFIG, Component, DoWorkClaimResult, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -76,7 +76,7 @@ class NerscVerifier(Component):
         """NerscVerifier provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
@@ -85,7 +85,7 @@ class NerscVerifier(Component):
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
-            return WorkIterationResult.NothingClaimed(work_cycle_directive="pause")
+            return DoWorkClaimResult.NothingClaimed(work_cycle_directive="pause")
         # 1. Ask the LTA DB for the next Bundle to be verified
         self.logger.info("Asking the LTA DB for a Bundle to verify at NERSC with HPSS.")
         pop_body = {
@@ -96,18 +96,18 @@ class NerscVerifier(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify at NERSC with HPSS. Going on vacation.")
-            return WorkIterationResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("pause")
 
         # process the Bundle that we were given
         try:
             hpss_path = self._verify_bundle_in_hpss(bundle)
             await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
-            return WorkIterationResult.Successful("continue")
+            return DoWorkClaimResult.Successful("continue")
         except Exception as e:
             if type(e) in QUARANTINE_THEN_KEEP_WORKING:
-                return WorkIterationResult.QuarantineNow("continue", bundle, "bundle", e)
+                return DoWorkClaimResult.QuarantineNow("continue", bundle, "bundle", e)
             else:
-                return WorkIterationResult.QuarantineNow("pause", bundle, "bundle", e)
+                return DoWorkClaimResult.QuarantineNow("pause", bundle, "bundle", e)
 
     async def _update_bundle_in_lta_db(
             self,

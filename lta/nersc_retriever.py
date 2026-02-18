@@ -14,7 +14,7 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
 from .utils import HSICommandFailedException
-from .component import COMMON_CONFIG, Component, WorkIterationResult, now, work_loop
+from .component import COMMON_CONFIG, Component, DoWorkClaimResult, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -74,7 +74,7 @@ class NerscRetriever(Component):
         """NerscRetriever provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
@@ -83,7 +83,7 @@ class NerscRetriever(Component):
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
-            return WorkIterationResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("pause")
         # 1. Ask the LTA DB for the next Bundle to be taped
         self.logger.info("Asking the LTA DB for a Bundle copy from tape at NERSC with HPSS.")
         pop_body = {
@@ -94,13 +94,13 @@ class NerscRetriever(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to copy from tape at NERSC with HPSS. Going on vacation.")
-            return WorkIterationResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("pause")
         # process the Bundle that we were given
         try:
             await self._read_bundle_from_hpss(lta_rc, bundle)
-            return WorkIterationResult.Successful("continue")
+            return DoWorkClaimResult.Successful("continue")
         except Exception as e:
-            return WorkIterationResult.QuarantineNow("pause", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("pause", bundle, "bundle", e)
 
     async def _read_bundle_from_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Send a command to HPSS to retrieve the supplied bundle from tape."""

@@ -15,7 +15,7 @@ from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
 from .utils import InvalidBundlePathException, InvalidChecksumException
-from .component import COMMON_CONFIG, Component, WorkIterationResult, now, work_loop
+from .component import COMMON_CONFIG, Component, DoWorkClaimResult, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
 from .lta_tools import from_environment
@@ -106,7 +106,7 @@ class SiteMoveVerifier(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be verified
         self.logger.info("Asking the LTA DB for a Bundle to verify.")
@@ -118,15 +118,15 @@ class SiteMoveVerifier(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify. Going on vacation.")
-            return WorkIterationResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("pause")
 
         # process the Bundle that we were given
         try:
             bundle_path = self._get_bundle_path(bundle)
             await self._verify_bundle(lta_rc, bundle, bundle_path)
-            return WorkIterationResult.Successful("continue")
+            return DoWorkClaimResult.Successful("continue")
         except Exception as e:
-            return WorkIterationResult.QuarantineNow("pause", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("pause", bundle, "bundle", e)
 
     def _get_bundle_path(self, bundle: BundleType) -> str:
         """Get and validate the bundle path."""

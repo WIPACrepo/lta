@@ -63,7 +63,7 @@ def unique_id() -> str:
 WorkCycleDirective = Literal["pause", "continue"]
 
 
-class WorkIterationResult:
+class DoWorkClaimResult:
     """Namespace for return values from Component._do_work_claim()."""
 
     @dc.dataclass(frozen=True, init=False)
@@ -240,14 +240,14 @@ class Component:
             ret = await self._do_work_claim(lta_rc)
 
             # 1. act on the result of the work item's claiming and/or processing
-            if isinstance(ret, WorkIterationResult.Successful):
+            if isinstance(ret, DoWorkClaimResult.Successful):
                 self.logger.info(f"Successfully claimed and processed #{i} (0-indexed)")
                 prom_counter.labels({"work": "success"}).inc()
                 # only record the current work cycle's latency if it was a success
                 prometheus_histogram.observe(time.monotonic() - _start_ts)
-            elif isinstance(ret, WorkIterationResult.NothingClaimed):
+            elif isinstance(ret, DoWorkClaimResult.NothingClaimed):
                 self.logger.info(f"Found nothing to claim.")
-            elif isinstance(ret, WorkIterationResult.QuarantineNow):
+            elif isinstance(ret, DoWorkClaimResult.QuarantineNow):
                 prom_counter.labels({"work": "failure"}).inc()
                 await quarantine_now(  # function logs
                     lta_rc,
@@ -273,15 +273,15 @@ class Component:
             else:
                 raise RuntimeError(f"Unexpected work cycle directive: {ret.work_cycle_directive}")
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
         """Claim a [insert component's LTA object here] and perform work on it.
 
         This function is only called by '_do_work()', and the return values control
         the work cycle and whether the component should continue or pause.
 
         Returns:
-            WorkIterationResult.ReturnType (subclass) - result of the work iteration
-                See classes for details.
+            DoWorkClaimResult.ReturnType (subclass)
+                result of the work iteration -- see classes for details
 
         Raises:
             Any Exception - stops the work cycle, pauses the component,

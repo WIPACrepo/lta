@@ -14,7 +14,7 @@ from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
 from .utils import NoFileCatalogFilesException
-from .component import COMMON_CONFIG, Component, WorkIterationResult, work_loop
+from .component import COMMON_CONFIG, Component, DoWorkClaimResult, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
 
@@ -89,7 +89,7 @@ class Locator(Component):
         """Locator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
         """Claim a transfer request and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
         self.logger.info("Asking the LTA DB for a TransferRequest to work on.")
@@ -101,13 +101,13 @@ class Locator(Component):
         tr = response["transfer_request"]
         if not tr:
             self.logger.info("LTA DB did not provide a TransferRequest to work on. Going on vacation.")
-            return WorkIterationResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("pause")
         # process the TransferRequest that we were given
         try:
             await self._do_work_transfer_request(lta_rc, tr)
-            return WorkIterationResult.Successful("continue")
+            return DoWorkClaimResult.Successful("continue")
         except Exception as e:
-            return WorkIterationResult.QuarantineNow("pause", tr, "transfer_request", e)
+            return DoWorkClaimResult.QuarantineNow("pause", tr, "transfer_request", e)
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,
