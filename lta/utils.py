@@ -17,9 +17,20 @@ LtaObjectType = Literal["BUNDLE", "TRANSFER_REQUEST"]
 _MAX_QUARANTINE_TRACEBACK_LINES = 500
 
 
+def utcnow_isoformat(*, timespec: str | None = None) -> str:
+    """Mimic exactly the result of 'datetime.datetime.utcnow().isoformat(timespec=...)'.
+
+    Note: 'datetime.datetime.utcnow()' is deprecated
+    """
+    dt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    if timespec is None:
+        return dt.isoformat()
+    return dt.isoformat(timespec=timespec)
+
+
 def now() -> str:
     """Return string timestamp for current time, to the second."""
-    return datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
+    return utcnow_isoformat(timespec="seconds")
 
 
 class NoFileCatalogFilesException(Exception):

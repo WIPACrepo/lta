@@ -6,7 +6,6 @@ Run with `python -m lta.rest_server`.
 
 import asyncio
 import time
-from datetime import datetime
 import logging
 import os
 import sys
@@ -31,6 +30,8 @@ from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
 from wipac_dev_tools import from_environment, strtobool, prometheus_tools
 from wipac_dev_tools.string_tools import regex_named_groups_to_template
+
+from .utils import now
 
 # fmt:off
 
@@ -91,11 +92,6 @@ MONGO_INDEXES: List[Tuple[str, str, str, Optional[bool]]] = [
 lta_auth = keycloak_role_auth
 
 # -----------------------------------------------------------------------------
-
-
-def now() -> str:
-    """Return string timestamp for current time, to the second."""
-    return datetime.utcnow().isoformat(timespec='seconds')
 
 
 def unique_id() -> str:
