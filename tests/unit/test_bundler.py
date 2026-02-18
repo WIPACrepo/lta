@@ -19,19 +19,6 @@ from lta.component import DoWorkClaimResult
 TestConfig = Dict[str, str]
 
 
-@pytest.fixture(autouse=True)
-def clear_prometheus() -> None:
-    """Clear Prometheus for each test in this module."""
-    from prometheus_client import REGISTRY
-    collectors = list(REGISTRY._collector_to_names.keys())
-    for collector in collectors:
-        REGISTRY.unregister(collector)
-    from prometheus_client import gc_collector, platform_collector, process_collector
-    process_collector.ProcessCollector()
-    platform_collector.PlatformCollector()
-    gc_collector.GCCollector()
-
-
 @pytest.fixture
 def config() -> TestConfig:
     """Supply a stock Bundler component configuration."""

@@ -17,7 +17,6 @@ from typing import Any, Callable
 
 import lta
 
-import prometheus_client
 import pytest
 from unittest.mock import AsyncMock, patch
 
@@ -51,27 +50,6 @@ def setup(
     instance = mock_globus_transfer.return_value
     instance.transfer_file = AsyncMock()
     instance.wait_for_transfer_to_finish = AsyncMock()
-
-    # --- Stub prometheus *at the module aliases* used by GlobusReplicator ---
-    import lta.globus_replicator as _mod
-
-    class _Counter:
-        def labels(self, **_: Any) -> Any:
-            return self
-
-        def inc(self, *_: Any, **__: Any) -> None:
-            return None
-
-    class _Gauge:
-        def labels(self, **_: Any) -> Any:
-            return self
-
-        def set(self, *_: Any, **__: Any) -> None:
-            return None
-
-    # Patch the names actually used in GlobusReplicator.__init__
-    monkeypatch.setattr(_mod, "Counter", lambda *a, **k: _Counter())
-    monkeypatch.setattr(_mod, "Gauge", lambda *a, **k: _Gauge())
 
 
 # --------------------------------------------------------------------------------------
