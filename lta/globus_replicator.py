@@ -13,7 +13,7 @@ from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
+from .component import COMMON_CONFIG, Component, WorkIterationResult, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .transfer.globus import GlobusTransfer
@@ -94,7 +94,7 @@ class GlobusReplicator(Component):
         """GlobusReplicator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
+    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be transferred
         self.logger.info("Asking the LTA DB for a Bundle to transfer.")
@@ -106,14 +106,14 @@ class GlobusReplicator(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to transfer. Going on vacation.")
-            return False
+            return WorkIterationResult.NothingClaimed("pause")
 
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
-            return True
+            return WorkIterationResult.Successful("continue")
         except Exception as e:
-            return QuarantineNow(bundle, "bundle", e)
+            return WorkIterationResult.QuarantineNow("pause", bundle, "bundle", e)
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""

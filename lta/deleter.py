@@ -13,7 +13,7 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools.prometheus_tools import AsyncPromTimer, HistogramBuckets
 
-from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
+from .component import COMMON_CONFIG, Component, WorkIterationResult, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -59,7 +59,7 @@ class Deleter(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
+    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be deleted
         self.logger.info("Asking the LTA DB for a Bundle to delete.")
@@ -71,13 +71,13 @@ class Deleter(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to delete. Going on vacation.")
-            return False
+            return WorkIterationResult.NothingClaimed("pause")
         # process the Bundle that we were given
         try:
             await self._delete_bundle(lta_rc, bundle)
-            return True
+            return WorkIterationResult.Successful("continue")
         except Exception as e:
-            return QuarantineNow(bundle, "bundle", e)
+            return WorkIterationResult.QuarantineNow("pause", bundle, "bundle", e)
 
     async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Delete the provided Bundle and update the LTA DB."""

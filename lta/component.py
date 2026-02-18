@@ -4,15 +4,16 @@
 # fmt:off
 
 import asyncio
+import dataclasses as dc
 import itertools
 import time
-from dataclasses import dataclass
+from abc import ABC
 from datetime import datetime
 from logging import Logger
 import os
 from pathlib import Path
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 from uuid import uuid4
 
 from prometheus_client import Counter
@@ -56,13 +57,44 @@ def unique_id() -> str:
     return str(uuid4())
 
 
-@dataclass(frozen=True)
-class QuarantineNow:
-    """A dataclass for holding info about an LTA object that needs to be quarantined."""
+# --------------------------------------------------------------------------------------
 
-    lta_object: BundleType | TransferRequestType
-    lta_object_type: LtaObjectType
-    causal_exception: Exception
+
+WorkCycleDirective = Literal["pause", "continue"]
+
+
+class WorkIterationResult:
+    """Namespace for return values from Component._do_work_claim()."""
+
+    @dc.dataclass(frozen=True, init=False)
+    class ReturnType(ABC):
+        """Base marker class."""
+
+        work_cycle_directive: WorkCycleDirective
+
+    @dc.dataclass(frozen=True)
+    class QuarantineNow(ReturnType):
+        """Marker class for when a LTA object should be quarantined, and its info."""
+
+        work_cycle_directive: WorkCycleDirective  # duplicated for non-mypy linters
+        lta_object: BundleType | TransferRequestType
+        lta_object_type: LtaObjectType
+        causal_exception: Exception
+
+    @dc.dataclass(frozen=True)
+    class NothingClaimed(ReturnType):
+        """Marker class for when nothing was claimed."""
+
+        work_cycle_directive: WorkCycleDirective  # duplicated for non-mypy linters
+
+    @dc.dataclass(frozen=True)
+    class Successful(ReturnType):
+        """Marker class for when a single work was successful."""
+
+        work_cycle_directive: WorkCycleDirective  # duplicated for non-mypy linters
+
+
+# --------------------------------------------------------------------------------------
 
 
 class Component:
@@ -129,8 +161,6 @@ class Component:
             'input_status': str(self.input_status),
             'output_status': str(self.output_status),
         })
-        self.quarantine_then_keep_working_exceptions: list[type[Exception]] = []
-        self.max_iters_per_work_cycle: int | None = None  # rare, but used
 
     async def run(self) -> None:
         """Perform the Component's work cycle."""
@@ -199,33 +229,25 @@ class Component:
         )
 
         for i in itertools.count():
-            # initial checks
-            # 1. if applicable, AND run once already, then DIE
+            # if applicable, AND run once already, then DIE
             if self.run_once_and_die and i > 0:
                 self.logger.warning(f"Run once and die configured -- exiting.")
                 sys.exit()
-            # 2. if applicable, AND we've reached the max number of iterations, then STOP
-            if self.max_iters_per_work_cycle and i >= self.max_iters_per_work_cycle:
-                self.logger.info(
-                    f"Reached max work cycle iterations ({self.max_iters_per_work_cycle})"
-                    f" -- pausing for now."
-                )
-                break
 
             # process a single work item
             self.logger.info(f"Requesting work on #{i} (0-indexed)...")
             _start_ts = time.monotonic()
             ret = await self._do_work_claim(lta_rc)
-            if ret is True:  # note: *this is not* `if ret` -- we need to detect 'Quarantine'
+
+            # 1. act on the result of the work item's claiming and/or processing
+            if isinstance(ret, WorkIterationResult.Successful):
                 self.logger.info(f"Successfully claimed and processed #{i} (0-indexed)")
                 prom_counter.labels({"work": "success"}).inc()
                 # only record the current work cycle's latency if it was a success
                 prometheus_histogram.observe(time.monotonic() - _start_ts)
-            elif ret is False:
-                # -> no work claimed -- take a pause
-                self.logger.info(f"Nothing to claim -- pausing for now.")
-                break
-            elif isinstance(ret, QuarantineNow):
+            elif isinstance(ret, WorkIterationResult.NothingClaimed):
+                self.logger.info(f"Found nothing to claim.")
+            elif isinstance(ret, WorkIterationResult.QuarantineNow):
                 prom_counter.labels({"work": "failure"}).inc()
                 await quarantine_now(  # function logs
                     lta_rc,
@@ -238,25 +260,29 @@ class Component:
                 )
                 self.logger.error(f"Quarantined #{i} (0-indexed)")
                 self.logger.exception(ret.causal_exception)
-                if type(ret.causal_exception) in self.quarantine_then_keep_working_exceptions:
-                    self.logger.info("Continuing despite quarantining previous.")
-                else:
-                    self.logger.info("Pausing for now.")
-                    break
+            else:
+                raise RuntimeError(f"Unexpected return value from _do_work_claim(): {ret}")
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
+            # 2. decide whether to continue or pause the work cycle
+            if ret.work_cycle_directive == "pause":
+                self.logger.info("Pausing work cycle.")
+                break
+            elif ret.work_cycle_directive == "continue":
+                self.logger.info("Continuing work cycle.")
+                continue
+            else:
+                raise RuntimeError(f"Unexpected work cycle directive: {ret.work_cycle_directive}")
+
+    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
         """Claim a [insert component's LTA object here] and perform work on it.
 
         This function is only called by '_do_work()', and the return values control
         the work cycle and whether the component should continue or pause.
 
-        See `self.max_iters_per_work_cycle` and `self.quarantine_then_keep_working_exceptions`
-
         Returns:
-            False - if no work was claimed.
-            True  - if work was claimed, and the component was successful in processing it.
-            Quarantine - if work was claimed, and the component encountered an error
-                         that warrants the lta-object should be quarantined.
+            WorkIterationResult.ReturnType (subclass) - result of the work iteration
+                See classes for details.
+
         Raises:
             Any Exception - stops the work cycle, pauses the component,
                             then resumes after some time (work_sleep_duration_seconds).

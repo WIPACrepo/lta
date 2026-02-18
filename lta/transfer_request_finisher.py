@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Union
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
+from .component import COMMON_CONFIG, Component, WorkIterationResult, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -58,9 +58,6 @@ class TransferRequestFinisher(Component):
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
 
-        # even if we are successful, take a break between each bundle
-        self.max_iters_per_work_cycle = 1
-
     def _do_status(self) -> Dict[str, Any]:
         """Provide no additional status."""
         return {}
@@ -69,7 +66,7 @@ class TransferRequestFinisher(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
+    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         fc_rc = ClientCredentialsAuth(
             address=self.file_catalog_rest_url,
@@ -88,7 +85,7 @@ class TransferRequestFinisher(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to check. Going on vacation.")
-            return False
+            return WorkIterationResult.NothingClaimed("pause")
 
         # 2. update the File Catalog + LTA metadata
         await self._migrate_bundle_files_to_file_catalog(fc_rc, lta_rc, bundle)
@@ -96,7 +93,8 @@ class TransferRequestFinisher(Component):
         # 3. update the TransferRequest that spawned the Bundle, if necessary
         await self._update_transfer_request(lta_rc, bundle)
 
-        return True
+        # even if we are successful, take a break between each bundle
+        return WorkIterationResult.Successful("pause")
 
     async def _migrate_bundle_files_to_file_catalog(
         self,

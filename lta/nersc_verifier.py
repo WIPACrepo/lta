@@ -16,7 +16,7 @@ from rest_tools.client import RestClient
 
 from .utils import HSICommandFailedException, InvalidChecksumException, \
     log_completed_process_outputs
-from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
+from .component import COMMON_CONFIG, Component, WorkIterationResult, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -32,7 +32,7 @@ EXPECTED_CONFIG.update({
     "WORK_TIMEOUT_SECONDS": "30",
 })
 
-QUARANTINE_THEN_KEEP_WORKING: list[type[Exception]] = [InvalidChecksumException]
+QUARANTINE_THEN_KEEP_WORKING = [InvalidChecksumException]
 
 
 class NerscVerifier(Component):
@@ -67,7 +67,6 @@ class NerscVerifier(Component):
         self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        self.quarantine_then_keep_working_exceptions = QUARANTINE_THEN_KEEP_WORKING
 
     def _do_status(self) -> Dict[str, Any]:
         """NerscVerifier has no additional status to contribute."""
@@ -77,7 +76,7 @@ class NerscVerifier(Component):
         """NerscVerifier provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
+    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
@@ -86,7 +85,7 @@ class NerscVerifier(Component):
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
-            return False
+            return WorkIterationResult.NothingClaimed(work_cycle_directive="pause")
         # 1. Ask the LTA DB for the next Bundle to be verified
         self.logger.info("Asking the LTA DB for a Bundle to verify at NERSC with HPSS.")
         pop_body = {
@@ -97,15 +96,18 @@ class NerscVerifier(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify at NERSC with HPSS. Going on vacation.")
-            return False
+            return WorkIterationResult.NothingClaimed("pause")
 
         # process the Bundle that we were given
         try:
             hpss_path = self._verify_bundle_in_hpss(bundle)
             await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
-            return True
+            return WorkIterationResult.Successful("continue")
         except Exception as e:
-            return QuarantineNow(bundle, "bundle", e)
+            if type(e) in QUARANTINE_THEN_KEEP_WORKING:
+                return WorkIterationResult.QuarantineNow("continue", bundle, "bundle", e)
+            else:
+                return WorkIterationResult.QuarantineNow("pause", bundle, "bundle", e)
 
     async def _update_bundle_in_lta_db(
             self,

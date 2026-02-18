@@ -15,7 +15,7 @@ from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
 from .utils import InvalidBundlePathException, InvalidChecksumException
-from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
+from .component import COMMON_CONFIG, Component, WorkIterationResult, now, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
 from .lta_tools import from_environment
@@ -93,7 +93,6 @@ class SiteMoveVerifier(Component):
         self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        self.quarantine_then_keep_working_exceptions = QUARANTINE_THEN_KEEP_WORKING
 
     def _do_status(self) -> Dict[str, Any]:
         """Provide additional status for the SiteMoveVerifier."""
@@ -107,7 +106,7 @@ class SiteMoveVerifier(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
+    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be verified
         self.logger.info("Asking the LTA DB for a Bundle to verify.")
@@ -119,15 +118,15 @@ class SiteMoveVerifier(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify. Going on vacation.")
-            return False
+            return WorkIterationResult.NothingClaimed("pause")
 
         # process the Bundle that we were given
         try:
             bundle_path = self._get_bundle_path(bundle)
             await self._verify_bundle(lta_rc, bundle, bundle_path)
-            return True
+            return WorkIterationResult.Successful("continue")
         except Exception as e:
-            return QuarantineNow(bundle, "bundle", e)
+            return WorkIterationResult.QuarantineNow("pause", bundle, "bundle", e)
 
     def _get_bundle_path(self, bundle: BundleType) -> str:
         """Get and validate the bundle path."""

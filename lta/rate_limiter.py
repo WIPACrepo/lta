@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .component import COMMON_CONFIG, Component, QuarantineNow, now, work_loop
+from .component import COMMON_CONFIG, Component, WorkIterationResult, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -56,9 +56,6 @@ class RateLimiter(Component):
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
-        # even if we are successful, take a break between each bundle
-        self.max_iters_per_work_cycle = 1
-
     def _do_status(self) -> Dict[str, Any]:
         """Contribute no additional status."""
         return {}
@@ -96,7 +93,7 @@ class RateLimiter(Component):
         self.logger.info(f"Found {len(disk_files)} entries ({size} bytes) in {path}")
         return (disk_files, size)
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool | QuarantineNow:
+    async def _do_work_claim(self, lta_rc: RestClient) -> WorkIterationResult.ReturnType:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be staged
         self.logger.info("Asking the LTA DB for a Bundle to stage.")
@@ -108,13 +105,14 @@ class RateLimiter(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to stage. Going on vacation.")
-            return False
+            return WorkIterationResult.NothingClaimed("pause")
         # process the Bundle that we were given
         try:
             await self._stage_bundle(lta_rc, bundle)
-            return True
+            # even if we are successful, take a break between each bundle
+            return WorkIterationResult.Successful("pause")
         except Exception as e:
-            return QuarantineNow(bundle, "bundle", e)
+            return WorkIterationResult.QuarantineNow("pause", bundle, "bundle", e)
 
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Stage the Bundle to the output directory for transfer."""
