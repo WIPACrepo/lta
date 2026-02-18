@@ -33,68 +33,6 @@ async def test_000_patch_bundle() -> None:
 ########################################################################################
 
 
-class _DontPassAnything:
-    """Sentinel in tests."""
-
-
-@pytest.mark.parametrize(
-    "reason_details",
-    # because we're passing a string as 'reason' (as opposed to an Exception),
-    #   we have the option of passing a custom 'reason_details' string
-    [
-        # in              out
-        ("custom string", "custom string"),
-        (_DontPassAnything, ""),
-        ("", ""),
-    ],
-)
-@pytest.mark.asyncio
-async def test_100_quarantine_str_reason(reason_details: tuple[str, str]) -> None:
-    """Quarantine builds patch body for string reason."""
-    lta_rc = MagicMock()
-    logger = MagicMock()
-
-    bundle = {"uuid": "U-1", "status": "processing"}
-    name = "scanner"
-    instance_uuid = "I-999"
-    fixed_now = "2026-01-21T12:34:56Z"
-
-    with (
-        patch.object(lta.utils, "now", return_value=fixed_now),
-        patch.object(lta.utils, "patch_bundle", new=AsyncMock()) as patch_bundle,
-    ):
-        await lta.utils.quarantine_bundle(
-            lta_rc=lta_rc,
-            bundle=bundle,
-            reason="something bad happened",
-            name=name,
-            instance_uuid=instance_uuid,
-            logger=logger,
-            **(
-                {"reason_details": reason_details[0]}
-                if reason_details[0] != _DontPassAnything
-                else {}
-            ),
-        )
-
-    logger.error.assert_called_once_with(
-        f'Sending Bundle {bundle["uuid"]} to quarantine: something bad happened.'
-    )
-
-    patch_bundle.assert_awaited_once_with(
-        lta_rc,
-        bundle["uuid"],
-        {
-            "original_status": bundle["status"],
-            "status": "quarantined",
-            "reason": f"BY:{name}-{instance_uuid} REASON:something bad happened",
-            "reason_details": reason_details[1],
-            "work_priority_timestamp": fixed_now,
-        },
-        logger,
-    )
-
-
 @pytest.mark.asyncio
 async def test_110_quarantine_exc_reason() -> None:
     """Quarantine uses repr() for Exception reason."""
@@ -106,17 +44,18 @@ async def test_110_quarantine_exc_reason() -> None:
     instance_uuid = "I-123"
     fixed_now = "2026-01-21T00:00:00Z"
 
-    reason_exc = ValueError("nope")
-    reason_repr = repr(reason_exc)
+    causal_exception = ValueError("nope")
+    reason_repr = repr(causal_exception)
 
     with (
         patch.object(lta.utils, "now", return_value=fixed_now),
         patch.object(lta.utils, "patch_bundle", new=AsyncMock()) as patch_bundle,
     ):
-        await lta.utils.quarantine_bundle(
+        await lta.utils.quarantine_now(
             lta_rc=lta_rc,
-            bundle=bundle,
-            reason=reason_exc,
+            lta_object=bundle,
+            lta_object_type="BUNDLE",
+            causal_exception=causal_exception,
             name=name,
             instance_uuid=instance_uuid,
             logger=logger,
@@ -186,18 +125,19 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
     try:
         my_func()
     except ValueError as e:
-        reason_exc = e
-    reason_repr = repr(reason_exc)
+        causal_exception = e
+    reason_repr = repr(causal_exception)
     # ------------------------------
 
     with (
         patch.object(lta.utils, "now", return_value=fixed_now),
         patch.object(lta.utils, "patch_bundle", new=AsyncMock()) as patch_bundle,
     ):
-        await lta.utils.quarantine_bundle(
+        await lta.utils.quarantine_now(
             lta_rc=lta_rc,
-            bundle=bundle,
-            reason=reason_exc,
+            lta_object=bundle,
+            lta_object_type="BUNDLE",
+            causal_exception=causal_exception,
             name=name,
             instance_uuid=instance_uuid,
             logger=logger,
@@ -233,13 +173,15 @@ async def test_120_quarantine_patch_fails() -> None:
     name = "scanner"
     instance_uuid = "I-000"
 
-    err = RuntimeError("network down")
+    causal_exception = ValueError("patch will fail anyways")
+    patch_err = RuntimeError("network down")
 
-    with patch.object(lta.utils, "patch_bundle", new=AsyncMock(side_effect=err)):
-        await lta.utils.quarantine_bundle(
+    with patch.object(lta.utils, "patch_bundle", new=AsyncMock(side_effect=patch_err)):
+        await lta.utils.quarantine_now(
             lta_rc=lta_rc,
-            bundle=bundle,
-            reason="will fail",
+            lta_object=bundle,
+            lta_object_type="BUNDLE",
+            causal_exception=causal_exception,
             name=name,
             instance_uuid=instance_uuid,
             logger=logger,
@@ -247,10 +189,10 @@ async def test_120_quarantine_patch_fails() -> None:
 
     assert logger.error.call_count == 2
     logger.error.assert_any_call(
-        f'Sending Bundle {bundle["uuid"]} to quarantine: will fail.'
+        f'Sending Bundle {bundle["uuid"]} to quarantine: {repr(causal_exception)}.'
     )
     logger.error.assert_any_call(
-        f'Unable to quarantine Bundle {bundle["uuid"]}: {err}.'
+        f'Unable to quarantine Bundle {bundle["uuid"]}: {patch_err}.'
     )
 
 
