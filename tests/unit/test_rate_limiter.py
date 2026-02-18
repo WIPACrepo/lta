@@ -26,6 +26,7 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
+from lta.component import DoWorkClaimResult
 from lta.rate_limiter import main_sync, RateLimiter
 
 TestConfig = Dict[str, str]
@@ -241,7 +242,7 @@ async def test_rate_limiter_do_work_claim_yes_result(config: TestConfig, mocker:
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
     p = RateLimiter(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    assert await p._do_work_claim(lta_rc_mock) == DoWorkClaimResult.NothingClaimed("PAUSE")
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
 

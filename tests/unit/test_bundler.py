@@ -14,6 +14,7 @@ from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
 from lta.bundler import Bundler, main_sync
+from lta.component import DoWorkClaimResult
 
 TestConfig = Dict[str, str]
 
@@ -239,7 +240,7 @@ async def test_bundler_do_work_no_results(config: TestConfig, mocker: MockerFixt
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
-    claim_mock.return_value = False
+    claim_mock.return_value = DoWorkClaimResult.NothingClaimed("PAUSE")
     p = Bundler(config, logger_mock)
     await p._do_work(lta_rc_mock)
 
@@ -254,7 +255,7 @@ async def test_bundler_do_work_claim_no_results(config: TestConfig, mocker: Mock
         "bundle": None
     }
     p = Bundler(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    assert await p._do_work_claim(lta_rc_mock) == DoWorkClaimResult.NothingClaimed("PAUSE")
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
 
 
@@ -372,7 +373,7 @@ async def test_bundler_do_work_bundle_once_and_die(config: TestConfig, mocker: M
     logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
-    claim_mock.return_value = False
+    claim_mock.return_value = DoWorkClaimResult.NothingClaimed("PAUSE")
     sys_exit_mock = mocker.patch("sys.exit")
     p = Bundler(once, logger_mock)
     await p._do_work(lta_rc_mock)

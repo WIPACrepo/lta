@@ -21,13 +21,13 @@ gc_collector.GCCollector()
 
 from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
-from uuid import uuid1
 
 import pytest
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
+from lta.component import DoWorkClaimResult
 from lta.nersc_verifier import main_sync, NerscVerifier
 from .utils import ObjectLiteral
 
@@ -338,7 +338,7 @@ async def test_nersc_verifier_do_work_claim_exception_caught(config: TestConfig,
     vbih_mock.side_effect = exc
     p = NerscVerifier(config, logger_mock)
     with pytest.raises(type(exc)) as excinfo:
-        assert not await p._do_work_claim(lta_rc_mock)
+        assert await p._do_work_claim(lta_rc_mock) == DoWorkClaimResult.NothingClaimed("PAUSE")
     assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/45ae2ad39c664fda86e5981be0976d9c', mocker.ANY)
     vbih_mock.assert_called_with(
