@@ -134,10 +134,6 @@ class Component:
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        # record some default state
-        timestamp = utcnow_isoformat()
-        self.last_work_begin_timestamp = timestamp
-        self.last_work_end_timestamp = timestamp
         # log the way this component has been configured
         self.logger.info(f"{self.type} '{self.name}' is configured:")
         for name in config:
@@ -166,8 +162,6 @@ class Component:
                                        client_secret=self.client_secret,
                                        timeout=self.work_timeout_seconds,
                                        retries=self.work_retries)
-        # start the work cycle stopwatch
-        self.last_work_begin_timestamp = utcnow_isoformat()
         # perform the work
         try:
             await self._do_work(lta_rc)
@@ -176,8 +170,6 @@ class Component:
             self.logger.error(f"Error occurred during the {self.type} work cycle")
             self.logger.error(f"Error was: '{e}'")
             self.logger.exception(e)  # logs the stack trace
-        # stop the work cycle stopwatch
-        self.last_work_end_timestamp = utcnow_isoformat()
         self.logger.info(f"Ending {self.type} work cycle")
         # if we are configured to run until no work, then die
         if self.run_until_no_work:

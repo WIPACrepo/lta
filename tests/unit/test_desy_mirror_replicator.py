@@ -146,13 +146,6 @@ def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFix
     assert p.logger == logger_mock
 
 
-def test_constructor_state(config: TestConfig, mocker: MockerFixture) -> None:
-    """Verify that the DesyMirrorReplicator has a reasonable state when it is first constructed."""
-    logger_mock = mocker.MagicMock()
-    p = DesyMirrorReplicator(config, logger_mock)
-    assert p.last_work_begin_timestamp is p.last_work_end_timestamp
-
-
 def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the DesyMirrorReplicator has no additional state to offer."""
     logger_mock = mocker.MagicMock()
@@ -250,12 +243,10 @@ async def test_desy_mirror_replicator_run_exception(config: TestConfig, mocker: 
     """Test an error doesn't kill the DesyMirrorReplicator."""
     logger_mock = mocker.MagicMock()
     p = DesyMirrorReplicator(config, logger_mock)
-    p.last_work_end_timestamp = ""
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
-    assert p.last_work_end_timestamp
 
 
 @pytest.mark.asyncio

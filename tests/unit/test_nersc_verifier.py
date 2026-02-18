@@ -165,12 +165,10 @@ async def test_nersc_verifier_run_exception(config: TestConfig, mocker: MockerFi
     """Test an error doesn't kill the NerscVerifier."""
     logger_mock = mocker.MagicMock()
     p = NerscVerifier(config, logger_mock)
-    p.last_work_end_timestamp = ""
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
-    assert p.last_work_end_timestamp
 
 
 @pytest.mark.asyncio

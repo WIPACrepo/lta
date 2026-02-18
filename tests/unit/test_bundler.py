@@ -105,13 +105,6 @@ def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFix
     assert p.logger == logger_mock
 
 
-def test_constructor_state(config: TestConfig, mocker: MockerFixture) -> None:
-    """Verify that the Bundler has a reasonable state when it is first constructed."""
-    logger_mock = mocker.MagicMock()
-    p = Bundler(config, logger_mock)
-    assert p.last_work_begin_timestamp is p.last_work_end_timestamp
-
-
 def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the Bundler has no additional state to offer."""
     logger_mock = mocker.MagicMock()
@@ -221,12 +214,10 @@ async def test_bundler_run_exception(config: TestConfig, mocker: MockerFixture) 
     """Test an error doesn't kill the Bundler."""
     logger_mock = mocker.MagicMock()
     p = Bundler(config, logger_mock)
-    p.last_work_end_timestamp = ""
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
-    assert p.last_work_end_timestamp
 
 
 @pytest.mark.asyncio

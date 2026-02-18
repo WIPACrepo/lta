@@ -248,12 +248,10 @@ async def test_site_move_verifier_run_exception(config: TestConfig, mocker: Mock
     """Test an error doesn't kill the SiteMoveVerifier."""
     logger_mock = mocker.MagicMock()
     p = SiteMoveVerifier(config, logger_mock)
-    p.last_work_end_timestamp = ""
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
-    assert p.last_work_end_timestamp
 
 
 @pytest.mark.asyncio

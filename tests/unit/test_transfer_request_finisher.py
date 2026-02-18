@@ -171,12 +171,10 @@ async def test_transfer_request_finisher_run_exception(config: TestConfig, mocke
     """Test an error doesn't kill the TransferRequestFinisher."""
     logger_mock = mocker.MagicMock()
     p = TransferRequestFinisher(config, logger_mock)
-    p.last_work_end_timestamp = ""
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
-    assert p.last_work_end_timestamp
 
 
 @pytest.mark.asyncio

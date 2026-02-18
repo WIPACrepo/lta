@@ -165,9 +165,7 @@ async def test_deleter_run_exception(config: TestConfig, mocker: MockerFixture) 
     dw_mock = mocker.patch("lta.deleter.Deleter._do_work")  # , new_callable=AsyncMock)
     dw_mock.side_effect = [Exception("bad thing happen!")]
     p = Deleter(config, logger_mock)
-    p.last_work_end_timestamp = ""
     await p.run()
-    assert p.last_work_end_timestamp
     dw_mock.assert_called()
 
 
