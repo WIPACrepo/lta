@@ -170,11 +170,11 @@ async def quarantine_now(
 
     try:
         match lta_object_type:
-            case "transfer_request":
+            case "TRANSFER_REQUEST":
                 await patch_transfer_request(
                     lta_rc, lta_object["uuid"], patch_body, logger
                 )
-            case "bundle":
+            case "BUNDLE":
                 await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
             case _unknown:
                 raise ValueError(f"Invalid {lta_object_type=}")
