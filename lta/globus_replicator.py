@@ -113,7 +113,7 @@ class GlobusReplicator(Component):
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
             return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""

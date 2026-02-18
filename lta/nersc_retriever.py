@@ -100,7 +100,7 @@ class NerscRetriever(Component):
             await self._read_bundle_from_hpss(lta_rc, bundle)
             return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
 
     async def _read_bundle_from_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Send a command to HPSS to retrieve the supplied bundle from tape."""

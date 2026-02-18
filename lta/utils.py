@@ -11,7 +11,7 @@ from lta.component import now
 from lta.lta_types import BundleType, TransferRequestType
 
 
-LtaObjectType = Literal["bundle", "transfer_request"]
+LtaObjectType = Literal["BUNDLE", "TRANSFER_REQUEST"]
 
 
 _MAX_QUARANTINE_TRACEBACK_LINES = 500

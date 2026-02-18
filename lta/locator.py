@@ -107,7 +107,7 @@ class Locator(Component):
             await self._do_work_transfer_request(lta_rc, tr)
             return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", tr, "transfer_request", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", tr, "TRANSFER_REQUEST", e)
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,

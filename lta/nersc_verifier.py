@@ -105,9 +105,9 @@ class NerscVerifier(Component):
             return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
             if type(e) in QUARANTINE_THEN_KEEP_WORKING:
-                return DoWorkClaimResult.QuarantineNow("CONTINUE", bundle, "bundle", e)
+                return DoWorkClaimResult.QuarantineNow("CONTINUE", bundle, "BUNDLE", e)
             else:
-                return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
+                return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
 
     async def _update_bundle_in_lta_db(
             self,

@@ -126,7 +126,7 @@ class SiteMoveVerifier(Component):
             await self._verify_bundle(lta_rc, bundle, bundle_path)
             return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
 
     def _get_bundle_path(self, bundle: BundleType) -> str:
         """Get and validate the bundle path."""

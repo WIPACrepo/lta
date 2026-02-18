@@ -76,7 +76,7 @@ class Deleter(Component):
             await self._delete_bundle(lta_rc, bundle)
             return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
 
     async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Delete the provided Bundle and update the LTA DB."""

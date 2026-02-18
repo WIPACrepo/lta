@@ -98,7 +98,7 @@ class Bundler(Component):
             await self._do_work_bundle(fc_rc, lta_rc, bundle)
             return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
 
     async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here

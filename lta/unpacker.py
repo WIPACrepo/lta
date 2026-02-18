@@ -99,7 +99,7 @@ class Unpacker(Component):
             await self._do_work_bundle(lta_rc, bundle)
             return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
 
     async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""

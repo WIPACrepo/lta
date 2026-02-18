@@ -112,7 +112,7 @@ class RateLimiter(Component):
             # even if we are successful, take a break between each bundle
             return DoWorkClaimResult.Successful("PAUSE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
 
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Stage the Bundle to the output directory for transfer."""
