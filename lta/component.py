@@ -215,11 +215,6 @@ class Component:
         )
 
         for i in itertools.count():
-            # if applicable, AND run once already, then DIE
-            if self.run_once_and_die and i > 0:
-                self.logger.warning("Run once and die configured -- exiting.")
-                sys.exit()
-
             # process a single work item
             self.logger.info(f"Requesting work on #{i} (0-indexed)...")
             _start_ts = time.monotonic()
@@ -249,7 +244,12 @@ class Component:
             else:
                 raise RuntimeError(f"Unexpected return value from _do_work_claim(): {ret}")
 
-            # 2. decide whether to continue or pause the work cycle
+            # 2. if applicable -- since we've run once already, die
+            if self.run_once_and_die:
+                self.logger.warning("Run once and die configured -- exiting.")
+                sys.exit()
+
+            # 3. decide whether to continue or pause the work cycle
             if ret.work_cycle_directive == "PAUSE":
                 self.logger.info("Pausing work cycle.")
                 break
