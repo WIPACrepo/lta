@@ -93,13 +93,13 @@ class Unpacker(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to unpack. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("PAUSE")
         # process the Bundle that we were given
         try:
             await self._do_work_bundle(lta_rc, bundle)
-            return DoWorkClaimResult.Successful("continue")
+            return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("pause", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
 
     async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""

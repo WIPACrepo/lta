@@ -118,15 +118,15 @@ class SiteMoveVerifier(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("PAUSE")
 
         # process the Bundle that we were given
         try:
             bundle_path = self._get_bundle_path(bundle)
             await self._verify_bundle(lta_rc, bundle, bundle_path)
-            return DoWorkClaimResult.Successful("continue")
+            return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("pause", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
 
     def _get_bundle_path(self, bundle: BundleType) -> str:
         """Get and validate the bundle path."""

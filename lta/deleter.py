@@ -70,13 +70,13 @@ class Deleter(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to delete. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("PAUSE")
         # process the Bundle that we were given
         try:
             await self._delete_bundle(lta_rc, bundle)
-            return DoWorkClaimResult.Successful("continue")
+            return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("pause", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
 
     async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Delete the provided Bundle and update the LTA DB."""

@@ -101,13 +101,13 @@ class Locator(Component):
         tr = response["transfer_request"]
         if not tr:
             self.logger.info("LTA DB did not provide a TransferRequest to work on. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("PAUSE")
         # process the TransferRequest that we were given
         try:
             await self._do_work_transfer_request(lta_rc, tr)
-            return DoWorkClaimResult.Successful("continue")
+            return DoWorkClaimResult.Successful("CONTINUE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("pause", tr, "transfer_request", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", tr, "transfer_request", e)
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,

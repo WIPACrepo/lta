@@ -60,7 +60,7 @@ def unique_id() -> str:
 # --------------------------------------------------------------------------------------
 
 
-WorkCycleDirective = Literal["pause", "continue"]
+WorkCycleDirective = Literal["PAUSE", "CONTINUE"]
 
 
 class DoWorkClaimResult:
@@ -264,10 +264,10 @@ class Component:
                 raise RuntimeError(f"Unexpected return value from _do_work_claim(): {ret}")
 
             # 2. decide whether to continue or pause the work cycle
-            if ret.work_cycle_directive == "pause":
+            if ret.work_cycle_directive == "PAUSE":
                 self.logger.info("Pausing work cycle.")
                 break
-            elif ret.work_cycle_directive == "continue":
+            elif ret.work_cycle_directive == "CONTINUE":
                 self.logger.info("Continuing work cycle.")
                 continue
             else:

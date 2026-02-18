@@ -105,14 +105,14 @@ class RateLimiter(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to stage. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("PAUSE")
         # process the Bundle that we were given
         try:
             await self._stage_bundle(lta_rc, bundle)
             # even if we are successful, take a break between each bundle
-            return DoWorkClaimResult.Successful("pause")
+            return DoWorkClaimResult.Successful("PAUSE")
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("pause", bundle, "bundle", e)
+            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "bundle", e)
 
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Stage the Bundle to the output directory for transfer."""

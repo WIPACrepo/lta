@@ -85,7 +85,7 @@ class TransferRequestFinisher(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to check. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("pause")
+            return DoWorkClaimResult.NothingClaimed("PAUSE")
 
         # 2. update the File Catalog + LTA metadata
         await self._migrate_bundle_files_to_file_catalog(fc_rc, lta_rc, bundle)
@@ -94,7 +94,7 @@ class TransferRequestFinisher(Component):
         await self._update_transfer_request(lta_rc, bundle)
 
         # even if we are successful, take a break between each bundle
-        return DoWorkClaimResult.Successful("pause")
+        return DoWorkClaimResult.Successful("PAUSE")
 
     async def _migrate_bundle_files_to_file_catalog(
         self,
