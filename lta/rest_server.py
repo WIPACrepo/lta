@@ -31,7 +31,7 @@ import tornado.web
 from wipac_dev_tools import from_environment, strtobool, prometheus_tools
 from wipac_dev_tools.string_tools import regex_named_groups_to_template
 
-from .utils import now, quarantine_now
+from .utils import now
 
 # fmt:off
 
