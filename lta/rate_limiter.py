@@ -114,6 +114,7 @@ class RateLimiter(Component):
         # process the Bundle that we were given
         try:
             await self._stage_bundle(lta_rc, bundle)
+            prom_tracker.record_success()
             # even if we are successful, take a break between each bundle
             return False
         except Exception as e:

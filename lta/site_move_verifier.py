@@ -94,6 +94,7 @@ class SiteMoveVerifier(Component):
         self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
+        pass
 
     def _do_status(self) -> Dict[str, Any]:
         """Provide additional status for the SiteMoveVerifier."""
@@ -142,6 +143,8 @@ class SiteMoveVerifier(Component):
                 self.instance_uuid,
                 self.logger,
             )
+            if type(e) in QUARANTINE_THEN_KEEP_WORKING:
+                return True
             raise e
 
     def _get_bundle_path(self, bundle: BundleType) -> str:

@@ -90,7 +90,7 @@ class NerscVerifier(Component):
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
-            return DoWorkClaimResult.NothingClaimed(work_cycle_directive="PAUSE")
+            return False
         # 1. Ask the LTA DB for the next Bundle to be verified
         self.logger.info("Asking the LTA DB for a Bundle to verify at NERSC with HPSS.")
         pop_body = {
@@ -110,10 +110,7 @@ class NerscVerifier(Component):
             prom_tracker.record_success()
             return True
         except Exception as e:
-            if type(e) in QUARANTINE_THEN_KEEP_WORKING:
-                return DoWorkClaimResult.QuarantineNow("CONTINUE", bundle, "BUNDLE", e)
-            else:
-                prom_tracker.record_failure()
+            prom_tracker.record_failure()
             await quarantine_now(
                 lta_rc,
                 bundle,
@@ -123,6 +120,8 @@ class NerscVerifier(Component):
                 self.instance_uuid,
                 self.logger,
             )
+            if type(e) in QUARANTINE_THEN_KEEP_WORKING:
+                return True
             raise e
 
     async def _update_bundle_in_lta_db(
