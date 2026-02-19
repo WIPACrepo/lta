@@ -85,7 +85,7 @@ async def test_110_quarantine_exc_reason() -> None:
 # NOTE:
 #   IF LINES ARE ADDED OR REMOVED ABOVE 'raise' IN USE CASE, THE LINE
 #   NUMBERS IN THE EXPECTED STACKTRACE VALUE NEED TO BE UPDATED TOO!
-_first = 133  # <- adjust this knob
+_first = 131  # <- adjust this knob
 # *******************************************************************
 TRACEBACK_111 = f"""Traceback (most recent call last):
   File "{__file__}", line {_first}, in test_111_quarantine_exc_reason_more_stacktrace
