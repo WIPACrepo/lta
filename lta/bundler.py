@@ -108,7 +108,6 @@ class Bundler(Component):
             await quarantine_now(
                 lta_rc,
                 bundle,
-                "BUNDLE",
                 e,
                 self.name,
                 self.instance_uuid,

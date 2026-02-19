@@ -110,7 +110,6 @@ class Picker(Component):
             await quarantine_now(
                 lta_rc,
                 tr,
-                "TRANSFER_REQUEST",
                 e,
                 self.name,
                 self.instance_uuid,

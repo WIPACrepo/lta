@@ -55,7 +55,6 @@ async def test_110_quarantine_exc_reason() -> None:
         await lta.utils.quarantine_now(
             lta_rc=lta_rc,
             lta_object=bundle,
-            lta_object_type="BUNDLE",
             causal_exception=causal_exception,
             name=name,
             instance_uuid=instance_uuid,
@@ -141,7 +140,6 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
         await lta.utils.quarantine_now(
             lta_rc=lta_rc,
             lta_object=bundle,
-            lta_object_type="BUNDLE",
             causal_exception=causal_exception,
             name=name,
             instance_uuid=instance_uuid,
@@ -185,7 +183,6 @@ async def test_120_quarantine_patch_fails() -> None:
         await lta.utils.quarantine_now(
             lta_rc=lta_rc,
             lta_object=bundle,
-            lta_object_type="BUNDLE",
             causal_exception=causal_exception,
             name=name,
             instance_uuid=instance_uuid,

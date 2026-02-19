@@ -2,17 +2,12 @@
 
 import datetime
 import traceback
+from collections.abc import Mapping
 from logging import Logger
 from subprocess import CompletedProcess
-from typing import Literal
+from typing import Any
 
 from rest_tools.client import RestClient
-
-from lta.lta_types import BundleType, TransferRequestType
-
-
-LtaObjectType = Literal["BUNDLE", "TRANSFER_REQUEST"]
-
 
 _MAX_QUARANTINE_TRACEBACK_LINES = 500
 
@@ -141,10 +136,14 @@ def truncate_traceback(exc: Exception) -> str:
         return "".join(lines)
 
 
+TYPE_BUNDLE = "Bundle"
+TYPE_TRANSFER_REQUEST = "TransferRequest"
+SUPPORTED_LTA_TYPES: set[str] = {TYPE_BUNDLE, TYPE_TRANSFER_REQUEST}
+
+
 async def quarantine_now(
     lta_rc: RestClient,
-    lta_object: BundleType | TransferRequestType,
-    lta_object_type: LtaObjectType,
+    lta_object: dict[str, Any],
     causal_exception: Exception,
     name: str,
     instance_uuid: str,
@@ -157,8 +156,6 @@ async def quarantine_now(
             RestClient instance for making API requests
         lta_object:
             BundleType or TransferRequestType dictionary containing object to quarantine
-        lta_object_type:
-            The type of the LTA object to quarantine: 'bundle' or 'transfer_request'
         causal_exception:
             Exception instance for quarantining the lta object. The exception's 'repr()'
             will be used for the 'reason' field. The exception's stack trace will be
@@ -170,11 +167,28 @@ async def quarantine_now(
         logger:
             Logger instance for logging messages
     """
-    reason_details = truncate_traceback(causal_exception)  # get stack trace
+    # 1) lta_object isn't a Dict/Mapping
+    if not isinstance(lta_object, Mapping):
+        logger.error(
+            "Cannot quarantine LTA object: not a dict-like Mapping "
+            f"(got {type(lta_object).__name__}: {lta_object!r})."
+        )
+        return
+
+    # 2) missing required keys
+    for key in {"type", "uuid", "status"}:
+        if key not in lta_object:
+            logger.error(
+                f"Cannot quarantine LTA object: missing key {key} "
+                f"(keys={list(lta_object.keys())}, uuid={lta_object.get('uuid')})."
+            )
+            return
+
+    reason_details = truncate_traceback(causal_exception)
     reason = repr(causal_exception)
 
     logger.error(
-        f'Sending {lta_object_type} {lta_object["uuid"]} to quarantine: {reason}.'
+        f'Sending {lta_object["type"]} {lta_object["uuid"]} to quarantine: {reason}.'
     )
     patch_body = {
         "original_status": lta_object["status"],
@@ -185,16 +199,21 @@ async def quarantine_now(
     }
 
     try:
-        match lta_object_type:
-            case "TRANSFER_REQUEST":
+        match lta_object["type"]:
+            case TYPE_TRANSFER_REQUEST:
                 await patch_transfer_request(
                     lta_rc, lta_object["uuid"], patch_body, logger
                 )
-            case "BUNDLE":
+            case TYPE_BUNDLE:
                 await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
             case _:
-                raise ValueError(f"Invalid {lta_object_type=}")
+                logger.error(
+                    f"Cannot quarantine LTA object: unsupported 'type' value, "
+                    f"'{lta_object['type']}' (supported={sorted(SUPPORTED_LTA_TYPES)!r}, "
+                    f"uuid={lta_object.get('uuid')!r})."
+                )
+                return
     except Exception as e:
         logger.error(
-            f'Unable to quarantine {lta_object_type} {lta_object["uuid"]}: {e}.'
+            f'Failed to quarantine {lta_object["type"]} {lta_object["uuid"]}: {e}.'
         )
