@@ -18,7 +18,7 @@ from typing import Any, Callable
 import lta
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 # --------------------------------------------------------------------------------------
 # Parametrized implementation helper (Globus)
@@ -167,7 +167,7 @@ async def test_030_do_work_claim_no_bundle_returns_false(
     rep = lta.globus_replicator.GlobusReplicator(base_config, logging.getLogger())
     rc = DummyRestClient(responses=[{"bundle": None}])
 
-    got = await rep._do_work_claim(rc)  # type: ignore[arg-type]
+    got = await rep._do_work_claim(rc, MagicMock())  # type: ignore[arg-type]
     assert got is False
     assert any(url.startswith("/Bundles/actions/pop") for _, url, _ in rc.calls)
 
@@ -198,7 +198,7 @@ async def test_040_do_work_claim_success_calls_transfer_and_patch(
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
 
-    ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
+    ok = await rep._do_work_claim(rc, MagicMock())  # type: ignore[arg-type]
     assert ok is True
 
     # GlobusTransfer.transfer_file
@@ -279,7 +279,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
     lta.globus_replicator.GlobusTransfer.return_value.transfer_file.side_effect = _raise  # type: ignore
 
     with pytest.raises(type(exc)) as excinfo:
-        await rep._do_work_claim(rc)  # type: ignore[arg-type]
+        await rep._do_work_claim(rc, MagicMock())  # type: ignore[arg-type]
     assert excinfo.value == exc
     patch_calls = [c for c in rc.calls if c[0] == "PATCH"]
     assert patch_calls
@@ -360,7 +360,7 @@ async def test_080_replication_use_full_bundle_path_true(
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
 
-    ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
+    ok = await rep._do_work_claim(rc, MagicMock())  # type: ignore[arg-type]
     assert ok is True
 
     lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()  # type: ignore
@@ -394,7 +394,7 @@ async def test_090_replication_use_full_bundle_path_false(
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
 
-    ok = await rep._do_work_claim(rc)  # type: ignore[arg-type]
+    ok = await rep._do_work_claim(rc, MagicMock())  # type: ignore[arg-type]
     assert ok is True
 
     lta.globus_replicator.GlobusTransfer.return_value.transfer_file.assert_called_once()  # type: ignore

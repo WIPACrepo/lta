@@ -206,7 +206,7 @@ async def test_deleter_do_work_claim_no_result(config: TestConfig, mocker: Mocke
     }
     db_mock = mocker.patch("lta.deleter.Deleter._delete_bundle", new_callable=AsyncMock)
     p = Deleter(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
     db_mock.assert_not_called()
 

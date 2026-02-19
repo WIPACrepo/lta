@@ -5,7 +5,7 @@
 
 import os
 from typing import Dict
-from unittest.mock import AsyncMock, call, mock_open, patch
+from unittest.mock import AsyncMock, call, mock_open, patch, MagicMock
 from uuid import uuid1
 
 import pytest
@@ -241,7 +241,7 @@ async def test_bundler_do_work_claim_no_results(config: TestConfig, mocker: Mock
         "bundle": None
     }
     p = Bundler(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    assert not await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
 
 
@@ -259,7 +259,7 @@ async def test_bundler_do_work_yes_results(config: TestConfig, mocker: MockerFix
     }
     dwb_mock = mocker.patch("lta.bundler.Bundler._do_work_bundle", new_callable=AsyncMock)
     p = Bundler(config, logger_mock)
-    assert await p._do_work_claim(lta_rc_mock)
+    assert await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
     dwb_mock.assert_called_with(mocker.ANY, mocker.ANY, BUNDLE_OBJ)
 

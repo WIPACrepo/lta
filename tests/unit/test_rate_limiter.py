@@ -211,7 +211,7 @@ async def test_rate_limiter_do_work_claim_no_result(config: TestConfig, mocker: 
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
     p = RateLimiter(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_not_called()
 
@@ -229,7 +229,7 @@ async def test_rate_limiter_do_work_claim_yes_result(config: TestConfig, mocker:
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
     p = RateLimiter(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    assert not await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
 
@@ -251,7 +251,7 @@ async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: Mock
     sb_mock.side_effect = exc
     p = RateLimiter(config, logger_mock)
     with pytest.raises(NicheException):
-        await p._do_work_claim(lta_rc_mock)
+        await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_called_with(mocker.ANY, {"one": 1})
     qb_mock.assert_called_with(

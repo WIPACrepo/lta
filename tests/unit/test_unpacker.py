@@ -261,7 +261,7 @@ async def test_unpacker_do_work_claim_no_results(config: TestConfig, mocker: Moc
         "bundle": None
     }
     p = Unpacker(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    assert not await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
 
 
@@ -279,7 +279,7 @@ async def test_unpacker_do_work_yes_results(config: TestConfig, mocker: MockerFi
     }
     dwb_mock = mocker.patch("lta.unpacker.Unpacker._do_work_bundle", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
-    assert await p._do_work_claim(lta_rc_mock)
+    assert await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
     dwb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ)
 
@@ -302,7 +302,7 @@ async def test_unpacker_do_work_raise_exception(config: TestConfig, mocker: Mock
     qb_mock = mocker.patch("lta.unpacker.quarantine_bundle", new_callable=AsyncMock)
     p = Unpacker(config, logger_mock)
     with pytest.raises(NicheException):
-        await p._do_work_claim(lta_rc_mock)
+        await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
     dwb_mock.assert_called_with(mocker.ANY, BUNDLE_OBJ)
     qb_mock.assert_called_with(

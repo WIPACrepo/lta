@@ -288,7 +288,7 @@ async def test_site_move_verifier_do_work_claim_no_result(config: TestConfig, mo
     }
     vb_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._verify_bundle", new_callable=AsyncMock)
     p = SiteMoveVerifier(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_not_called()
 
@@ -307,7 +307,7 @@ async def test_site_move_verifier_do_work_claim_yes_result(config: TestConfig, m
     }
     vb_mock = mocker.patch("lta.site_move_verifier.SiteMoveVerifier._verify_bundle", new_callable=AsyncMock)
     p = SiteMoveVerifier(config, logger_mock)
-    assert await p._do_work_claim(lta_rc_mock)
+    assert await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=transferring', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vb_mock.assert_called_with(
         mocker.ANY,

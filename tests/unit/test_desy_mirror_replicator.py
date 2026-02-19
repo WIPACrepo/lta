@@ -306,7 +306,7 @@ async def test_desy_mirror_replicator_do_work_claim_no_result(config: TestConfig
     ]
     rbtds_mock = mocker.patch("lta.desy_mirror_replicator.DesyMirrorReplicator._replicate_bundle_to_destination_site", new_callable=AsyncMock)
     p = DesyMirrorReplicator(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=staged', {'claimant': f'{p.name}-{p.instance_uuid}'})
     rbtds_mock.assert_not_called()
 
@@ -326,7 +326,7 @@ async def test_desy_mirror_replicator_do_work_claim_yes_result(config: TestConfi
     ]
     rbtds_mock = mocker.patch("lta.desy_mirror_replicator.DesyMirrorReplicator._replicate_bundle_to_destination_site", new_callable=AsyncMock)
     p = DesyMirrorReplicator(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=staged', {'claimant': f'{p.name}-{p.instance_uuid}'})
     rbtds_mock.assert_called_with(mocker.ANY, {"one": 1})
 
@@ -351,7 +351,7 @@ async def test_desy_mirror_replicator_do_work_claim_write_bundle_raise_exception
     rbtds_mock.side_effect = exc
     p = DesyMirrorReplicator(config, logger_mock)
     with pytest.raises(type(exc)) as excinfo:
-        await p._do_work_claim(lta_rc_mock)
+        await p._do_work_claim(lta_rc_mock, MagicMock())
     assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
     rbtds_mock.assert_called_with(
@@ -383,7 +383,7 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site_raise
     sync_class_mock.return_value.put_path.side_effect = exc
     p = DesyMirrorReplicator(config, logger_mock)
     with pytest.raises(type(exc)) as excinfo:
-        await p._do_work_claim(lta_rc_mock)
+        await p._do_work_claim(lta_rc_mock, MagicMock())
     assert excinfo.value == exc
     sync_class_mock.return_value.put_path.assert_called_with(
         '/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip',
@@ -414,7 +414,7 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site(confi
     sync_class_mock.return_value = AsyncMock()
     sync_class_mock.return_value.put_path = AsyncMock()
     p = DesyMirrorReplicator(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     sync_class_mock.return_value.put_path.assert_called_with(
         '/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip',
         '/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip',

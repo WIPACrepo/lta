@@ -211,7 +211,7 @@ async def test_transfer_request_finisher_do_work_claim_no_result(config: TestCon
     }
     utr_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._update_transfer_request", new_callable=AsyncMock)
     p = TransferRequestFinisher(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
     utr_mock.assert_not_called()
 
@@ -230,7 +230,7 @@ async def test_transfer_request_finisher_do_work_claim_yes_result(config: TestCo
     utr_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._update_transfer_request", new_callable=AsyncMock)
     mbf_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._migrate_bundle_files_to_file_catalog", new_callable=AsyncMock)
     p = TransferRequestFinisher(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    assert not await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
     utr_mock.assert_called_with(mocker.ANY, {"one": 1})
     mbf_mock.assert_called_with(mocker.ANY, mocker.ANY, {"one": 1})

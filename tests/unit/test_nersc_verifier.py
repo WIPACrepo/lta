@@ -170,7 +170,7 @@ async def test_nersc_verifier_hpss_not_available(config: TestConfig, mocker: Moc
         stderr="some text on stderr",
     )
     p = NerscVerifier(config, logger_mock)
-    assert not await p._do_work_claim(AsyncMock())
+    assert not await p._do_work_claim(AsyncMock(), MagicMock())
 
 
 @pytest.mark.asyncio
@@ -249,7 +249,7 @@ async def test_nersc_verifier_do_work_claim_no_result(config: TestConfig, mocker
     }
     vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=MagicMock)
     p = NerscVerifier(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_not_called()
 
@@ -283,7 +283,7 @@ async def test_nersc_verifier_do_work_claim_yes_result(config: TestConfig, mocke
     vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=MagicMock)
     ubild_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._update_bundle_in_lta_db", new_callable=AsyncMock)
     p = NerscVerifier(config, logger_mock)
-    assert await p._do_work_claim(lta_rc_mock)
+    assert await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_called_with({"one": 1})
     ubild_mock.assert_called_with(lta_rc_mock, {"one": 1}, vbih_mock.return_value)
@@ -325,7 +325,7 @@ async def test_nersc_verifier_do_work_claim_exception_caught(config: TestConfig,
     vbih_mock.side_effect = exc
     p = NerscVerifier(config, logger_mock)
     with pytest.raises(type(exc)) as excinfo:
-        assert not await p._do_work_claim(lta_rc_mock)
+        assert not await p._do_work_claim(lta_rc_mock, MagicMock())
     assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/45ae2ad39c664fda86e5981be0976d9c', mocker.ANY)
     vbih_mock.assert_called_with(

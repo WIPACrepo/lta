@@ -238,7 +238,7 @@ async def test_picker_do_work_claim_no_result(config: TestConfig, mocker: Mocker
     }
     dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
     p = Picker(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC&dest=NERSC', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_not_called()
 
@@ -256,7 +256,7 @@ async def test_picker_do_work_claim_yes_result(config: TestConfig, mocker: Mocke
     }
     dwtr_mock = mocker.patch("lta.picker.Picker._do_work_transfer_request", new_callable=AsyncMock)
     p = Picker(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/TransferRequests/actions/pop?source=WIPAC&dest=NERSC', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
 

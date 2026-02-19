@@ -221,7 +221,7 @@ async def test_nersc_retriever_hpss_not_available(config: TestConfig, mocker: Mo
         stderr="some text on stderr",
     )
     p = NerscRetriever(config, logger_mock)
-    assert not await p._do_work_claim(AsyncMock())
+    assert not await p._do_work_claim(AsyncMock(), MagicMock())
 
 
 @pytest.mark.asyncio
@@ -266,7 +266,7 @@ async def test_nersc_retriever_do_work_claim_no_result(config: TestConfig, mocke
     ]
     wbth_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._read_bundle_from_hpss", new_callable=AsyncMock)
     p = NerscRetriever(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
     wbth_mock.assert_not_called()
 
@@ -293,7 +293,7 @@ async def test_nersc_retriever_do_work_claim_yes_result(config: TestConfig, mock
     ]
     wbth_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._read_bundle_from_hpss", new_callable=AsyncMock)
     p = NerscRetriever(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=located', {'claimant': f'{p.name}-{p.instance_uuid}'})
     wbth_mock.assert_called_with(mocker.ANY, {"one": 1})
 
@@ -325,7 +325,7 @@ async def test_nersc_retriever_do_work_claim_write_bundle_raise_exception(config
     wbth_mock.side_effect = exc
     p = NerscRetriever(config, logger_mock)
     with pytest.raises(Exception) as excinfo:
-        await p._do_work_claim(lta_rc_mock)
+        await p._do_work_claim(lta_rc_mock, MagicMock())
     assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
     wbth_mock.assert_called_with(mocker.ANY, {"status": "located", "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5"})
@@ -362,7 +362,7 @@ async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config: TestConfig,
     ehc_mock.side_effect = exc
     p = NerscRetriever(config, logger_mock)
     with pytest.raises(type(exc)) as excinfo:
-        await p._do_work_claim(lta_rc_mock)
+        await p._do_work_claim(lta_rc_mock, MagicMock())
     assert excinfo.value == exc
     ehc_mock.assert_called_with(['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
@@ -396,7 +396,7 @@ async def test_nersc_retriever_read_bundle_from_hpss(config: TestConfig, mocker:
     ehc_mock = mocker.patch("lta.nersc_retriever.NerscRetriever._execute_hsi_command", new_callable=MagicMock)
     ehc_mock.side_effect = [None, None]
     p = NerscRetriever(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     ehc_mock.assert_called_with(['/usr/bin/hsi', 'get', '-c', 'on', '/path/to/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip', ':', '/path/to/hpss/data/exp/IceCube/2019/filtered/PFFilt/1109/398ca1ed-0178-4333-a323-8b9158c3dd88.zip'])
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
@@ -437,7 +437,7 @@ async def test_nersc_retriever_execute_hsi_command_failed(config: TestConfig, mo
     ]
     p = NerscRetriever(config, logger_mock)
     with pytest.raises(HSICommandFailedException):
-        await p._do_work_claim(lta_rc_mock)
+        await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
 
 
@@ -471,5 +471,5 @@ async def test_nersc_retriever_execute_hsi_command_success(config: TestConfig, m
         },
     ]
     p = NerscRetriever(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/398ca1ed-0178-4333-a323-8b9158c3dd88', mocker.ANY)
