@@ -98,8 +98,8 @@ class TransferRequestFinisher(Component):
         # 3. update the TransferRequest that spawned the Bundle, if necessary
         await self._update_transfer_request(lta_rc, bundle)
 
-        # even if we processed a Bundle, take a break between Bundles
-        return False
+        prom_tracker.record_success()
+        return False  # even if we processed a Bundle, take a break between Bundles
 
     async def _migrate_bundle_files_to_file_catalog(
         self,
