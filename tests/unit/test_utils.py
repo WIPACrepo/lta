@@ -62,7 +62,7 @@ async def test_110_quarantine_exc_reason() -> None:
         )
 
     logger.error.assert_called_once_with(
-        f'Sending Bundle {bundle["uuid"]} to quarantine: {reason_repr}.'
+        f'Sending BUNDLE {bundle["uuid"]} to quarantine: {reason_repr}.'
     )
 
     patch_bundle.assert_awaited_once_with(
@@ -85,13 +85,13 @@ async def test_110_quarantine_exc_reason() -> None:
 #   IF LINES ARE ADDED OR REMOVED ABOVE 'raise' IN USE CASE, THE LINE
 #   NUMBERS IN THE EXPECTED STACKTRACE VALUE NEED TO BE UPDATED TOO!
 TRACEBACK_111 = f"""Traceback (most recent call last):
-  File "{__file__}", line 187, in test_111_quarantine_exc_reason_more_stacktrace
+  File "{__file__}", line 126, in test_111_quarantine_exc_reason_more_stacktrace
     my_func()
     ~~~~~~~^^
-  File "{__file__}", line 184, in my_func
+  File "{__file__}", line 123, in my_func
     _inner_func()
     ~~~~~~~~~~~^^
-  File "{__file__}", line 181, in _inner_func
+  File "{__file__}", line 120, in _inner_func
     raise ValueError("nope")
 ValueError: nope
 """
@@ -144,7 +144,7 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
         )
 
     logger.error.assert_called_once_with(
-        f'Sending Bundle {bundle["uuid"]} to quarantine: {reason_repr}.'
+        f'Sending BUNDLE {bundle["uuid"]} to quarantine: {reason_repr}.'
     )
 
     patch_bundle.assert_awaited_once_with(
@@ -189,10 +189,10 @@ async def test_120_quarantine_patch_fails() -> None:
 
     assert logger.error.call_count == 2
     logger.error.assert_any_call(
-        f'Sending Bundle {bundle["uuid"]} to quarantine: {repr(causal_exception)}.'
+        f'Sending BUNDLE {bundle["uuid"]} to quarantine: {repr(causal_exception)}.'
     )
     logger.error.assert_any_call(
-        f'Unable to quarantine Bundle {bundle["uuid"]}: {patch_err}.'
+        f'Unable to quarantine BUNDLE {bundle["uuid"]}: {patch_err}.'
     )
 
 

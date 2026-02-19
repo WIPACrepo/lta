@@ -158,6 +158,8 @@ class Component:
         # perform the work
         try:
             await self._do_work(lta_rc)
+        except SystemExit:  # raised by sys.exit()
+            raise
         except Exception as e:
             # ut oh, something went wrong; log about it
             self.logger.error(f"Error occurred during the {self.type} work cycle")
@@ -216,6 +218,7 @@ class Component:
                 prometheus_histogram,
                 time.monotonic(),  # instantiate now for accurate timestamp
             )
+
             ret = await self._do_work_claim(lta_rc, prom_tracker)
 
             # now, decide whether to continue or pause the work cycle

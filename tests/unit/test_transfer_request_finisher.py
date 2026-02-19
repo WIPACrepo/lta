@@ -5,7 +5,7 @@ from uuid import uuid1
 # fmt:off
 
 from typing import Dict
-from unittest.mock import AsyncMock, call
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 from pytest import MonkeyPatch

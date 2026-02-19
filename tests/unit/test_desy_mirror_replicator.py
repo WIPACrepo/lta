@@ -271,10 +271,9 @@ async def test_desy_mirror_replicator_do_work_yes_then_die(config: TestConfig, m
     logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.desy_mirror_replicator.DesyMirrorReplicator._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
-    exit_mock = mocker.patch("sys.exit")
     p = DesyMirrorReplicator(config_but_die, logger_mock)
-    await p._do_work(AsyncMock())
-    exit_mock.assert_called()
+    with pytest.raises(SystemExit):
+        await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
 

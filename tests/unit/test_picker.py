@@ -14,6 +14,7 @@ from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
 from lta.picker import main_sync, Picker, BUNDLE_SIZE_MAX_FACTOR
+from lta.utils import NoFileCatalogFilesException
 
 TestConfig = Dict[str, str]
 
@@ -303,11 +304,12 @@ async def test_picker_do_work_transfer_request_fc_no_results(config: TestConfig,
     fc_rc_mock.return_value = {
         "files": []
     }
-    await p._do_work_transfer_request(lta_rc_mock, tr)
+    with pytest.raises(NoFileCatalogFilesException):
+        await p._do_work_transfer_request(lta_rc_mock, tr)
     fc_rc_mock.assert_called()
     assert fc_rc_mock.call_args[0][0] == "GET"
     assert fc_rc_mock.call_args[0][1].startswith('/api/files?query={"locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}')
-    lta_rc_mock.request.assert_called_with("PATCH", f'/TransferRequests/{tr_uuid}', QUARANTINE)
+    lta_rc_mock.request.assert_not_called()
 
 
 @pytest.mark.asyncio

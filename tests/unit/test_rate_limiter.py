@@ -236,7 +236,7 @@ async def test_rate_limiter_do_work_claim_yes_result(config: TestConfig, mocker:
 
 @pytest.mark.asyncio
 async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _do_work_claim both calls quarantine_bundle and re-raises when _stage_bundle raises."""
+    """Test that _do_work_claim both calls quarantine_now and re-raises when _stage_bundle raises."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
@@ -246,7 +246,7 @@ async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: Mock
         },
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
-    qb_mock = mocker.patch("lta.rate_limiter.quarantine_bundle", new_callable=AsyncMock)
+    qb_mock = mocker.patch("lta.rate_limiter.quarantine_now", new_callable=AsyncMock)
     exc = NicheException("LTA DB unavailable; currently safer at home")
     sb_mock.side_effect = exc
     p = RateLimiter(config, logger_mock)
@@ -257,6 +257,7 @@ async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: Mock
     qb_mock.assert_called_with(
         lta_rc_mock,
         {"one": 1},
+        "BUNDLE",
         exc,
         p.name,
         p.instance_uuid,

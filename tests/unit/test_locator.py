@@ -15,6 +15,7 @@ from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
 from lta.locator import as_lta_record, main_sync, Locator
+from lta.utils import NoFileCatalogFilesException
 
 TestConfig = Dict[str, str]
 
@@ -272,14 +273,23 @@ async def test_locator_do_work_claim_exception_when_processing(config: TestConfi
         },
     }
     dwtr_mock = mocker.patch("lta.locator.Locator._do_work_transfer_request", new_callable=AsyncMock)
-    dwtr_mock.side_effect = Exception("lta db crashed like launchpad mcquack")
-    qtr_mock = mocker.patch("lta.locator.Locator._quarantine_transfer_request", new_callable=AsyncMock)
+    exc = Exception("lta db crashed like launchpad mcquack")
+    dwtr_mock.side_effect = exc
+    qtr_mock = mocker.patch("lta.locator.quarantine_now", new_callable=AsyncMock)
     p = Locator(config, logger_mock)
     with pytest.raises(Exception):
         await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/TransferRequests/actions/pop?source=NERSC&dest=WIPAC', {'claimant': f'{p.name}-{p.instance_uuid}'})
     dwtr_mock.assert_called_with(mocker.ANY, {"one": 1})
-    qtr_mock.assert_called_with(mocker.ANY, {"one": 1}, "lta db crashed like launchpad mcquack")
+    qtr_mock.assert_called_with(
+        mocker.ANY,
+        {"one": 1},
+        "TRANSFER_REQUEST",
+        exc,
+        'testing-locator',
+        mocker.ANY,
+        mocker.ANY,
+    )
 
 
 @pytest.mark.asyncio
@@ -306,7 +316,6 @@ async def test_locator_do_work_transfer_request_fc_exception(config: TestConfig,
 @pytest.mark.asyncio
 async def test_locator_do_work_transfer_request_fc_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_transfer_request raises an exception when the LTA DB refuses to create an empty list."""
-    QUARANTINE = {'original_status': 'ethereal', 'status': 'quarantined', 'reason': mocker.ANY, 'work_priority_timestamp': mocker.ANY}
     logger_mock = mocker.MagicMock()
     p = Locator(config, logger_mock)
     lta_rc_mock = mocker.MagicMock()
@@ -324,11 +333,12 @@ async def test_locator_do_work_transfer_request_fc_no_results(config: TestConfig
     fc_rc_mock.return_value = {
         "files": []
     }
-    await p._do_work_transfer_request(lta_rc_mock, tr)
+    with pytest.raises(NoFileCatalogFilesException):
+        await p._do_work_transfer_request(lta_rc_mock, tr)
     fc_rc_mock.assert_called()
     assert fc_rc_mock.call_args[0][0] == "GET"
     assert fc_rc_mock.call_args[0][1].startswith('/api/files?query={"locations.archive": {"$eq": true}, "locations.site": {"$eq": "wipac"}, "locations.path": {"$regex": "^/tmp/this/is/just/a/test"}}')
-    lta_rc_mock.request.assert_called_with("PATCH", f'/TransferRequests/{tr_uuid}', QUARANTINE)
+    lta_rc_mock.request.assert_not_called()
 
 
 @pytest.mark.asyncio

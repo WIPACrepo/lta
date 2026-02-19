@@ -224,14 +224,14 @@ async def test_deleter_do_work_claim_yes_result(config: TestConfig, mocker: Mock
     }
     db_mock = mocker.patch("lta.deleter.Deleter._delete_bundle", new_callable=AsyncMock)
     p = Deleter(config, logger_mock)
-    assert await p._do_work_claim(lta_rc_mock)
+    assert await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
     db_mock.assert_called_with(mocker.ANY, {"one": 1})
 
 
 @pytest.mark.asyncio
 async def test_deleter_delete_bundle_raises(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _do_work_claim both calls quarantine_bundle and re-raises when _delete_bundle raises."""
+    """Test that _do_work_claim both calls quarantine_now and re-raises when _delete_bundle raises."""
     logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
@@ -241,17 +241,18 @@ async def test_deleter_delete_bundle_raises(config: TestConfig, mocker: MockerFi
         },
     }
     db_mock = mocker.patch("lta.deleter.Deleter._delete_bundle", new_callable=AsyncMock)
-    qb_mock = mocker.patch("lta.deleter.quarantine_bundle", new_callable=AsyncMock)
+    qb_mock = mocker.patch("lta.deleter.quarantine_now", new_callable=AsyncMock)
     exc = NicheException("LTA DB unavailable; currently safer at home")
     db_mock.side_effect = exc
     p = Deleter(config, logger_mock)
     with pytest.raises(NicheException):
-        await p._do_work_claim(lta_rc_mock)
+        await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=detached', {'claimant': f'{p.name}-{p.instance_uuid}'})
     db_mock.assert_called_with(mocker.ANY, {"one": 1})
     qb_mock.assert_called_with(
         lta_rc_mock,
         {"one": 1},
+        "BUNDLE",
         exc,
         p.name,
         p.instance_uuid,

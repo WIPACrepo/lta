@@ -301,7 +301,7 @@ async def test_060_do_work_runs_until_no_work(
 
     claim_calls: list[bool] = []
 
-    async def _fake_claim(_rc: DummyRestClient) -> bool:
+    async def _fake_claim(_rc: DummyRestClient, _pt) -> bool:
         claim_calls.append(True)
         return len(claim_calls) == 1  # True once, then False
 
@@ -321,7 +321,7 @@ async def test_070_do_work_respects_run_once_and_die(
     rep = lta.globus_replicator.GlobusReplicator(base_config, logging.getLogger())
     rep.run_once_and_die = True
 
-    async def _fake_claim(_rc: DummyRestClient) -> bool:
+    async def _fake_claim(_rc: DummyRestClient, _pt) -> bool:
         return False
 
     rep._do_work_claim = _fake_claim  # type: ignore[assignment]

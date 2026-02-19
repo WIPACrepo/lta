@@ -360,10 +360,9 @@ async def test_bundler_do_work_bundle_once_and_die(config: TestConfig, mocker: M
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
     claim_mock.return_value = False
-    sys_exit_mock = mocker.patch("sys.exit")
     p = Bundler(once, logger_mock)
-    await p._do_work(lta_rc_mock)
-    sys_exit_mock.assert_called()
+    with pytest.raises(SystemExit):
+        await p._do_work(lta_rc_mock)
 
 
 def test_relpath() -> None:
