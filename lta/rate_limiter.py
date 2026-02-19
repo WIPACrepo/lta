@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .component import COMMON_CONFIG, Component, DoWorkClaimResult, work_loop
+from .component import COMMON_CONFIG, Component, work_loop
 from .utils import now
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -111,7 +111,7 @@ class RateLimiter(Component):
         try:
             await self._stage_bundle(lta_rc, bundle)
             # even if we are successful, take a break between each bundle
-            return DoWorkClaimResult.Successful("PAUSE")
+            return False
         except Exception as e:
             return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
 

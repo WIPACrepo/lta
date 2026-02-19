@@ -13,7 +13,7 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .component import COMMON_CONFIG, Component, DoWorkClaimResult, work_loop
+from .component import COMMON_CONFIG, Component, work_loop
 from .utils import now
 from .lta_tools import from_environment
 from .lta_types import BundleType

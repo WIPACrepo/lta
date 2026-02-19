@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Union
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .component import COMMON_CONFIG, Component, DoWorkClaimResult, work_loop
+from .component import COMMON_CONFIG, Component, work_loop
 from .utils import now
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -94,8 +94,8 @@ class TransferRequestFinisher(Component):
         # 3. update the TransferRequest that spawned the Bundle, if necessary
         await self._update_transfer_request(lta_rc, bundle)
 
-        # even if we are successful, take a break between each bundle
-        return DoWorkClaimResult.Successful("PAUSE")
+        # even if we processed a Bundle, take a break between Bundles
+        return False
 
     async def _migrate_bundle_files_to_file_catalog(
         self,

@@ -15,7 +15,7 @@ from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
 from .utils import InvalidBundlePathException, InvalidChecksumException
-from .component import COMMON_CONFIG, Component, DoWorkClaimResult, work_loop
+from .component import COMMON_CONFIG, Component, work_loop
 from .utils import now
 from .crypto import sha512sum
 from .joiner import join_smart
