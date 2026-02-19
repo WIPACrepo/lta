@@ -107,7 +107,7 @@ DatabaseType = dict[str, Any]
 
 # make module-level so same histogram is shared within this process (else, overwrites)
 PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
-    'http_request_duration_seconds',
+    'http_request_duration_seconds',  # common name among other non-LTA apps
     'HTTP request duration in seconds',
     labelnames=('method', 'route', 'status'),
     buckets=prometheus_tools.HistogramBuckets.HTTP_API,
