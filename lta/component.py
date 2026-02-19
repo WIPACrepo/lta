@@ -79,6 +79,8 @@ class PrometheusResultTracker:
         if self._done:
             raise RuntimeError("Cannot record result twice.")
         self._done = True
+        self._failure_counter.inc()
+        # note - we don't record the latency here since it failed (would skew the data)
 
 
 # fmt:off
