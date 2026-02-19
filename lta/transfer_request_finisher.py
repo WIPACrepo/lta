@@ -67,7 +67,7 @@ class TransferRequestFinisher(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         fc_rc = ClientCredentialsAuth(
             address=self.file_catalog_rest_url,

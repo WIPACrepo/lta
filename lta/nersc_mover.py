@@ -77,7 +77,7 @@ class NerscMover(Component):
         """NerscMover provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available

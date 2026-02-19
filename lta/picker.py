@@ -83,7 +83,7 @@ class Picker(Component):
         """Picker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a transfer request and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
         self.logger.info("Asking the LTA DB for a TransferRequest to work on.")

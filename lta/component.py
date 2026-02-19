@@ -4,15 +4,13 @@
 # fmt:off
 
 import asyncio
-import dataclasses as dc
 import itertools
 import time
-from abc import ABC
 from logging import Logger
 import os
 from pathlib import Path
 import sys
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from prometheus_client import Counter
@@ -21,8 +19,7 @@ from wipac_dev_tools import strtobool
 from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels, HistogramBuckets
 
 from .lta_const import drain_semaphore_filename
-from .lta_types import BundleType, TransferRequestType
-from .utils import LtaObjectType, quarantine_now, utcnow_isoformat
+from .utils import quarantine_now
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "CLIENT_ID": None,
@@ -49,46 +46,6 @@ LOGGING_DENY_LIST = ["CLIENT_SECRET", "FILE_CATALOG_CLIENT_SECRET"]
 def unique_id() -> str:
     """Return a unique ID for a module instance."""
     return str(uuid4())
-
-
-# --------------------------------------------------------------------------------------
-
-
-WorkCycleDirective = Literal["PAUSE", "CONTINUE"]
-
-
-class DoWorkClaimResult:
-    """Namespace for return values from Component._do_work_claim()."""
-
-    @dc.dataclass(frozen=True, init=False)
-    class ReturnType(ABC):
-        """Base marker class."""
-
-        work_cycle_directive: WorkCycleDirective
-
-    @dc.dataclass(frozen=True)
-    class QuarantineNow(ReturnType):
-        """Marker class for when a LTA object should be quarantined, and its info."""
-
-        work_cycle_directive: WorkCycleDirective  # duplicated for non-mypy linters
-        lta_object: BundleType | TransferRequestType
-        lta_object_type: LtaObjectType
-        causal_exception: Exception
-
-    @dc.dataclass(frozen=True)
-    class NothingClaimed(ReturnType):
-        """Marker class for when nothing was claimed."""
-
-        work_cycle_directive: WorkCycleDirective  # duplicated for non-mypy linters
-
-    @dc.dataclass(frozen=True)
-    class Successful(ReturnType):
-        """Marker class for when a single work was successful."""
-
-        work_cycle_directive: WorkCycleDirective  # duplicated for non-mypy linters
-
-
-# --------------------------------------------------------------------------------------
 
 
 class Component:
@@ -259,15 +216,15 @@ class Component:
             else:
                 raise RuntimeError(f"Unexpected work cycle directive: {ret.work_cycle_directive}")
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a [insert component's LTA object here] and perform work on it.
 
         This function is only called by '_do_work()', and the return values control
         the work cycle and whether the component should continue or pause.
 
         Returns:
-            DoWorkClaimResult.ReturnType (subclass)
-                result of the work iteration -- see classes for details
+            True  - continue the work cycle
+            False - pause the work cycle
 
         Raises:
             Any Exception - stops the work cycle, pauses the component,

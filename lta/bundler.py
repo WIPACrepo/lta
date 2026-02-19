@@ -76,7 +76,7 @@ class Bundler(Component):
         """Bundler provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be built
         self.logger.info("Asking the LTA DB for a Bundle to build.")

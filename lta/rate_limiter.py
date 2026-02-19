@@ -94,7 +94,7 @@ class RateLimiter(Component):
         self.logger.info(f"Found {len(disk_files)} entries ({size} bytes) in {path}")
         return (disk_files, size)
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> DoWorkClaimResult.ReturnType:
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be staged
         self.logger.info("Asking the LTA DB for a Bundle to stage.")
