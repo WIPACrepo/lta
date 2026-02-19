@@ -619,8 +619,14 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         if 'uuid' in req and req['uuid'] != request_id:
             raise tornado.web.HTTPError(400, reason="bad request")
         sbtr = self.db.TransferRequests
+
+        # prep mongo pieces
         query = {"uuid": request_id}
+        # -- if requestor is resetting the 'reason' field, also reset 'reason_details'
+        if req.get('reason', None) == "":
+            req['reason_details'] = ""
         update = {"$set": req}
+
         logging.debug(f"MONGO-START: db.TransferRequests.find_one_and_update(filter={query}, update={update}, projection={REMOVE_ID}, return_document={AFTER}")
         ret = await sbtr.find_one_and_update(filter=query,
                                              update=update,
