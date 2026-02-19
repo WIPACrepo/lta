@@ -13,13 +13,12 @@ import sys
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from prometheus_client import Counter
+from prometheus_client import Counter, Histogram
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
 from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels, HistogramBuckets
 
 from .lta_const import drain_semaphore_filename
-from .utils import quarantine_now
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "CLIENT_ID": None,
@@ -46,6 +45,43 @@ LOGGING_DENY_LIST = ["CLIENT_SECRET", "FILE_CATALOG_CLIENT_SECRET"]
 def unique_id() -> str:
     """Return a unique ID for a module instance."""
     return str(uuid4())
+
+
+# fmt:on
+
+
+class PrometheusResultTracker:
+    """Class to track the results of a work cycle."""
+
+    def __init__(
+        self,
+        success_counter: Counter,
+        failure_counter: Counter,
+        histogram: Histogram,
+        start_ts: float,
+    ) -> None:
+        self._success_counter = success_counter
+        self._failure_counter = failure_counter
+        self._histogram = histogram
+        self._start_ts = start_ts
+        self._done = False
+
+    def record_success(self):
+        """Record a successful work -- this should only be called at the end."""
+        if self._done:
+            raise RuntimeError("Cannot record result twice.")
+        self._done = True
+        self._success_counter.inc()
+        self._histogram.observe(time.monotonic() - self._start_ts)
+
+    def record_failure(self):
+        """Record a failed work -- this should only be called at the end."""
+        if self._done:
+            raise RuntimeError("Cannot record result twice.")
+        self._done = True
+
+
+# fmt:off
 
 
 class Component:
@@ -174,49 +210,30 @@ class Component:
         for i in itertools.count():
             # process a single work item
             self.logger.info(f"Requesting work on #{i} (0-indexed)...")
-            _start_ts = time.monotonic()
-            ret = await self._do_work_claim(lta_rc)
+            prom_tracker = PrometheusResultTracker(
+                prom_counter.labels({"work": "success"}),
+                prom_counter.labels({"work": "failure"}),
+                prometheus_histogram,
+                time.monotonic(),  # instantiate now for accurate timestamp
+            )
+            ret = await self._do_work_claim(lta_rc, prom_tracker)
 
-            # 1. act on the result of the work item's claiming and/or processing
-            if isinstance(ret, DoWorkClaimResult.Successful):
-                self.logger.info(f"Successfully claimed and processed #{i} (0-indexed)")
-                prom_counter.labels({"work": "success"}).inc()
-                # only record the current work cycle's latency if it was a success
-                prometheus_histogram.observe(time.monotonic() - _start_ts)
-            elif isinstance(ret, DoWorkClaimResult.NothingClaimed):
-                self.logger.info("Found nothing to claim.")
-            elif isinstance(ret, DoWorkClaimResult.QuarantineNow):
-                prom_counter.labels({"work": "failure"}).inc()
-                await quarantine_now(  # function logs
-                    lta_rc,
-                    ret.lta_object,
-                    ret.lta_object_type,
-                    ret.causal_exception,
-                    self.name,
-                    self.instance_uuid,
-                    self.logger,
-                )
-                self.logger.error(f"Quarantined #{i} (0-indexed)")
-                self.logger.exception(ret.causal_exception)
-            else:
-                raise RuntimeError(f"Unexpected return value from _do_work_claim(): {ret}")
-
-            # 2. if applicable -- since we've run once already, die
+            # now, decide whether to continue or pause the work cycle
             if self.run_once_and_die:
                 self.logger.warning("Run once and die configured -- exiting.")
                 sys.exit()
-
-            # 3. decide whether to continue or pause the work cycle
-            if ret.work_cycle_directive == "PAUSE":
-                self.logger.info("Pausing work cycle.")
-                break
-            elif ret.work_cycle_directive == "CONTINUE":
+            elif ret:
                 self.logger.info("Continuing work cycle.")
                 continue
             else:
-                raise RuntimeError(f"Unexpected work cycle directive: {ret.work_cycle_directive}")
+                self.logger.info("Pausing work cycle.")
+                break
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
         """Claim a [insert component's LTA object here] and perform work on it.
 
         This function is only called by '_do_work()', and the return values control
