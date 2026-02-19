@@ -184,8 +184,8 @@ async def quarantine_now(
     for key in {"type", "uuid", "status"}:
         if key not in lta_object:
             logger.error(
-                f"Cannot quarantine LTA object: missing key {key} "
-                f"(keys={list(lta_object.keys())}, uuid={lta_object.get('uuid')})."
+                f"Cannot quarantine LTA object: missing key '{key}' "
+                f"(contains {list(lta_object.keys())}, uuid={lta_object.get('uuid')})."
             )
             return
 

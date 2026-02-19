@@ -1,7 +1,13 @@
 """Pytest fixtures and plugins."""
 
+import logging
 import pytest
 from prometheus_client import REGISTRY
+
+
+def pytest_configure(config):
+    logging.disable(logging.NOTSET)
+    logging.getLogger().setLevel(logging.DEBUG)
 
 
 @pytest.fixture(autouse=True)

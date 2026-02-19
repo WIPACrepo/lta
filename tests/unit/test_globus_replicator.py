@@ -268,6 +268,7 @@ async def test_050_do_work_claim_transfer_error_behaviour(
         "status": "completed",
         "bundle_path": "/one/two/three/bad.zip",
         "path": "/data/exp/IceCube/2015/baz",
+        "type": "Bundle",
     }
     rc = DummyRestClient(responses=[{"bundle": bundle}, {}])
 

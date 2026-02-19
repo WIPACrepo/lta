@@ -1,6 +1,6 @@
 # test_desy_mirror_replicator.py
 """Unit tests for lta/desy_mirror_replicator.py."""
-
+import logging
 # fmt:off
 
 from typing import Awaitable, Callable, cast, Concatenate, ParamSpec, TypeVar
@@ -100,44 +100,39 @@ def test_constructor_config_missing_values(mocker: MockerFixture) -> None:
     config = {
         "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
     }
-    logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
-        DesyMirrorReplicator(config, logger_mock)
+        DesyMirrorReplicator(config, logging.getLogger())
 
 
 def test_constructor_config_poison_values(config: TestConfig, mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     desy_mirror_replicator_config = config.copy()
     del desy_mirror_replicator_config["LTA_REST_URL"]
-    logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
-        DesyMirrorReplicator(desy_mirror_replicator_config, logger_mock)
+        DesyMirrorReplicator(desy_mirror_replicator_config, logging.getLogger())
 
 
 def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a DesyMirrorReplicator can be constructed with a configuration object and a logging object."""
-    logger_mock = mocker.MagicMock()
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-desy-mirror-replicator"
     assert p.work_sleep_duration_seconds == 60
-    assert p.logger == logger_mock
+    assert p.logger == logging.getLogger()
 
 
 def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFixture) -> None:
     """Ensure that sleep seconds can also be provided as an integer."""
-    logger_mock = mocker.MagicMock()
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-desy-mirror-replicator"
     assert p.work_sleep_duration_seconds == 60
-    assert p.logger == logger_mock
+    assert p.logger == logging.getLogger()
 
 
 def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the DesyMirrorReplicator has no additional state to offer."""
-    logger_mock = mocker.MagicMock()
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     assert p._do_status() == {}
 
 
@@ -164,8 +159,7 @@ async def test_script_main_sync(config: TestConfig, mocker: MockerFixture, monke
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the DesyMirrorReplicator logs its configuration."""
-    logger_mock = mocker.MagicMock()
-    desy_mirror_replicator_config = {
+    logger_mock = mocker.MagicMock(); desy_mirror_replicator_config = {
         "CI_TEST": "TRUE",
         "CLIENT_ID": "long-term-archive",
         "CLIENT_SECRET": "hunter2",  # http://bash.org/?244321
@@ -219,8 +213,7 @@ async def test_desy_mirror_replicator_logs_configuration(mocker: MockerFixture) 
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the DesyMirrorReplicator does the work the desy_mirror_replicator should do."""
-    logger_mock = mocker.MagicMock()
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
@@ -229,8 +222,7 @@ async def test_desy_mirror_replicator_run(config: TestConfig, mocker: MockerFixt
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the DesyMirrorReplicator."""
-    logger_mock = mocker.MagicMock()
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
@@ -240,10 +232,9 @@ async def test_desy_mirror_replicator_run_exception(config: TestConfig, mocker: 
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.desy_mirror_replicator.DesyMirrorReplicator._do_work_claim", new_callable=AsyncMock)
     dwc_mock.return_value = False
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
@@ -251,10 +242,9 @@ async def test_desy_mirror_replicator_do_work_no_results(config: TestConfig, moc
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.desy_mirror_replicator.DesyMirrorReplicator._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
@@ -268,10 +258,9 @@ async def test_desy_mirror_replicator_do_work_yes_then_die(config: TestConfig, m
         "RUN_ONCE_AND_DIE": "TRUE",
     })
     # run the _do_work loop and see if we call sys.exit() at some point
-    logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.desy_mirror_replicator.DesyMirrorReplicator._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
-    p = DesyMirrorReplicator(config_but_die, logger_mock)
+    p = DesyMirrorReplicator(config_but_die, logging.getLogger())
     with pytest.raises(SystemExit):
         await p._do_work(AsyncMock())
     dwc_mock.assert_called()
@@ -280,13 +269,12 @@ async def test_desy_mirror_replicator_do_work_yes_then_die(config: TestConfig, m
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.side_effect = [
         HTTPError(500, "LTA DB on fire. Again.")
     ]
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     with pytest.raises(HTTPError):
         await p._do_work(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=staged', {'claimant': f'{p.name}-{p.instance_uuid}'})
@@ -295,7 +283,6 @@ async def test_desy_mirror_replicator_do_work_pop_exception(config: TestConfig, 
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.side_effect = [
@@ -304,7 +291,7 @@ async def test_desy_mirror_replicator_do_work_claim_no_result(config: TestConfig
         }
     ]
     rbtds_mock = mocker.patch("lta.desy_mirror_replicator.DesyMirrorReplicator._replicate_bundle_to_destination_site", new_callable=AsyncMock)
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=staged', {'claimant': f'{p.name}-{p.instance_uuid}'})
     rbtds_mock.assert_not_called()
@@ -313,27 +300,23 @@ async def test_desy_mirror_replicator_do_work_claim_no_result(config: TestConfig
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle it gets from the LTA DB."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.side_effect = [
         {
-            "bundle": {
-                "one": 1,
-            },
+            "bundle": {"one": 1, "uuid": "abc123", "type": "Bundle"}
         }
     ]
     rbtds_mock = mocker.patch("lta.desy_mirror_replicator.DesyMirrorReplicator._replicate_bundle_to_destination_site", new_callable=AsyncMock)
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=DESY&status=staged', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    rbtds_mock.assert_called_with(mocker.ANY, {"one": 1})
+    rbtds_mock.assert_called_with(mocker.ANY, {"one": 1, "uuid": "abc123", "type": "Bundle"})
 
 
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_do_work_claim_write_bundle_raise_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim will quarantine a bundle if an exception occurs."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.side_effect = [
@@ -341,6 +324,7 @@ async def test_desy_mirror_replicator_do_work_claim_write_bundle_raise_exception
             "bundle": {
                 "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5",
                 "status": "staged",
+                "type": "Bundle",
             },
         },
         {}
@@ -348,21 +332,20 @@ async def test_desy_mirror_replicator_do_work_claim_write_bundle_raise_exception
     rbtds_mock = mocker.patch("lta.desy_mirror_replicator.DesyMirrorReplicator._replicate_bundle_to_destination_site", new_callable=AsyncMock)
     exc = Exception("BAD THING HAPPEN!")
     rbtds_mock.side_effect = exc
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     with pytest.raises(type(exc)) as excinfo:
         await p._do_work_claim(lta_rc_mock, MagicMock())
     assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
     rbtds_mock.assert_called_with(
         mocker.ANY,
-        {"uuid": "8f03a920-49d6-446b-811e-830e3f7942f5", "status": "staged"}
+        {"uuid": "8f03a920-49d6-446b-811e-830e3f7942f5", "status": "staged", "type": "Bundle"}
     )
 
 
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_replicate_bundle_to_destination_site_raise_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _replicate_bundle_to_destination_site calls Sync.put_path()."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.side_effect = [
@@ -372,6 +355,7 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site_raise
                 "status": "staged",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "type": "Bundle",
             },
         }
     ]
@@ -380,7 +364,7 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site_raise
     sync_class_mock.return_value.put_path = AsyncMock()
     exc = Exception("DESY system admins won lottery; nobody left to fix the problems")
     sync_class_mock.return_value.put_path.side_effect = exc
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     with pytest.raises(type(exc)) as excinfo:
         await p._do_work_claim(lta_rc_mock, MagicMock())
     assert excinfo.value == exc
@@ -395,7 +379,6 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site_raise
 @pytest.mark.asyncio
 async def test_desy_mirror_replicator_replicate_bundle_to_destination_site(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _replicate_bundle_to_destination_site calls Sync.put_path()."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.side_effect = [
@@ -405,6 +388,7 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site(confi
                 "status": "staged",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "type": "Bundle",
             },
         },
         {},  # response to PATCH /Bundles/<uuid>
@@ -412,7 +396,7 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site(confi
     sync_class_mock = mocker.patch("lta.desy_mirror_replicator.Sync", new_callable=MagicMock)
     sync_class_mock.return_value = AsyncMock()
     sync_class_mock.return_value.put_path = AsyncMock()
-    p = DesyMirrorReplicator(config, logger_mock)
+    p = DesyMirrorReplicator(config, logging.getLogger())
     await p._do_work_claim(lta_rc_mock, MagicMock())
     sync_class_mock.return_value.put_path.assert_called_with(
         '/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip',

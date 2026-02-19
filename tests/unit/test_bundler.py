@@ -1,6 +1,6 @@
 # test_bundler.py
 """Unit tests for lta/bundler.py."""
-
+import logging
 # fmt:off
 
 import os
@@ -56,46 +56,41 @@ def test_constructor_config_missing_values(mocker: MockerFixture) -> None:
     config = {
         "PAN_GALACTIC_GARGLE_BLASTER": "Yummy"
     }
-    logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
-        Bundler(config, logger_mock)
+        Bundler(config, logging.getLogger())
 
 
 def test_constructor_config_poison_values(config: TestConfig, mocker: MockerFixture) -> None:
     """Fail with a ValueError if the configuration object is missing required configuration variables."""
     bundler_config = config.copy()
     del bundler_config["LTA_REST_URL"]
-    logger_mock = mocker.MagicMock()
     with pytest.raises(ValueError):
-        Bundler(bundler_config, logger_mock)
+        Bundler(bundler_config, logging.getLogger())
 
 
 def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a Bundler can be constructed with a configuration object and a logging object."""
-    logger_mock = mocker.MagicMock()
-    p = Bundler(config, logger_mock)
+    p = Bundler(config, logging.getLogger())
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-bundler"
     assert p.work_sleep_duration_seconds == 60
-    assert p.logger == logger_mock
+    assert p.logger == logging.getLogger()
 
 
 def test_constructor_config_sleep_type_int(config: TestConfig, mocker: MockerFixture) -> None:
     """Ensure that sleep seconds can also be provided as an integer."""
-    logger_mock = mocker.MagicMock()
-    p = Bundler(config, logger_mock)
+    p = Bundler(config, logging.getLogger())
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
     assert p.name == "testing-bundler"
     assert p.work_sleep_duration_seconds == 60
-    assert p.logger == logger_mock
+    assert p.logger == logging.getLogger()
 
 
 def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the Bundler has no additional state to offer."""
-    logger_mock = mocker.MagicMock()
-    p = Bundler(config, logger_mock)
+    p = Bundler(config, logging.getLogger())
     assert p._do_status() == {}
 
 
@@ -189,8 +184,7 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
 @pytest.mark.asyncio
 async def test_bundler_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the Bundler does the work the bundler should do."""
-    logger_mock = mocker.MagicMock()
-    p = Bundler(config, logger_mock)
+    p = Bundler(config, logging.getLogger())
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
@@ -199,8 +193,7 @@ async def test_bundler_run(config: TestConfig, mocker: MockerFixture) -> None:
 @pytest.mark.asyncio
 async def test_bundler_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the Bundler."""
-    logger_mock = mocker.MagicMock()
-    p = Bundler(config, logger_mock)
+    p = Bundler(config, logging.getLogger())
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
@@ -210,11 +203,10 @@ async def test_bundler_run_exception(config: TestConfig, mocker: MockerFixture) 
 @pytest.mark.asyncio
 async def test_bundler_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
-    p = Bundler(config, logger_mock)
+    p = Bundler(config, logging.getLogger())
     with pytest.raises(HTTPError):
         await p._do_work(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
@@ -223,24 +215,22 @@ async def test_bundler_do_work_pop_exception(config: TestConfig, mocker: MockerF
 @pytest.mark.asyncio
 async def test_bundler_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
     claim_mock.return_value = False
-    p = Bundler(config, logger_mock)
+    p = Bundler(config, logging.getLogger())
     await p._do_work(lta_rc_mock)
 
 
 @pytest.mark.asyncio
 async def test_bundler_do_work_claim_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim returns False when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.return_value = {
         "bundle": None
     }
-    p = Bundler(config, logger_mock)
+    p = Bundler(config, logging.getLogger())
     assert not await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
 
@@ -248,20 +238,28 @@ async def test_bundler_do_work_claim_no_results(config: TestConfig, mocker: Mock
 @pytest.mark.asyncio
 async def test_bundler_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes each Bundle that it gets from the LTA DB."""
-    BUNDLE_OBJ = {
-        "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56"
-    }
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.return_value = {
-        "bundle": BUNDLE_OBJ
+        "bundle": {
+            "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+            "status": "created",
+            "type": "Bundle"
+        }
     }
     dwb_mock = mocker.patch("lta.bundler.Bundler._do_work_bundle", new_callable=AsyncMock)
-    p = Bundler(config, logger_mock)
+    p = Bundler(config, logging.getLogger())
     assert await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=specified', mocker.ANY)
-    dwb_mock.assert_called_with(mocker.ANY, mocker.ANY, BUNDLE_OBJ)
+    dwb_mock.assert_called_with(
+        mocker.ANY,
+        mocker.ANY,
+        {
+            "uuid": "f74db80e-9661-40cc-9f01-8d087af23f56",
+            "status": "created",
+            "type": "Bundle"
+        }
+    )
 
 
 @pytest.mark.asyncio
@@ -269,7 +267,6 @@ async def test_bundler_do_work_dest_results(config: TestConfig, mocker: MockerFi
     """Test that _do_work_bundle does the work of preparing an archive."""
     BUNDLE_UUID = "f74db80e-9661-40cc-9f01-8d087af23f56"
     FILE_CATALOG_UUID = "a8777703-6e9e-41a2-8776-c924a86d5f0f"
-    logger_mock = mocker.MagicMock()
     fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     fc_rc_mock.request.side_effect = [
         {
@@ -337,7 +334,7 @@ async def test_bundler_do_work_dest_results(config: TestConfig, mocker: MockerFi
     mock_os_path_getsize.return_value = 1048900
     mock_os_remove = mocker.patch("os.remove")
     mock_os_remove.return_value = None
-    p = Bundler(config, logger_mock)
+    p = Bundler(config, logging.getLogger())
     BUNDLE_OBJ = {
         "uuid": BUNDLE_UUID,
         "source": "WIPAC",
@@ -356,11 +353,10 @@ async def test_bundler_do_work_bundle_once_and_die(config: TestConfig, mocker: M
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     once = config.copy()
     once["RUN_ONCE_AND_DIE"] = "True"
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     claim_mock = mocker.patch("lta.bundler.Bundler._do_work_claim", new_callable=AsyncMock)
     claim_mock.return_value = False
-    p = Bundler(once, logger_mock)
+    p = Bundler(once, logging.getLogger())
     with pytest.raises(SystemExit):
         await p._do_work(lta_rc_mock)
 

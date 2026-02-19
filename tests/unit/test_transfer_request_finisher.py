@@ -1,5 +1,6 @@
 # test_transfer_request_finisher.py
 """Unit tests for lta/transfer_request_finisher.py."""
+import logging
 from uuid import uuid1
 
 # fmt:off
@@ -47,8 +48,7 @@ def config() -> TestConfig:
 
 def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a TransferRequestFinisher can be constructed with a configuration object and a logging object."""
-    logger_mock = mocker.MagicMock()
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     assert p.name == "testing-transfer_request_finisher"
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
@@ -56,7 +56,7 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     assert p.work_retries == 3
     assert p.work_sleep_duration_seconds == 60
     assert p.work_timeout_seconds == 30
-    assert p.logger == logger_mock
+    assert p.logger == logging.getLogger()
     assert p.file_catalog_client_id == "file-catalog-client-id"
     assert p.file_catalog_client_secret == "file-catalog-client-secret"
     assert p.file_catalog_rest_url == "http://kVj74wBA1AMTDV8zccn67pGuWJqHZzD7iJQHrUJKA.com/"
@@ -64,8 +64,7 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
 
 def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the TransferRequestFinisher has no additional state to offer."""
-    logger_mock = mocker.MagicMock()
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     assert p._do_status() == {}
 
 
@@ -147,8 +146,7 @@ async def test_script_main_sync(config: TestConfig, mocker: MockerFixture, monke
 @pytest.mark.asyncio
 async def test_transfer_request_finisher_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the TransferRequestFinisher does the work the transfer_request_finisher should do."""
-    logger_mock = mocker.MagicMock()
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
@@ -157,8 +155,7 @@ async def test_transfer_request_finisher_run(config: TestConfig, mocker: MockerF
 @pytest.mark.asyncio
 async def test_transfer_request_finisher_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the TransferRequestFinisher."""
-    logger_mock = mocker.MagicMock()
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
@@ -168,11 +165,10 @@ async def test_transfer_request_finisher_run_exception(config: TestConfig, mocke
 @pytest.mark.asyncio
 async def test_transfer_request_finisher_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     with pytest.raises(HTTPError):
         await p._do_work(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
@@ -181,10 +177,9 @@ async def test_transfer_request_finisher_do_work_pop_exception(config: TestConfi
 @pytest.mark.asyncio
 async def test_transfer_request_finisher_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._do_work_claim", new_callable=AsyncMock)
     dwc_mock.return_value = False
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
@@ -192,10 +187,9 @@ async def test_transfer_request_finisher_do_work_no_results(config: TestConfig, 
 @pytest.mark.asyncio
 async def test_transfer_request_finisher_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
@@ -203,14 +197,13 @@ async def test_transfer_request_finisher_do_work_yes_results(config: TestConfig,
 @pytest.mark.asyncio
 async def test_transfer_request_finisher_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.return_value = {
         "bundle": None
     }
     utr_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._update_transfer_request", new_callable=AsyncMock)
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
     utr_mock.assert_not_called()
@@ -219,21 +212,18 @@ async def test_transfer_request_finisher_do_work_claim_no_result(config: TestCon
 @pytest.mark.asyncio
 async def test_transfer_request_finisher_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.return_value = {
-        "bundle": {
-            "one": 1,
-        },
+        "bundle": {"one": 1, "uuid": "abc123", "type": "Bundle"}
     }
     utr_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._update_transfer_request", new_callable=AsyncMock)
     mbf_mock = mocker.patch("lta.transfer_request_finisher.TransferRequestFinisher._migrate_bundle_files_to_file_catalog", new_callable=AsyncMock)
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     assert not await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=deleted', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    utr_mock.assert_called_with(mocker.ANY, {"one": 1})
-    mbf_mock.assert_called_with(mocker.ANY, mocker.ANY, {"one": 1})
+    utr_mock.assert_called_with(mocker.ANY, {"one": 1, "uuid": "abc123", "type": "Bundle"})
+    mbf_mock.assert_called_with(mocker.ANY, mocker.ANY, {"one": 1, "uuid": "abc123", "type": "Bundle"})
 
 
 @pytest.mark.asyncio
@@ -249,7 +239,6 @@ async def test_transfer_request_finisher_update_transfer_request_no(config: Test
         "request": "a8758a77-2a66-46e6-b43d-b4c74d3078a6",
         "status": "transferring",
     }
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     lta_rc_mock.request.side_effect = [
         {
@@ -262,7 +251,7 @@ async def test_transfer_request_finisher_update_transfer_request_no(config: Test
         transferring_bundle,
         deleted_bundle,
     ]
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     await p._update_transfer_request(lta_rc_mock, deleted_bundle)
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8286d3ba-fb1b-4923-876d-935bdf7fc99e', {
         'claimed': False,
@@ -287,7 +276,6 @@ async def test_transfer_request_finisher_update_transfer_request_yes(config: Tes
     transfer_request = {
         "uuid": "a8758a77-2a66-46e6-b43d-b4c74d3078a6",
     }
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     lta_rc_mock.request.side_effect = [
         {
@@ -302,7 +290,7 @@ async def test_transfer_request_finisher_update_transfer_request_yes(config: Tes
         deleted_bundle,
         finished_bundle,
     ]
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     await p._update_transfer_request(lta_rc_mock, deleted_bundle)
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/90a664cc-e3f9-4421-973f-7bc2bc7407d0', {
         "claimant": mocker.ANY,
@@ -316,7 +304,6 @@ async def test_transfer_request_finisher_update_transfer_request_yes(config: Tes
 @pytest.mark.asyncio
 async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _migrate_bundle_files_to_file_catalog adds a record for the bundle and adds its location to constituent files."""
-    logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
@@ -372,7 +359,7 @@ async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog(co
             "results": []
         },
     ]
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     await p._migrate_bundle_files_to_file_catalog(fc_rc_mock, lta_rc_mock, bundle)
     assert lta_rc_mock.request.call_count == 3
     lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=1000')
@@ -464,7 +451,6 @@ async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog(co
 @pytest.mark.asyncio
 async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog_patch_after_post_error(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _migrate_bundle_files_to_file_catalog patches the record for the bundle already in the file catalog."""
-    logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
@@ -521,7 +507,7 @@ async def test_transfer_request_finisher_migrate_bundle_files_to_file_catalog_pa
             "results": []
         },
     ]
-    p = TransferRequestFinisher(config, logger_mock)
+    p = TransferRequestFinisher(config, logging.getLogger())
     await p._migrate_bundle_files_to_file_catalog(fc_rc_mock, lta_rc_mock, bundle)
     assert lta_rc_mock.request.call_count == 3
     lta_rc_mock.request.assert_called_with("GET", '/Metadata?bundle_uuid=7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef&limit=1000')
