@@ -16,8 +16,8 @@ from rest_tools.client import RestClient
 
 from .utils import HSICommandFailedException, InvalidChecksumException, \
     log_completed_process_outputs
-from .component import COMMON_CONFIG, Component, work_loop
-from .utils import now
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .utils import now, quarantine_now
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -77,7 +77,11 @@ class NerscVerifier(Component):
         """NerscVerifier provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
@@ -97,18 +101,29 @@ class NerscVerifier(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify at NERSC with HPSS. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("PAUSE")
+            return False
 
         # process the Bundle that we were given
         try:
             hpss_path = self._verify_bundle_in_hpss(bundle)
             await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
-            return DoWorkClaimResult.Successful("CONTINUE")
+            prom_tracker.record_success()
+            return True
         except Exception as e:
             if type(e) in QUARANTINE_THEN_KEEP_WORKING:
                 return DoWorkClaimResult.QuarantineNow("CONTINUE", bundle, "BUNDLE", e)
             else:
-                return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
+                prom_tracker.record_failure()
+            await quarantine_now(
+                lta_rc,
+                bundle,
+                "BUNDLE",
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
+            raise e
 
     async def _update_bundle_in_lta_db(
             self,

@@ -13,8 +13,8 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .component import COMMON_CONFIG, Component, work_loop
-from .utils import now
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .utils import now, quarantine_now
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .transfer.sync import Sync
@@ -73,7 +73,11 @@ class DesyMirrorReplicator(Component):
         """DesyMirrorReplicator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be transferred
         self.logger.info("Asking the LTA DB for a Bundle to transfer.")
@@ -85,14 +89,25 @@ class DesyMirrorReplicator(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to transfer. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("PAUSE")
+            return False
 
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
-            return DoWorkClaimResult.Successful("CONTINUE")
+            prom_tracker.record_success()
+            return True
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
+            prom_tracker.record_failure()
+            await quarantine_now(
+                lta_rc,
+                bundle,
+                "BUNDLE",
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
+            raise e
 
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""

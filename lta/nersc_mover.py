@@ -14,8 +14,8 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
 from .utils import HSICommandFailedException
-from .component import COMMON_CONFIG, Component, work_loop
-from .utils import now
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .utils import now, quarantine_now
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -77,7 +77,11 @@ class NerscMover(Component):
         """NerscMover provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
@@ -86,7 +90,7 @@ class NerscMover(Component):
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
-            return DoWorkClaimResult.NothingClaimed("PAUSE")
+            return False
         # 1. Ask the LTA DB for the next Bundle to be taped
         self.logger.info("Asking the LTA DB for a Bundle to tape at NERSC with HPSS.")
         pop_body = {
@@ -97,13 +101,24 @@ class NerscMover(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to tape at NERSC with HPSS. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("PAUSE")
+            return False
         # process the Bundle that we were given
         try:
             await self._write_bundle_to_hpss(lta_rc, bundle)
-            return DoWorkClaimResult.Successful("CONTINUE")
+            prom_tracker.record_success()
+            return True
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
+            prom_tracker.record_failure()
+            await quarantine_now(
+                lta_rc,
+                bundle,
+                "BUNDLE",
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
+            raise e
 
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""

@@ -15,8 +15,8 @@ from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
 from .utils import InvalidBundlePathException, InvalidChecksumException
-from .component import COMMON_CONFIG, Component, work_loop
-from .utils import now
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .utils import now, quarantine_now
 from .crypto import sha512sum
 from .joiner import join_smart
 from .lta_tools import from_environment
@@ -107,7 +107,11 @@ class SiteMoveVerifier(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be verified
         self.logger.info("Asking the LTA DB for a Bundle to verify.")
@@ -119,15 +123,26 @@ class SiteMoveVerifier(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to verify. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("PAUSE")
+            return False
 
         # process the Bundle that we were given
         try:
             bundle_path = self._get_bundle_path(bundle)
             await self._verify_bundle(lta_rc, bundle, bundle_path)
-            return DoWorkClaimResult.Successful("CONTINUE")
+            prom_tracker.record_success()
+            return True
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", bundle, "BUNDLE", e)
+            prom_tracker.record_failure()
+            await quarantine_now(
+                lta_rc,
+                bundle,
+                "BUNDLE",
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
+            raise e
 
     def _get_bundle_path(self, bundle: BundleType) -> str:
         """Get and validate the bundle path."""

@@ -17,7 +17,7 @@ from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
 from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .utils import now, quarantine_now, quarantine_now
 from .crypto import lta_checksums
 from .lta_tools import from_environment
 from .lta_types import BundleType

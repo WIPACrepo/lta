@@ -15,8 +15,8 @@ from binpacking import to_constant_bin_number  # type: ignore
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .utils import NoFileCatalogFilesException
-from .component import COMMON_CONFIG, Component, work_loop
+from .utils import NoFileCatalogFilesException, quarantine_now
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
 
@@ -83,7 +83,11 @@ class Picker(Component):
         """Picker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
         """Claim a transfer request and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
         self.logger.info("Asking the LTA DB for a TransferRequest to work on.")
@@ -95,13 +99,24 @@ class Picker(Component):
         tr = response["transfer_request"]
         if not tr:
             self.logger.info("LTA DB did not provide a TransferRequest to work on. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("PAUSE")
+            return False
         # process the TransferRequest that we were given
         try:
             await self._do_work_transfer_request(lta_rc, tr)
-            return DoWorkClaimResult.Successful("CONTINUE")
+            prom_tracker.record_success()
+            return True
         except Exception as e:
-            return DoWorkClaimResult.QuarantineNow("PAUSE", tr, "TRANSFER_REQUEST", e)
+            prom_tracker.record_failure()
+            await quarantine_now(
+                lta_rc,
+                tr,
+                "TRANSFER_REQUEST",
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
+            raise e
 
     async def _do_work_transfer_request(
         self,
@@ -116,7 +131,7 @@ class Picker(Component):
         # if we didn't get any files, this is bad mojo
         if not catalog_files:
             raise NoFileCatalogFilesException(
-                f"LTA File Catalog returned zero files for the TransferRequest: {tr['uuid']}"
+                "File Catalog returned zero files for the TransferRequest"
             )
 
         # step 2: group those files

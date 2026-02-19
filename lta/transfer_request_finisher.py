@@ -11,8 +11,8 @@ from typing import Any, Dict, Optional, Union
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .component import COMMON_CONFIG, Component, work_loop
-from .utils import now
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .utils import now, quarantine_now
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -67,7 +67,11 @@ class TransferRequestFinisher(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
         """Claim a bundle and perform work on it -- see super for return value meanings."""
         fc_rc = ClientCredentialsAuth(
             address=self.file_catalog_rest_url,
@@ -86,7 +90,7 @@ class TransferRequestFinisher(Component):
         bundle = response["bundle"]
         if not bundle:
             self.logger.info("LTA DB did not provide a Bundle to check. Going on vacation.")
-            return DoWorkClaimResult.NothingClaimed("PAUSE")
+            return False
 
         # 2. update the File Catalog + LTA metadata
         await self._migrate_bundle_files_to_file_catalog(fc_rc, lta_rc, bundle)
