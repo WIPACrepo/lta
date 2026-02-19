@@ -1,6 +1,5 @@
 """Tests for lta/utils.py"""
 
-import asyncio
 import datetime
 import sys
 
@@ -86,7 +85,7 @@ async def test_110_quarantine_exc_reason() -> None:
 # NOTE:
 #   IF LINES ARE ADDED OR REMOVED ABOVE 'raise' IN USE CASE, THE LINE
 #   NUMBERS IN THE EXPECTED STACKTRACE VALUE NEED TO BE UPDATED TOO!
-_first = 132  # <- adjust this knob
+_first = 133  # <- adjust this knob
 # *******************************************************************
 TRACEBACK_111 = f"""Traceback (most recent call last):
   File "{__file__}", line {_first}, in test_111_quarantine_exc_reason_more_stacktrace
@@ -208,9 +207,29 @@ async def test_120_quarantine_patch_fails() -> None:
 @pytest.mark.asyncio
 async def test_200_now_2026() -> None:
     """Test the new function for calculating "now" time strings."""
-    for i in range(10):
-        if datetime.datetime.utcnow().isoformat(timespec="seconds") == lta.utils.now():
-            return
-        else:
-            await asyncio.sleep(0.1)
-    assert False, "time strings are not equivalent (accounted for second-rounding)"
+    fixed = datetime.datetime(2026, 2, 19, 16, 41, 17, 452316)
+
+    class FixedDateTime(datetime.datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed
+
+        @classmethod
+        def now(cls, tz=None):
+            if tz is None:
+                return fixed
+            # fixed is naive; mimic "now(timezone.utc)" returning aware then stripped later
+            return fixed.replace(tzinfo=tz)
+
+    with patch("lta.utils.datetime.datetime", FixedDateTime):
+        old = datetime.datetime.utcnow().isoformat(timespec="seconds")
+        new = lta.utils.now()
+        assert old == new
+
+        # test what 'lta.utils.now()' calls internally
+        new = lta.utils.utcnow_isoformat(timespec="seconds")
+        assert old == new
+
+        old = datetime.datetime.utcnow().isoformat()
+        new = lta.utils.utcnow_isoformat()
+        assert old == new
