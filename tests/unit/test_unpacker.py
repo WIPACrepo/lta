@@ -11,7 +11,6 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from tornado.web import HTTPError
 
-from lta.component import DoWorkClaimResult
 from lta.unpacker import main, main_sync, Unpacker
 from .utils import NicheException, ObjectLiteral
 
@@ -247,7 +246,7 @@ async def test_unpacker_do_work_no_results(config: TestConfig, mocker: MockerFix
     """Test that _do_work goes on vacation when the LTA DB has no work."""
     logger_mock = mocker.MagicMock()
     claim_mock = mocker.patch("lta.unpacker.Unpacker._do_work_claim", new_callable=AsyncMock)
-    claim_mock.return_value = DoWorkClaimResult.NothingClaimed("PAUSE")
+    claim_mock.return_value = False
     p = Unpacker(config, logger_mock)
     await p._do_work(AsyncMock())
 
@@ -262,7 +261,7 @@ async def test_unpacker_do_work_claim_no_results(config: TestConfig, mocker: Moc
         "bundle": None
     }
     p = Unpacker(config, logger_mock)
-    assert await p._do_work_claim(lta_rc_mock) == DoWorkClaimResult.NothingClaimed("PAUSE")
+    assert not await p._do_work_claim(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=NERSC&dest=WIPAC&status=unpacking', mocker.ANY)
 
 
@@ -323,7 +322,7 @@ async def test_unpacker_do_work_bundle_once_and_die(config: TestConfig, mocker: 
     once["RUN_ONCE_AND_DIE"] = "True"
     logger_mock = mocker.MagicMock()
     claim_mock = mocker.patch("lta.unpacker.Unpacker._do_work_claim", new_callable=AsyncMock)
-    claim_mock.return_value = DoWorkClaimResult.NothingClaimed("PAUSE")
+    claim_mock.return_value = False
     sys_exit_mock = mocker.patch("sys.exit")
     p = Unpacker(once, logger_mock)
     await p._do_work(AsyncMock())
