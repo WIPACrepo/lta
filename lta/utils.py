@@ -174,20 +174,22 @@ async def quarantine_now(
     """
     # 1) lta_object isn't a Dict/Mapping
     if not isinstance(lta_object, Mapping):
-        logger.error(
+        err = (
             "Cannot quarantine LTA object: not a dict-like Mapping "
             f"(got {type(lta_object).__name__}: {lta_object!r})."
         )
-        return
+        logger.error(err)
+        raise ValueError(err)
 
     # 2) missing required keys
     for key in {"type", "uuid", "status"}:
         if key not in lta_object:
-            logger.error(
+            err = (
                 f"Cannot quarantine LTA object: missing key '{key}' "
                 f"(contains {list(lta_object.keys())}, uuid={lta_object.get('uuid')})."
             )
-            return
+            logger.error(err)
+            raise ValueError(err)
 
     reason_details = truncate_traceback(causal_exception)
     reason = repr(causal_exception)
@@ -212,13 +214,16 @@ async def quarantine_now(
             case _LtaType.TYPE_BUNDLE:
                 await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
             case _:
-                logger.error(
+                err = (
                     f"Cannot quarantine LTA object: unsupported 'type' value, "
                     f"'{lta_object['type']}' (supported={sorted(SUPPORTED_LTA_TYPES)!r}, "
                     f"uuid={lta_object.get('uuid')!r})."
                 )
-                return
+                logger.error(err)
+                raise ValueError(err)
     except Exception as e:
-        logger.error(
+        err = (
             f'Failed to quarantine {lta_object["type"]} uuid={lta_object["uuid"]}: {e}.'
         )
+        logger.error(err)
+        raise RuntimeError(err) from e
