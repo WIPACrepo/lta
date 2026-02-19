@@ -301,6 +301,7 @@ async def test_nersc_retriever_do_work_claim_write_bundle_raise_exception(config
             "bundle": {
                 "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5",
                 "status": "located",
+                "type": "Bundle",
             },
         },
         {}
@@ -313,7 +314,10 @@ async def test_nersc_retriever_do_work_claim_write_bundle_raise_exception(config
         await p._do_work_claim(lta_rc_mock, MagicMock())
     assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/8f03a920-49d6-446b-811e-830e3f7942f5', mocker.ANY)
-    wbth_mock.assert_called_with(mocker.ANY, {"status": "located", "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5"})
+    wbth_mock.assert_called_with(
+        mocker.ANY,
+        {"status": "located", "uuid": "8f03a920-49d6-446b-811e-830e3f7942f5", "type": "Bundle"}
+    )
 
 
 @pytest.mark.asyncio
@@ -335,6 +339,7 @@ async def test_nersc_retriever_read_bundle_from_hpss_hsi_get(config: TestConfig,
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
                 "status": "located",
+                "type": "Bundle",
             },
         },
         {
@@ -370,6 +375,8 @@ async def test_nersc_retriever_read_bundle_from_hpss(config: TestConfig, mocker:
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "status": "located",
+                "type": "Bundle",
             },
         },
         {
@@ -411,6 +418,7 @@ async def test_nersc_retriever_execute_hsi_command_failed(config: TestConfig, mo
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
                 "status": "located",
+                "type": "Bundle",
             },
         },
         {
@@ -445,6 +453,8 @@ async def test_nersc_retriever_execute_hsi_command_success(config: TestConfig, m
                 "uuid": "398ca1ed-0178-4333-a323-8b9158c3dd88",
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
+                "status": "located",
+                "type": "Bundle",
             },
         },
         {

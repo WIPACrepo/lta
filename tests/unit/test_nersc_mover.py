@@ -392,6 +392,7 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mock
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
                 "status": "taping",
+                "type": "Bundle",
             },
         }
     ]
@@ -484,6 +485,7 @@ async def test_nersc_mover_execute_hsi_command_failed(config: TestConfig, mocker
                 "bundle_path": "/path/on/source/rse/398ca1ed-0178-4333-a323-8b9158c3dd88.zip",
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
                 "status": "taping",
+                "type": "Bundle",
             },
         },
         {
