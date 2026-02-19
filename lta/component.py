@@ -198,16 +198,16 @@ class Component:
         raise NotImplementedError()
 
     @AsyncPromWrapper(lambda self: self.prometheus.counter(
-        "work_counts",
-        "finished work counts by success/failure",
+        "lta_work_counts",
+        "LTA component: finished work counts by success/failure",
         labels=["work"],
         finalize=False,
     ))
     async def _do_work(self, prom_counter: Counter, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
         prometheus_histogram = self.prometheus.histogram(
-            "single_work_latency_seconds",
-            "time taken to process a single work item (only successes are recorded)",
+            "lta_single_work_latency_seconds",
+            "LTA component: time taken to process a single work item (only successes are recorded)",
             buckets=HistogramBuckets.TENMINUTE,  # TODO: do we want to make this configurable?
         )
 
