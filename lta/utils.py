@@ -136,9 +136,14 @@ def truncate_traceback(exc: Exception) -> str:
         return "".join(lines)
 
 
-TYPE_BUNDLE = "Bundle"
-TYPE_TRANSFER_REQUEST = "TransferRequest"
-SUPPORTED_LTA_TYPES: set[str] = {TYPE_BUNDLE, TYPE_TRANSFER_REQUEST}
+class _LtaType:
+    """LTA object types."""
+
+    TYPE_BUNDLE = "Bundle"
+    TYPE_TRANSFER_REQUEST = "TransferRequest"
+
+
+SUPPORTED_LTA_TYPES: set[str] = {_LtaType.TYPE_BUNDLE, _LtaType.TYPE_TRANSFER_REQUEST}
 
 
 async def quarantine_now(
@@ -188,7 +193,7 @@ async def quarantine_now(
     reason = repr(causal_exception)
 
     logger.error(
-        f'Sending {lta_object["type"]} {lta_object["uuid"]} to quarantine: {reason}.'
+        f'Sending {lta_object["type"]} uuid={lta_object["uuid"]} to quarantine: {reason}.'
     )
     patch_body = {
         "original_status": lta_object["status"],
@@ -200,11 +205,11 @@ async def quarantine_now(
 
     try:
         match lta_object["type"]:
-            case TYPE_TRANSFER_REQUEST:
+            case _LtaType.TYPE_TRANSFER_REQUEST:
                 await patch_transfer_request(
                     lta_rc, lta_object["uuid"], patch_body, logger
                 )
-            case TYPE_BUNDLE:
+            case _LtaType.TYPE_BUNDLE:
                 await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
             case _:
                 logger.error(
@@ -215,5 +220,5 @@ async def quarantine_now(
                 return
     except Exception as e:
         logger.error(
-            f'Failed to quarantine {lta_object["type"]} {lta_object["uuid"]}: {e}.'
+            f'Failed to quarantine {lta_object["type"]} uuid={lta_object["uuid"]}: {e}.'
         )
