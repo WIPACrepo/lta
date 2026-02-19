@@ -222,8 +222,6 @@ async def quarantine_now(
                 logger.error(err)
                 raise ValueError(err)
     except Exception as e:
-        err = (
-            f'Failed to quarantine {lta_object["type"]} uuid={lta_object["uuid"]}: {e}.'
-        )
+        err = f'Failed to quarantine {lta_object["type"]} uuid={lta_object["uuid"]}: {repr(e)}.'
         logger.error(err)
         raise RuntimeError(err) from e

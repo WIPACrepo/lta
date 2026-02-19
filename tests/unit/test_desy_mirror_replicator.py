@@ -357,7 +357,8 @@ async def test_desy_mirror_replicator_replicate_bundle_to_destination_site_raise
                 "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
                 "type": "Bundle",
             },
-        }
+        },
+        {},  # <- for the quarantine PATCH
     ]
     sync_class_mock = mocker.patch("lta.desy_mirror_replicator.Sync", new_callable=MagicMock)
     sync_class_mock.return_value = AsyncMock()

@@ -342,7 +342,8 @@ async def test_nersc_mover_write_bundle_to_hpss_mkdir(config: TestConfig, mocker
                 "status": "taping",
                 "type": "Bundle",
             },
-        }
+        },
+        {},  # <- for the quarantine PATCH
     ]
     ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=MagicMock)
     exc = HSICommandFailedException("from test", MagicMock(), MagicMock())
@@ -394,7 +395,8 @@ async def test_nersc_mover_write_bundle_to_hpss_hsi_put(config: TestConfig, mock
                 "status": "taping",
                 "type": "Bundle",
             },
-        }
+        },
+        {},  # <- for the quarantine PATCH
     ]
     ehc_mock = mocker.patch("lta.nersc_mover.NerscMover._execute_hsi_command", new_callable=MagicMock)
     exc = HSICommandFailedException("from test", MagicMock(), MagicMock())

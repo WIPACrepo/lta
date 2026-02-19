@@ -159,22 +159,30 @@ async def test_120_quarantine_patch_fails() -> None:
     """Quarantine logs and swallows patch failure."""
     lta_rc = MagicMock()
 
-    bundle = {"uuid": "U-3", "status": "new"}
+    bundle = {"uuid": "U-3", "status": "foo", "type": "Bundle"}
     name = "scanner"
     instance_uuid = "I-000"
 
     causal_exception = ValueError("patch will fail anyways")
     patch_err = RuntimeError("network down")
 
-    with patch.object(lta.utils, "patch_bundle", new=AsyncMock(side_effect=patch_err)):
-        await lta.utils.quarantine_now(
-            lta_rc=lta_rc,
-            lta_object=bundle,
-            causal_exception=causal_exception,
-            name=name,
-            instance_uuid=instance_uuid,
-            logger=logging.getLogger(),
+    with pytest.raises(RuntimeError) as excinfo:
+        with patch.object(
+            lta.utils, "patch_bundle", new=AsyncMock(side_effect=patch_err)
+        ):
+            await lta.utils.quarantine_now(
+                lta_rc=lta_rc,
+                lta_object=bundle,
+                causal_exception=causal_exception,
+                name=name,
+                instance_uuid=instance_uuid,
+                logger=logging.getLogger(),
+            )
+    assert repr(excinfo.value) == repr(
+        RuntimeError(
+            "Failed to quarantine Bundle uuid=U-3: RuntimeError('network down')."
         )
+    )
 
 
 ########################################################################################
