@@ -1,5 +1,7 @@
 """Tests for lta/utils.py"""
 
+import asyncio
+import datetime
 import sys
 
 import pytest
@@ -84,14 +86,16 @@ async def test_110_quarantine_exc_reason() -> None:
 # NOTE:
 #   IF LINES ARE ADDED OR REMOVED ABOVE 'raise' IN USE CASE, THE LINE
 #   NUMBERS IN THE EXPECTED STACKTRACE VALUE NEED TO BE UPDATED TOO!
+_first = 132  # <- adjust this knob
+# *******************************************************************
 TRACEBACK_111 = f"""Traceback (most recent call last):
-  File "{__file__}", line 126, in test_111_quarantine_exc_reason_more_stacktrace
+  File "{__file__}", line {_first}, in test_111_quarantine_exc_reason_more_stacktrace
     my_func()
     ~~~~~~~^^
-  File "{__file__}", line 123, in my_func
+  File "{__file__}", line {_first - 3}, in my_func
     _inner_func()
     ~~~~~~~~~~~^^
-  File "{__file__}", line 120, in _inner_func
+  File "{__file__}", line {_first - 6}, in _inner_func
     raise ValueError("nope")
 ValueError: nope
 """
@@ -99,6 +103,8 @@ ValueError: nope
 # python pre-3.13 did not have '~~~^^' arrows
 TRACEBACK_111_PY_OLD = TRACEBACK_111.replace("    ~~~~~~~^^\n", "")
 TRACEBACK_111_PY_OLD = TRACEBACK_111_PY_OLD.replace("    ~~~~~~~~~~~^^\n", "")
+
+
 # *******************************************************************
 
 
@@ -197,3 +203,14 @@ async def test_120_quarantine_patch_fails() -> None:
 
 
 ########################################################################################
+
+
+@pytest.mark.asyncio
+async def test_200_now_2026() -> None:
+    """Test the new function for calculating "now" time strings."""
+    for i in range(10):
+        if datetime.datetime.utcnow().isoformat(timespec="seconds") == lta.utils.now():
+            return
+        else:
+            await asyncio.sleep(0.1)
+    assert False, "time strings are not equivalent (accounted for second-rounding)"
