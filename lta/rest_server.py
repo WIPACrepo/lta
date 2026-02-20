@@ -130,17 +130,38 @@ PROMETHEUS_STATUS_GAUGE = prometheus_client.Gauge(
     labelnames=("collection", "status"),
 )
 
+PROMETHEUS_BUNDLE_CLAIMS_TOTAL = prometheus_client.Counter(
+    "lta_bundle_claims_total",
+    "Count of successful bundle claims",
+    labelnames=("status",),
+)
+
 PROMETHEUS_STATUS_CHANGES_TOTAL = prometheus_client.Counter(
     "lta_status_changes_total",
     "Count of LTA object status changes",
     labelnames=("collection", "from_status", "to_status"),
 )
 
-PROMETHEUS_BUNDLE_CLAIMS_TOTAL = prometheus_client.Counter(
-    "lta_bundle_claims_total",
-    "Count of successful bundle claims",
-    labelnames=("status",),
-)
+
+def inc_status_change_counter_if_changed(
+    collection: str,
+    before_doc: Mapping[str, Any] | None,
+    after_doc: Mapping[str, Any],
+) -> None:
+    """Increment the status-change counter only when the status actually changed."""
+    if before_doc is None:
+        from_status = "__new__"
+    else:
+        from_status = str(before_doc.get("status", "__none__"))
+
+    to_status = after_doc.get("status", "__none__")
+
+    if from_status != to_status:
+        PROMETHEUS_STATUS_CHANGES_TOTAL.labels(
+            collection=collection,
+            from_status="__none__" if from_status is None else str(from_status),
+            to_status="__none__" if to_status is None else str(to_status),
+        ).inc()
 
 
 # -----------------------------------------------------------------------------
@@ -213,7 +234,7 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             PROMETHEUS_STATUS_CHANGES_TOTAL.labels(
                 collection=BUNDLES,
                 from_status="__created__",
-                to_status=x.get("status"),  # do this individually so we don't assume statuses
+                to_status=x.get("status", "__none__"),  # do this individually so we don't assume statuses
             ).inc()
 
         self.set_status(201)
@@ -395,10 +416,13 @@ class BundlesSingleHandler(BaseLTAHandler):
         if 'uuid' in req and req['uuid'] != bundle_id:
             raise tornado.web.HTTPError(400, reason="bad request")
 
-        # get before state -- for prometheus metrics
-        before = await self.db.Bundles.find_one(
-            {"uuid": bundle_id}, projection={"_id": False, "status": True}
-        )
+        # if changing satus: get before state -- for prometheus metrics
+        if "status" in req:
+            before_for_status_change = await self.db.Bundles.find_one(
+                {"uuid": bundle_id}, projection={"_id": False, "status": True}
+            )
+        else:
+            before_for_status_change = None
 
         # prep mongo pieces
         query = {"uuid": bundle_id}
@@ -418,11 +442,8 @@ class BundlesSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
 
         # done
-        PROMETHEUS_STATUS_CHANGES_TOTAL.labels(
-            collection=BUNDLES,
-            from_status=before.get("status") if before else None,
-            to_status=ret.get("status"),
-        ).inc()
+        if before_for_status_change:
+            inc_status_change_counter_if_changed(BUNDLES, before_for_status_change, ret)
         logging.info(f"patched Bundle {bundle_id} with {req}")
         self.write(ret)
 
@@ -673,10 +694,13 @@ class TransferRequestSingleHandler(BaseLTAHandler):
 
         sbtr = self.db.TransferRequests
 
-        # get before state -- for prometheus metrics
-        before = await sbtr.find_one(
-            {"uuid": request_id}, projection={"_id": False, "status": True}
-        )
+        # if changing satus: get before state -- for prometheus metrics
+        if "status" in req:
+            before_for_status_change = await sbtr.find_one(
+                {"uuid": request_id}, projection={"_id": False, "status": True}
+            )
+        else:
+            before_for_status_change = None
 
         # update
         query = {"uuid": request_id}
@@ -691,11 +715,8 @@ class TransferRequestSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
 
         logging.info(f"patched TransferRequest {request_id} with {req}")
-        PROMETHEUS_STATUS_CHANGES_TOTAL.labels(
-            collection=TRANSFER_REQUESTS,
-            from_status=before.get("status") if before else None,
-            to_status=ret.get("status"),
-        ).inc()
+        if before_for_status_change:
+            inc_status_change_counter_if_changed(TRANSFER_REQUESTS, before_for_status_change, ret)
         self.write({})
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
