@@ -10,7 +10,7 @@ from datetime import datetime
 import logging
 import os
 import sys
-from typing import Any, cast, List, Optional, Tuple, Union
+from typing import Any, Mapping, Sequence, cast, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
@@ -806,26 +806,22 @@ async def status_poller(
 
     # Track previously seen labels so we can zero out statuses that disappear.
     previous_labels: set[tuple[str, str]] = set()
-    current_labels: set[tuple[str, str]] = set()
 
-    pipeline = [
+    pipeline: Sequence[Mapping[str, Any]] = [
         {"$match": {"status": {"$exists": True}}},
         {"$group": {"_id": "$status", "count": {"$sum": 1}}},
     ]
 
     while True:
-        # reset
-        await asyncio.sleep(status_poller_interval)
-        previous_labels = current_labels
-        current_labels = set()
-
-        # make queries
         try:
+            current_labels: set[tuple[str, str]] = set()
+
             for collection_name in ("Bundles", "TransferRequests"):
                 logger.debug(f"MONGO-START: db.{collection_name}.aggregate(status counts)")
-                async for row in mongo_db[collection_name].aggregate(pipeline):
-                    status = str(row["_id"])
-                    count = int(row["count"])
+                cursor = await mongo_db[collection_name].aggregate(pipeline)
+                async for doc in cursor:
+                    status = str(doc["_id"])
+                    count = int(doc["count"])
                     PROMETHEUS_STATUS_GAUGE.labels(
                         collection=collection_name,
                         status=status,
@@ -839,11 +835,16 @@ async def status_poller(
                     collection=collection_name,
                     status=status,
                 ).set(0)
+
+            previous_labels = current_labels
+
         except asyncio.CancelledError:
             logger.info("Status poller cancelled")
             raise
         except Exception:
             logger.exception("Background DB status poll failed")
+
+        await asyncio.sleep(status_poller_interval)
 
 
 async def main() -> None:
