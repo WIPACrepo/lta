@@ -31,6 +31,7 @@ from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
 from wipac_dev_tools import from_environment, strtobool, prometheus_tools
 from wipac_dev_tools.string_tools import regex_named_groups_to_template
+from wipac_dev_tools.timing_tools import IntervalTimer
 
 # fmt:off
 
@@ -38,6 +39,7 @@ from wipac_dev_tools.string_tools import regex_named_groups_to_template
 DELETE_CHUNK_SIZE = 1000
 
 STATUS_POLLER_INTERVAL_MINIMUM = 30  # seconds
+STATUS_POLLER_INTERVAL_LOGGING = 5 * 60  # seconds
 
 EXPECTED_CONFIG = {
     'LOG_LEVEL': 'DEBUG',
@@ -853,6 +855,8 @@ async def status_poller(
 ) -> None:
     """Periodically query MongoDB and update status-count gauges."""
     logger = logging.getLogger(LOG.name + ".status-poller")
+    logging_timer = IntervalTimer(STATUS_POLLER_INTERVAL_LOGGING, None)
+    status_poller_interval = max(STATUS_POLLER_INTERVAL_MINIMUM, status_poller_interval)
 
     # Track previously seen labels so we can zero out statuses that disappear.
     previous_labels: set[tuple[str, str]] = set()
@@ -871,7 +875,12 @@ async def status_poller(
             current_labels: set[tuple[str, str]] = set()
 
             for collection_name in (BUNDLES, TRANSFER_REQUESTS):
-                logger.debug(f"MONGO-START: db.{collection_name}.aggregate(status counts)")
+                if do_log := logging_timer.has_interval_elapsed():
+                    logger.info(
+                        f"still alive -- cycle={status_poller_interval}s, "
+                        f"logging={STATUS_POLLER_INTERVAL_LOGGING}s"
+                    )
+
                 cursor = await mongo_db[collection_name].aggregate(pipeline)
                 async for doc in cursor:
                     status = str(doc["_id"])  # '_id' is the group key, aka the 'status' field
@@ -881,7 +890,8 @@ async def status_poller(
                         status=status,
                     ).set(count)
                     current_labels.add((collection_name, status))
-                logger.debug(f"MONGO-END*:  db.{collection_name}.aggregate(status counts)")
+                    if do_log:
+                        logger.info(f"status count for {collection_name}.{status}: {count}")
 
             # If a status existed last poll but not this poll, set it to 0.
             for collection_name, status in (previous_labels - current_labels):
@@ -889,17 +899,19 @@ async def status_poller(
                     collection=collection_name,
                     status=status,
                 ).set(0)
+                if do_log:
+                    logger.info(f"resetting status count for {collection_name}.{status} to 0")
 
             previous_labels = current_labels
 
         except asyncio.CancelledError:
-            logger.info("Status poller cancelled")
+            logger.error("Status poller cancelled")
             raise
         except Exception:
             logger.exception("Background DB status poll failed -- sleeping then restarting")
             await asyncio.sleep(5 * 60)  # let's hope the issue is transient
         else:
-            await asyncio.sleep(max(STATUS_POLLER_INTERVAL_MINIMUM, status_poller_interval))
+            await asyncio.sleep(status_poller_interval)
 
 
 async def main() -> None:
