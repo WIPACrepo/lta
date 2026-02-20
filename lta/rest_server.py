@@ -37,6 +37,8 @@ from wipac_dev_tools.string_tools import regex_named_groups_to_template
 # maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
 DELETE_CHUNK_SIZE = 1000
 
+STATUS_POLLER_INTERVAL_MINIMUM = 30  # seconds
+
 EXPECTED_CONFIG = {
     'LOG_LEVEL': 'DEBUG',
     'CI_TEST': 'FALSE',
@@ -51,7 +53,7 @@ EXPECTED_CONFIG = {
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
     'PROMETHEUS_METRICS_PORT': '8090',
-    'STATUS_POLLER_INTERVAL': '60',
+    'STATUS_POLLER_INTERVAL': str(STATUS_POLLER_INTERVAL_MINIMUM),  # seconds
 }
 
 LOG = logging.getLogger(__name__)
@@ -807,8 +809,12 @@ async def status_poller(
     # Track previously seen labels so we can zero out statuses that disappear.
     previous_labels: set[tuple[str, str]] = set()
 
+    # Aggregate per-status document counts for the collection:
     pipeline: Sequence[Mapping[str, Any]] = [
+        # - '$match' keeps only docs that have a 'status' field
         {"$match": {"status": {"$exists": True}}},
+        # - '$group' buckets docs by status (returned as the group key in '_id')
+        #    and computes the number of docs in each status bucket as 'count'
         {"$group": {"_id": "$status", "count": {"$sum": 1}}},
     ]
 
@@ -820,7 +826,7 @@ async def status_poller(
                 logger.debug(f"MONGO-START: db.{collection_name}.aggregate(status counts)")
                 cursor = await mongo_db[collection_name].aggregate(pipeline)
                 async for doc in cursor:
-                    status = str(doc["_id"])
+                    status = str(doc["_id"])  # '_id' is the group key, aka the 'status' field
                     count = int(doc["count"])
                     PROMETHEUS_STATUS_GAUGE.labels(
                         collection=collection_name,
@@ -844,7 +850,7 @@ async def status_poller(
         except Exception:
             logger.exception("Background DB status poll failed")
 
-        await asyncio.sleep(status_poller_interval)
+        await asyncio.sleep(max(STATUS_POLLER_INTERVAL_MINIMUM, status_poller_interval))
 
 
 async def main() -> None:
