@@ -127,7 +127,7 @@ PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
 )
 
 PROMETHEUS_STATUS_GAUGE = prometheus_client.Gauge(
-    "lta_status_count",
+    "lta_status",
     "Current count of LTA objects by collection and status",
     labelnames=("collection", "status"),
 )
