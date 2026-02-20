@@ -849,6 +849,16 @@ def start(
     return server
 
 
+def _log_if_time(logging_timer: IntervalTimer, logger: logging.Logger) -> Callable:
+    # Note - we could go more generic (pass logger.info, etc.), but this is a simple case
+    if logging_timer.has_interval_elapsed():
+        return logger.info
+    else:
+        def noop(*_: Any, **__: Any) -> None:
+            pass
+        return noop
+
+
 async def status_poller(
     mongo_db: AsyncDatabase[DatabaseType],
     status_poller_interval: int,
@@ -875,14 +885,11 @@ async def status_poller(
             current_labels: set[tuple[str, str]] = set()
 
             for collection_name in (BUNDLES, TRANSFER_REQUESTS):
-                if logging_timer.has_interval_elapsed():
-                    _log: Callable = logger.info
-                    _log(
-                        f"still alive -- cycle={status_poller_interval}s, "
-                        f"logging={STATUS_POLLER_INTERVAL_LOGGING}s"
-                    )
-                else:
-                    _log = lambda _: None
+                _log = _log_if_time(logging_timer, logger)
+                _log(
+                    f"still alive -- cycle={status_poller_interval}s, "
+                    f"logging={STATUS_POLLER_INTERVAL_LOGGING}s"
+                )
 
                 cursor = await mongo_db[collection_name].aggregate(pipeline)
                 async for doc in cursor:
