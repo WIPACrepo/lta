@@ -68,6 +68,9 @@ LTA_AUTH_PREFIX = "resource_access.long-term-archive.roles"
 LTA_AUTH_ROLES = ["system"]
 REMOVE_ID = {"_id": False}
 
+TRANSFER_REQUESTS = "TransferRequests"
+BUNDLES = "Bundles"
+
 # -----------------------------------------------------------------------------
 
 # these are the indexes we expect in our backing MongoDB
@@ -125,6 +128,18 @@ PROMETHEUS_STATUS_GAUGE = prometheus_client.Gauge(
     "lta_status_count",
     "Current count of LTA objects by collection and status",
     labelnames=("collection", "status"),
+)
+
+PROMETHEUS_STATUS_CHANGES_TOTAL = prometheus_client.Counter(
+    "lta_status_changes_total",
+    "Count of LTA object status changes",
+    labelnames=("collection", "from_status", "to_status"),
+)
+
+PROMETHEUS_BUNDLE_CLAIMS_TOTAL = prometheus_client.Counter(
+    "lta_bundle_claims_total",
+    "Count of successful bundle claims",
+    labelnames=("status",),
 )
 
 
@@ -195,6 +210,11 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             uuid = x["uuid"]
             uuids.append(uuid)
             logging.info(f"created Bundle {uuid}")
+            PROMETHEUS_STATUS_CHANGES_TOTAL.labels(
+                collection=BUNDLES,
+                from_status="__created__",
+                to_status=x.get("status"),  # do this individually so we don't assume statuses
+            ).inc()
 
         self.set_status(201)
         self.write({'bundles': uuids, 'count': create_count})
@@ -346,6 +366,7 @@ class BundlesActionsPopHandler(BaseLTAHandler):
             logging.info(f"Unclaimed Bundle with source {source} and status {status} does not exist.")
         else:
             logging.info(f"Bundle {bundle['uuid']} claimed by {claimant}")
+            PROMETHEUS_BUNDLE_CLAIMS_TOTAL.labels(status=status).inc()
         self.write({'bundle': bundle})
 
 
@@ -374,6 +395,11 @@ class BundlesSingleHandler(BaseLTAHandler):
         if 'uuid' in req and req['uuid'] != bundle_id:
             raise tornado.web.HTTPError(400, reason="bad request")
 
+        # get before state -- for prometheus metrics
+        before = await self.db.Bundles.find_one(
+            {"uuid": bundle_id}, projection={"_id": False, "status": True}
+        )
+
         # prep mongo pieces
         query = {"uuid": bundle_id}
         # -- if requestor is resetting the 'reason' field, also reset 'reason_details'
@@ -392,6 +418,11 @@ class BundlesSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
 
         # done
+        PROMETHEUS_STATUS_CHANGES_TOTAL.labels(
+            collection=BUNDLES,
+            from_status=before.get("status") if before else None,
+            to_status=ret.get("status"),
+        ).inc()
         logging.info(f"patched Bundle {bundle_id} with {req}")
         self.write(ret)
 
@@ -608,6 +639,13 @@ class TransferRequestsHandler(BaseLTAHandler):
         await self.db.TransferRequests.insert_one(document=req)
         logging.debug("MONGO-END:   db.TransferRequests.insert_one(document)")
         logging.info(f"created TransferRequest {req['uuid']}")
+
+        # done
+        PROMETHEUS_STATUS_CHANGES_TOTAL.labels(
+            collection=TRANSFER_REQUESTS,
+            from_status="__created__",
+            to_status="unclaimed",
+        ).inc()
         self.set_status(201)
         self.write({'TransferRequest': req['uuid']})
 
@@ -632,7 +670,15 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         req = json_decode(self.request.body)
         if 'uuid' in req and req['uuid'] != request_id:
             raise tornado.web.HTTPError(400, reason="bad request")
+
         sbtr = self.db.TransferRequests
+
+        # get before state -- for prometheus metrics
+        before = await sbtr.find_one(
+            {"uuid": request_id}, projection={"_id": False, "status": True}
+        )
+
+        # update
         query = {"uuid": request_id}
         update = {"$set": req}
         logging.debug(f"MONGO-START: db.TransferRequests.find_one_and_update(filter={query}, update={update}, projection={REMOVE_ID}, return_document={AFTER}")
@@ -643,7 +689,13 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         logging.debug("MONGO-END:   db.TransferRequests.find_one_and_update(filter, update, projection, return_document")
         if not ret:
             raise tornado.web.HTTPError(404, reason="not found")
+
         logging.info(f"patched TransferRequest {request_id} with {req}")
+        PROMETHEUS_STATUS_CHANGES_TOTAL.labels(
+            collection=TRANSFER_REQUESTS,
+            from_status=before.get("status") if before else None,
+            to_status=ret.get("status"),
+        ).inc()
         self.write({})
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
@@ -696,6 +748,11 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
             logging.info(f"Unclaimed TransferRequest with source {source} does not exist.")
         else:
             logging.info(f"TransferRequest {tr['uuid']} claimed by {claimant}")
+            PROMETHEUS_STATUS_CHANGES_TOTAL.labels(
+                collection=TRANSFER_REQUESTS,
+                from_status="unclaimed",
+                to_status="processing",
+            ).inc()
         self.write({'transfer_request': tr})
 
 # -----------------------------------------------------------------------------
@@ -822,7 +879,7 @@ async def status_poller(
         try:
             current_labels: set[tuple[str, str]] = set()
 
-            for collection_name in ("Bundles", "TransferRequests"):
+            for collection_name in (BUNDLES, TRANSFER_REQUESTS):
                 logger.debug(f"MONGO-START: db.{collection_name}.aggregate(status counts)")
                 cursor = await mongo_db[collection_name].aggregate(pipeline)
                 async for doc in cursor:
