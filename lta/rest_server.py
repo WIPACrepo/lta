@@ -10,7 +10,7 @@ from datetime import datetime
 import logging
 import os
 import sys
-from typing import Any, Mapping, Sequence, cast, List, Optional, Tuple, Union
+from typing import Any, Callable, Mapping, Sequence, cast, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
@@ -875,11 +875,14 @@ async def status_poller(
             current_labels: set[tuple[str, str]] = set()
 
             for collection_name in (BUNDLES, TRANSFER_REQUESTS):
-                if do_log := logging_timer.has_interval_elapsed():
-                    logger.info(
+                if logging_timer.has_interval_elapsed():
+                    _log: Callable = logger.info
+                    _log(
                         f"still alive -- cycle={status_poller_interval}s, "
                         f"logging={STATUS_POLLER_INTERVAL_LOGGING}s"
                     )
+                else:
+                    _log = lambda _: None
 
                 cursor = await mongo_db[collection_name].aggregate(pipeline)
                 async for doc in cursor:
@@ -890,8 +893,7 @@ async def status_poller(
                         status=status,
                     ).set(count)
                     current_labels.add((collection_name, status))
-                    if do_log:
-                        logger.info(f"status count for {collection_name}.{status}: {count}")
+                    _log(f"status count for {collection_name}.{status}: {count}")
 
             # If a status existed last poll but not this poll, set it to 0.
             for collection_name, status in (previous_labels - current_labels):
@@ -899,8 +901,7 @@ async def status_poller(
                     collection=collection_name,
                     status=status,
                 ).set(0)
-                if do_log:
-                    logger.info(f"resetting status count for {collection_name}.{status} to 0")
+                _log(f"resetting status count for {collection_name}.{status} to 0")
 
             previous_labels = current_labels
 
