@@ -10,7 +10,7 @@ from datetime import datetime
 import logging
 import os
 import sys
-from typing import Any, cast, List, Optional, Tuple, Union
+from typing import Any, Callable, Mapping, Sequence, cast, List, Optional, Tuple, Union
 from urllib.parse import quote_plus
 from uuid import uuid1
 
@@ -31,11 +31,15 @@ from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
 from wipac_dev_tools import from_environment, strtobool, prometheus_tools
 from wipac_dev_tools.string_tools import regex_named_groups_to_template
+from wipac_dev_tools.timing_tools import IntervalTimer
 
 # fmt:off
 
 # maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
 DELETE_CHUNK_SIZE = 1000
+
+STATUS_POLLER_INTERVAL_MINIMUM = 30  # seconds
+STATUS_POLLER_INTERVAL_LOGGING = 5 * 60  # seconds
 
 EXPECTED_CONFIG = {
     'LOG_LEVEL': 'DEBUG',
@@ -51,6 +55,7 @@ EXPECTED_CONFIG = {
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
     'PROMETHEUS_METRICS_PORT': '8090',
+    'STATUS_POLLER_INTERVAL': str(STATUS_POLLER_INTERVAL_MINIMUM),  # seconds
 }
 
 LOG = logging.getLogger(__name__)
@@ -64,6 +69,9 @@ LOGGING_DENY_LIST = ["LTA_MONGODB_AUTH_PASS"]
 LTA_AUTH_PREFIX = "resource_access.long-term-archive.roles"
 LTA_AUTH_ROLES = ["system"]
 REMOVE_ID = {"_id": False}
+
+TRANSFER_REQUESTS = "TransferRequests"
+BUNDLES = "Bundles"
 
 # -----------------------------------------------------------------------------
 
@@ -108,13 +116,32 @@ DatabaseType = dict[str, Any]
 
 # -----------------------------------------------------------------------------
 
+# Prometheus metrics
+# -- make module-level so these are shared within this process (else, dups overwrite)
 
-# make module-level so same histogram is shared within this process (else, overwrites)
 PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
     'http_request_duration_seconds',
     'HTTP request duration in seconds',
     labelnames=('method', 'route', 'status'),
     buckets=prometheus_tools.HistogramBuckets.HTTP_API,
+)
+
+PROMETHEUS_STATUS_GAUGE = prometheus_client.Gauge(
+    "lta_status",
+    "Current count of LTA objects by collection and status",
+    labelnames=("collection", "status"),
+)
+
+PROMETHEUS_BUNDLE_CLAIMS_TOTAL = prometheus_client.Counter(
+    "lta_bundle_claims_total",
+    "Count of successful bundle claims",
+    labelnames=("status",),
+)
+
+PROMETHEUS_STATUS_WRITES_TOTAL = prometheus_client.Counter(
+    "lta_status_writes_total",
+    "Count of LTA object status writes",
+    labelnames=("collection", "to_status"),
 )
 
 
@@ -185,6 +212,10 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             uuid = x["uuid"]
             uuids.append(uuid)
             logging.info(f"created Bundle {uuid}")
+            PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+                collection=BUNDLES,
+                to_status=x.get("status", "__not_set__"),  # do this individually so we don't assume statuses
+            ).inc()
 
         self.set_status(201)
         self.write({'bundles': uuids, 'count': create_count})
@@ -245,6 +276,12 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
             if ret.modified_count > 0:
                 logging.info(f"updated Bundle {uuid}")
                 results.append(uuid)
+                # count it as a status change if we're changing status
+                if "status" in req["update"]:
+                    PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+                        collection=BUNDLES,
+                        to_status=str(req["update"]["status"]),
+                    ).inc()
 
         self.write({'bundles': results, 'count': len(results)})
 
@@ -336,6 +373,7 @@ class BundlesActionsPopHandler(BaseLTAHandler):
             logging.info(f"Unclaimed Bundle with source {source} and status {status} does not exist.")
         else:
             logging.info(f"Bundle {bundle['uuid']} claimed by {claimant}")
+            PROMETHEUS_BUNDLE_CLAIMS_TOTAL.labels(status=status).inc()
         self.write({'bundle': bundle})
 
 
@@ -382,6 +420,11 @@ class BundlesSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(404, reason="not found")
 
         # done
+        if "status" in req:
+            PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+                collection=BUNDLES,
+                to_status=ret.get("status", "__unknown__"),
+            ).inc()
         logging.info(f"patched Bundle {bundle_id} with {req}")
         self.write(ret)
 
@@ -598,6 +641,12 @@ class TransferRequestsHandler(BaseLTAHandler):
         await self.db.TransferRequests.insert_one(document=req)
         logging.debug("MONGO-END:   db.TransferRequests.insert_one(document)")
         logging.info(f"created TransferRequest {req['uuid']}")
+
+        # done
+        PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+            collection=TRANSFER_REQUESTS,
+            to_status="unclaimed",
+        ).inc()
         self.set_status(201)
         self.write({'TransferRequest': req['uuid']})
 
@@ -622,6 +671,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         req = json_decode(self.request.body)
         if 'uuid' in req and req['uuid'] != request_id:
             raise tornado.web.HTTPError(400, reason="bad request")
+
         sbtr = self.db.TransferRequests
         query = {"uuid": request_id}
         update = {"$set": req}
@@ -633,7 +683,13 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         logging.debug("MONGO-END:   db.TransferRequests.find_one_and_update(filter, update, projection, return_document")
         if not ret:
             raise tornado.web.HTTPError(404, reason="not found")
+
         logging.info(f"patched TransferRequest {request_id} with {req}")
+        if "status" in req:
+            PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+                collection=TRANSFER_REQUESTS,
+                to_status=ret.get("status", "__unknown__"),
+            ).inc()
         self.write({})
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
@@ -686,6 +742,10 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
             logging.info(f"Unclaimed TransferRequest with source {source} does not exist.")
         else:
             logging.info(f"TransferRequest {tr['uuid']} claimed by {claimant}")
+            PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+                collection=TRANSFER_REQUESTS,
+                to_status="processing",
+            ).inc()
         self.write({'transfer_request': tr})
 
 # -----------------------------------------------------------------------------
@@ -711,15 +771,28 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     logging.info("Done creating indexes in MongoDB.")
 
 
-def start(debug: bool = False) -> RestServer:
+def create_mongodb_client(config: dict[str, str | int | float | bool]) -> AsyncDatabase:
+    """Create and return an AsyncMongoClient for the LTA MongoDB database."""
+    mongo_user = quote_plus(cast(str, config["LTA_MONGODB_AUTH_USER"]))
+    mongo_pass = quote_plus(cast(str, config["LTA_MONGODB_AUTH_PASS"]))
+    mongo_host = config["LTA_MONGODB_HOST"]
+    mongo_port = int(config["LTA_MONGODB_PORT"])
+    mongo_db = cast(str, config["LTA_MONGODB_DATABASE_NAME"])
+    lta_mongodb_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
+    if mongo_user and mongo_pass:
+        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
+    ensure_mongo_indexes(lta_mongodb_url, mongo_db)
+
+    mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
+    return mongo_client[mongo_db]
+
+
+def start(
+    config: dict[str, str | int | float | bool],
+    mongo_db: AsyncDatabase[DatabaseType],
+    debug: bool = False,
+) -> RestServer:
     """Start a LTA DB service."""
-    config = from_environment(EXPECTED_CONFIG)
-    # logger = logging.getLogger('lta.rest')
-    for name in config:
-        if name not in LOGGING_DENY_LIST:
-            logging.info(f"{name} = {config[name]}")
-        else:
-            logging.info(f"{name} = [秘密]")
 
     # configure auth
     auth: dict[str, Union[str, int, float, bool]] = {}
@@ -740,17 +813,7 @@ def start(debug: bool = False) -> RestServer:
     })
 
     # configure access to MongoDB as a backing store
-    mongo_user = quote_plus(cast(str, config["LTA_MONGODB_AUTH_USER"]))
-    mongo_pass = quote_plus(cast(str, config["LTA_MONGODB_AUTH_PASS"]))
-    mongo_host = config["LTA_MONGODB_HOST"]
-    mongo_port = int(config["LTA_MONGODB_PORT"])
-    mongo_db = cast(str, config["LTA_MONGODB_DATABASE_NAME"])
-    lta_mongodb_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
-    if mongo_user and mongo_pass:
-        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
-    ensure_mongo_indexes(lta_mongodb_url, mongo_db)
-    mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
-    args['db'] = mongo_client[mongo_db]
+    args['db'] = mongo_db
 
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
     max_body_size = int(config["LTA_MAX_BODY_SIZE"])
@@ -786,10 +849,85 @@ def start(debug: bool = False) -> RestServer:
     return server
 
 
+def _logger_if_time(logging_timer: IntervalTimer, logger: logging.Logger) -> Callable:
+    # Note - we could go more generic (pass logger.info, etc.), but this is a simple case
+    if logging_timer.has_interval_elapsed():
+        return logger.info
+    else:
+        def noop(*_: Any, **__: Any) -> None:
+            pass
+        return noop
+
+
+async def status_poller(
+    mongo_db: AsyncDatabase[DatabaseType],
+    status_poller_interval: int,
+) -> None:
+    """Periodically query MongoDB and update status-count gauges."""
+    logger = logging.getLogger(LOG.name + ".status-poller")
+    logging_timer = IntervalTimer(STATUS_POLLER_INTERVAL_LOGGING, None)
+    status_poller_interval = max(STATUS_POLLER_INTERVAL_MINIMUM, status_poller_interval)
+
+    # Track previously seen labels so we can zero out statuses that disappear.
+    previous_labels: set[tuple[str, str]] = set()
+
+    # Aggregate per-status document counts for the collection:
+    pipeline: Sequence[Mapping[str, Any]] = [
+        # - '$match' keeps only docs that have a 'status' field
+        {"$match": {"status": {"$exists": True}}},
+        # - '$group' buckets docs by status (returned as the group key in '_id')
+        #    and computes the number of docs in each status bucket as 'count'
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+    ]
+
+    while True:
+        try:
+            current_labels: set[tuple[str, str]] = set()
+
+            for collection_name in (BUNDLES, TRANSFER_REQUESTS):
+                _log = _logger_if_time(logging_timer, logger)
+                _log(
+                    f"still alive -- cycle={status_poller_interval}s, "
+                    f"logging={STATUS_POLLER_INTERVAL_LOGGING}s"
+                )
+
+                cursor = await mongo_db[collection_name].aggregate(pipeline)
+                async for doc in cursor:
+                    status = str(doc["_id"])  # '_id' is the group key, aka the 'status' field
+                    count = int(doc["count"])
+                    PROMETHEUS_STATUS_GAUGE.labels(
+                        collection=collection_name,
+                        status=status,
+                    ).set(count)
+                    current_labels.add((collection_name, status))
+                    _log(f"status count for {collection_name}.{status}: {count}")
+
+            # If a status existed last poll but not this poll, set it to 0.
+            for collection_name, status in (previous_labels - current_labels):
+                PROMETHEUS_STATUS_GAUGE.labels(
+                    collection=collection_name,
+                    status=status,
+                ).set(0)
+                _log(f"resetting status count for {collection_name}.{status} to 0")
+
+            previous_labels = current_labels
+
+        except asyncio.CancelledError:
+            logger.error("Status poller cancelled")
+            raise
+        except Exception:
+            logger.exception("Failed -- sleeping then restarting")
+            # let's hope the issue is transient
+            await asyncio.sleep(max(5 * 60, status_poller_interval))
+
+        await asyncio.sleep(status_poller_interval)
+
+
 async def main() -> None:
     """Configure logging and start a LTA DB service."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
+
     # configure logging for the application
     log_level = getattr(logging, os.getenv("LOG_LEVEL", default="DEBUG"))
     logging.basicConfig(
@@ -799,11 +937,25 @@ async def main() -> None:
         style="{",
     )
 
+    # log config
+    for name in config:
+        if name not in LOGGING_DENY_LIST:
+            logging.info(f"{name} = {config[name]}")
+        else:
+            logging.info(f"{name} = [秘密]")
+
+    # mongo connection
+    mongo_db = create_mongodb_client(config)
+
     # Start Servers
     # -- REST server
-    start(debug=True)
+    start(config, mongo_db, debug=True)
     # -- Prometheus metrics server (has handlers for '/metrics' endpoints)
     prometheus_client.start_http_server(int(config["PROMETHEUS_METRICS_PORT"]))
+    # -- start background DB status-polling task
+    asyncio.create_task(
+        status_poller(mongo_db, int(config["STATUS_POLLER_INTERVAL"]))
+    )
     # -- let the background tasks run
     await asyncio.Event().wait()
 
