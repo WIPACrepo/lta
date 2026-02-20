@@ -212,7 +212,7 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             logging.info(f"created Bundle {uuid}")
             PROMETHEUS_STATUS_WRITES_TOTAL.labels(
                 collection=BUNDLES,
-                to_status=x.get("status", "__none__"),  # do this individually so we don't assume statuses
+                to_status=x.get("status", "__not_set__"),  # do this individually so we don't assume statuses
             ).inc()
 
         self.set_status(201)
