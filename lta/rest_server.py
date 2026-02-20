@@ -686,7 +686,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         if "status" in req:
             PROMETHEUS_STATUS_WRITES_TOTAL.labels(
                 collection=TRANSFER_REQUESTS,
-                to_status=ret["status"],
+                to_status=ret.get("status", "__unknown__"),
             ).inc()
         self.write({})
 
