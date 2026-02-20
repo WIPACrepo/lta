@@ -908,10 +908,11 @@ async def status_poller(
             logger.error("Status poller cancelled")
             raise
         except Exception:
-            logger.exception("Background DB status poll failed -- sleeping then restarting")
-            await asyncio.sleep(5 * 60)  # let's hope the issue is transient
-        else:
-            await asyncio.sleep(status_poller_interval)
+            logger.exception("Failed -- sleeping then restarting")
+            # let's hope the issue is transient
+            await asyncio.sleep(max(5 * 60, status_poller_interval))
+
+        await asyncio.sleep(status_poller_interval)
 
 
 async def main() -> None:
