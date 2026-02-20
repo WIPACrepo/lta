@@ -51,6 +51,7 @@ EXPECTED_CONFIG = {
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
     'PROMETHEUS_METRICS_PORT': '8090',
+    'STATUS_POLLER_INTERVAL': '60',
 }
 
 LOG = logging.getLogger(__name__)
@@ -108,13 +109,20 @@ DatabaseType = dict[str, Any]
 
 # -----------------------------------------------------------------------------
 
+# Prometheus metrics
+# -- make module-level so these are shared within this process (else, dups overwrite)
 
-# make module-level so same histogram is shared within this process (else, overwrites)
 PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
     'http_request_duration_seconds',
     'HTTP request duration in seconds',
     labelnames=('method', 'route', 'status'),
     buckets=prometheus_tools.HistogramBuckets.HTTP_API,
+)
+
+PROMETHEUS_STATUS_GAUGE = prometheus_client.Gauge(
+    "lta_status_count",
+    "Current count of LTA objects by collection and status",
+    labelnames=("collection", "status"),
 )
 
 
@@ -711,15 +719,28 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     logging.info("Done creating indexes in MongoDB.")
 
 
-def start(debug: bool = False) -> RestServer:
+def create_mongodb_client(config: dict[str, str | int | float | bool]) -> AsyncDatabase:
+    """Create and return an AsyncMongoClient for the LTA MongoDB database."""
+    mongo_user = quote_plus(cast(str, config["LTA_MONGODB_AUTH_USER"]))
+    mongo_pass = quote_plus(cast(str, config["LTA_MONGODB_AUTH_PASS"]))
+    mongo_host = config["LTA_MONGODB_HOST"]
+    mongo_port = int(config["LTA_MONGODB_PORT"])
+    mongo_db = cast(str, config["LTA_MONGODB_DATABASE_NAME"])
+    lta_mongodb_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
+    if mongo_user and mongo_pass:
+        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
+    ensure_mongo_indexes(lta_mongodb_url, mongo_db)
+
+    mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
+    return mongo_client[mongo_db]
+
+
+def start(
+    config: dict[str, str | int | float | bool],
+    mongo_db: AsyncDatabase[DatabaseType],
+    debug: bool = False,
+) -> RestServer:
     """Start a LTA DB service."""
-    config = from_environment(EXPECTED_CONFIG)
-    # logger = logging.getLogger('lta.rest')
-    for name in config:
-        if name not in LOGGING_DENY_LIST:
-            logging.info(f"{name} = {config[name]}")
-        else:
-            logging.info(f"{name} = [秘密]")
 
     # configure auth
     auth: dict[str, Union[str, int, float, bool]] = {}
@@ -740,17 +761,7 @@ def start(debug: bool = False) -> RestServer:
     })
 
     # configure access to MongoDB as a backing store
-    mongo_user = quote_plus(cast(str, config["LTA_MONGODB_AUTH_USER"]))
-    mongo_pass = quote_plus(cast(str, config["LTA_MONGODB_AUTH_PASS"]))
-    mongo_host = config["LTA_MONGODB_HOST"]
-    mongo_port = int(config["LTA_MONGODB_PORT"])
-    mongo_db = cast(str, config["LTA_MONGODB_DATABASE_NAME"])
-    lta_mongodb_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
-    if mongo_user and mongo_pass:
-        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
-    ensure_mongo_indexes(lta_mongodb_url, mongo_db)
-    mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
-    args['db'] = mongo_client[mongo_db]
+    args['db'] = mongo_db
 
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
     max_body_size = int(config["LTA_MAX_BODY_SIZE"])
@@ -786,10 +797,60 @@ def start(debug: bool = False) -> RestServer:
     return server
 
 
+async def status_poller(
+    mongo_db: AsyncDatabase[DatabaseType],
+    status_poller_interval: int,
+) -> None:
+    """Periodically query MongoDB and update status-count gauges."""
+    logger = logging.getLogger(LOG.name + ".status-poller")
+
+    # Track previously seen labels so we can zero out statuses that disappear.
+    previous_labels: set[tuple[str, str]] = set()
+    current_labels: set[tuple[str, str]] = set()
+
+    pipeline = [
+        {"$match": {"status": {"$exists": True}}},
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+    ]
+
+    while True:
+        # reset
+        await asyncio.sleep(status_poller_interval)
+        previous_labels = current_labels
+        current_labels = set()
+
+        # make queries
+        try:
+            for collection_name in ("Bundles", "TransferRequests"):
+                logger.debug(f"MONGO-START: db.{collection_name}.aggregate(status counts)")
+                async for row in mongo_db[collection_name].aggregate(pipeline):
+                    status = str(row["_id"])
+                    count = int(row["count"])
+                    PROMETHEUS_STATUS_GAUGE.labels(
+                        collection=collection_name,
+                        status=status,
+                    ).set(count)
+                    current_labels.add((collection_name, status))
+                logger.debug(f"MONGO-END*:  db.{collection_name}.aggregate(status counts)")
+
+            # If a status existed last poll but not this poll, set it to 0.
+            for collection_name, status in (previous_labels - current_labels):
+                PROMETHEUS_STATUS_GAUGE.labels(
+                    collection=collection_name,
+                    status=status,
+                ).set(0)
+        except asyncio.CancelledError:
+            logger.info("Status poller cancelled")
+            raise
+        except Exception:
+            logger.exception("Background DB status poll failed")
+
+
 async def main() -> None:
     """Configure logging and start a LTA DB service."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
+
     # configure logging for the application
     log_level = getattr(logging, os.getenv("LOG_LEVEL", default="DEBUG"))
     logging.basicConfig(
@@ -799,11 +860,25 @@ async def main() -> None:
         style="{",
     )
 
+    # log config
+    for name in config:
+        if name not in LOGGING_DENY_LIST:
+            logging.info(f"{name} = {config[name]}")
+        else:
+            logging.info(f"{name} = [秘密]")
+
+    # mongo connection
+    mongo_db = create_mongodb_client(config)
+
     # Start Servers
     # -- REST server
-    start(debug=True)
+    start(config, mongo_db, debug=True)
     # -- Prometheus metrics server (has handlers for '/metrics' endpoints)
     prometheus_client.start_http_server(int(config["PROMETHEUS_METRICS_PORT"]))
+    # -- start background DB status-polling task
+    asyncio.create_task(
+        status_poller(mongo_db, int(config["STATUS_POLLER_INTERVAL"]))
+    )
     # -- let the background tasks run
     await asyncio.Event().wait()
 
