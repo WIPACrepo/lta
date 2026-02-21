@@ -88,6 +88,7 @@ exclude = ["doc", "resources"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+log_level = "DEBUG"
 
 [tool.setuptools]
 packages = [

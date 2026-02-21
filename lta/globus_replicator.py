@@ -9,12 +9,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import globus_sdk
-from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[import-not-found]
+from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import quarantine_bundle
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .utils import now, quarantine_now
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .transfer.globus import GlobusTransfer
@@ -86,23 +86,6 @@ class GlobusReplicator(Component):
 
         self.globus_transfer = GlobusTransfer()
 
-        # prometheus metrics
-        self.failure_counter = Counter(
-            "lta_failures",
-            "lta processing failures",
-            ["component", "level", "type"],
-        )
-        self.load_gauge = Gauge(
-            "lta_load_level",
-            "lta work processed",
-            ["component", "level", "type"],
-        )
-        self.success_counter = Counter(
-            "lta_successes",
-            "lta processing successes",
-            ["component", "level", "type"],
-        )
-
     def _do_status(self) -> Dict[str, Any]:
         """GlobusReplicator has no additional status to contribute."""
         return {}
@@ -111,22 +94,12 @@ class GlobusReplicator(Component):
         """GlobusReplicator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work(self, lta_rc: RestClient) -> None:
-        """Perform a work cycle for this component."""
-        self.logger.info("Starting work on Bundles.")
-        load_level = -1
-        work_claimed = True
-        while work_claimed:
-            load_level += 1
-            work_claimed = await self._do_work_claim(lta_rc)
-            # if we are configured to run once and die, then die
-            if self.run_once_and_die:
-                sys.exit()
-        self.load_gauge.labels(component='globus_replicator', level='bundle', type='work').set(load_level)
-        self.logger.info("Ending work on Bundles.")
-
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a bundle and perform work on it."""
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
+        """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be transferred
         self.logger.info("Asking the LTA DB for a Bundle to transfer.")
         pop_body = {
@@ -142,13 +115,11 @@ class GlobusReplicator(Component):
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
-            self.success_counter.labels(component='globus_replicator', level='bundle', type='work').inc()
+            prom_tracker.record_success()
             return True
         except Exception as e:
-            self.logger.error(f'Globus transfer threw an error: {e}')
-            self.logger.exception(e)
-            self.failure_counter.labels(component='globus_replicator', level='bundle', type='exception').inc()
-            await quarantine_bundle(
+            prom_tracker.record_failure()
+            await quarantine_now(
                 lta_rc,
                 bundle,
                 e,

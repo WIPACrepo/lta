@@ -10,12 +10,13 @@ from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, List, Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import InvalidBundlePathException, InvalidChecksumException, quarantine_bundle
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .utils import InvalidBundlePathException, InvalidChecksumException
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .utils import now, quarantine_now
 from .crypto import sha512sum
 from .joiner import join_smart
 from .lta_tools import from_environment
@@ -38,12 +39,7 @@ MYQUOTA_ARGS = ["/usr/bin/myquota", "-G"]
 
 OLD_MTIME_EPOCH_SEC = 30 * 60  # 30 MINUTES * 60 SEC_PER_MIN
 
-QUARANTINE_THEN_KEEP_WORKING = [InvalidChecksumException]
-
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
+QUARANTINE_THEN_KEEP_WORKING: list[type[Exception]] = [InvalidChecksumException]
 
 
 def as_nonempty_columns(s: str) -> List[str]:
@@ -112,22 +108,12 @@ class SiteMoveVerifier(Component):
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work(self, lta_rc: RestClient) -> None:
-        """Perform a work cycle for this component."""
-        self.logger.info("Starting work on Bundles.")
-        load_level = -1
-        work_claimed = True
-        while work_claimed:
-            load_level += 1
-            work_claimed = await self._do_work_claim(lta_rc)
-            # if we are configured to run once and die, then die
-            if self.run_once_and_die:
-                sys.exit()
-        load_gauge.labels(component='site_move_verifier', level='bundle', type='work').set(load_level)
-        self.logger.info("Ending work on Bundles.")
-
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a bundle and perform work on it."""
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
+        """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be verified
         self.logger.info("Asking the LTA DB for a Bundle to verify.")
         pop_body = {
@@ -144,11 +130,11 @@ class SiteMoveVerifier(Component):
         try:
             bundle_path = self._get_bundle_path(bundle)
             await self._verify_bundle(lta_rc, bundle, bundle_path)
-            success_counter.labels(component='site_move_verifier', level='bundle', type='work').inc()
+            prom_tracker.record_success()
             return True
         except Exception as e:
-            failure_counter.labels(component='site_move_verifier', level='bundle', type='exception').inc()
-            await quarantine_bundle(
+            prom_tracker.record_failure()
+            await quarantine_now(
                 lta_rc,
                 bundle,
                 e,
@@ -156,7 +142,6 @@ class SiteMoveVerifier(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            # does exception warrant stopping the work loop?
             if type(e) in QUARANTINE_THEN_KEEP_WORKING:
                 return True
             raise e

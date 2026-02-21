@@ -13,11 +13,11 @@ import sys
 from typing import Any, Dict, Optional
 from zipfile import ZIP_STORED, ZipFile
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .utils import quarantine_bundle
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .utils import now, quarantine_now
 from .crypto import lta_checksums
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -67,10 +67,6 @@ class Bundler(Component):
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.workbox_path = config["BUNDLER_WORKBOX_PATH"]
-        # prometheus metrics
-        self.failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-        self.load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-        self.success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
     def _do_status(self) -> Dict[str, Any]:
         """Bundler has no additional status to contribute."""
@@ -80,22 +76,12 @@ class Bundler(Component):
         """Bundler provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work(self, lta_rc: RestClient) -> None:
-        """Perform a work cycle for this component."""
-        self.logger.info("Starting work on Bundles.")
-        load_level = -1
-        work_claimed = True
-        while work_claimed:
-            load_level += 1
-            work_claimed = await self._do_work_claim(lta_rc)
-            # if we are configured to run once and die, then die
-            if self.run_once_and_die:
-                sys.exit()
-        self.load_gauge.labels(component='bundler', level='bundle', type='work').set(load_level)
-        self.logger.info("Ending work on Bundles.")
-
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a bundle and perform work on it."""
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
+        """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be built
         self.logger.info("Asking the LTA DB for a Bundle to build.")
         pop_body = {
@@ -115,10 +101,11 @@ class Bundler(Component):
         # process the Bundle that we were given
         try:
             await self._do_work_bundle(fc_rc, lta_rc, bundle)
-            self.success_counter.labels(component='bundler', level='bundle', type='work').inc()
+            prom_tracker.record_success()
+            return True
         except Exception as e:
-            self.failure_counter.labels(component='bundler', level='bundle', type='exception').inc()
-            await quarantine_bundle(
+            prom_tracker.record_failure()
+            await quarantine_now(
                 lta_rc,
                 bundle,
                 e,
@@ -127,8 +114,6 @@ class Bundler(Component):
                 self.logger,
             )
             raise e
-        # signal the work was processed successfully
-        return True
 
     async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here

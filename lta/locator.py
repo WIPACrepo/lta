@@ -10,10 +10,11 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .utils import NoFileCatalogFilesException, quarantine_now
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
 
@@ -30,11 +31,6 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
-
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 def as_lta_record(catalog_record: Dict[str, Any]) -> Dict[str, Any]:
@@ -93,22 +89,12 @@ class Locator(Component):
         """Locator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work(self, lta_rc: RestClient) -> None:
-        """Perform a work cycle for this component."""
-        self.logger.info("Starting work on TransferRequests.")
-        load_level = -1
-        work_claimed = True
-        while work_claimed:
-            load_level += 1
-            work_claimed = await self._do_work_claim(lta_rc)
-            # if we are configured to run once and die, then die
-            if self.run_once_and_die:
-                sys.exit()
-        load_gauge.labels(component='locator', level='transfer_request', type='work').set(load_level)
-        self.logger.info("Ending work on TransferRequests.")
-
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a transfer request and perform work on it."""
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
+        """Claim a transfer request and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
         self.logger.info("Asking the LTA DB for a TransferRequest to work on.")
         pop_body = {
@@ -123,13 +109,19 @@ class Locator(Component):
         # process the TransferRequest that we were given
         try:
             await self._do_work_transfer_request(lta_rc, tr)
-            success_counter.labels(component='locator', level='transfer_request', type='work').inc()
+            prom_tracker.record_success()
+            return True
         except Exception as e:
-            failure_counter.labels(component='locator', level='transfer_request', type='exception').inc()
-            await self._quarantine_transfer_request(lta_rc, tr, f"{e}")
+            prom_tracker.record_failure()
+            await quarantine_now(
+                lta_rc,
+                tr,
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
             raise e
-        # if we were successful at processing work, let the caller know
-        return True
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,
@@ -182,8 +174,9 @@ class Locator(Component):
                 bundle_uuids = self._reduce_unique_archive_uuid(bundle_uuids, catalog_record, source)
         # if we didn't get any bundle_uuids, this is bad mojo
         if not bundle_uuids:
-            await self._quarantine_transfer_request(lta_rc, tr, "File Catalog returned zero files for the TransferRequest")
-            return
+            raise NoFileCatalogFilesException(
+                "File Catalog returned zero files for the TransferRequest"
+            )
         # query the file catalog for the bundle records
         bundle_records = []
         for bundle_uuid in bundle_uuids:
@@ -222,24 +215,6 @@ class Locator(Component):
         result = await lta_rc.request('POST', '/Bundles/actions/bulk_create', create_body)
         uuid = result["bundles"][0]
         return uuid
-
-    async def _quarantine_transfer_request(self,
-                                           lta_rc: RestClient,
-                                           tr: TransferRequestType,
-                                           reason: str) -> None:
-        """Update the LTA DB to indicate the TransferRequest should be quarantined."""
-        self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
-        right_now = now()
-        patch_body = {
-            "original_status": tr["status"],
-            "status": "quarantined",
-            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
-            "work_priority_timestamp": right_now,
-        }
-        try:
-            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
-        except Exception as e:
-            self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
 
     def _reduce_unique_archive_uuid(self,
                                     bundle_uuids: List[str],

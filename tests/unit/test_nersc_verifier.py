@@ -1,23 +1,11 @@
 # test_nersc_verifier.py
 """Unit tests for lta/nersc_verifier.py."""
+import logging
 from pathlib import Path
 
 # fmt:off
 
-# -----------------------------------------------------------------------------
-# reset prometheus registry for unit tests
-from prometheus_client import REGISTRY
-
 from lta.utils import HSICommandFailedException, InvalidChecksumException
-
-collectors = list(REGISTRY._collector_to_names.keys())
-for collector in collectors:
-    REGISTRY.unregister(collector)
-from prometheus_client import gc_collector, platform_collector, process_collector
-process_collector.ProcessCollector()
-platform_collector.PlatformCollector()
-gc_collector.GCCollector()
-# -----------------------------------------------------------------------------
 
 from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
@@ -61,8 +49,7 @@ def config() -> TestConfig:
 
 def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a NerscVerifier can be constructed with a configuration object and a logging object."""
-    logger_mock = mocker.MagicMock()
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     assert p.name == "testing-nersc_verifier"
     assert p.lta_auth_openid_url == "localhost:12345"
     assert p.lta_rest_url == "localhost:12347"
@@ -71,13 +58,12 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     assert p.work_retries == 3
     assert p.work_sleep_duration_seconds == 60
     assert p.work_timeout_seconds == 30
-    assert p.logger == logger_mock
+    assert p.logger == logging.getLogger()
 
 
 def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the NerscVerifier has no additional state to offer."""
-    logger_mock = mocker.MagicMock()
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     assert p._do_status() == {}
 
 
@@ -153,8 +139,7 @@ async def test_script_main_sync(config: TestConfig, mocker: MockerFixture, monke
 @pytest.mark.asyncio
 async def test_nersc_verifier_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the NerscVerifier does the work the nersc_verifier should do."""
-    logger_mock = mocker.MagicMock()
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
@@ -163,20 +148,16 @@ async def test_nersc_verifier_run(config: TestConfig, mocker: MockerFixture) -> 
 @pytest.mark.asyncio
 async def test_nersc_verifier_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the NerscVerifier."""
-    logger_mock = mocker.MagicMock()
-    p = NerscVerifier(config, logger_mock)
-    p.last_work_end_timestamp = ""
+    p = NerscVerifier(config, logging.getLogger())
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
-    assert p.last_work_end_timestamp
 
 
 @pytest.mark.asyncio
 async def test_nersc_verifier_hpss_not_available(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a bad returncode on hpss_avail will prevent work."""
-    logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.return_value = ObjectLiteral(
         returncode=1,
@@ -184,14 +165,13 @@ async def test_nersc_verifier_hpss_not_available(config: TestConfig, mocker: Moc
         stdout="some text on stdout",
         stderr="some text on stderr",
     )
-    p = NerscVerifier(config, logger_mock)
-    assert not await p._do_work_claim(AsyncMock())
+    p = NerscVerifier(config, logging.getLogger())
+    assert not await p._do_work_claim(AsyncMock(), MagicMock())
 
 
 @pytest.mark.asyncio
 async def test_nersc_verifier_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
-    logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.side_effect = [
         ObjectLiteral(
@@ -210,7 +190,7 @@ async def test_nersc_verifier_do_work_pop_exception(config: TestConfig, mocker: 
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     with pytest.raises(HTTPError):
         await p._do_work(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
@@ -219,10 +199,9 @@ async def test_nersc_verifier_do_work_pop_exception(config: TestConfig, mocker: 
 @pytest.mark.asyncio
 async def test_nersc_verifier_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._do_work_claim", new_callable=AsyncMock)
     dwc_mock.return_value = False
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
@@ -230,10 +209,9 @@ async def test_nersc_verifier_do_work_no_results(config: TestConfig, mocker: Moc
 @pytest.mark.asyncio
 async def test_nersc_verifier_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     await p._do_work(AsyncMock())
     assert dwc_mock.call_count == 3
 
@@ -241,7 +219,6 @@ async def test_nersc_verifier_do_work_yes_results(config: TestConfig, mocker: Mo
 @pytest.mark.asyncio
 async def test_nersc_verifier_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.side_effect = [
         ObjectLiteral(
@@ -263,8 +240,8 @@ async def test_nersc_verifier_do_work_claim_no_result(config: TestConfig, mocker
         "bundle": None
     }
     vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=MagicMock)
-    p = NerscVerifier(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    p = NerscVerifier(config, logging.getLogger())
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
     vbih_mock.assert_not_called()
 
@@ -272,7 +249,6 @@ async def test_nersc_verifier_do_work_claim_no_result(config: TestConfig, mocker
 @pytest.mark.asyncio
 async def test_nersc_verifier_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
-    logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.side_effect = [
         ObjectLiteral(
@@ -291,23 +267,20 @@ async def test_nersc_verifier_do_work_claim_yes_result(config: TestConfig, mocke
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.return_value = {
-        "bundle": {
-            "one": 1,
-        },
+        "bundle": {"one": 1, "uuid": "abc123", "type": "Bundle"}
     }
     vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=MagicMock)
     ubild_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._update_bundle_in_lta_db", new_callable=AsyncMock)
-    p = NerscVerifier(config, logger_mock)
-    assert await p._do_work_claim(lta_rc_mock)
+    p = NerscVerifier(config, logging.getLogger())
+    assert await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=verifying', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    vbih_mock.assert_called_with({"one": 1})
-    ubild_mock.assert_called_with(lta_rc_mock, {"one": 1}, vbih_mock.return_value)
+    vbih_mock.assert_called_with({"one": 1, "uuid": "abc123", "type": "Bundle"})
+    ubild_mock.assert_called_with(lta_rc_mock, {"one": 1, "uuid": "abc123", "type": "Bundle"}, vbih_mock.return_value)
 
 
 @pytest.mark.asyncio
 async def test_nersc_verifier_do_work_claim_exception_caught(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim quarantines a Bundle if it catches an Exception."""
-    logger_mock = mocker.MagicMock()
     run_mock = mocker.patch("lta.nersc_verifier.run", new_callable=MagicMock)
     run_mock.side_effect = [
         ObjectLiteral(
@@ -331,6 +304,7 @@ async def test_nersc_verifier_do_work_claim_exception_caught(config: TestConfig,
                 "uuid": "45ae2ad39c664fda86e5981be0976d9c",
                 "status": "verifying",
                 "one": 1,
+                "type": "Bundle",
             },
         },
         {}
@@ -338,26 +312,25 @@ async def test_nersc_verifier_do_work_claim_exception_caught(config: TestConfig,
     vbih_mock = mocker.patch("lta.nersc_verifier.NerscVerifier._verify_bundle_in_hpss", new_callable=MagicMock)
     exc = Exception("Database totally on fire, guys")
     vbih_mock.side_effect = exc
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     with pytest.raises(type(exc)) as excinfo:
-        assert not await p._do_work_claim(lta_rc_mock)
+        assert not await p._do_work_claim(lta_rc_mock, MagicMock())
     assert excinfo.value == exc
     lta_rc_mock.request.assert_called_with("PATCH", '/Bundles/45ae2ad39c664fda86e5981be0976d9c', mocker.ANY)
     vbih_mock.assert_called_with(
-        {"uuid": "45ae2ad39c664fda86e5981be0976d9c", "status": "verifying", "one": 1}
+        {"uuid": "45ae2ad39c664fda86e5981be0976d9c", "status": "verifying", "one": 1, "type": "Bundle"}
     )
 
 
 @pytest.mark.asyncio
 async def test_nersc_verifier_update_bundle_in_lta_db(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _update_bundle_in_lta_db updates the bundle as verified in the LTA DB."""
-    logger_mock = mocker.MagicMock()
     bundle = {"uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef"}
     lta_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
     lta_rc_mock.return_value = True
     lta_mock.request = lta_rc_mock
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     assert await p._update_bundle_in_lta_db(lta_mock, bundle, Path("foo"))
     lta_rc_mock.assert_called_with("PATCH", '/Bundles/7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef', mocker.ANY)
 
@@ -365,7 +338,6 @@ async def test_nersc_verifier_update_bundle_in_lta_db(config: TestConfig, mocker
 @pytest.mark.asyncio
 async def test_nersc_verifier_verify_bundle_in_hpss_success_no_quarantine(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _verify_bundle_in_hpss does not quarantine a bundle if the HSI command succeeds."""
-    logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
@@ -389,7 +361,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_success_no_quarantine(config
             stderr=b"",
         ),
     ]
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     p._verify_bundle_in_hpss(bundle)
     assert run_mock.call_count == 2
 
@@ -397,7 +369,6 @@ async def test_nersc_verifier_verify_bundle_in_hpss_success_no_quarantine(config
 @pytest.mark.asyncio
 async def test_nersc_verifier_verify_bundle_in_hpss_hsi_failure_quarantine(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _verify_bundle_in_hpss quarantines a bundle if the HSI command fails."""
-    logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
@@ -416,7 +387,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hsi_failure_quarantine(confi
             stderr=b"",
         ),
     ]
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     with pytest.raises(HSICommandFailedException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
     assert "list checksum in HPSS (hashlist)" in str(excinfo.value)
@@ -426,7 +397,6 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hsi_failure_quarantine(confi
 @pytest.mark.asyncio
 async def test_nersc_verifier_verify_bundle_in_hpss_mismatch_checksum_quarantine(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _verify_bundle_in_hpss quarantines a bundle if the checksums do not match."""
-    logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
@@ -445,7 +415,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_mismatch_checksum_quarantine
             stderr=b"",
         ),
     ]
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     with pytest.raises(InvalidChecksumException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
     assert str(excinfo.value).startswith("Checksum mismatch between creation and destination:")
@@ -455,7 +425,6 @@ async def test_nersc_verifier_verify_bundle_in_hpss_mismatch_checksum_quarantine
 @pytest.mark.asyncio
 async def test_nersc_verifier_verify_bundle_in_hpss_failure_hashverify_quarantine(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _verify_bundle_in_hpss raises if the HSI hashverify command fails."""
-    logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
@@ -480,7 +449,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_failure_hashverify_quarantin
             stderr=b"",
         ),
     ]
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     with pytest.raises(HSICommandFailedException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
     assert "verify bundle in HPSS (hashverify)" in str(excinfo.value)
@@ -490,7 +459,6 @@ async def test_nersc_verifier_verify_bundle_in_hpss_failure_hashverify_quarantin
 @pytest.mark.asyncio
 async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quarantine(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _verify_bundle_in_hpss raises when hashverify output is not '(sha512) OK'."""
-    logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
@@ -515,7 +483,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quaranti
             stderr=b"",
         ),
     ]
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     with pytest.raises(InvalidChecksumException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
     assert str(excinfo.value).startswith("Checksum mismatch between creation and destination:")
@@ -525,7 +493,6 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_type_quaranti
 @pytest.mark.asyncio
 async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_result_quarantine(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _verify_bundle_in_hpss raises when hashverify output is not '(sha512) OK'."""
-    logger_mock = mocker.MagicMock()
     bundle = {
         "uuid": "7ec8a8f9-fae3-4f25-ae54-c1f66014f5ef",
         "path": "/data/exp/IceCube/2019/filtered/PFFilt/1109",
@@ -550,7 +517,7 @@ async def test_nersc_verifier_verify_bundle_in_hpss_hashverify_bad_result_quaran
             stderr=b"",
         ),
     ]
-    p = NerscVerifier(config, logger_mock)
+    p = NerscVerifier(config, logging.getLogger())
     with pytest.raises(InvalidChecksumException) as excinfo:
         p._verify_bundle_in_hpss(bundle)
     assert str(excinfo.value).startswith("Checksum mismatch between creation and destination:")

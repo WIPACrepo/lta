@@ -6,7 +6,6 @@ Run with `python -m lta.rest_server`.
 
 import asyncio
 import time
-from datetime import datetime
 import logging
 import os
 import sys
@@ -32,6 +31,8 @@ import tornado.web
 from wipac_dev_tools import from_environment, strtobool, prometheus_tools
 from wipac_dev_tools.string_tools import regex_named_groups_to_template
 from wipac_dev_tools.timing_tools import IntervalTimer
+
+from .utils import now
 
 # fmt:off
 
@@ -101,11 +102,6 @@ lta_auth = keycloak_role_auth
 # -----------------------------------------------------------------------------
 
 
-def now() -> str:
-    """Return string timestamp for current time, to the second."""
-    return datetime.utcnow().isoformat(timespec='seconds')
-
-
 def unique_id() -> str:
     """Return a unique ID for an LTA database entity."""
     return uuid1().hex
@@ -120,7 +116,7 @@ DatabaseType = dict[str, Any]
 # -- make module-level so these are shared within this process (else, dups overwrite)
 
 PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
-    'http_request_duration_seconds',
+    'http_request_duration_seconds',  # common name among other non-LTA apps
     'HTTP request duration in seconds',
     labelnames=('method', 'route', 'status'),
     buckets=prometheus_tools.HistogramBuckets.HTTP_API,
@@ -673,8 +669,14 @@ class TransferRequestSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(400, reason="bad request")
 
         sbtr = self.db.TransferRequests
+
+        # prep mongo pieces
         query = {"uuid": request_id}
+        # -- if requestor is resetting the 'reason' field, also reset 'reason_details'
+        if req.get('reason', None) == "":
+            req['reason_details'] = ""
         update = {"$set": req}
+
         logging.debug(f"MONGO-START: db.TransferRequests.find_one_and_update(filter={query}, update={update}, projection={REMOVE_ID}, return_document={AFTER}")
         ret = await sbtr.find_one_and_update(filter=query,
                                              update=update,

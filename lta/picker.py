@@ -12,10 +12,11 @@ import sys
 from typing import Any, Dict, Optional
 
 from binpacking import to_constant_bin_number  # type: ignore
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .utils import NoFileCatalogFilesException, quarantine_now
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
 
@@ -38,11 +39,6 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
-
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 @dataclasses.dataclass
@@ -87,22 +83,12 @@ class Picker(Component):
         """Picker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work(self, lta_rc: RestClient) -> None:
-        """Perform a work cycle for this component."""
-        self.logger.info("Starting work on TransferRequests.")
-        load_level = -1
-        work_claimed = True
-        while work_claimed:
-            load_level += 1
-            work_claimed = await self._do_work_claim(lta_rc)
-            # if we are configured to run once and die, then die
-            if self.run_once_and_die:
-                sys.exit()
-        load_gauge.labels(component='picker', level='transfer_request', type='work').set(load_level)
-        self.logger.info("Ending work on TransferRequests.")
-
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a transfer request and perform work on it."""
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
+        """Claim a transfer request and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next TransferRequest to be picked
         self.logger.info("Asking the LTA DB for a TransferRequest to work on.")
         pop_body = {
@@ -117,16 +103,19 @@ class Picker(Component):
         # process the TransferRequest that we were given
         try:
             await self._do_work_transfer_request(lta_rc, tr)
-            success_counter.labels(component='picker', level='transfer_request', type='work').inc()
+            prom_tracker.record_success()
+            return True
         except Exception as e:
-            failure_counter.labels(component='picker', level='transfer_request', type='exception').inc()
-            self.logger.info(f"There was an error while processing the transfer request: {e}")
-            self.logger.info("Will now attempt to send the transfer request to 'quarantined' status.")
-            await self._quarantine_transfer_request(lta_rc, tr, f"{e}")
-            self.logger.info("Done sending the transfer request to 'quarantined' status, will end work cycle.")
-            return False
-        # if we were successful at processing work, let the caller know
-        return True
+            prom_tracker.record_failure()
+            await quarantine_now(
+                lta_rc,
+                tr,
+                e,
+                self.name,
+                self.instance_uuid,
+                self.logger,
+            )
+            raise e
 
     async def _do_work_transfer_request(
         self,
@@ -140,10 +129,9 @@ class Picker(Component):
         catalog_files = await self._get_files_from_file_catalog(tr)
         # if we didn't get any files, this is bad mojo
         if not catalog_files:
-            await self._quarantine_transfer_request(
-                lta_rc, tr, "File Catalog returned zero files for the TransferRequest"
+            raise NoFileCatalogFilesException(
+                "File Catalog returned zero files for the TransferRequest"
             )
-            return
 
         # step 2: group those files
         packing_spec = self._group_catalog_files_evenly(catalog_files)
@@ -290,24 +278,6 @@ class Picker(Component):
             }
             result = await lta_rc.request('POST', '/Metadata/actions/bulk_create', create_body)
             self.logger.info(f'Created {result["count"]} Metadata documents linking to pending bundle {bundle_uuid}.')
-
-    async def _quarantine_transfer_request(self,
-                                           lta_rc: RestClient,
-                                           tr: TransferRequestType,
-                                           reason: str) -> None:
-        """Quarantine a TransferRequest by updating its status in the LTA DB."""
-        self.logger.error(f'Sending TransferRequest {tr["uuid"]} to quarantine: {reason}.')
-        right_now = now()
-        patch_body = {
-            "original_status": tr["status"],
-            "status": "quarantined",
-            "reason": f"BY:{self.name}-{self.instance_uuid} REASON:{reason}",
-            "work_priority_timestamp": right_now,
-        }
-        try:
-            await lta_rc.request('PATCH', f'/TransferRequests/{tr["uuid"]}', patch_body)
-        except Exception as e:
-            self.logger.error(f'Unable to quarantine TransferRequest {tr["uuid"]}: {e}.')
 
 
 async def main(picker: Picker) -> None:
