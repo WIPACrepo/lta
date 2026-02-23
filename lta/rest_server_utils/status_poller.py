@@ -137,6 +137,7 @@ async def status_poller(
         ),
     ]
 
+    # main loop
     while True:
         try:
             if do_log := logging_timer.has_interval_elapsed():
@@ -145,6 +146,7 @@ async def status_poller(
                     f"logging={STATUS_POLLER_INTERVAL_LOGGING}s"
                 )
 
+            # for each job, update the gauge for each collection
             for j in jobs:
                 for collection_name in (BUNDLES, TRANSFER_REQUESTS):
                     await _update_gauge_from_aggregation(
@@ -159,6 +161,6 @@ async def status_poller(
             raise
         except Exception:
             LOGGER.exception("Failed -- sleeping then restarting")
-            await asyncio.sleep(max(5 * 60, status_poller_interval))
-
-        await asyncio.sleep(status_poller_interval)
+            await asyncio.sleep(max(5 * 60, status_poller_interval * 2))
+        else:
+            await asyncio.sleep(status_poller_interval)
