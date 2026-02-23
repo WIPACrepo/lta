@@ -29,39 +29,52 @@ class _GaugeAggregationJob:
     pipeline: Sequence[Mapping[str, Any]]
     gauge: Gauge
     gauge_label_name: str
-    previous_label_values_by_collection: dict[str, set[str]] = dataclasses.field(
+    prev_label_values_by_collection: dict[str, set[str]] = dataclasses.field(
         default_factory=dict, init=False
     )
 
 
 # 1) Aggregate per-status document counts for each collection
 STATUS_PIPELINE: Sequence[Mapping[str, Any]] = [
+    # Stage 1: keep only documents that have a "status" field at all
     {"$match": {"status": {"$exists": True}}},
+    # Stage 2: group the remaining docs by their "status" value
     {"$group": {"_id": "$status", "count": {"$sum": 1}}},
 ]
 
 # 2) Aggregate quarantined docs by original_status (including missing/None)
 QUARANTINE_BY_ORIGINAL_STATUS_PIPELINE: Sequence[Mapping[str, Any]] = [
+    # Stage 1: only include docs whose current status is "quarantined"
     {"$match": {"status": "quarantined"}},
+    # Stage 2: normalize original_status into a bucket string we can safely group on
     {
         "$project": {
+            # Create a new (temporary) computed field named "original_status_bucket"
             "original_status_bucket": {
+                # "$switch" is Mongo's if/elif/else expression
                 "$switch": {
                     "branches": [
                         {
+                            # Branch 1: detect when "original_status" does not exist at all
+                            # - "missing" is a Mongo special value for when a field is missing
                             "case": {"$eq": [{"$type": "$original_status"}, "missing"]},
-                            "then": "<missing>",
+                            "then": "<missing>",  # use this label
                         },
                         {
+                            # Branch 2: detect when "original_status" exists but is null/None
+                            # - "None" is a Mongo special value for when a field is null/None
                             "case": {"$eq": ["$original_status", None]},
-                            "then": "<none>",
+                            "then": "<none>",  # use this label
                         },
                     ],
+                    # Else: use the actual original_status value as the bucket label
+                    # - e.g. "staging", "new", "taping", etc.
                     "default": "$original_status",
                 }
             }
         }
     },
+    # Stage 3: group quarantined docs by the normalized original_status bucket & count
     {"$group": {"_id": "$original_status_bucket", "count": {"$sum": 1}}},
 ]
 
@@ -76,9 +89,7 @@ async def _update_gauge_from_aggregation(
     """Run one aggregation, update the gauge, and reset disappeared labels."""
     cursor = await mongo_db[collection_name].aggregate(job.pipeline)
 
-    previous_label_values = job.previous_label_values_by_collection.get(
-        collection_name, set()
-    )
+    prev_label_values = job.prev_label_values_by_collection.get(collection_name, set())
     current_label_values: set[str] = set()
 
     # update the gauge for each bucket
@@ -94,7 +105,7 @@ async def _update_gauge_from_aggregation(
             LOGGER.info(f"{job.gauge} for {collection_name}.{label_value}: {count}")
 
     # reset any buckets that disappeared from DB, to zero
-    for label_value in previous_label_values - current_label_values:
+    for label_value in prev_label_values - current_label_values:
         job.gauge.labels(
             collection=collection_name,
             **{job.gauge_label_name: label_value},
@@ -102,7 +113,7 @@ async def _update_gauge_from_aggregation(
         if do_log:
             LOGGER.info(f"resetting {job.gauge} for {collection_name}.{label_value}: 0")
 
-    job.previous_label_values_by_collection[collection_name] = current_label_values
+    job.prev_label_values_by_collection[collection_name] = current_label_values
 
 
 async def status_poller(
