@@ -30,7 +30,7 @@ class _GaugeAggregationJob:
     gauge: Gauge
     gauge_label_name: str
     previous_label_values_by_collection: dict[str, set[str]] = dataclasses.field(
-        default_factory=dict
+        default_factory=dict, init=False
     )
 
 
