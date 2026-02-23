@@ -71,12 +71,16 @@ async def _update_gauge_from_aggregation(
     pipeline: Sequence[Mapping[str, Any]],
     gauge: Any,
     gauge_label_name: str,
+    previous_labels: set[tuple[str, str]],
     current_labels: set[tuple[str, str]],
     log_prefix: str,
     _log: Callable[[str], None],
 ) -> None:
-    """Run an aggregation and update one gauge from the grouped results."""
+    """Run an aggregation, update one gauge, and reset disappeared labels for this collection."""
     cursor = await mongo_db[collection_name].aggregate(pipeline)
+
+    current_collection_labels: set[tuple[str, str]] = set()
+
     async for doc in cursor:
         bucket_value = str(doc["_id"])
         count = int(doc["count"])
@@ -84,21 +88,17 @@ async def _update_gauge_from_aggregation(
             collection=collection_name,
             **{gauge_label_name: bucket_value},
         ).set(count)
+
+        current_collection_labels.add((collection_name, bucket_value))
         current_labels.add((collection_name, bucket_value))
         _log(f"{log_prefix} for {collection_name}.{bucket_value}: {count}")
 
+    # Reset labels that existed last poll but disappeared in this poll
+    # (only for this collection).
+    for _collection_name, bucket_value in previous_labels - current_labels:
+        if _collection_name != collection_name:
+            continue
 
-def _reset_missing_gauge_labels(
-    *,
-    gauge: Any,
-    gauge_label_name: str,
-    previous_labels: set[tuple[str, str]],
-    current_labels: set[tuple[str, str]],
-    log_prefix: str,
-    _log: Callable[[str], None],
-) -> None:
-    """Set gauge values to zero for labels that existed previously but disappeared."""
-    for collection_name, bucket_value in previous_labels - current_labels:
         gauge.labels(
             collection=collection_name,
             **{gauge_label_name: bucket_value},
@@ -140,43 +140,24 @@ async def status_poller(
                     pipeline=STATUS_PIPELINE,
                     gauge=PROMETHEUS_STATUS_GAUGE,
                     gauge_label_name="status",
+                    previous_labels=previous_status_labels,
                     current_labels=current_status_labels,
                     log_prefix="status count",
                     _log=_log,
                 )
 
                 # Gauge 2: quarantined count by original_status
-                # (includes <missing> and <none> buckets)
                 await _update_gauge_from_aggregation(
                     mongo_db=mongo_db,
                     collection_name=collection_name,
                     pipeline=QUARANTINE_BY_ORIGINAL_STATUS_PIPELINE,
                     gauge=PROMETHEUS_QUARANTINE_GAUGE,
                     gauge_label_name="original_status",
+                    previous_labels=previous_quarantine_labels,
                     current_labels=current_quarantine_labels,
                     log_prefix="quarantine original_status count",
                     _log=_log,
                 )
-
-            # If a status existed last poll but not this poll, set it to 0.
-            _reset_missing_gauge_labels(
-                gauge=PROMETHEUS_STATUS_GAUGE,
-                gauge_label_name="status",
-                previous_labels=previous_status_labels,
-                current_labels=current_status_labels,
-                log_prefix="status count",
-                _log=_log,
-            )
-
-            # If a quarantine original_status bucket existed last poll but not this poll, set it to 0.
-            _reset_missing_gauge_labels(
-                gauge=PROMETHEUS_QUARANTINE_GAUGE,
-                gauge_label_name="original_status",
-                previous_labels=previous_quarantine_labels,
-                current_labels=current_quarantine_labels,
-                log_prefix="quarantine original_status count",
-                _log=_log,
-            )
 
             previous_status_labels = current_status_labels
             previous_quarantine_labels = current_quarantine_labels
