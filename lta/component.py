@@ -213,7 +213,7 @@ class Component:
         prometheus_histogram = self.prometheus.histogram(
             "lta_single_work_latency_seconds",
             "LTA component: time taken to process a single work item (only successes are recorded)",
-            buckets=HistogramBuckets.TENMINUTE,  # TODO: do we want to make this configurable?
+            buckets=HistogramBuckets.HOUR,  # common across all components
         )
 
         for i in itertools.count():
