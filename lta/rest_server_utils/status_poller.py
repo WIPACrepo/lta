@@ -62,7 +62,6 @@ QUARANTINE_BY_ORIGINAL_STATUS_PIPELINE: Sequence[Mapping[str, Any]] = [
                         },
                         {
                             # Branch 2: detect when "original_status" exists but is null/None
-                            # - "None" is a Mongo special value for when a field is null/None
                             "case": {"$eq": ["$original_status", None]},
                             "then": "<none>",  # use this label
                         },
@@ -161,6 +160,6 @@ async def status_poller(
             raise
         except Exception:
             LOGGER.exception("Failed -- sleeping then restarting")
-            await asyncio.sleep(max(5 * 60, status_poller_interval * 2))
+            await asyncio.sleep(max(5 * 60, 2 * status_poller_interval))
         else:
             await asyncio.sleep(status_poller_interval)

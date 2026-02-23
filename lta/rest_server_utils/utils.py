@@ -68,7 +68,7 @@ def prometheus_record_status_write(
     """
     PROMETHEUS_STATUS_WRITES_TOTAL.labels(
         collection=collection,
-        to_status=new_status,
+        to_status=str(new_status),
     ).inc()
 
     # did the user quarantine?
@@ -76,8 +76,8 @@ def prometheus_record_status_write(
         PROMETHEUS_QUARANTINE_WRITES_TOTAL.labels(
             collection=collection,
             original_status=(
-                original_status_for_quarantine
-                if original_status_for_quarantine
-                else "__unknown__"
+                "__unknown__"
+                if original_status_for_quarantine is None
+                else str(original_status_for_quarantine)
             ),
         ).inc()
