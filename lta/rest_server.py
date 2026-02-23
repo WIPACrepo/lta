@@ -652,7 +652,8 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         query = {"uuid": request_id}
         update = {"$set": req}
         logging.debug(f"MONGO-START: db.TransferRequests.find_one_and_update(filter={query}, update={update}, projection={REMOVE_ID}, return_document={AFTER}")
-        from_db = await sbtr.find_one_and_update(filter=query,
+        from_db = await sbtr.find_one_and_update(
+            filter=query,
             update=update,
             projection=REMOVE_ID,
             return_document=AFTER,
