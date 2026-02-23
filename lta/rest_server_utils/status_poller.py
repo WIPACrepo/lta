@@ -29,7 +29,7 @@ class _GaugeAggregationJob:
     pipeline: Sequence[Mapping[str, Any]]
     gauge: Gauge
     gauge_label_name: str
-    previous_bucket_values_by_collection: dict[str, set[str]] = dataclasses.field(
+    previous_label_values_by_collection: dict[str, set[str]] = dataclasses.field(
         default_factory=dict
     )
 
@@ -76,35 +76,33 @@ async def _update_gauge_from_aggregation(
     """Run one aggregation, update the gauge, and reset disappeared labels."""
     cursor = await mongo_db[collection_name].aggregate(job.pipeline)
 
-    previous_bucket_values = job.previous_bucket_values_by_collection.get(
+    previous_label_values = job.previous_label_values_by_collection.get(
         collection_name, set()
     )
-    current_bucket_values: set[str] = set()
+    current_label_values: set[str] = set()
 
     # update the gauge for each bucket
-    async for doc in cursor:
-        bucket_value = str(doc["_id"])
-        count = int(doc["count"])
+    async for result in cursor:
+        label_value = str(result["_id"])
+        count = int(result["count"])
         job.gauge.labels(
             collection=collection_name,
-            **{job.gauge_label_name: bucket_value},
+            **{job.gauge_label_name: label_value},
         ).set(count)
-        current_bucket_values.add(bucket_value)
+        current_label_values.add(label_value)
         if do_log:
-            LOGGER.info(f"{job.gauge} for {collection_name}.{bucket_value}: {count}")
+            LOGGER.info(f"{job.gauge} for {collection_name}.{label_value}: {count}")
 
     # reset any buckets that disappeared from DB, to zero
-    for bucket_value in previous_bucket_values - current_bucket_values:
+    for label_value in previous_label_values - current_label_values:
         job.gauge.labels(
             collection=collection_name,
-            **{job.gauge_label_name: bucket_value},
+            **{job.gauge_label_name: label_value},
         ).set(0)
         if do_log:
-            LOGGER.info(
-                f"resetting {job.gauge} for {collection_name}.{bucket_value}: 0"
-            )
+            LOGGER.info(f"resetting {job.gauge} for {collection_name}.{label_value}: 0")
 
-    job.previous_bucket_values_by_collection[collection_name] = current_bucket_values
+    job.previous_label_values_by_collection[collection_name] = current_label_values
 
 
 async def status_poller(
