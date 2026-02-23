@@ -49,3 +49,35 @@ PROMETHEUS_STATUS_WRITES_TOTAL = prometheus_client.Counter(
     "Count of LTA object status writes",
     labelnames=("collection", "to_status"),
 )
+
+PROMETHEUS_QUARANTINE_WRITES_TOTAL = prometheus_client.Counter(
+    "lta_quarantine_writes_total",
+    "Count of LTA object quarantine writes",
+    labelnames=("collection", "original_status"),
+)
+
+
+def prometheus_record_status_write(
+    collection: str,
+    new_status: str,
+    original_status_for_quarantine: str | None,
+) -> None:
+    """For Prometheus, record a write to the status field of a LTA object.
+
+    If the new status is "quarantined", also record the original status for quarantine.
+    """
+    PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+        collection=collection,
+        to_status=new_status,
+    ).inc()
+
+    # did the user quarantine?
+    if new_status == "quarantined":
+        PROMETHEUS_QUARANTINE_WRITES_TOTAL.labels(
+            collection=collection,
+            original_status=(
+                original_status_for_quarantine
+                if original_status_for_quarantine
+                else "__unknown__"
+            ),
+        ).inc()

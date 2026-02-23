@@ -38,9 +38,9 @@ from .rest_server_utils.utils import (
     DatabaseType,
     PROMETHEUS_BUNDLE_CLAIMS_TOTAL,
     PROMETHEUS_HISTOGRAM,
-    PROMETHEUS_STATUS_WRITES_TOTAL,
     STATUS_POLLER_INTERVAL_MINIMUM,
     TRANSFER_REQUESTS,
+    prometheus_record_status_write,
 )
 
 # fmt:off
@@ -182,10 +182,12 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             uuid = x["uuid"]
             uuids.append(uuid)
             logging.info(f"created Bundle {uuid}")
-            PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+            prometheus_record_status_write(
                 collection=BUNDLES,
-                to_status=x.get("status", "__not_set__"),  # do this individually so we don't assume statuses
-            ).inc()
+                new_status=x.get("status", "__not_set__"),
+                original_status_for_quarantine=x.get("original_status"),
+                # ^^^ its possible a bunch of bundles were created as quarantined ¯\_(ツ)_/¯
+            )
 
         self.set_status(201)
         self.write({'bundles': uuids, 'count': create_count})
@@ -246,12 +248,12 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
             if ret.modified_count > 0:
                 logging.info(f"updated Bundle {uuid}")
                 results.append(uuid)
-                # count it as a status change if we're changing status
                 if "status" in req["update"]:
-                    PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+                    prometheus_record_status_write(
                         collection=BUNDLES,
-                        to_status=str(req["update"]["status"]),
-                    ).inc()
+                        new_status=req["update"]["status"],
+                        original_status_for_quarantine=req["update"].get("original_status"),
+                    )
 
         self.write({'bundles': results, 'count': len(results)})
 
@@ -381,22 +383,23 @@ class BundlesSingleHandler(BaseLTAHandler):
 
         # update
         logging.debug(f"MONGO-START: db.Bundles.find_one_and_update(filter={query}, update={update_doc}, projection={REMOVE_ID}, return_document={AFTER})")
-        ret = await self.db.Bundles.find_one_and_update(filter=query,
+        from_db = await self.db.Bundles.find_one_and_update(filter=query,
                                                         update=update_doc,
                                                         projection=REMOVE_ID,
                                                         return_document=AFTER)
         logging.debug("MONGO-END:   db.Bundles.find_one_and_update(filter, update, projection, return_document)")
-        if not ret:
+        if not from_db:
             raise tornado.web.HTTPError(404, reason="not found")
 
         # done
-        if "status" in req:
-            PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+        if "status" in req:  # did the user update the status?
+            prometheus_record_status_write(
                 collection=BUNDLES,
-                to_status=ret.get("status", "__unknown__"),
-            ).inc()
+                new_status=req["status"],
+                original_status_for_quarantine=from_db.get("original_status"),
+            )
         logging.info(f"patched Bundle {bundle_id} with {req}")
-        self.write(ret)
+        self.write(from_db)
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def delete(self, bundle_id: str) -> None:
@@ -613,10 +616,11 @@ class TransferRequestsHandler(BaseLTAHandler):
         logging.info(f"created TransferRequest {req['uuid']}")
 
         # done
-        PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+        prometheus_record_status_write(
             collection=TRANSFER_REQUESTS,
-            to_status="unclaimed",
-        ).inc()
+            new_status="unclaimed",
+            original_status_for_quarantine=None,
+        )
         self.set_status(201)
         self.write({'TransferRequest': req['uuid']})
 
@@ -646,20 +650,21 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         query = {"uuid": request_id}
         update = {"$set": req}
         logging.debug(f"MONGO-START: db.TransferRequests.find_one_and_update(filter={query}, update={update}, projection={REMOVE_ID}, return_document={AFTER}")
-        ret = await sbtr.find_one_and_update(filter=query,
+        from_db = await sbtr.find_one_and_update(filter=query,
                                              update=update,
                                              projection=REMOVE_ID,
                                              return_document=AFTER)
         logging.debug("MONGO-END:   db.TransferRequests.find_one_and_update(filter, update, projection, return_document")
-        if not ret:
+        if not from_db:
             raise tornado.web.HTTPError(404, reason="not found")
 
         logging.info(f"patched TransferRequest {request_id} with {req}")
-        if "status" in req:
-            PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+        if "status" in req:  # did the user update the status?
+            prometheus_record_status_write(
                 collection=TRANSFER_REQUESTS,
-                to_status=ret.get("status", "__unknown__"),
-            ).inc()
+                new_status=req["status"],
+                original_status_for_quarantine=from_db.get("original_status"),
+            )
         self.write({})
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
@@ -712,10 +717,11 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
             logging.info(f"Unclaimed TransferRequest with source {source} does not exist.")
         else:
             logging.info(f"TransferRequest {tr['uuid']} claimed by {claimant}")
-            PROMETHEUS_STATUS_WRITES_TOTAL.labels(
+            prometheus_record_status_write(
                 collection=TRANSFER_REQUESTS,
-                to_status="processing",
-            ).inc()
+                new_status="processing",
+                original_status_for_quarantine=None,
+            )
         self.write({'transfer_request': tr})
 
 # -----------------------------------------------------------------------------
