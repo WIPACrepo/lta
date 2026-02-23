@@ -82,6 +82,11 @@ class PrometheusResultTracker:
         self._failure_counter.inc()
         # note - we don't record the latency here since it failed (would skew the data)
 
+    @property
+    def done(self):
+        """Return whether the result has been recorded."""
+        return self._done
+
 
 # fmt:off
 
@@ -222,6 +227,8 @@ class Component:
             )
 
             ret = await self._do_work_claim(lta_rc, prom_tracker)
+            if not prom_tracker.done:
+                self.logger.warning("Component did not record its result in Prometheus.")
 
             # now, decide whether to continue or pause the work cycle
             if self.run_once_and_die:
