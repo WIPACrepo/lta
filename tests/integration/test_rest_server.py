@@ -21,9 +21,9 @@ from pytest_mock import MockerFixture
 from requests.exceptions import HTTPError
 from rest_tools.client import RestClient
 from rest_tools.utils import Auth
-from wipac_dev_tools import strtobool
+from wipac_dev_tools import from_environment, strtobool
 
-from lta.rest_server import main, start, unique_id
+from lta.rest_server import EXPECTED_CONFIG, create_mongodb_client, main, start, unique_id
 
 LtaCollection = Database[Dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
@@ -94,7 +94,9 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
     monkeypatch.setenv("LTA_SITE_CONFIG", "examples/site.json")
     # monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
     monkeypatch.setenv("PROMETHEUS_METRICS_PORT", "8090")
-    s = start(debug=True)
+    config = from_environment(EXPECTED_CONFIG)
+    mongo_db = create_mongodb_client(config)
+    s = start(config, mongo_db, debug=True)
 
     _clients: list[RestClient] = []
 

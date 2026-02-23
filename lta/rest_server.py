@@ -28,9 +28,19 @@ from rest_tools.server import (
 )
 from rest_tools.server.decorators import keycloak_role_auth
 import tornado.web
-from wipac_dev_tools import from_environment, strtobool, prometheus_tools
+from wipac_dev_tools import from_environment, strtobool
 from wipac_dev_tools.string_tools import regex_named_groups_to_template
 
+from .rest_server_utils.status_poller import status_poller
+from .rest_server_utils.utils import (
+    BUNDLES,
+    DatabaseType,
+    PROMETHEUS_BUNDLE_CLAIMS_TOTAL,
+    PROMETHEUS_HISTOGRAM,
+    STATUS_POLLER_INTERVAL_MINIMUM,
+    TRANSFER_REQUESTS,
+    prometheus_record_status_write,
+)
 from .utils import now
 
 # fmt:off
@@ -52,6 +62,7 @@ EXPECTED_CONFIG = {
     'LTA_REST_HOST': 'localhost',
     'LTA_REST_PORT': '8080',
     'PROMETHEUS_METRICS_PORT': '8090',
+    'STATUS_POLLER_INTERVAL': str(STATUS_POLLER_INTERVAL_MINIMUM),  # seconds
 }
 
 LOG = logging.getLogger(__name__)
@@ -97,21 +108,6 @@ lta_auth = keycloak_role_auth
 def unique_id() -> str:
     """Return a unique ID for an LTA database entity."""
     return uuid1().hex
-
-
-DatabaseType = dict[str, Any]
-
-
-# -----------------------------------------------------------------------------
-
-
-# make module-level so same histogram is shared within this process (else, overwrites)
-PROMETHEUS_HISTOGRAM = prometheus_client.Histogram(
-    'http_request_duration_seconds',  # common name among other non-LTA apps
-    'HTTP request duration in seconds',
-    labelnames=('method', 'route', 'status'),
-    buckets=prometheus_tools.HistogramBuckets.HTTP_API,
-)
 
 
 # -----------------------------------------------------------------------------
@@ -181,6 +177,12 @@ class BundlesActionsBulkCreateHandler(BaseLTAHandler):
             uuid = x["uuid"]
             uuids.append(uuid)
             logging.info(f"created Bundle {uuid}")
+            prometheus_record_status_write(
+                collection=BUNDLES,
+                new_status=x.get("status", "__not_set__"),
+                original_status_for_quarantine=x.get("original_status"),
+                # ^^^ its possible a bunch of bundles were created as quarantined ¯\_(ツ)_/¯
+            )
 
         self.set_status(201)
         self.write({'bundles': uuids, 'count': create_count})
@@ -241,6 +243,12 @@ class BundlesActionsBulkUpdateHandler(BaseLTAHandler):
             if ret.modified_count > 0:
                 logging.info(f"updated Bundle {uuid}")
                 results.append(uuid)
+                if "status" in req["update"]:
+                    prometheus_record_status_write(
+                        collection=BUNDLES,
+                        new_status=req["update"]["status"],
+                        original_status_for_quarantine=req["update"].get("original_status"),
+                    )
 
         self.write({'bundles': results, 'count': len(results)})
 
@@ -332,6 +340,7 @@ class BundlesActionsPopHandler(BaseLTAHandler):
             logging.info(f"Unclaimed Bundle with source {source} and status {status} does not exist.")
         else:
             logging.info(f"Bundle {bundle['uuid']} claimed by {claimant}")
+            PROMETHEUS_BUNDLE_CLAIMS_TOTAL.labels(status=status).inc()
         self.write({'bundle': bundle})
 
 
@@ -369,17 +378,25 @@ class BundlesSingleHandler(BaseLTAHandler):
 
         # update
         logging.debug(f"MONGO-START: db.Bundles.find_one_and_update(filter={query}, update={update_doc}, projection={REMOVE_ID}, return_document={AFTER})")
-        ret = await self.db.Bundles.find_one_and_update(filter=query,
-                                                        update=update_doc,
-                                                        projection=REMOVE_ID,
-                                                        return_document=AFTER)
+        from_db = await self.db.Bundles.find_one_and_update(
+            filter=query,
+            update=update_doc,
+            projection=REMOVE_ID,
+            return_document=AFTER,
+        )
         logging.debug("MONGO-END:   db.Bundles.find_one_and_update(filter, update, projection, return_document)")
-        if not ret:
+        if not from_db:
             raise tornado.web.HTTPError(404, reason="not found")
 
         # done
+        if "status" in req:  # did the user update the status?
+            prometheus_record_status_write(
+                collection=BUNDLES,
+                new_status=req["status"],
+                original_status_for_quarantine=from_db.get("original_status"),
+            )
         logging.info(f"patched Bundle {bundle_id} with {req}")
-        self.write(ret)
+        self.write(from_db)
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
     async def delete(self, bundle_id: str) -> None:
@@ -594,6 +611,13 @@ class TransferRequestsHandler(BaseLTAHandler):
         await self.db.TransferRequests.insert_one(document=req)
         logging.debug("MONGO-END:   db.TransferRequests.insert_one(document)")
         logging.info(f"created TransferRequest {req['uuid']}")
+
+        # done
+        prometheus_record_status_write(
+            collection=TRANSFER_REQUESTS,
+            new_status="unclaimed",
+            original_status_for_quarantine=None,
+        )
         self.set_status(201)
         self.write({'TransferRequest': req['uuid']})
 
@@ -618,6 +642,7 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         req = json_decode(self.request.body)
         if 'uuid' in req and req['uuid'] != request_id:
             raise tornado.web.HTTPError(400, reason="bad request")
+
         sbtr = self.db.TransferRequests
 
         # prep mongo pieces
@@ -628,14 +653,23 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         update = {"$set": req}
 
         logging.debug(f"MONGO-START: db.TransferRequests.find_one_and_update(filter={query}, update={update}, projection={REMOVE_ID}, return_document={AFTER}")
-        ret = await sbtr.find_one_and_update(filter=query,
-                                             update=update,
-                                             projection=REMOVE_ID,
-                                             return_document=AFTER)
+        from_db = await sbtr.find_one_and_update(
+            filter=query,
+            update=update,
+            projection=REMOVE_ID,
+            return_document=AFTER,
+        )
         logging.debug("MONGO-END:   db.TransferRequests.find_one_and_update(filter, update, projection, return_document")
-        if not ret:
+        if not from_db:
             raise tornado.web.HTTPError(404, reason="not found")
+
         logging.info(f"patched TransferRequest {request_id} with {req}")
+        if "status" in req:  # did the user update the status?
+            prometheus_record_status_write(
+                collection=TRANSFER_REQUESTS,
+                new_status=req["status"],
+                original_status_for_quarantine=from_db.get("original_status"),
+            )
         self.write({})
 
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)  # type: ignore
@@ -688,6 +722,11 @@ class TransferRequestActionsPopHandler(BaseLTAHandler):
             logging.info(f"Unclaimed TransferRequest with source {source} does not exist.")
         else:
             logging.info(f"TransferRequest {tr['uuid']} claimed by {claimant}")
+            prometheus_record_status_write(
+                collection=TRANSFER_REQUESTS,
+                new_status="processing",
+                original_status_for_quarantine=None,
+            )
         self.write({'transfer_request': tr})
 
 # -----------------------------------------------------------------------------
@@ -713,15 +752,28 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
     logging.info("Done creating indexes in MongoDB.")
 
 
-def start(debug: bool = False) -> RestServer:
+def create_mongodb_client(config: dict[str, str | int | float | bool]) -> AsyncDatabase:
+    """Create and return an AsyncMongoClient for the LTA MongoDB database."""
+    mongo_user = quote_plus(cast(str, config["LTA_MONGODB_AUTH_USER"]))
+    mongo_pass = quote_plus(cast(str, config["LTA_MONGODB_AUTH_PASS"]))
+    mongo_host = config["LTA_MONGODB_HOST"]
+    mongo_port = int(config["LTA_MONGODB_PORT"])
+    mongo_db = cast(str, config["LTA_MONGODB_DATABASE_NAME"])
+    lta_mongodb_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
+    if mongo_user and mongo_pass:
+        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
+    ensure_mongo_indexes(lta_mongodb_url, mongo_db)
+
+    mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
+    return mongo_client[mongo_db]
+
+
+def start(
+    config: dict[str, str | int | float | bool],
+    mongo_db: AsyncDatabase[DatabaseType],
+    debug: bool = False,
+) -> RestServer:
     """Start a LTA DB service."""
-    config = from_environment(EXPECTED_CONFIG)
-    # logger = logging.getLogger('lta.rest')
-    for name in config:
-        if name not in LOGGING_DENY_LIST:
-            logging.info(f"{name} = {config[name]}")
-        else:
-            logging.info(f"{name} = [秘密]")
 
     # configure auth
     auth: dict[str, Union[str, int, float, bool]] = {}
@@ -742,17 +794,7 @@ def start(debug: bool = False) -> RestServer:
     })
 
     # configure access to MongoDB as a backing store
-    mongo_user = quote_plus(cast(str, config["LTA_MONGODB_AUTH_USER"]))
-    mongo_pass = quote_plus(cast(str, config["LTA_MONGODB_AUTH_PASS"]))
-    mongo_host = config["LTA_MONGODB_HOST"]
-    mongo_port = int(config["LTA_MONGODB_PORT"])
-    mongo_db = cast(str, config["LTA_MONGODB_DATABASE_NAME"])
-    lta_mongodb_url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
-    if mongo_user and mongo_pass:
-        lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}:{mongo_port}/{mongo_db}"
-    ensure_mongo_indexes(lta_mongodb_url, mongo_db)
-    mongo_client: AsyncMongoClient[DatabaseType] = AsyncMongoClient(lta_mongodb_url)
-    args['db'] = mongo_client[mongo_db]
+    args['db'] = mongo_db
 
     # See: https://github.com/WIPACrepo/rest-tools/issues/2
     max_body_size = int(config["LTA_MAX_BODY_SIZE"])
@@ -792,6 +834,7 @@ async def main() -> None:
     """Configure logging and start a LTA DB service."""
     # obtain our configuration from the environment
     config = from_environment(EXPECTED_CONFIG)
+
     # configure logging for the application
     log_level = getattr(logging, os.getenv("LOG_LEVEL", default="DEBUG"))
     logging.basicConfig(
@@ -801,11 +844,25 @@ async def main() -> None:
         style="{",
     )
 
+    # log config
+    for name in config:
+        if name not in LOGGING_DENY_LIST:
+            logging.info(f"{name} = {config[name]}")
+        else:
+            logging.info(f"{name} = [秘密]")
+
+    # mongo connection
+    mongo_db = create_mongodb_client(config)
+
     # Start Servers
     # -- REST server
-    start(debug=True)
+    start(config, mongo_db, debug=True)
     # -- Prometheus metrics server (has handlers for '/metrics' endpoints)
     prometheus_client.start_http_server(int(config["PROMETHEUS_METRICS_PORT"]))
+    # -- start background DB status-polling task
+    asyncio.create_task(
+        status_poller(mongo_db, int(config["STATUS_POLLER_INTERVAL"]))
+    )
     # -- let the background tasks run
     await asyncio.Event().wait()
 
