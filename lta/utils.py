@@ -1,15 +1,35 @@
 """Common and simple utility functions."""
 
+import datetime
 import traceback
+from collections.abc import Mapping
 from logging import Logger
 from subprocess import CompletedProcess
+from typing import Any
 
 from rest_tools.client import RestClient
 
-from lta.component import now
-from lta.lta_types import BundleType
-
 _MAX_QUARANTINE_TRACEBACK_LINES = 500
+
+
+def utcnow_isoformat(*, timespec: str | None = None) -> str:
+    """Mimic exactly the result of 'datetime.datetime.utcnow().isoformat(timespec=...)'.
+
+    Note: 'datetime.datetime.utcnow()' is deprecated
+    """
+    dt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    if timespec is None:
+        return dt.isoformat()
+    return dt.isoformat(timespec=timespec)
+
+
+def now() -> str:
+    """Return string timestamp for current time, to the second."""
+    return utcnow_isoformat(timespec="seconds")
+
+
+class NoFileCatalogFilesException(Exception):
+    """Raised when a query's files cannot be found in the File Catalog."""
 
 
 class InvalidBundlePathException(Exception):
@@ -81,6 +101,17 @@ async def patch_bundle(
     await lta_rc.request("PATCH", f"/Bundles/{bundle_id}", patch_body)
 
 
+async def patch_transfer_request(
+    lta_rc: RestClient,
+    tr_id: str,
+    patch_body: dict,
+    logger: Logger,
+) -> None:
+    """Send PATCH request to LTA REST API for a transfer request."""
+    logger.info(f"PATCH /TransferRequests/{tr_id} - '{patch_body}'")
+    await lta_rc.request("PATCH", f"/TransferRequests/{tr_id}", patch_body)
+
+
 def truncate_traceback(exc: Exception) -> str:
     """Return a potentially-truncated traceback string for the Exception instance.
 
@@ -105,45 +136,69 @@ def truncate_traceback(exc: Exception) -> str:
         return "".join(lines)
 
 
-async def quarantine_bundle(
+class _LtaType:
+    """LTA object types."""
+
+    TYPE_BUNDLE = "Bundle"
+    TYPE_TRANSFER_REQUEST = "TransferRequest"
+
+
+SUPPORTED_LTA_TYPES: set[str] = {_LtaType.TYPE_BUNDLE, _LtaType.TYPE_TRANSFER_REQUEST}
+
+
+async def quarantine_now(
     lta_rc: RestClient,
-    bundle: BundleType,
-    reason: Exception | str,
+    lta_object: dict[str, Any],
+    causal_exception: Exception,
     name: str,
     instance_uuid: str,
     logger: Logger,
-    reason_details: str = "",
 ) -> None:
-    """Quarantine the supplied bundle using the supplied reason.
+    """Quarantine the supplied 'lta_noun'-type using the supplied reason.
 
     Args:
         lta_rc:
             RestClient instance for making API requests
-        bundle:
-            BundleType dictionary containing bundle object
-        reason:
-            Exception or string reason for quarantining the bundle (for the bundle's
-            'reason' field). If an Exception instance is provided, the 'repr()' of the
-            Exception will be used. If a string is provided, it will be used as-is.
+        lta_object:
+            BundleType or TransferRequestType dictionary containing object to quarantine
+        causal_exception:
+            Exception instance for quarantining the lta object. The exception's 'repr()'
+            will be used for the 'reason' field. The exception's stack trace will be
+            used for the 'reason_details' field.
         name:
             Name of the component performing the quarantine
         instance_uuid:
             UUID of the component instance
         logger:
             Logger instance for logging messages
-        reason_details:
-            (Optional)
-            If 'reason' is an Exception, the stack trace will be recorded in the
-            bundle's 'reason_details' field. Otherwise, the caller may provide a string
-            for this field.
     """
-    if isinstance(reason, Exception):
-        reason_details = truncate_traceback(reason)  # get stack trace
-        reason = repr(reason)
+    # 1) lta_object isn't a Dict/Mapping
+    if not isinstance(lta_object, Mapping):
+        err = (
+            "Cannot quarantine LTA object: not a dict-like Mapping "
+            f"(got {type(lta_object).__name__}: {lta_object!r})."
+        )
+        logger.error(err)
+        raise ValueError(err)
 
-    logger.error(f'Sending Bundle {bundle["uuid"]} to quarantine: {reason}.')
+    # 2) missing required keys
+    for key in {"type", "uuid", "status"}:
+        if key not in lta_object:
+            err = (
+                f"Cannot quarantine LTA object: missing key '{key}' "
+                f"(contains {list(lta_object.keys())}, uuid={lta_object.get('uuid')})."
+            )
+            logger.error(err)
+            raise ValueError(err)
+
+    reason_details = truncate_traceback(causal_exception)
+    reason = repr(causal_exception)
+
+    logger.error(
+        f'Sending {lta_object["type"]} uuid={lta_object["uuid"]} to quarantine: {reason}.'
+    )
     patch_body = {
-        "original_status": bundle["status"],
+        "original_status": lta_object["status"],
         "status": "quarantined",
         "reason": f"BY:{name}-{instance_uuid} REASON:{reason}",
         "reason_details": reason_details,
@@ -151,6 +206,22 @@ async def quarantine_bundle(
     }
 
     try:
-        await patch_bundle(lta_rc, bundle["uuid"], patch_body, logger)
+        match lta_object["type"]:
+            case _LtaType.TYPE_TRANSFER_REQUEST:
+                await patch_transfer_request(
+                    lta_rc, lta_object["uuid"], patch_body, logger
+                )
+            case _LtaType.TYPE_BUNDLE:
+                await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
+            case _:
+                err = (
+                    f"Cannot quarantine LTA object: unsupported 'type' value, "
+                    f"'{lta_object['type']}' (supported={sorted(SUPPORTED_LTA_TYPES)!r}, "
+                    f"uuid={lta_object.get('uuid')!r})."
+                )
+                logger.error(err)
+                raise ValueError(err)
     except Exception as e:
-        logger.error(f'Unable to quarantine Bundle {bundle["uuid"]}: {e}.')
+        err = f'Failed to quarantine {lta_object["type"]} uuid={lta_object["uuid"]}: {repr(e)}.'
+        logger.error(err)
+        raise RuntimeError(err) from e

@@ -9,12 +9,12 @@ import os
 import sys
 from typing import Any, Optional
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import quarantine_bundle
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .utils import now, quarantine_now
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .transfer.sync import Sync
@@ -37,11 +37,6 @@ EXPECTED_CONFIG.update({
 # logging
 Logger = logging.Logger
 LOG = logging.getLogger(__name__)
-
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class DesyMirrorReplicator(Component):
@@ -78,22 +73,12 @@ class DesyMirrorReplicator(Component):
         """DesyMirrorReplicator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work(self, lta_rc: RestClient) -> None:
-        """Perform a work cycle for this component."""
-        self.logger.info("Starting work on Bundles.")
-        load_level = -1
-        work_claimed = True
-        while work_claimed:
-            load_level += 1
-            work_claimed = await self._do_work_claim(lta_rc)
-            # if we are configured to run once and die, then die
-            if self.run_once_and_die:
-                sys.exit()
-        load_gauge.labels(component='desy_mirror_replicator', level='bundle', type='work').set(load_level)
-        self.logger.info("Ending work on Bundles.")
-
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a bundle and perform work on it."""
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
+        """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be transferred
         self.logger.info("Asking the LTA DB for a Bundle to transfer.")
         pop_body = {
@@ -109,10 +94,11 @@ class DesyMirrorReplicator(Component):
         # process the Bundle that we were given
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
-            success_counter.labels(component='desy_mirror_replicator', level='bundle', type='work').inc()
+            prom_tracker.record_success()
+            return True
         except Exception as e:
-            failure_counter.labels(component='desy_mirror_replicator', level='bundle', type='exception').inc()
-            await quarantine_bundle(
+            prom_tracker.record_failure()
+            await quarantine_now(
                 lta_rc,
                 bundle,
                 e,
@@ -121,8 +107,6 @@ class DesyMirrorReplicator(Component):
                 self.logger,
             )
             raise e
-        # if we were successful at processing work, let the caller know
-        return True
 
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""

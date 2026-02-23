@@ -6,7 +6,6 @@ Run with `python -m lta.rest_server`.
 
 import asyncio
 import time
-from datetime import datetime
 import logging
 import os
 import sys
@@ -42,6 +41,7 @@ from .rest_server_utils.utils import (
     TRANSFER_REQUESTS,
     prometheus_record_status_write,
 )
+from .utils import now
 
 # fmt:off
 
@@ -103,11 +103,6 @@ MONGO_INDEXES: List[Tuple[str, str, str, Optional[bool]]] = [
 lta_auth = keycloak_role_auth
 
 # -----------------------------------------------------------------------------
-
-
-def now() -> str:
-    """Return string timestamp for current time, to the second."""
-    return datetime.utcnow().isoformat(timespec='seconds')
 
 
 def unique_id() -> str:
@@ -649,8 +644,14 @@ class TransferRequestSingleHandler(BaseLTAHandler):
             raise tornado.web.HTTPError(400, reason="bad request")
 
         sbtr = self.db.TransferRequests
+
+        # prep mongo pieces
         query = {"uuid": request_id}
+        # -- if requestor is resetting the 'reason' field, also reset 'reason_details'
+        if req.get('reason', None) == "":
+            req['reason_details'] = ""
         update = {"$set": req}
+
         logging.debug(f"MONGO-START: db.TransferRequests.find_one_and_update(filter={query}, update={update}, projection={REMOVE_ID}, return_document={AFTER}")
         from_db = await sbtr.find_one_and_update(
             filter=query,

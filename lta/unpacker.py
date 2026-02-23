@@ -13,12 +13,12 @@ import sys
 from typing import Any, cast, Dict, Optional
 from zipfile import ZipFile
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import quarantine_bundle
-from .component import COMMON_CONFIG, Component, now, work_loop
+from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .utils import now, quarantine_now
 from .crypto import lta_checksums
 from .lta_tools import from_environment
 from .lta_types import BundleType
@@ -40,11 +40,6 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
-
-# prometheus metrics
-failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
-load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
-success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class Unpacker(Component):
@@ -87,22 +82,12 @@ class Unpacker(Component):
         """Unpacker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work(self, lta_rc: RestClient) -> None:
-        """Perform a work cycle for this component."""
-        self.logger.info("Starting work on Bundles.")
-        load_level = -1
-        work_claimed = True
-        while work_claimed:
-            load_level += 1
-            work_claimed = await self._do_work_claim(lta_rc)
-            # if we are configured to run once and die, then die
-            if self.run_once_and_die:
-                sys.exit()
-        load_gauge.labels(component='unpacker', level='bundle', type='work').set(load_level)
-        self.logger.info("Ending work on Bundles.")
-
-    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
-        """Claim a bundle and perform work on it."""
+    async def _do_work_claim(
+        self,
+        lta_rc: RestClient,
+        prom_tracker: PrometheusResultTracker,
+    ) -> bool:
+        """Claim a bundle and perform work on it -- see super for return value meanings."""
         # 1. Ask the LTA DB for the next Bundle to be unpacked
         self.logger.info("Asking the LTA DB for a Bundle to unpack.")
         pop_body = {
@@ -117,10 +102,11 @@ class Unpacker(Component):
         # process the Bundle that we were given
         try:
             await self._do_work_bundle(lta_rc, bundle)
-            success_counter.labels(component='unpacker', level='bundle', type='work').inc()
+            prom_tracker.record_success()
+            return True
         except Exception as e:
-            failure_counter.labels(component='unpacker', level='bundle', type='exception').inc()
-            await quarantine_bundle(
+            prom_tracker.record_failure()
+            await quarantine_now(
                 lta_rc,
                 bundle,
                 e,
@@ -129,8 +115,6 @@ class Unpacker(Component):
                 self.logger,
             )
             raise e
-        # signal the work was processed successfully
-        return True
 
     async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""

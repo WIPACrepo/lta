@@ -1,22 +1,11 @@
 # test_rate_limiter.py
 """Unit tests for lta/rate_limiter.py."""
+import logging
 
 # fmt:off
 
-# -----------------------------------------------------------------------------
-# reset prometheus registry for unit tests
-from prometheus_client import REGISTRY
-
 from .utils import NicheException
 
-collectors = list(REGISTRY._collector_to_names.keys())
-for collector in collectors:
-    REGISTRY.unregister(collector)
-from prometheus_client import gc_collector, platform_collector, process_collector
-process_collector.ProcessCollector()
-platform_collector.PlatformCollector()
-gc_collector.GCCollector()
-# -----------------------------------------------------------------------------
 
 from typing import Dict
 from unittest.mock import AsyncMock, call, MagicMock
@@ -59,8 +48,7 @@ def config() -> TestConfig:
 
 def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that a RateLimiter can be constructed with a configuration object and a logging object."""
-    logger_mock = mocker.MagicMock()
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     assert p.name == "testing-rate_limiter"
     assert p.dest_site == "NERSC"
     assert p.input_path == "/path/to/icecube/bundler/outbox"
@@ -75,13 +63,12 @@ def test_constructor_config(config: TestConfig, mocker: MockerFixture) -> None:
     assert p.work_retries == 3
     assert p.work_sleep_duration_seconds == 60
     assert p.work_timeout_seconds == 30
-    assert p.logger == logger_mock
+    assert p.logger == logging.getLogger()
 
 
 def test_do_status(config: TestConfig, mocker: MockerFixture) -> None:
     """Verify that the RateLimiter has no additional state to offer."""
-    logger_mock = mocker.MagicMock()
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     assert p._do_status() == {}
 
 
@@ -159,8 +146,7 @@ async def test_script_main_sync(config: TestConfig, mocker: MockerFixture, monke
 @pytest.mark.asyncio
 async def test_rate_limiter_run(config: TestConfig, mocker: MockerFixture) -> None:
     """Test the RateLimiter does the work the rate_limiter should do."""
-    logger_mock = mocker.MagicMock()
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     await p.run()
     p._do_work.assert_called()
@@ -169,24 +155,20 @@ async def test_rate_limiter_run(config: TestConfig, mocker: MockerFixture) -> No
 @pytest.mark.asyncio
 async def test_rate_limiter_run_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test an error doesn't kill the RateLimiter."""
-    logger_mock = mocker.MagicMock()
-    p = RateLimiter(config, logger_mock)
-    p.last_work_end_timestamp = ""
+    p = RateLimiter(config, logging.getLogger())
     p._do_work = AsyncMock()  # type: ignore[method-assign]
     p._do_work.side_effect = [Exception("bad thing happen!")]
     await p.run()
     p._do_work.assert_called()
-    assert p.last_work_end_timestamp
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_do_work_pop_exception(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work raises when the RestClient can't pop."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.side_effect = HTTPError(500, "LTA DB on fire. Again.")
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     with pytest.raises(HTTPError):
         await p._do_work(lta_rc_mock)
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
@@ -195,10 +177,9 @@ async def test_rate_limiter_do_work_pop_exception(config: TestConfig, mocker: Mo
 @pytest.mark.asyncio
 async def test_rate_limiter_do_work_no_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work goes on vacation when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.rate_limiter.RateLimiter._do_work_claim", new_callable=AsyncMock)
     dwc_mock.return_value = False
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
@@ -206,10 +187,9 @@ async def test_rate_limiter_do_work_no_results(config: TestConfig, mocker: Mocke
 @pytest.mark.asyncio
 async def test_rate_limiter_do_work_yes_results(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work keeps working until the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     dwc_mock = mocker.patch("lta.rate_limiter.RateLimiter._do_work_claim", new_callable=AsyncMock)
     dwc_mock.side_effect = [True, True, False]
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     await p._do_work(AsyncMock())
     dwc_mock.assert_called()
 
@@ -217,15 +197,14 @@ async def test_rate_limiter_do_work_yes_results(config: TestConfig, mocker: Mock
 @pytest.mark.asyncio
 async def test_rate_limiter_do_work_claim_no_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim does not work when the LTA DB has no work."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.return_value = {
         "bundle": None
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
-    p = RateLimiter(config, logger_mock)
-    await p._do_work_claim(lta_rc_mock)
+    p = RateLimiter(config, logging.getLogger())
+    await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
     sb_mock.assert_not_called()
 
@@ -233,60 +212,53 @@ async def test_rate_limiter_do_work_claim_no_result(config: TestConfig, mocker: 
 @pytest.mark.asyncio
 async def test_rate_limiter_do_work_claim_yes_result(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _do_work_claim processes the Bundle that it gets from the LTA DB."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.return_value = {
-        "bundle": {
-            "one": 1,
-        },
+        "bundle": {"one": 1, "uuid": "abc123", "type": "Bundle"}
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
-    p = RateLimiter(config, logger_mock)
-    assert not await p._do_work_claim(lta_rc_mock)
+    p = RateLimiter(config, logging.getLogger())
+    assert not await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    sb_mock.assert_called_with(mocker.ANY, {"one": 1})
+    sb_mock.assert_called_with(mocker.ANY, {"one": 1, "uuid": "abc123", "type": "Bundle"})
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_stage_bundle_raises(config: TestConfig, mocker: MockerFixture) -> None:
-    """Test that _do_work_claim both calls quarantine_bundle and re-raises when _stage_bundle raises."""
-    logger_mock = mocker.MagicMock()
+    """Test that _do_work_claim both calls quarantine_now and re-raises when _stage_bundle raises."""
     lta_rc_mock = AsyncMock()
     lta_rc_mock.request = AsyncMock()
     lta_rc_mock.request.return_value = {
-        "bundle": {
-            "one": 1,
-        },
+        "bundle": {"one": 1, "uuid": "abc123", "type": "Bundle"}
     }
     sb_mock = mocker.patch("lta.rate_limiter.RateLimiter._stage_bundle", new_callable=AsyncMock)
-    qb_mock = mocker.patch("lta.rate_limiter.quarantine_bundle", new_callable=AsyncMock)
+    qb_mock = mocker.patch("lta.rate_limiter.quarantine_now", new_callable=AsyncMock)
     exc = NicheException("LTA DB unavailable; currently safer at home")
     sb_mock.side_effect = exc
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     with pytest.raises(NicheException):
-        await p._do_work_claim(lta_rc_mock)
+        await p._do_work_claim(lta_rc_mock, MagicMock())
     lta_rc_mock.request.assert_called_with("POST", '/Bundles/actions/pop?source=WIPAC&dest=NERSC&status=created', {'claimant': f'{p.name}-{p.instance_uuid}'})
-    sb_mock.assert_called_with(mocker.ANY, {"one": 1})
+    sb_mock.assert_called_with(mocker.ANY, {"one": 1, "uuid": "abc123", "type": "Bundle"})
     qb_mock.assert_called_with(
         lta_rc_mock,
-        {"one": 1},
+        {"one": 1, "uuid": "abc123", "type": "Bundle"},
         exc,
         p.name,
         p.instance_uuid,
-        logger_mock,
+        logging.getLogger(),
     )
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_stage_bundle(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _stage_bundle attempts to stage a Bundle."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     move_mock = mocker.patch("shutil.move", new_callable=MagicMock)
     gfas_mock = mocker.patch("lta.lta_cmd._get_files_and_size", new_callable=MagicMock)
     gfas_mock.return_value = ([], 0)
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     await p._stage_bundle(lta_rc_mock, {
         "uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003",
         "bundle_path": "/icecube/datawarehouse/path/to/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003.zip",
@@ -299,13 +271,12 @@ async def test_rate_limiter_stage_bundle(config: TestConfig, mocker: MockerFixtu
 @pytest.mark.asyncio
 async def test_rate_limiter_stage_bundle_over_quota(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _stage_bundle attempts to unclaim a Bundle when over quota."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
     move_mock = mocker.patch("shutil.move", new_callable=MagicMock)
     gfas_mock = mocker.patch("lta.rate_limiter.RateLimiter._get_files_and_size", new_callable=MagicMock)
     gfas_mock.return_value = (["/path/to/one/file.zip"], 11826192449536)
     ub_mock = mocker.patch("lta.rate_limiter.RateLimiter._unclaim_bundle", new_callable=AsyncMock)
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     await p._stage_bundle(lta_rc_mock, {
         "uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003",
         "bundle_path": "/icecube/datawarehouse/path/to/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003.zip",
@@ -323,9 +294,8 @@ async def test_rate_limiter_stage_bundle_over_quota(config: TestConfig, mocker: 
 @pytest.mark.asyncio
 async def test_rate_limiter_unclaim_bundle(config: TestConfig, mocker: MockerFixture) -> None:
     """Test that _unclaim_bundle attempts to update the LTA DB."""
-    logger_mock = mocker.MagicMock()
     lta_rc_mock = mocker.patch("rest_tools.client.RestClient", new_callable=AsyncMock)
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     await p._unclaim_bundle(lta_rc_mock, {"uuid": "c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003"})
     lta_rc_mock.request.assert_called_with("PATCH", "/Bundles/c4b345e4-2395-4f9e-b0eb-9cc1c9cdf003", mocker.ANY)
 
@@ -336,7 +306,6 @@ def test_get_files_and_size_with_ignore_bad_files(config: TestConfig, mocker: Mo
         "/path/to/destination/directory/bundle1.zip",
         "/path/to/destination/directory/bundle2.zip",
     ]
-    logger_mock = mocker.MagicMock()
     ep_mock = mocker.patch("lta.rate_limiter.RateLimiter._enumerate_path", new_callable=MagicMock)
     ep_mock.return_value = BUNDLES_IN_DESTINATION_DIRECTORY
     gs_mock = mocker.patch("os.path.getsize", new_callable=MagicMock)
@@ -344,5 +313,5 @@ def test_get_files_and_size_with_ignore_bad_files(config: TestConfig, mocker: Mo
         Exception("bundle1.zip is sold out!"),
         123_456_789,
     ]
-    p = RateLimiter(config, logger_mock)
+    p = RateLimiter(config, logging.getLogger())
     assert p._get_files_and_size("/path/to/destination/directory") == (BUNDLES_IN_DESTINATION_DIRECTORY, 123_456_789)
