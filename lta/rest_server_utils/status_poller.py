@@ -1,6 +1,7 @@
 """Status poller background async-task for LTA REST server metrics."""
 
 import asyncio
+import copy
 import dataclasses
 import logging
 from typing import Any, Callable, Mapping, Sequence
@@ -89,6 +90,9 @@ async def _update_gauge_from_aggregation(
     """Run one aggregation, update the gauge, and reset disappeared labels."""
     cursor = await mongo_db[collection_name].aggregate(job.pipeline)
 
+    previous_bucket_values = copy.deepcopy(
+        job.previous_bucket_values_by_collection.get(collection_name, set())
+    )
     current_bucket_values: set[str] = set()
 
     # update the gauge for each bucket
@@ -101,10 +105,6 @@ async def _update_gauge_from_aggregation(
         ).set(count)
         current_bucket_values.add(bucket_value)
         _log(f"{job.log_prefix} for {collection_name}.{bucket_value}: {count}")
-
-    previous_bucket_values = job.previous_bucket_values_by_collection.get(
-        collection_name, set()
-    )
 
     # reset any buckets that disappeared from DB, to zero
     for bucket_value in previous_bucket_values - current_bucket_values:
