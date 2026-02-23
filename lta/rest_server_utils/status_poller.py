@@ -1,10 +1,9 @@
 """Status poller background async-task for LTA REST server metrics."""
 
 import asyncio
-import copy
 import dataclasses
 import logging
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 from prometheus_client import Gauge
 from pymongo.asynchronous.database import AsyncDatabase
@@ -30,7 +29,6 @@ class _GaugeAggregationJob:
     pipeline: Sequence[Mapping[str, Any]]
     gauge: Gauge
     gauge_label_name: str
-    log_prefix: str
     previous_bucket_values_by_collection: dict[str, set[str]] = dataclasses.field(
         default_factory=dict
     )
@@ -68,30 +66,18 @@ QUARANTINE_BY_ORIGINAL_STATUS_PIPELINE: Sequence[Mapping[str, Any]] = [
 ]
 
 
-def _logger_if_time(logging_timer: IntervalTimer, logger: logging.Logger) -> Callable:
-    # Note - we could go more generic (pass logger.info, etc.), but this is a simple case
-    if logging_timer.has_interval_elapsed():
-        return logger.info
-    else:
-
-        def noop(*_: Any, **__: Any) -> None:
-            pass
-
-        return noop
-
-
 async def _update_gauge_from_aggregation(
     *,
     mongo_db: AsyncDatabase[DatabaseType],
     collection_name: str,
     job: _GaugeAggregationJob,
-    _log: Callable[[str], None],
+    do_log: bool,
 ) -> None:
     """Run one aggregation, update the gauge, and reset disappeared labels."""
     cursor = await mongo_db[collection_name].aggregate(job.pipeline)
 
-    previous_bucket_values = copy.deepcopy(
-        job.previous_bucket_values_by_collection.get(collection_name, set())
+    previous_bucket_values = job.previous_bucket_values_by_collection.get(
+        collection_name, set()
     )
     current_bucket_values: set[str] = set()
 
@@ -104,7 +90,8 @@ async def _update_gauge_from_aggregation(
             **{job.gauge_label_name: bucket_value},
         ).set(count)
         current_bucket_values.add(bucket_value)
-        _log(f"{job.log_prefix} for {collection_name}.{bucket_value}: {count}")
+        if do_log:
+            LOGGER.info(f"{job.gauge} for {collection_name}.{bucket_value}: {count}")
 
     # reset any buckets that disappeared from DB, to zero
     for bucket_value in previous_bucket_values - current_bucket_values:
@@ -112,7 +99,10 @@ async def _update_gauge_from_aggregation(
             collection=collection_name,
             **{job.gauge_label_name: bucket_value},
         ).set(0)
-        _log(f"resetting {job.log_prefix} for {collection_name}.{bucket_value} to 0")
+        if do_log:
+            LOGGER.info(
+                f"resetting {job.gauge} for {collection_name}.{bucket_value}: 0"
+            )
 
     job.previous_bucket_values_by_collection[collection_name] = current_bucket_values
 
@@ -130,30 +120,29 @@ async def status_poller(
             STATUS_PIPELINE,
             PROMETHEUS_STATUS_GAUGE,
             "status",
-            "status count",
         ),
         _GaugeAggregationJob(
             QUARANTINE_BY_ORIGINAL_STATUS_PIPELINE,
             PROMETHEUS_QUARANTINE_GAUGE,
             "original_status",
-            "quarantine original_status count",
         ),
     ]
 
     while True:
         try:
-            _log = _logger_if_time(logging_timer, LOGGER)
-            _log(
-                f"still alive -- cycle={status_poller_interval}s, "
-                f"logging={STATUS_POLLER_INTERVAL_LOGGING}s"
-            )
+            if do_log := logging_timer.has_interval_elapsed():
+                LOGGER.info(
+                    f"still alive -- cycle={status_poller_interval}s, "
+                    f"logging={STATUS_POLLER_INTERVAL_LOGGING}s"
+                )
+
             for j in jobs:
                 for collection_name in (BUNDLES, TRANSFER_REQUESTS):
                     await _update_gauge_from_aggregation(
                         mongo_db=mongo_db,
                         collection_name=collection_name,
                         job=j,
-                        _log=_log,
+                        do_log=do_log,
                     )
 
         except asyncio.CancelledError:
