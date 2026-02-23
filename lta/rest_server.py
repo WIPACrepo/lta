@@ -383,10 +383,12 @@ class BundlesSingleHandler(BaseLTAHandler):
 
         # update
         logging.debug(f"MONGO-START: db.Bundles.find_one_and_update(filter={query}, update={update_doc}, projection={REMOVE_ID}, return_document={AFTER})")
-        from_db = await self.db.Bundles.find_one_and_update(filter=query,
-                                                        update=update_doc,
-                                                        projection=REMOVE_ID,
-                                                        return_document=AFTER)
+        from_db = await self.db.Bundles.find_one_and_update(
+            filter=query,
+            update=update_doc,
+            projection=REMOVE_ID,
+            return_document=AFTER,
+        )
         logging.debug("MONGO-END:   db.Bundles.find_one_and_update(filter, update, projection, return_document)")
         if not from_db:
             raise tornado.web.HTTPError(404, reason="not found")
@@ -650,10 +652,12 @@ class TransferRequestSingleHandler(BaseLTAHandler):
         query = {"uuid": request_id}
         update = {"$set": req}
         logging.debug(f"MONGO-START: db.TransferRequests.find_one_and_update(filter={query}, update={update}, projection={REMOVE_ID}, return_document={AFTER}")
-        from_db = await sbtr.find_one_and_update(filter=query,
-                                             update=update,
-                                             projection=REMOVE_ID,
-                                             return_document=AFTER)
+        from_db = await sbtr.find_one_and_update(
+            filter=query,
+            update=update,
+            projection=REMOVE_ID,
+            return_document=AFTER,
+        )
         logging.debug("MONGO-END:   db.TransferRequests.find_one_and_update(filter, update, projection, return_document")
         if not from_db:
             raise tornado.web.HTTPError(404, reason="not found")
