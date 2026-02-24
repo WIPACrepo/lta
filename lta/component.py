@@ -202,27 +202,26 @@ class Component:
         """Override this to return expected configuration."""
         raise NotImplementedError()
 
-    @AsyncPromWrapper(lambda self: self.prometheus.counter(
+    @AsyncPromWrapper(lambda self: self.prometheus.counter(  # wrapper caches instance
         "lta_work_counts",
         "LTA component: finished work counts by success/failure",
         labels=["work"],
         finalize=False,
     ))
-    async def _do_work(self, prom_counter: Counter, lta_rc: RestClient) -> None:
+    @AsyncPromWrapper(lambda self: self.prometheus.histogram(  # wrapper caches instance
+        "lta_single_work_latency_seconds",
+        "LTA component: time taken to process a single work item (only successes are recorded)",
+        buckets=HistogramBuckets.HOUR,
+    ))
+    async def _do_work(self, prom_histogram: Histogram, prom_counter: Counter, lta_rc: RestClient) -> None:
         """Perform a work cycle for this component."""
-        prometheus_histogram = self.prometheus.histogram(
-            "lta_single_work_latency_seconds",
-            "LTA component: time taken to process a single work item (only successes are recorded)",
-            buckets=HistogramBuckets.HOUR,  # common across all components
-        )
-
         for i in itertools.count():
             # process a single work item
             self.logger.info(f"Requesting work on #{i} (0-indexed)...")
             prom_tracker = PrometheusResultTracker(
                 prom_counter.labels({"work": "success"}),
                 prom_counter.labels({"work": "failure"}),
-                prometheus_histogram,
+                prom_histogram,
                 time.monotonic(),  # instantiate now for accurate timestamp
             )
 
