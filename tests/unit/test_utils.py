@@ -1,7 +1,5 @@
 """Tests for lta/utils.py"""
 
-import datetime
-import logging
 import sys
 
 import pytest
@@ -19,11 +17,14 @@ async def test_000_patch_bundle() -> None:
     lta_rc = MagicMock()
     lta_rc.request = AsyncMock()
 
+    logger = MagicMock()
+
     bundle_id = "B-123"
     patch_body = {"status": "done"}
 
-    await lta.utils.patch_bundle(lta_rc, bundle_id, patch_body, logging.getLogger())
+    await lta.utils.patch_bundle(lta_rc, bundle_id, patch_body, logger)
 
+    logger.info.assert_called_once_with(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
     lta_rc.request.assert_awaited_once_with(
         "PATCH", f"/Bundles/{bundle_id}", patch_body
     )
@@ -32,31 +33,98 @@ async def test_000_patch_bundle() -> None:
 ########################################################################################
 
 
+class _DontPassAnything:
+    """Sentinel in tests."""
+
+
+@pytest.mark.parametrize(
+    "reason_details",
+    # because we're passing a string as 'reason' (as opposed to an Exception),
+    #   we have the option of passing a custom 'reason_details' string
+    [
+        # in              out
+        ("custom string", "custom string"),
+        (_DontPassAnything, ""),
+        ("", ""),
+    ],
+)
 @pytest.mark.asyncio
-async def test_110_quarantine_exc_reason() -> None:
-    """Quarantine uses repr() for Exception reason."""
+async def test_100_quarantine_str_reason(reason_details: tuple[str, str]) -> None:
+    """Quarantine builds patch body for string reason."""
     lta_rc = MagicMock()
+    logger = MagicMock()
 
-    bundle = {"uuid": "U-2", "status": "queued", "type": "Bundle"}
+    bundle = {"uuid": "U-1", "status": "processing"}
     name = "scanner"
-    instance_uuid = "I-123"
-    fixed_now = "2026-01-21T00:00:00Z"
-
-    causal_exception = ValueError("nope")
-    reason_repr = repr(causal_exception)
+    instance_uuid = "I-999"
+    fixed_now = "2026-01-21T12:34:56Z"
 
     with (
         patch.object(lta.utils, "now", return_value=fixed_now),
         patch.object(lta.utils, "patch_bundle", new=AsyncMock()) as patch_bundle,
     ):
-        await lta.utils.quarantine_now(
+        await lta.utils.quarantine_bundle(
             lta_rc=lta_rc,
-            lta_object=bundle,
-            causal_exception=causal_exception,
+            bundle=bundle,
+            reason="something bad happened",
             name=name,
             instance_uuid=instance_uuid,
-            logger=logging.getLogger(),
+            logger=logger,
+            **(
+                {"reason_details": reason_details[0]}
+                if reason_details[0] != _DontPassAnything
+                else {}
+            ),
         )
+
+    logger.error.assert_called_once_with(
+        f'Sending Bundle {bundle["uuid"]} to quarantine: something bad happened.'
+    )
+
+    patch_bundle.assert_awaited_once_with(
+        lta_rc,
+        bundle["uuid"],
+        {
+            "original_status": bundle["status"],
+            "status": "quarantined",
+            "reason": f"BY:{name}-{instance_uuid} REASON:something bad happened",
+            "reason_details": reason_details[1],
+            "work_priority_timestamp": fixed_now,
+        },
+        logger,
+    )
+
+
+@pytest.mark.asyncio
+async def test_110_quarantine_exc_reason() -> None:
+    """Quarantine uses repr() for Exception reason."""
+    lta_rc = MagicMock()
+    logger = MagicMock()
+
+    bundle = {"uuid": "U-2", "status": "queued"}
+    name = "scanner"
+    instance_uuid = "I-123"
+    fixed_now = "2026-01-21T00:00:00Z"
+
+    reason_exc = ValueError("nope")
+    reason_repr = repr(reason_exc)
+
+    with (
+        patch.object(lta.utils, "now", return_value=fixed_now),
+        patch.object(lta.utils, "patch_bundle", new=AsyncMock()) as patch_bundle,
+    ):
+        await lta.utils.quarantine_bundle(
+            lta_rc=lta_rc,
+            bundle=bundle,
+            reason=reason_exc,
+            name=name,
+            instance_uuid=instance_uuid,
+            logger=logger,
+        )
+
+    logger.error.assert_called_once_with(
+        f'Sending Bundle {bundle["uuid"]} to quarantine: {reason_repr}.'
+    )
 
     patch_bundle.assert_awaited_once_with(
         lta_rc,
@@ -69,7 +137,7 @@ async def test_110_quarantine_exc_reason() -> None:
             # ^^^ no stacktrace b/c we just passed verbatim -- see test_111 below
             "work_priority_timestamp": fixed_now,
         },
-        logging.getLogger(),
+        logger,
     )
 
 
@@ -77,16 +145,14 @@ async def test_110_quarantine_exc_reason() -> None:
 # NOTE:
 #   IF LINES ARE ADDED OR REMOVED ABOVE 'raise' IN USE CASE, THE LINE
 #   NUMBERS IN THE EXPECTED STACKTRACE VALUE NEED TO BE UPDATED TOO!
-_first = 122  # <- adjust this knob
-# *******************************************************************
 TRACEBACK_111 = f"""Traceback (most recent call last):
-  File "{__file__}", line {_first}, in test_111_quarantine_exc_reason_more_stacktrace
+  File "{__file__}", line 187, in test_111_quarantine_exc_reason_more_stacktrace
     my_func()
     ~~~~~~~^^
-  File "{__file__}", line {_first - 3}, in my_func
+  File "{__file__}", line 184, in my_func
     _inner_func()
     ~~~~~~~~~~~^^
-  File "{__file__}", line {_first - 6}, in _inner_func
+  File "{__file__}", line 181, in _inner_func
     raise ValueError("nope")
 ValueError: nope
 """
@@ -94,8 +160,6 @@ ValueError: nope
 # python pre-3.13 did not have '~~~^^' arrows
 TRACEBACK_111_PY_OLD = TRACEBACK_111.replace("    ~~~~~~~^^\n", "")
 TRACEBACK_111_PY_OLD = TRACEBACK_111_PY_OLD.replace("    ~~~~~~~~~~~^^\n", "")
-
-
 # *******************************************************************
 
 
@@ -103,8 +167,9 @@ TRACEBACK_111_PY_OLD = TRACEBACK_111_PY_OLD.replace("    ~~~~~~~~~~~^^\n", "")
 async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
     """Quarantine uses repr() for Exception reason."""
     lta_rc = MagicMock()
+    logger = MagicMock()
 
-    bundle = {"uuid": "U-2", "status": "queued", "type": "Bundle"}
+    bundle = {"uuid": "U-2", "status": "queued"}
     name = "scanner"
     instance_uuid = "I-123"
     fixed_now = "2026-01-21T00:00:00Z"
@@ -121,22 +186,26 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
     try:
         my_func()
     except ValueError as e:
-        causal_exception = e
-    reason_repr = repr(causal_exception)
+        reason_exc = e
+    reason_repr = repr(reason_exc)
     # ------------------------------
 
     with (
         patch.object(lta.utils, "now", return_value=fixed_now),
         patch.object(lta.utils, "patch_bundle", new=AsyncMock()) as patch_bundle,
     ):
-        await lta.utils.quarantine_now(
+        await lta.utils.quarantine_bundle(
             lta_rc=lta_rc,
-            lta_object=bundle,
-            causal_exception=causal_exception,
+            bundle=bundle,
+            reason=reason_exc,
             name=name,
             instance_uuid=instance_uuid,
-            logger=logging.getLogger(),
+            logger=logger,
         )
+
+    logger.error.assert_called_once_with(
+        f'Sending Bundle {bundle["uuid"]} to quarantine: {reason_repr}.'
+    )
 
     patch_bundle.assert_awaited_once_with(
         lta_rc,
@@ -150,7 +219,7 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
             ),
             "work_priority_timestamp": fixed_now,
         },
-        logging.getLogger(),
+        logger,
     )
 
 
@@ -158,62 +227,31 @@ async def test_111_quarantine_exc_reason_more_stacktrace() -> None:
 async def test_120_quarantine_patch_fails() -> None:
     """Quarantine logs and swallows patch failure."""
     lta_rc = MagicMock()
+    logger = MagicMock()
 
-    bundle = {"uuid": "U-3", "status": "foo", "type": "Bundle"}
+    bundle = {"uuid": "U-3", "status": "new"}
     name = "scanner"
     instance_uuid = "I-000"
 
-    causal_exception = ValueError("patch will fail anyways")
-    patch_err = RuntimeError("network down")
+    err = RuntimeError("network down")
 
-    with pytest.raises(RuntimeError) as excinfo:
-        with patch.object(
-            lta.utils, "patch_bundle", new=AsyncMock(side_effect=patch_err)
-        ):
-            await lta.utils.quarantine_now(
-                lta_rc=lta_rc,
-                lta_object=bundle,
-                causal_exception=causal_exception,
-                name=name,
-                instance_uuid=instance_uuid,
-                logger=logging.getLogger(),
-            )
-    assert repr(excinfo.value) == repr(
-        RuntimeError(
-            "Failed to quarantine Bundle uuid=U-3: RuntimeError('network down')."
+    with patch.object(lta.utils, "patch_bundle", new=AsyncMock(side_effect=err)):
+        await lta.utils.quarantine_bundle(
+            lta_rc=lta_rc,
+            bundle=bundle,
+            reason="will fail",
+            name=name,
+            instance_uuid=instance_uuid,
+            logger=logger,
         )
+
+    assert logger.error.call_count == 2
+    logger.error.assert_any_call(
+        f'Sending Bundle {bundle["uuid"]} to quarantine: will fail.'
+    )
+    logger.error.assert_any_call(
+        f'Unable to quarantine Bundle {bundle["uuid"]}: {err}.'
     )
 
 
 ########################################################################################
-
-
-@pytest.mark.asyncio
-async def test_200_now_2026() -> None:
-    """Test the new function for calculating "now" time strings."""
-    fixed = datetime.datetime(2026, 2, 19, 16, 41, 17, 452316)
-
-    class FixedDateTime(datetime.datetime):
-        @classmethod
-        def utcnow(cls):
-            return fixed
-
-        @classmethod
-        def now(cls, tz=None):
-            if tz is None:
-                return fixed
-            # fixed is naive; mimic "now(timezone.utc)" returning aware then stripped later
-            return fixed.replace(tzinfo=tz)
-
-    with patch("lta.utils.datetime.datetime", FixedDateTime):
-        old = datetime.datetime.utcnow().isoformat(timespec="seconds")
-        new = lta.utils.now()
-        assert old == new
-
-        # test what 'lta.utils.now()' calls internally
-        new = lta.utils.utcnow_isoformat(timespec="seconds")
-        assert old == new
-
-        old = datetime.datetime.utcnow().isoformat()
-        new = lta.utils.utcnow_isoformat()
-        assert old == new

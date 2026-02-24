@@ -4,8 +4,7 @@
 # fmt:off
 
 import asyncio
-import itertools
-import time
+from datetime import datetime
 from logging import Logger
 import os
 from pathlib import Path
@@ -13,12 +12,11 @@ import sys
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from prometheus_client import Counter, Histogram
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
-from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels, HistogramBuckets
 
 from .lta_const import drain_semaphore_filename
+
 
 COMMON_CONFIG: Dict[str, Optional[str]] = {
     "CLIENT_ID": None,
@@ -42,53 +40,14 @@ COMMON_CONFIG: Dict[str, Optional[str]] = {
 LOGGING_DENY_LIST = ["CLIENT_SECRET", "FILE_CATALOG_CLIENT_SECRET"]
 
 
+def now() -> str:
+    """Return string timestamp for current time, to the second."""
+    return datetime.utcnow().isoformat(timespec='seconds')
+
+
 def unique_id() -> str:
     """Return a unique ID for a module instance."""
     return str(uuid4())
-
-
-# fmt:on
-
-
-class PrometheusResultTracker:
-    """Class to track the results of a work cycle."""
-
-    def __init__(
-        self,
-        success_counter: Counter,
-        failure_counter: Counter,
-        histogram: Histogram,
-        start_ts: float,
-    ) -> None:
-        self._success_counter = success_counter
-        self._failure_counter = failure_counter
-        self._histogram = histogram
-        self._start_ts = start_ts
-        self._done = False
-
-    def record_success(self):
-        """Record a successful work -- this should only be called at the end."""
-        if self._done:
-            raise RuntimeError("Cannot record result twice.")
-        self._done = True
-        self._success_counter.inc()
-        self._histogram.observe(time.monotonic() - self._start_ts)
-
-    def record_failure(self):
-        """Record a failed work -- this should only be called at the end."""
-        if self._done:
-            raise RuntimeError("Cannot record result twice.")
-        self._done = True
-        self._failure_counter.inc()
-        # note - we don't record the latency here since it failed (would skew the data)
-
-    @property
-    def done(self):
-        """Return whether the result has been recorded."""
-        return self._done
-
-
-# fmt:off
 
 
 class Component:
@@ -115,8 +74,8 @@ class Component:
         # validate the provided configuration
         self.validate_config(config)
         # assimilate provided arguments
-        self.type = component_type  # common name of the component
-        self.name = config["COMPONENT_NAME"]  # unique name of the component instance
+        self.type = component_type
+        self.name = config["COMPONENT_NAME"]
         self.instance_uuid = unique_id()
         self.config = config
         self.logger = logger
@@ -134,6 +93,10 @@ class Component:
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_sleep_duration_seconds = float(config["WORK_SLEEP_DURATION_SECONDS"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
+        # record some default state
+        timestamp = datetime.utcnow().isoformat()
+        self.last_work_begin_timestamp = timestamp
+        self.last_work_end_timestamp = timestamp
         # log the way this component has been configured
         self.logger.info(f"{self.type} '{self.name}' is configured:")
         for name in config:
@@ -141,16 +104,6 @@ class Component:
                 self.logger.info(f"{name} = [秘密]")
             else:
                 self.logger.info(f"{name} = {config[name]}")
-        # set up Prometheus metrics
-        self.prometheus = GlobalLabels({
-            # define everything identifiable to the component variety, but not the process
-            #   IOW, we don't want new procs (k8s pods) to produce unique histograms
-            'source_site': str(self.source_site),
-            'dest_site': str(self.dest_site),
-            'type': str(self.type),
-            'input_status': str(self.input_status),
-            'output_status': str(self.output_status),
-        })
 
     async def run(self) -> None:
         """Perform the Component's work cycle."""
@@ -162,20 +115,21 @@ class Component:
                                        client_secret=self.client_secret,
                                        timeout=self.work_timeout_seconds,
                                        retries=self.work_retries)
+        # start the work cycle stopwatch
+        self.last_work_begin_timestamp = datetime.utcnow().isoformat()
         # perform the work
         try:
             await self._do_work(lta_rc)
-        except SystemExit:  # raised by sys.exit()
-            raise
         except Exception as e:
             # ut oh, something went wrong; log about it
             self.logger.error(f"Error occurred during the {self.type} work cycle")
             self.logger.error(f"Error was: '{e}'")
             self.logger.exception(e)  # logs the stack trace
+        # stop the work cycle stopwatch
+        self.last_work_end_timestamp = datetime.utcnow().isoformat()
         self.logger.info(f"Ending {self.type} work cycle")
         # if we are configured to run until no work, then die
         if self.run_until_no_work:
-            self.logger.warning("Run until no work configured -- exiting.")
             sys.exit()
 
     def validate_config(self, config: Dict[str, str]) -> None:
@@ -202,63 +156,8 @@ class Component:
         """Override this to return expected configuration."""
         raise NotImplementedError()
 
-    @AsyncPromWrapper(lambda self: self.prometheus.counter(
-        "lta_work_counts",
-        "LTA component: finished work counts by success/failure",
-        labels=["work"],
-        finalize=False,
-    ))
-    async def _do_work(self, prom_counter: Counter, lta_rc: RestClient) -> None:
-        """Perform a work cycle for this component."""
-        prometheus_histogram = self.prometheus.histogram(
-            "lta_single_work_latency_seconds",
-            "LTA component: time taken to process a single work item (only successes are recorded)",
-            buckets=HistogramBuckets.HOUR,  # common across all components
-        )
-
-        for i in itertools.count():
-            # process a single work item
-            self.logger.info(f"Requesting work on #{i} (0-indexed)...")
-            prom_tracker = PrometheusResultTracker(
-                prom_counter.labels({"work": "success"}),
-                prom_counter.labels({"work": "failure"}),
-                prometheus_histogram,
-                time.monotonic(),  # instantiate now for accurate timestamp
-            )
-
-            ret = await self._do_work_claim(lta_rc, prom_tracker)
-            if not prom_tracker.done:
-                self.logger.warning("Component did not record its result in Prometheus.")
-
-            # now, decide whether to continue or pause the work cycle
-            if self.run_once_and_die:
-                self.logger.warning("Run once and die configured -- exiting.")
-                sys.exit()
-            elif ret:
-                self.logger.info("Continuing work cycle.")
-                continue
-            else:
-                self.logger.info("Pausing work cycle.")
-                break
-
-    async def _do_work_claim(
-        self,
-        lta_rc: RestClient,
-        prom_tracker: PrometheusResultTracker,
-    ) -> bool:
-        """Claim a [insert component's LTA object here] and perform work on it.
-
-        This function is only called by '_do_work()', and the return values control
-        the work cycle and whether the component should continue or pause.
-
-        Returns:
-            True  - continue the work cycle
-            False - pause the work cycle
-
-        Raises:
-            Any Exception - stops the work cycle, pauses the component,
-                            then resumes after some time (work_sleep_duration_seconds).
-        """
+    async def _do_work(self, lta_rc: RestClient) -> None:
+        """Override this to provide work cycle behavior."""
         raise NotImplementedError()
 
 

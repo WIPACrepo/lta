@@ -11,13 +11,11 @@ from subprocess import PIPE, run
 import sys
 from typing import Any, Dict, Optional
 
-from prometheus_client import start_http_server
+from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, InvalidChecksumException, \
-    log_completed_process_outputs
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .utils import HSICommandFailedException, InvalidChecksumException, log_completed_process_outputs, quarantine_bundle
+from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -34,6 +32,11 @@ EXPECTED_CONFIG.update({
 })
 
 QUARANTINE_THEN_KEEP_WORKING = [InvalidChecksumException]
+
+# prometheus metrics
+failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
+load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
+success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class NerscVerifier(Component):
@@ -77,12 +80,22 @@ class NerscVerifier(Component):
         """NerscVerifier provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    async def _do_work_claim(
-        self,
-        lta_rc: RestClient,
-        prom_tracker: PrometheusResultTracker,
-    ) -> bool:
-        """Claim a bundle and perform work on it -- see super for return value meanings."""
+    async def _do_work(self, lta_rc: RestClient) -> None:
+        """Perform a work cycle for this component."""
+        self.logger.info("Starting work on Bundles.")
+        load_level = -1
+        work_claimed = True
+        while work_claimed:
+            load_level += 1
+            work_claimed = await self._do_work_claim(lta_rc)
+            # if we are configured to run once and die, then die
+            if self.run_once_and_die:
+                sys.exit()
+        load_gauge.labels(component='nersc_verifier', level='bundle', type='work').set(load_level)
+        self.logger.info("Ending work on Bundles.")
+
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+        """Claim a bundle and perform work on it."""
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
         args = [self.hpss_avail_path, "archive"]
@@ -107,11 +120,11 @@ class NerscVerifier(Component):
         try:
             hpss_path = self._verify_bundle_in_hpss(bundle)
             await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
-            prom_tracker.record_success()
+            success_counter.labels(component='nersc_verifier', level='bundle', type='work').inc()
             return True
         except Exception as e:
-            prom_tracker.record_failure()
-            await quarantine_now(
+            failure_counter.labels(component='nersc_verifier', level='bundle', type='exception').inc()
+            await quarantine_bundle(
                 lta_rc,
                 bundle,
                 e,
@@ -119,6 +132,7 @@ class NerscVerifier(Component):
                 self.instance_uuid,
                 self.logger,
             )
+            # does exception warrant stopping the work loop?
             if type(e) in QUARANTINE_THEN_KEEP_WORKING:
                 return True
             raise e

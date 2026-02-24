@@ -10,11 +10,11 @@ import shutil
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-from prometheus_client import start_http_server
+from prometheus_client import Counter, Gauge, start_http_server
 from rest_tools.client import RestClient
 
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .utils import quarantine_bundle
+from .component import COMMON_CONFIG, Component, now, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 
@@ -30,6 +30,11 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
+# prometheus metrics
+failure_counter = Counter('lta_failures', 'lta processing failures', ['component', 'level', 'type'])
+load_gauge = Gauge('lta_load_level', 'lta work processed', ['component', 'level', 'type'])
+success_counter = Counter('lta_successes', 'lta processing successes', ['component', 'level', 'type'])
 
 
 class RateLimiter(Component):
@@ -94,12 +99,22 @@ class RateLimiter(Component):
         self.logger.info(f"Found {len(disk_files)} entries ({size} bytes) in {path}")
         return (disk_files, size)
 
-    async def _do_work_claim(
-        self,
-        lta_rc: RestClient,
-        prom_tracker: PrometheusResultTracker,
-    ) -> bool:
-        """Claim a bundle and perform work on it -- see super for return value meanings."""
+    async def _do_work(self, lta_rc: RestClient) -> None:
+        """Perform a work cycle for this component."""
+        self.logger.info("Starting work on Bundles.")
+        load_level = -1
+        work_claimed = True
+        while work_claimed:
+            load_level += 1
+            work_claimed = await self._do_work_claim(lta_rc)
+            # if we are configured to run once and die, then die
+            if self.run_once_and_die:
+                sys.exit()
+        load_gauge.labels(component='rate_limiter', level='bundle', type='work').set(load_level)
+        self.logger.info("Ending work on Bundles.")
+
+    async def _do_work_claim(self, lta_rc: RestClient) -> bool:
+        """Claim a bundle and perform work on it."""
         # 1. Ask the LTA DB for the next Bundle to be staged
         self.logger.info("Asking the LTA DB for a Bundle to stage.")
         pop_body = {
@@ -114,12 +129,10 @@ class RateLimiter(Component):
         # process the Bundle that we were given
         try:
             await self._stage_bundle(lta_rc, bundle)
-            prom_tracker.record_success()
-            # even if we are successful, take a break between each bundle
-            return False
+            success_counter.labels(component='rate_limiter', level='bundle', type='work').inc()
         except Exception as e:
-            prom_tracker.record_failure()
-            await quarantine_now(
+            failure_counter.labels(component='rate_limiter', level='bundle', type='exception').inc()
+            await quarantine_bundle(
                 lta_rc,
                 bundle,
                 e,
@@ -128,6 +141,8 @@ class RateLimiter(Component):
                 self.logger,
             )
             raise e
+        # even if we were successful, take a break between bundles
+        return False
 
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Stage the Bundle to the output directory for transfer."""
