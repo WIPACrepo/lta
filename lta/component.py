@@ -216,7 +216,7 @@ class Component:
     async def _do_work(
         self,
         prom_histogram: Histogram,
-        prom_counter: _MetricWrapper,
+        prom_counter_wrapper: _MetricWrapper,
         lta_rc: RestClient,
     ) -> None:
         """Perform a work cycle for this component."""
@@ -224,8 +224,8 @@ class Component:
             # process a single work item
             self.logger.info(f"Requesting work on #{i} (0-indexed)...")
             prom_tracker = PrometheusResultTracker(
-                prom_counter.labels({"work": "success"}),
-                prom_counter.labels({"work": "failure"}),
+                prom_counter_wrapper.labels({"work": "success"}),  # -> Counter
+                prom_counter_wrapper.labels({"work": "failure"}),  # -> Counter
                 prom_histogram,
                 time.monotonic(),  # instantiate now for accurate timestamp
             )
