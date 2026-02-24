@@ -16,7 +16,7 @@ from uuid import uuid4
 from prometheus_client import Counter, Histogram
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
-from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels, HistogramBuckets
+from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels, HistogramBuckets, _MetricWrapper
 
 from .lta_const import drain_semaphore_filename
 
@@ -211,9 +211,14 @@ class Component:
     @AsyncPromWrapper(lambda self: self.prometheus.histogram(  # wrapper caches instance
         "lta_single_work_latency_seconds",
         "LTA component: time taken to process a single work item (only successes are recorded)",
-        buckets=HistogramBuckets.HOUR,
+        buckets=HistogramBuckets.HOUR,  # buckets are common among all components
     ))
-    async def _do_work(self, prom_histogram: Histogram, prom_counter: Counter, lta_rc: RestClient) -> None:
+    async def _do_work(
+        self,
+        prom_histogram: Histogram,
+        prom_counter: _MetricWrapper,
+        lta_rc: RestClient,
+    ) -> None:
         """Perform a work cycle for this component."""
         for i in itertools.count():
             # process a single work item
