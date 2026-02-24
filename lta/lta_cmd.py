@@ -24,7 +24,7 @@ from rest_tools.client import ClientCredentialsAuth, RestClient
 import urllib
 from wipac_dev_tools import from_environment
 
-from lta.component import now
+from lta.utils import now
 from lta.crypto import sha512sum
 
 Namespace = argparse.Namespace
