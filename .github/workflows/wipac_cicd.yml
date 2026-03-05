@@ -54,69 +54,12 @@ jobs:
   # LINTERS
   #############################################################################
 
-  flake8:
-    needs: [ py-versions ]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.py3 }}
-      - uses: WIPACrepo/wipac-dev-flake8-action@v1.3
-        with:
-          max-complexity: 10  # ideal is ~10-15
-
-  mypy:
-    needs: [ py-versions ]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
-          fetch-depth: 0  # setuptools-scm needs to access git tags
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.py3 }}
-      - uses: WIPACrepo/wipac-dev-mypy-action@v2.0
-
-  ruff-format:
-    if: ${{ github.actor != 'dependabot[bot]' }} # dependabot cannot access PAT
-    needs: [
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
-    ]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
-      - uses: astral-sh/ruff-action@v3
-      - run: ruff check --select I,F401,FA,UP --fix .  # less intrusive than ruff format
-      - name: Commit and push changes
-        run: |
-          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
-          if [[ -n "$(git status --porcelain)" ]]; then
-              git config user.name "github-actions[bot]"
-              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git add -A
-              git commit -m "<bot> ruff auto-format (wipac-dev styling)"
-              git push
-          else
-              echo "No formatting changes to commit."
-              exit 0
-          fi
+  linters:
+    uses: WIPACrepo/wipac-dev-workflows/.github/workflows/lint-python.yml@linters
+    with:
+      default-branch: ${{ github.event.repository.default_branch }}
+      py-matrix-json: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
+      max-complexity: 10  # ideal is ~10-15
 
 
   #############################################################################
@@ -125,11 +68,7 @@ jobs:
 
   py-setup:
     if: ${{ github.actor != 'dependabot[bot]' }} # dependabot cannot access PAT
-    needs: [
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
-    ]
+    needs: [ linters ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -147,11 +86,7 @@ jobs:
           auto_mypy_option: True
 
   py-dependencies:
-    needs: [
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      # mypy,  # sometimes its useful to see our deps if mypy fails
-    ]
+    needs: [ linters ]
     runs-on: ubuntu-latest
     steps:
       # optimization: ask the action if it would proceed before building our expensive images
@@ -208,9 +143,7 @@ jobs:
 
   test-build-docker:
     needs: [
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
+      linters,
       unit-tests,
     ]
     runs-on: ubuntu-latest
@@ -232,9 +165,7 @@ jobs:
     needs: [
       mongo-versions,
       py-versions,
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
+      linters,
       unit-tests,
     ]
     runs-on: ubuntu-latest
@@ -319,9 +250,7 @@ jobs:
     needs: [
       mongo-versions,
       py-versions,
-      flake8,
-      mypy,
-      ruff-format,
+      linters
       py-setup,
       py-dependencies,
       unit-tests,
