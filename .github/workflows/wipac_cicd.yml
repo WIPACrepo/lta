@@ -138,7 +138,7 @@ jobs:
         env:
           CI_TEST_ENV: true
         run: |
-          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
+          set -euo pipefail
           source ./tools/setupenv.sh
           pytest -vvvvv tests/unit/
 
@@ -203,7 +203,7 @@ jobs:
       # TEST SCRIPT
       - name: test
         run: |
-          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
+          set -euo pipefail
           
           # grab the dependencies needed for pytest and friends
           pip install tomli
@@ -230,7 +230,7 @@ jobs:
       - name: dump prometheus metrics
         if: always()
         run: |
-          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
+          set -euo pipefail
 
           if [[ ! -f ./metrics/metrics.prom ]]; then
               echo "<no metrics file>"
