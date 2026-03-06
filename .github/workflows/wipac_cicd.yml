@@ -54,40 +54,13 @@ jobs:
   # LINTERS
   #############################################################################
 
-  flake8:
+  lint:
     needs: [ py-versions ]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.py3 }}
-      - uses: WIPACrepo/wipac-dev-flake8-action@v1.3
-        with:
-          max-complexity: 10  # ideal is ~10-15
-
-  mypy:
-    needs: [ py-versions ]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        py3: ${{ fromJSON(needs.py-versions.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.sha }}  # lock to triggered commit (github.ref is dynamic)
-          fetch-depth: 0  # setuptools-scm needs to access git tags
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.py3 }}
-      - uses: WIPACrepo/wipac-dev-mypy-action@v2.0
+    uses: WIPACrepo/wipac-dev-workflows/.github/workflows/lint-python.yml@linters
+    with:
+      default-branch: ${{ github.event.repository.default_branch }}
+      py-matrix-json: ${{ needs.py-versions.outputs.matrix }}
+      max-complexity: 10  # ideal is ~10-15
 
 
   #############################################################################
@@ -96,11 +69,7 @@ jobs:
 
   py-setup:
     if: ${{ github.actor != 'dependabot[bot]' }} # dependabot cannot access PAT
-    needs: [
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
-    ]
+    needs: [ lint ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -118,11 +87,7 @@ jobs:
           auto_mypy_option: True
 
   py-dependencies:
-    needs: [
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      # mypy,  # sometimes its useful to see our deps if mypy fails
-    ]
+    needs: [ lint ]
     runs-on: ubuntu-latest
     steps:
       # optimization: ask the action if it would proceed before building our expensive images
@@ -173,15 +138,13 @@ jobs:
         env:
           CI_TEST_ENV: true
         run: |
-          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
+          set -euo pipefail
           source ./tools/setupenv.sh
           pytest -vvvvv tests/unit/
 
   test-build-docker:
     needs: [
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
+      lint,
       unit-tests,
     ]
     runs-on: ubuntu-latest
@@ -203,9 +166,7 @@ jobs:
     needs: [
       mongo-versions,
       py-versions,
-      # linters so we don't waste compute on faulty code...
-      flake8,
-      mypy,
+      lint,
       unit-tests,
     ]
     runs-on: ubuntu-latest
@@ -242,7 +203,7 @@ jobs:
       # TEST SCRIPT
       - name: test
         run: |
-          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
+          set -euo pipefail
           
           # grab the dependencies needed for pytest and friends
           pip install tomli
@@ -269,7 +230,7 @@ jobs:
       - name: dump prometheus metrics
         if: always()
         run: |
-          set -euo pipefail; echo "now: $(date -u +"%Y-%m-%dT%H:%M:%S.%3N")"
+          set -euo pipefail
 
           if [[ ! -f ./metrics/metrics.prom ]]; then
               echo "<no metrics file>"
@@ -290,8 +251,7 @@ jobs:
     needs: [
       mongo-versions,
       py-versions,
-      flake8,
-      mypy,
+      lint,
       py-setup,
       py-dependencies,
       unit-tests,

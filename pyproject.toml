@@ -86,6 +86,9 @@ Source = "https://github.com/WIPACrepo/lta"
 [tool.mypy]
 exclude = ["doc", "resources"]
 
+[tool.ty.src]
+exclude = ["doc", "resources"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 log_level = "DEBUG"
