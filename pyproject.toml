@@ -86,6 +86,9 @@ Source = "https://github.com/WIPACrepo/lta"
 [tool.mypy]
 exclude = ["doc", "resources"]
 
+[tool.ty.src]
+exclude = ["doc", "resources"]
+
 [tool.ruff]
 exclude = ["bin", "doc", "env", "lta/lta_cmd.py", "jadetools", "resources", "tests"]
 
