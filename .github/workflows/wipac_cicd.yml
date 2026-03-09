@@ -58,7 +58,6 @@ jobs:
     needs: [ py-versions ]
     uses: WIPACrepo/wipac-dev-workflows/.github/workflows/lint-python.yml@linters
     with:
-      default-branch: ${{ github.event.repository.default_branch }}
       py-matrix-json: ${{ needs.py-versions.outputs.matrix }}
       max-complexity: 10  # ideal is ~10-15
 
