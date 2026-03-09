@@ -70,14 +70,14 @@ def test_bind_setup_curl() -> None:
         "LOG_LEVEL": "NOT_DEBUG"
     })
     curl_mock = MagicMock()
-    setup_curl1(curl_mock)
+    setup_curl1(curl_mock)  # ty: ignore[invalid-argument-type]
     curl_mock.setopt.assert_called_with(pycurl.CAPATH, '/etc/grid-security/certificates')
 
     setup_curl2 = bind_setup_curl({
         "LOG_LEVEL": "DEBUG"
     })
     curl_mock = MagicMock()
-    setup_curl2(curl_mock)
+    setup_curl2(curl_mock)  # ty: ignore[invalid-argument-type]
     curl_mock.setopt.assert_called_with(pycurl.VERBOSE, True)
 
 
