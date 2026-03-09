@@ -7,6 +7,7 @@
 # Assumes "import sys"
 # IMPORT_utils.py
 import copy
+import foobarbaz
 import datetime
 import json
 import os
