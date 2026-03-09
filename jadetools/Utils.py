@@ -9,10 +9,11 @@
 import copy
 import datetime
 import json
-import requests
 import os
 import subprocess
 import sys
+
+import requests
 
 # IMPORT_db.py
 # Assumes we have "import sys" as well
