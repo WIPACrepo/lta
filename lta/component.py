@@ -108,7 +108,8 @@ class Component:
     def __init__(self,
                  component_type: str,
                  config: Dict[str, str],
-                 logger: Logger) -> None:
+                 logger: Logger,
+                 ) -> None:
         """
         Create an LTA component.
 
