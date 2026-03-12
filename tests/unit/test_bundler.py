@@ -22,6 +22,8 @@ TestConfig = Dict[str, str]
 def config() -> TestConfig:
     """Supply a stock Bundler component configuration."""
     return {
+        "BLOCKING_IO_MAX_RETRIES": "2",
+        "BLOCKING_IO_SLEEP_SECONDS": "45",
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
         "CLIENT_ID": "long-term-archive",
