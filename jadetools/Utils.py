@@ -1,16 +1,21 @@
 # Utils.py (.base)
-''' Define a lot of constants and utility routines for my REST framework.
-    Some wheel-reinventing here:  I would do things differently now '''
-import sys
-# IMPORT_utils.py
+""" Define a lot of constants and utility routines for my REST framework.
+    Some wheel-reinventing here:  I would do things differently now """
+
+# fmt:off
+
 # Assumes "import sys"
+# IMPORT_utils.py
+import copy
 import datetime
 import json
-import subprocess
-import copy
 import os
+import subprocess
+import sys
+
 import requests
-# IMPORT_db.py 
+
+# IMPORT_db.py
 # Assumes we have "import sys" as well
 
 # IMPORT CODE_utils.py
@@ -359,7 +364,7 @@ def unNone(u_answer):
         return u_answer
 
 
-def globusjson(localuuid, localdir, remotesystem, idealdir): 
+def globusjson(localuuid, localdir, remotesystem, idealdir):
     ''' Create a json file for a globus sync job '''
     #+
     # Arguments:	local bundle uuid
@@ -444,7 +449,7 @@ def deltaT(oldtimestring):
 # If the flag says do them all, do them all, otherwise
 # don't do anything at all and return 'TooMany'
 def patchBundle(bundleid, columntype, newvalue, manyok):
-    ''' Modify info about the given bundle 
+    ''' Modify info about the given bundle
          2-step process:  get # of entries that would be touched
          if ==0, return 'None'
          if ==1, do it, return 'OK'
@@ -493,7 +498,7 @@ def patchBundle(bundleid, columntype, newvalue, manyok):
 def AddActiveDir(a_dirname):
     ''' Add the name to ActiveDirectory '''
     #+
-    # Arguments:        ideal directory name 
+    # Arguments:        ideal directory name
     # Returns:          ''
     # Side Effects:     print error if problem
     #                   change entry in ActiveDirectory
@@ -503,8 +508,8 @@ def AddActiveDir(a_dirname):
     posturl.append(targetbundleactivediradd + mangle(a_dirname))
     try:
         a_ans, a_err, a_code = getoutputerrorsimplecommand(posturl, 20)
-        if len(ans) > 2:
-            print('AddActiveDir returned', a_dirname, str(ans))
+        if len(a_ans) > 2:
+            print('AddActiveDir returned', a_dirname, str(a_ans))
     except:
         print('AddActiveDir error', a_dirname, str(a_ans), a_err, a_code)
     return ''
@@ -522,7 +527,7 @@ def RemoveActiveDir(a_dirname):
     geturl.append(targetbundleactivedirremove + mangle(a_dirname))
     try:
         a_ans, a_err, a_code = getoutputerrorsimplecommand(geturl, 20)
-        if len(ans) > 2:
+        if len(a_ans) > 2:
             print('RemoveActiveDir returned', a_dirname, str(a_ans))
     except:
         print('RemoveActiveDir error', a_dirname, str(a_ans), a_err, a_code)
@@ -655,7 +660,7 @@ def NormalName(filename):
 
 ####
 # Utility for determining if a file is in the generic
-# tree (with "YEAR" as placeholder) 
+# tree (with "YEAR" as placeholder)
 def TreeComp(tctree, tcfile):
     ''' Compare a desired tree (e.g. IceCube/YEAR/internal-system/pDAQ-2ndBld)
         with a found file.  If it matches, return True '''
@@ -836,7 +841,7 @@ def UnpackDBReturnJson(estring):
         perhaps a little messy to unpack.  I do not want to use
         eval on stuff I get by http communication, so I translate
         it to an array of json.
-        If there is just one row returned, we want 
+        If there is just one row returned, we want
         x = UnpackDBReturnJson(estring)[0] '''
     #+
     # Arguments:        string from DB query of REST server
