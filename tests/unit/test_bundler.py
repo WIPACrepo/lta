@@ -321,6 +321,11 @@ async def test_bundler_do_work_dest_results(config: TestConfig, mocker: MockerFi
     ]
     mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
     mock_zipfile_init.return_value = None
+    mock_zipfile_fp = mocker.Mock()
+    mock_zipfile_fp.fileno.return_value = 123
+    mocker.patch("zipfile.ZipFile.fp", new=mock_zipfile_fp)
+    mocker.patch("os.get_blocking", return_value=True)
+    mocker.patch("os.set_blocking", return_value=None)
     mock_zipfile_write = mocker.patch("zipfile.ZipFile.write")
     mock_zipfile_write.return_value = None
     mock_shutil_move = mocker.patch("shutil.move")
