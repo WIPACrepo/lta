@@ -31,6 +31,8 @@ CREATE_CHUNK_SIZE = 1000
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
+    "BLOCKING_IO_MAX_RETRIES": "3",
+    "BLOCKING_IO_SLEEP_SECONDS": "60",
     "BUNDLER_OUTBOX_PATH": None,
     "BUNDLER_WORKBOX_PATH": None,
     "FILE_CATALOG_CLIENT_ID": None,
@@ -60,6 +62,8 @@ class Bundler(Component):
         logger - The object the bundler should use for logging.
         """
         super(Bundler, self).__init__("bundler", config, logger)
+        self.blocking_io_max_retries = int(config["BLOCKING_IO_MAX_RETRIES"])
+        self.blocking_io_sleep_seconds = int(config["BLOCKING_IO_SLEEP_SECONDS"])
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
@@ -171,6 +175,28 @@ class Bundler(Component):
                                      bundle_file_path: str,
                                      metadata_file_path: str,
                                      file_count: int) -> None:
+        """Create the bundle archive ZIP file; retry on transient BlockingIOError."""
+        retry_count = self.blocking_io_max_retries
+        while retry_count > 0:
+            try:
+                await self._create_bundle_archive_once(fc_rc, lta_rc, bundle, bundle_file_path, metadata_file_path, file_count)
+                return
+            except BlockingIOError:
+                retry_count = retry_count - 1
+                self.logger.error(f"Transient BlockingIOError; {retry_count} tries remain")
+                if retry_count == 0:
+                    raise
+                self.logger.info(f"Sleeping for {self.blocking_io_sleep_seconds} seconds until retry.")
+                await asyncio.sleep(self.blocking_io_sleep_seconds)
+
+    async def _create_bundle_archive_once(self,
+                                          fc_rc: RestClient,
+                                          lta_rc: RestClient,
+                                          bundle: BundleType,
+                                          bundle_file_path: str,
+                                          metadata_file_path: str,
+                                          file_count: int) -> None:
+        """Create the bundle archive ZIP file."""
         # 0. Remove an existing bundle, if we are re-trying
         Path(bundle_file_path).unlink(missing_ok=True)
 
@@ -183,6 +209,18 @@ class Bundler(Component):
         skip = 0
         self.logger.info(f"Creating bundle as ZIP archive at: {bundle_file_path}")
         with ZipFile(bundle_file_path, mode="x", compression=ZIP_STORED, allowZip64=True) as bundle_zip:
+            # ensure that bundle_zip has a file descriptor
+            fp = bundle_zip.fp
+            if not fp:
+                error_message = f"bundle_zip.fp: {fp} (== None)"
+                self.logger.error(error_message)
+                raise Exception(error_message)
+            # ensure the file descriptor is in blocking mode
+            fd = fp.fileno()
+            self.logger.info(f"bundle fd:{fd} blocking before: {os.get_blocking(fd)}")
+            os.set_blocking(fd, True)
+            self.logger.info(f"bundle fd:{fd} blocking after: {os.get_blocking(fd)}")
+
             # write the metadata file to the bundle archive
             self.logger.info(f"Adding bundle metadata '{metadata_file_path}' to bundle '{bundle_file_path}'")
             bundle_zip.write(metadata_file_path, os.path.basename(metadata_file_path))
@@ -204,7 +242,7 @@ class Bundler(Component):
                     file_catalog_uuid = metadata_record["file_catalog_uuid"]
                     fc_response = await fc_rc.request('GET', f'/api/files/{file_catalog_uuid}')
                     bundle_me_path = fc_response["logical_name"]
-                    self.logger.info(f"Writing file {count}/{num_files}: '{bundle_me_path}' to bundle '{bundle_file_path}'")
+                    self.logger.info(f"Writing file {count}/{file_count}: '{bundle_me_path}' to bundle '{bundle_file_path}'")
                     zip_path = os.path.relpath(bundle_me_path, request_path)
                     bundle_zip.write(bundle_me_path, zip_path)
 
