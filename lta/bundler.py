@@ -183,6 +183,12 @@ class Bundler(Component):
         skip = 0
         self.logger.info(f"Creating bundle as ZIP archive at: {bundle_file_path}")
         with ZipFile(bundle_file_path, mode="x", compression=ZIP_STORED, allowZip64=True) as bundle_zip:
+            # ensure the file descriptor is in blocking mode
+            fd = bundle_zip.fp.fileno()
+            self.logger.info(f"bundle fd:{fd} blocking before: {os.get_blocking(fd)}")
+            os.set_blocking(fd, True)
+            self.logger.info(f"bundle fd:{fd} blocking after: {os.get_blocking(fd)}")
+
             # write the metadata file to the bundle archive
             self.logger.info(f"Adding bundle metadata '{metadata_file_path}' to bundle '{bundle_file_path}'")
             bundle_zip.write(metadata_file_path, os.path.basename(metadata_file_path))
