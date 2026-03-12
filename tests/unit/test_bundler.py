@@ -22,6 +22,8 @@ TestConfig = Dict[str, str]
 def config() -> TestConfig:
     """Supply a stock Bundler component configuration."""
     return {
+        "BLOCKING_IO_MAX_RETRIES": "2",
+        "BLOCKING_IO_SLEEP_SECONDS": "45",
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
         "CLIENT_ID": "long-term-archive",
@@ -121,6 +123,8 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the Bundler logs its configuration."""
     logger_mock = mocker.MagicMock()
     bundler_config = {
+        "BLOCKING_IO_MAX_RETRIES": "2",
+        "BLOCKING_IO_SLEEP_SECONDS": "45",
         "BUNDLER_OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
         "CLIENT_ID": "long-term-archive",
@@ -151,6 +155,8 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
     Bundler(bundler_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("bundler 'logme-testing-bundler' is configured:"),
+        call('BLOCKING_IO_MAX_RETRIES = 2'),
+        call('BLOCKING_IO_SLEEP_SECONDS = 45'),
         call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
         call('CLIENT_ID = long-term-archive'),
