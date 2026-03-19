@@ -506,6 +506,9 @@ def AddActiveDir(a_dirname):
     #-
     posturl = copy.deepcopy(basicposturl)
     posturl.append(targetbundleactivediradd + mangle(a_dirname))
+    a_ans = ""
+    a_err = ""
+    a_code = 1
     try:
         a_ans, a_err, a_code = getoutputerrorsimplecommand(posturl, 20)
         if len(a_ans) > 2:
@@ -525,6 +528,9 @@ def RemoveActiveDir(a_dirname):
     #-
     geturl = copy.deepcopy(basicgeturl)
     geturl.append(targetbundleactivedirremove + mangle(a_dirname))
+    a_ans = ""
+    a_err = ""
+    a_code = 1
     try:
         a_ans, a_err, a_code = getoutputerrorsimplecommand(geturl, 20)
         if len(a_ans) > 2:
