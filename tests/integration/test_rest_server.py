@@ -27,7 +27,9 @@ from wipac_dev_tools import from_environment, strtobool
 from lta.rest_server import EXPECTED_CONFIG, create_mongodb_client, main, start, unique_id
 
 LtaCollection = Database[dict[str, Any]]
-RestClientFactory = Callable[[str, float | None], RestClient]
+RestClientFactory = Callable[[str, float], RestClient]
+
+DEFAULT_REST_TIMEOUT = 0.5
 
 REQ_TOTAL = "lta_requests_total"
 RESP_TOTAL = "lta_responses_total"
@@ -101,7 +103,7 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
 
     _clients: list[RestClient] = []
 
-    def client(role: str, timeout: float = 0.5) -> RestClient:
+    def client(role: str, timeout: float = DEFAULT_REST_TIMEOUT) -> RestClient:
         # But they were, all of them, deceived, for another Token was made.
         # In the land of PyTest, in the fires of Mount Fixture, the Dark Lord
         # Sauron forged in secret a master Token, to control all others. And
@@ -175,7 +177,7 @@ def test_000_strtobool() -> None:
 @pytest.mark.asyncio
 async def test_100_server_reachability(rest: RestClientFactory) -> None:
     """Check that we can reach the server."""
-    r = rest("system")  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
     # request: GET
     ret = await r.request('GET', '/')
     assert ret == {}
@@ -190,7 +192,7 @@ async def test_100_server_reachability(rest: RestClientFactory) -> None:
 async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
     """Check for bad transfer request handling."""
 
-    r = rest("system")  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
     request: dict[str, Any] = {'dest': ['bar']}
@@ -257,7 +259,7 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
 async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for transfer requests."""
 
-    r = rest(role="system")  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
     request = {'source': 'foo', 'dest': 'bar', 'path': 'snafu'}
@@ -305,7 +307,7 @@ async def test_210_transfer_request_crud(mongo: LtaCollection, rest: RestClientF
 @pytest.mark.asyncio
 async def test_220_transfer_request_pop(rest: RestClientFactory) -> None:
     """Check pop action for transfer requests."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
     request = {
@@ -379,7 +381,7 @@ async def test_300_script_main(mocker: MockerFixture) -> None:
 @pytest.mark.asyncio
 async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for bundles."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     #
     # Create - POST /Bundles/actions/bulk_create
@@ -440,7 +442,7 @@ async def test_400_bundles_bulk_crud(mongo: LtaCollection, rest: RestClientFacto
 @pytest.mark.asyncio
 async def test_410_bundles_actions_bulk_create_errors(rest: RestClientFactory) -> None:
     """Check error conditions for bulk_create."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
     request: dict[str, Any] = {}
@@ -464,7 +466,7 @@ async def test_410_bundles_actions_bulk_create_errors(rest: RestClientFactory) -
 @pytest.mark.asyncio
 async def test_420_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -> None:
     """Check error conditions for bulk_delete."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
     request: dict[str, Any] = {}
@@ -488,7 +490,7 @@ async def test_420_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -
 @pytest.mark.asyncio
 async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -> None:
     """Check error conditions for bulk_update."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
     request: dict[str, Any] = {}
@@ -524,7 +526,7 @@ async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -
 @pytest.mark.asyncio
 async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that GET /Bundles filters properly by query parameters.."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -656,7 +658,7 @@ async def test_440_get_bundles_filter(mongo: LtaCollection, rest: RestClientFact
 @pytest.mark.asyncio
 async def test_450_get_bundles_request_filter(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that GET /Bundles filters properly by query parameter request."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -722,7 +724,7 @@ async def test_450_get_bundles_request_filter(mongo: LtaCollection, rest: RestCl
 @pytest.mark.asyncio
 async def test_460_get_bundles_uuid_error(rest: RestClientFactory) -> None:
     """Check that GET /Bundles/UUID returns 404 on not found."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: GET
     with pytest.raises(HTTPError, match=r"not found") as exc:
@@ -733,7 +735,7 @@ async def test_460_get_bundles_uuid_error(rest: RestClientFactory) -> None:
 @pytest.mark.asyncio
 async def test_470_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that DELETE /Bundles/UUID returns 204, exist or not exist."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -777,7 +779,7 @@ async def test_470_delete_bundles_uuid(mongo: LtaCollection, rest: RestClientFac
 @pytest.mark.asyncio
 async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check that PATCH /Bundles/UUID does the right thing, every time."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -825,7 +827,7 @@ async def test_480_patch_bundles_uuid(mongo: LtaCollection, rest: RestClientFact
 @pytest.mark.asyncio
 async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check pop action for bundles."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -934,7 +936,7 @@ async def test_490_bundles_actions_pop(mongo: LtaCollection, rest: RestClientFac
 @pytest.mark.asyncio
 async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check error handlers for pop action for bundles."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
     # Missing required query arg: status
@@ -958,7 +960,7 @@ async def test_500_bundles_actions_pop_errors(mongo: LtaCollection, rest: RestCl
 @pytest.mark.asyncio
 async def test_510_bundles_actions_pop_at_destination(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check pop action for bundles at destination."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     test_data = {
         'bundles': [
@@ -996,7 +998,7 @@ async def test_520_bundles_actions_bulk_create_huge(mongo: LtaCollection, rest: 
 
     NUM_FILES_TO_MAKE_IT_HUGE = 16000  # 16000 file entries ~= 12 MB body data
 
-    r = rest(role='system', timeout=10.0)  # type: ignore[call-arg]
+    r = rest("system", timeout=10.0)  # type: ignore[call-arg]
 
     test_data: dict[str, list[dict[str, Any]]] = {
         'bundles': [
@@ -1056,7 +1058,7 @@ async def test_520_bundles_actions_bulk_create_huge(mongo: LtaCollection, rest: 
 @pytest.mark.asyncio
 async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for metadata."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
     bundle_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
     bundle_uuid1 = "05b7178b-82d0-428c-a0a6-d4add696de62"
     #
@@ -1117,7 +1119,7 @@ async def test_600_metadata_delete_bundle_uuid(mongo: LtaCollection, rest: RestC
 @pytest.mark.asyncio
 async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for metadata."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
     bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
     #
     # Create - POST /Metadata/actions/bulk_create
@@ -1160,7 +1162,7 @@ async def test_610_metadata_single_record(mongo: LtaCollection, rest: RestClient
 @pytest.mark.asyncio
 async def test_620_metadata_bulk_crud(mongo: LtaCollection, rest: RestClientFactory) -> None:
     """Check CRUD semantics for metadata."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
     bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
     #
     # Create - POST /Metadata/actions/bulk_create
@@ -1206,7 +1208,7 @@ async def test_620_metadata_bulk_crud(mongo: LtaCollection, rest: RestClientFact
 @pytest.mark.asyncio
 async def test_630_metadata_actions_bulk_create_errors(rest: RestClientFactory) -> None:
     """Check error conditions for bulk_create."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
     request: dict[str, Any] = {}
@@ -1237,7 +1239,7 @@ async def test_630_metadata_actions_bulk_create_errors(rest: RestClientFactory) 
 @pytest.mark.asyncio
 async def test_640_metadata_actions_bulk_delete_errors(rest: RestClientFactory) -> None:
     """Check error conditions for bulk_delete."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
     request: dict[str, Any] = {}
@@ -1261,7 +1263,7 @@ async def test_640_metadata_actions_bulk_delete_errors(rest: RestClientFactory) 
 @pytest.mark.asyncio
 async def test_650_metadata_delete_errors(rest: RestClientFactory) -> None:
     """Check error conditions for DELETE /Metadata."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
 
     # request: DELETE
     with pytest.raises(HTTPError, match=r"bundle_uuid") as exc:
@@ -1272,7 +1274,7 @@ async def test_650_metadata_delete_errors(rest: RestClientFactory) -> None:
 @pytest.mark.asyncio
 async def test_660_metadata_results_comprehension(rest: RestClientFactory) -> None:
     """Check that our comprehension works."""
-    r = rest('system')  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
     bundle_uuid = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
     #
     # Create - POST /Metadata/actions/bulk_create
