@@ -12,6 +12,7 @@ import tracemalloc
 from typing import Any, cast
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
+
 import pytest
 import pytest_asyncio
 from pymongo import MongoClient
