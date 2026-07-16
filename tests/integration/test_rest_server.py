@@ -4,14 +4,14 @@
 # fmt:off
 
 import asyncio
+from collections.abc import AsyncGenerator, Callable
 import logging
 import os
 import socket
 import tracemalloc
-from typing import Any, AsyncGenerator, Callable, cast
+from typing import Any, cast
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
-
 import pytest
 import pytest_asyncio
 from pymongo import MongoClient
