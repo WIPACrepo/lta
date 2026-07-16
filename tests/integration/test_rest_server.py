@@ -1311,3 +1311,128 @@ async def test_660_metadata_results_comprehension(rest: RestClientFactory) -> No
     for result in results:
         assert uuids[count] == result['uuid']
         count = count + 1
+
+
+@pytest.mark.asyncio
+async def test_670_metadata_distinct_bundle_uuids(
+    rest: RestClientFactory,
+) -> None:
+    """Check that distinct Metadata bundle UUIDs are returned."""
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
+
+    bundle_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    bundle_uuid1 = "05b7178b-82d0-428c-a0a6-d4add696de62"
+
+    # Create multiple Metadata records for each Bundle.
+    request = {
+        "bundle_uuid": bundle_uuid0,
+        "files": [
+            "7b5c1f76-e568-4ae7-94d2-5a31d1d2b081",
+            "125d2a44-a664-4166-bf4a-5d5cf13292d7",
+            "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f",
+        ],
+    }
+    ret = await r.request(
+        "POST",
+        "/Metadata/actions/bulk_create",
+        request,
+    )
+    assert ret["count"] == 3
+
+    request = {
+        "bundle_uuid": bundle_uuid1,
+        "files": [
+            "03ccb63e-32cf-4135-85b2-fd06b8c9137f",
+            "c65f2c58-a412-403c-9354-d25d7ae5cdeb",
+        ],
+    }
+    ret = await r.request(
+        "POST",
+        "/Metadata/actions/bulk_create",
+        request,
+    )
+    assert ret["count"] == 2
+
+    # Request distinct Bundle UUIDs without a status filter.
+    ret = await r.request(
+        "GET",
+        "/Metadata/actions/distinct_bundles",
+    )
+
+    assert ret["count"] == 2
+    assert set(ret["results"]) == {
+        bundle_uuid0,
+        bundle_uuid1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_680_metadata_distinct_finished_bundle_uuids(
+    mongo: LtaCollection,
+    rest: RestClientFactory,
+) -> None:
+    """Check that distinct Metadata Bundle UUIDs can be filtered by status."""
+    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
+
+    finished_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    finished_uuid1 = "05b7178b-82d0-428c-a0a6-d4add696de62"
+    deleted_uuid = "992ae5e1-017c-4a95-b552-bd385020ec27"
+
+    # Create the corresponding Bundle records with different statuses.
+    mongo.Bundles.insert_many([
+        {
+            "uuid": finished_uuid0,
+            "status": "finished",
+        },
+        {
+            "uuid": finished_uuid1,
+            "status": "finished",
+        },
+        {
+            "uuid": deleted_uuid,
+            "status": "deleted",
+        },
+    ])
+
+    # Create Metadata records for all three Bundles.
+    metadata_requests = [
+        {
+            "bundle_uuid": finished_uuid0,
+            "files": [
+                "7b5c1f76-e568-4ae7-94d2-5a31d1d2b081",
+                "125d2a44-a664-4166-bf4a-5d5cf13292d7",
+            ],
+        },
+        {
+            "bundle_uuid": finished_uuid1,
+            "files": [
+                "03ccb63e-32cf-4135-85b2-fd06b8c9137f",
+            ],
+        },
+        {
+            "bundle_uuid": deleted_uuid,
+            "files": [
+                "c65f2c58-a412-403c-9354-d25d7ae5cdeb",
+            ],
+        },
+    ]
+
+    for request in metadata_requests:
+        ret = await r.request(
+            "POST",
+            "/Metadata/actions/bulk_create",
+            request,
+        )
+        assert ret["count"] == len(request["files"])
+
+    # Only Metadata associated with finished Bundles should be returned.
+    ret = await r.request(
+        "GET",
+        "/Metadata/actions/distinct_bundles?status=finished",
+    )
+
+    assert ret["count"] == 2
+    assert set(ret["results"]) == {
+        finished_uuid0,
+        finished_uuid1,
+    }
