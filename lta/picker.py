@@ -9,7 +9,7 @@ import json
 import logging
 import math
 import sys
-from typing import Any, Optional
+from typing import Any
 
 from binpacking import to_constant_bin_number
 from prometheus_client import start_http_server
@@ -79,7 +79,7 @@ class Picker(Component):
         """Picker has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Picker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
