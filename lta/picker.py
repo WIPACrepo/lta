@@ -9,7 +9,7 @@ import json
 import logging
 import math
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from binpacking import to_constant_bin_number
 from prometheus_client import start_http_server
@@ -59,7 +59,7 @@ class Picker(Component):
     to add to the LTA REST API.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a Picker component.
 
@@ -75,11 +75,11 @@ class Picker(Component):
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Picker has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, Optional[str]]:
         """Picker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
