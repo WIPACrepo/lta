@@ -5,6 +5,7 @@
 
 import asyncio
 import itertools
+import logging
 import time
 from logging import Logger
 import os
@@ -59,12 +60,14 @@ class PrometheusResultTracker:
         failure_counter: Counter,
         histogram: Histogram,
         start_ts: float,
+        logger: Logger,
     ) -> None:
         self._success_counter = success_counter
         self._failure_counter = failure_counter
         self._histogram = histogram
         self._start_ts = start_ts
         self._done = False
+        self._logger = logging.getLogger(logger.name + ".prometheus_tracker")
 
     def record_success(self):
         """Record a successful work -- this should only be called at the end."""
@@ -73,6 +76,7 @@ class PrometheusResultTracker:
         self._done = True
         self._success_counter.inc()
         self._histogram.observe(time.monotonic() - self._start_ts)
+        self._logger.debug("recorded success.")
 
     def record_failure(self):
         """Record a failed work -- this should only be called at the end."""
@@ -81,6 +85,7 @@ class PrometheusResultTracker:
         self._done = True
         self._failure_counter.inc()
         # note - we don't record the latency here since it failed (would skew the data)
+        self._logger.debug("recorded failure.")
 
     @property
     def done(self):
@@ -172,7 +177,7 @@ class Component:
             self.logger.error(f"Error occurred during the {self.type} work cycle")
             self.logger.error(f"Error was: '{e}'")
             self.logger.exception(e)  # logs the stack trace
-        self.logger.info(f"Ending {self.type} work cycle")
+        self.logger.info(f"Ending {self.type} work cycle -- back in {self.work_sleep_duration_seconds}s")
         # if we are configured to run until no work, then die
         if self.run_until_no_work:
             self.logger.warning("Run until no work configured -- exiting.")
@@ -228,21 +233,20 @@ class Component:
                 prom_counter_wrapper.labels({"work": "failure"}),  # -> Counter
                 prom_histogram,
                 time.monotonic(),  # instantiate now for accurate timestamp
+                self.logger,
             )
 
             ret = await self._do_work_claim(lta_rc, prom_tracker)
-            if not prom_tracker.done:
-                self.logger.warning("Component did not record its result in Prometheus.")
 
             # now, decide whether to continue or pause the work cycle
             if self.run_once_and_die:
                 self.logger.warning("Run once and die configured -- exiting.")
                 sys.exit()
             elif ret:
-                self.logger.info("Continuing work cycle.")
+                self.logger.info(f"{ret=} -> continuing work cycle...")
                 continue
             else:
-                self.logger.info("Pausing work cycle.")
+                self.logger.info(f"{ret=} -> pausing work cycle...")
                 break
 
     async def _do_work_claim(

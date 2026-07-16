@@ -22,6 +22,8 @@ TestConfig = Dict[str, str]
 def config() -> TestConfig:
     """Supply a stock Bundler component configuration."""
     return {
+        "BLOCKING_IO_MAX_RETRIES": "2",
+        "BLOCKING_IO_SLEEP_SECONDS": "45",
         "BUNDLER_OUTBOX_PATH": "/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "/tmp/lta/testing/bundler/workbox",
         "CLIENT_ID": "long-term-archive",
@@ -121,6 +123,8 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
     """Test to make sure the Bundler logs its configuration."""
     logger_mock = mocker.MagicMock()
     bundler_config = {
+        "BLOCKING_IO_MAX_RETRIES": "2",
+        "BLOCKING_IO_SLEEP_SECONDS": "45",
         "BUNDLER_OUTBOX_PATH": "logme/tmp/lta/testing/bundler/outbox",
         "BUNDLER_WORKBOX_PATH": "logme/tmp/lta/testing/bundler/workbox",
         "CLIENT_ID": "long-term-archive",
@@ -151,6 +155,8 @@ async def test_bundler_logs_configuration(mocker: MockerFixture) -> None:
     Bundler(bundler_config, logger_mock)
     EXPECTED_LOGGER_CALLS = [
         call("bundler 'logme-testing-bundler' is configured:"),
+        call('BLOCKING_IO_MAX_RETRIES = 2'),
+        call('BLOCKING_IO_SLEEP_SECONDS = 45'),
         call('BUNDLER_OUTBOX_PATH = logme/tmp/lta/testing/bundler/outbox'),
         call('BUNDLER_WORKBOX_PATH = logme/tmp/lta/testing/bundler/workbox'),
         call('CLIENT_ID = long-term-archive'),
@@ -319,10 +325,14 @@ async def test_bundler_do_work_dest_results(config: TestConfig, mocker: MockerFi
             "claimed": False,
         },
     ]
-    mock_zipfile_init = mocker.patch("zipfile.ZipFile.__init__")
-    mock_zipfile_init.return_value = None
-    mock_zipfile_write = mocker.patch("zipfile.ZipFile.write")
-    mock_zipfile_write.return_value = None
+    mock_zip_cls = mocker.patch("lta.bundler.ZipFile")
+    mock_zip = mocker.MagicMock()
+    mock_zip_cls.return_value.__enter__.return_value = mock_zip
+    mock_fp = mocker.Mock()
+    mock_fp.fileno.return_value = 123
+    mock_zip.fp = mock_fp
+    mocker.patch("os.get_blocking", return_value=True)
+    mocker.patch("os.set_blocking", return_value=None)
     mock_shutil_move = mocker.patch("shutil.move")
     mock_shutil_move.return_value = None
     mock_lta_checksums = mocker.patch("lta.bundler.lta_checksums")
@@ -345,7 +355,7 @@ async def test_bundler_do_work_dest_results(config: TestConfig, mocker: MockerFi
     with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
         await p._do_work_bundle(fc_rc_mock, lta_rc_mock, BUNDLE_OBJ)
         metadata_mock.assert_called_with(mocker.ANY, mode="w")
-    mock_zipfile_write.assert_called_with('/path/to/some/data/warehouse/file.i3', 'warehouse/file.i3')
+    mock_zip.write.assert_any_call('/path/to/some/data/warehouse/file.i3', 'warehouse/file.i3')
 
 
 @pytest.mark.asyncio
