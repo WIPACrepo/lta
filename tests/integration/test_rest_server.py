@@ -4,11 +4,11 @@
 # fmt:off
 
 import asyncio
-from collections.abc import AsyncGenerator, Callable
 import logging
 import os
 import socket
 import tracemalloc
+from collections.abc import AsyncGenerator, Callable
 from typing import Any, cast
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
@@ -24,7 +24,13 @@ from rest_tools.client import RestClient
 from rest_tools.utils import Auth
 from wipac_dev_tools import from_environment, strtobool
 
-from lta.rest_server import EXPECTED_CONFIG, create_mongodb_client, main, start, unique_id
+from lta.rest_server import (
+    EXPECTED_CONFIG,
+    create_mongodb_client,
+    main,
+    start,
+    unique_id,
+)
 
 LtaCollection = Database[dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
