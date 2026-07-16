@@ -8,7 +8,7 @@ import logging
 import os
 import socket
 import tracemalloc
-from typing import Any, AsyncGenerator, Callable, Dict, List, cast
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, cast
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
 
@@ -26,7 +26,7 @@ from wipac_dev_tools import from_environment, strtobool
 from lta.rest_server import EXPECTED_CONFIG, create_mongodb_client, main, start, unique_id
 
 LtaCollection = Database[Dict[str, Any]]
-RestClientFactory = Callable[[str, float], RestClient]
+RestClientFactory = Callable[[str, Optional[float]], RestClient]
 
 REQ_TOTAL = "lta_requests_total"
 RESP_TOTAL = "lta_responses_total"
