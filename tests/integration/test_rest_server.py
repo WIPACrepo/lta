@@ -1004,7 +1004,7 @@ async def test_520_bundles_actions_bulk_create_huge(mongo: LtaCollection, rest: 
 
     NUM_FILES_TO_MAKE_IT_HUGE = 16000  # 16000 file entries ~= 12 MB body data
 
-    r = rest("system", timeout=10.0)  # type: ignore[call-arg]
+    r = rest("system", 10.0)  # type: ignore[call-arg]
 
     test_data: dict[str, list[dict[str, Any]]] = {
         'bundles': [
