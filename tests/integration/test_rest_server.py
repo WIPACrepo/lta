@@ -8,7 +8,7 @@ import logging
 import os
 import socket
 import tracemalloc
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, cast
+from typing import Any, AsyncGenerator, Callable, cast
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
 
@@ -25,15 +25,15 @@ from wipac_dev_tools import from_environment, strtobool
 
 from lta.rest_server import EXPECTED_CONFIG, create_mongodb_client, main, start, unique_id
 
-LtaCollection = Database[Dict[str, Any]]
-RestClientFactory = Callable[[str, Optional[float]], RestClient]
+LtaCollection = Database[dict[str, Any]]
+RestClientFactory = Callable[[str, float | None], RestClient]
 
 REQ_TOTAL = "lta_requests_total"
 RESP_TOTAL = "lta_responses_total"
 
 tracemalloc.start(1)
 
-ALL_DOCUMENTS: Dict[str, str] = {}
+ALL_DOCUMENTS: dict[str, str] = {}
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
@@ -63,7 +63,7 @@ def mongo(monkeypatch: MonkeyPatch) -> LtaCollection:
     lta_mongodb_url = f"mongodb://{mongo_host}"
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
-    client: MongoClient[Dict[str, Any]] = MongoClient(lta_mongodb_url, port=mongo_port)
+    client: MongoClient[dict[str, Any]] = MongoClient(lta_mongodb_url, port=mongo_port)
     db = client[CONFIG['LTA_MONGODB_DATABASE_NAME']]
     for collection in db.list_collection_names():
         if 'system' not in collection:
@@ -107,7 +107,7 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
         # into this Token he poured his cruelty, his malice and his will to
         # dominate all life. One Token to rule them all.
         auth = Auth("secret")  # type: ignore[no-untyped-call]
-        token_data: Dict[str, Any] = {
+        token_data: dict[str, Any] = {
             "resource_access": {
                 "long-term-archive": {
                     "roles": [role]
@@ -192,7 +192,7 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
     r = rest("system")  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {'dest': ['bar']}
+    request: dict[str, Any] = {'dest': ['bar']}
     with pytest.raises(HTTPError, match=r"missing source field") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -442,7 +442,7 @@ async def test_410_bundles_actions_bulk_create_errors(rest: RestClientFactory) -
     r = rest('system')  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {}
+    request: dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"missing bundles field") as exc:
         await r.request('POST', '/Bundles/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -466,7 +466,7 @@ async def test_420_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -
     r = rest('system')  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {}
+    request: dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"missing bundles field") as exc:
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -490,7 +490,7 @@ async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -
     r = rest('system')  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {}
+    request: dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"missing update field") as exc:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -997,7 +997,7 @@ async def test_520_bundles_actions_bulk_create_huge(mongo: LtaCollection, rest: 
 
     r = rest(role='system', timeout=10.0)  # type: ignore[call-arg]
 
-    test_data: Dict[str, List[Dict[str, Any]]] = {
+    test_data: dict[str, list[dict[str, Any]]] = {
         'bundles': [
             {
                 "type": "Bundle",
@@ -1208,7 +1208,7 @@ async def test_630_metadata_actions_bulk_create_errors(rest: RestClientFactory) 
     r = rest('system')  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {}
+    request: dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"bundle_uuid") as exc:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -1239,7 +1239,7 @@ async def test_640_metadata_actions_bulk_delete_errors(rest: RestClientFactory) 
     r = rest('system')  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {}
+    request: dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"metadata") as exc:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
