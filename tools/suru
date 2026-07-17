@@ -6,6 +6,8 @@ export BROWSER=${BROWSER:="firefox"}  # use 'firefox' if BROWSER isn't set
 
 export CI_TEST_ENV=${CI_TEST_ENV:="TRUE"}  # disable keycloak_role_auth in testing
 
+export DUMP_PROMETHEUS_METRICS_FILE="/tmp/metrics.prom"
+
 export LTA_MONGODB_DATABASE_NAME=${LTA_MONGODB_DATABASE_NAME:="lta"}
 export LTA_MONGODB_HOST=${LTA_MONGODB_HOST:="localhost"}
 export LTA_MONGODB_PORT=${LTA_MONGODB_PORT:="27017"}
