@@ -15,10 +15,8 @@ from pathlib import Path
 from typing import (
     Any,
     Concatenate,
-    Optional,
     ParamSpec,
     TypeVar,
-    Union,
     cast,
 )
 from xml.etree.ElementTree import Element

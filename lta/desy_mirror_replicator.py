@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 import sys
-from typing import Any, Optional
+from typing import Any
 
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient

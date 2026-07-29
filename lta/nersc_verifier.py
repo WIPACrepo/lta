@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from subprocess import PIPE, run
+from subprocess import run
 from typing import Any
 
 from prometheus_client import start_http_server
