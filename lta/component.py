@@ -6,12 +6,12 @@
 import asyncio
 import itertools
 import logging
-import time
 from logging import Logger
 import os
 from pathlib import Path
 import sys
-from typing import Any, Dict, Optional
+import time
+from typing import Any
 from uuid import uuid4
 
 from prometheus_client import Counter, Histogram
@@ -21,7 +21,7 @@ from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels, His
 
 from .lta_const import drain_semaphore_filename
 
-COMMON_CONFIG: Dict[str, Optional[str]] = {
+COMMON_CONFIG: dict[str, str | None] = {
     "CLIENT_ID": None,
     "CLIENT_SECRET": None,
     "COMPONENT_NAME": None,
@@ -107,7 +107,7 @@ class Component:
 
     def __init__(self,
                  component_type: str,
-                 config: Dict[str, str],
+                 config: dict[str, str],
                  logger: Logger) -> None:
         """
         Create an LTA component.
@@ -183,7 +183,7 @@ class Component:
             self.logger.warning("Run until no work configured -- exiting.")
             sys.exit()
 
-    def validate_config(self, config: Dict[str, str]) -> None:
+    def validate_config(self, config: dict[str, str]) -> None:
         """Validate the configuration provided to the component."""
         # these are the configuration variables required of all components
         for name in COMMON_CONFIG:
@@ -199,11 +199,11 @@ class Component:
             if not config[name]:
                 raise ValueError(f"Missing expected configuration parameter: '{name}'")
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Override this to provide status updates."""
         raise NotImplementedError()
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Override this to return expected configuration."""
         raise NotImplementedError()
 

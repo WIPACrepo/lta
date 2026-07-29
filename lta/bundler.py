@@ -3,6 +3,7 @@
 
 # fmt:off
 
+import aiofiles
 import asyncio
 import json
 import logging
@@ -41,6 +42,14 @@ EXPECTED_CONFIG.update({
     "WORK_RETRIES": "3",
     "WORK_TIMEOUT_SECONDS": "30",
 })
+
+
+class BundleZipMissingFileDescriptorException(Exception):
+    """Raised when a bundle zip file is missing a file descriptor."""
+
+
+class MetadataFileSanityCheckException(Exception):
+    """Raised when a metadata file fails a sanity check."""
 
 
 class Bundler(Component):
@@ -214,7 +223,7 @@ class Bundler(Component):
             if not fp:
                 error_message = f"bundle_zip.fp: {fp} (== None)"
                 self.logger.error(error_message)
-                raise Exception(error_message)
+                raise BundleZipMissingFileDescriptorException(error_message)
             # ensure the file descriptor is in blocking mode
             fd = fp.fileno()
             self.logger.info(f"bundle fd:{fd} blocking before: {os.get_blocking(fd)}")
@@ -277,10 +286,10 @@ class Bundler(Component):
         done = False
         limit = CREATE_CHUNK_SIZE
         skip = 0
-        with open(metadata_file_path, mode="w") as metadata_file:
+        async with aiofiles.open(metadata_file_path, mode="w") as metadata_file:
             self.logger.info(f"Writing metadata_dict to '{metadata_file_path}'")
-            metadata_file.write(json.dumps(metadata_dict))
-            metadata_file.write("\n")
+            await metadata_file.write(json.dumps(metadata_dict))
+            await metadata_file.write("\n")
 
             # until we've finished processing all the Metadata records
             while not done:
@@ -298,14 +307,14 @@ class Bundler(Component):
                     file_catalog_uuid = metadata_record["file_catalog_uuid"]
                     fc_response = await fc_rc.request('GET', f'/api/files/{file_catalog_uuid}')
                     self.logger.info(f"Writing File Catalog record {file_catalog_uuid} to '{metadata_file_path}'")
-                    metadata_file.write(json.dumps(fc_response))
-                    metadata_file.write("\n")
+                    await metadata_file.write(json.dumps(fc_response))
+                    await metadata_file.write("\n")
 
         # do a last minute sanity check on our data
         if count != file_count:
             error_message = f'Bad mojo creating metadata file. Expected {file_count} Metadata records, but only processed {count} records.'
             self.logger.error(error_message)
-            raise Exception(error_message)
+            raise MetadataFileSanityCheckException(error_message)
 
 
 async def main(bundler: Bundler) -> None:
