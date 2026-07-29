@@ -11,7 +11,7 @@ import math
 import sys
 from typing import Any, Dict, Optional
 
-from binpacking import to_constant_bin_number  # type: ignore
+from binpacking import to_constant_bin_number
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
