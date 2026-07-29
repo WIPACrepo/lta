@@ -10,17 +10,17 @@ import os
 from pathlib import Path
 import shutil
 import sys
-from typing import Any, Dict, Optional
+from typing import Any
 from zipfile import ZIP_STORED, ZipFile
 
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
 from .lta_types import BundleType
+from .utils import now, quarantine_now
 
 Logger = logging.Logger
 
@@ -54,14 +54,14 @@ class Bundler(Component):
     API to indicate that the provided files were so bundled.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a Bundler component.
 
         config - A dictionary of required configuration values.
         logger - The object the bundler should use for logging.
         """
-        super(Bundler, self).__init__("bundler", config, logger)
+        super().__init__("bundler", config, logger)
         self.blocking_io_max_retries = int(config["BLOCKING_IO_MAX_RETRIES"])
         self.blocking_io_sleep_seconds = int(config["BLOCKING_IO_SLEEP_SECONDS"])
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
@@ -72,11 +72,11 @@ class Bundler(Component):
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.workbox_path = config["BUNDLER_WORKBOX_PATH"]
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Bundler has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Bundler provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
