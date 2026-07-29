@@ -8,15 +8,15 @@ import logging
 import os
 import shutil
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
+from .utils import now, quarantine_now
 
 Logger = logging.Logger
 
@@ -43,25 +43,25 @@ class RateLimiter(Component):
     that are "in-flight" to the destination site at any given time.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a RateLimiter component.
 
         config - A dictionary of required configuration values.
         logger - The object the rate_limiter should use for logging.
         """
-        super(RateLimiter, self).__init__("rate_limiter", config, logger)
+        super().__init__("rate_limiter", config, logger)
         self.input_path = config["INPUT_PATH"]
         self.output_path = config["OUTPUT_PATH"]
         self.output_quota = int(config["OUTPUT_QUOTA"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Contribute no additional status."""
         return {}
 
-    def _enumerate_path(self, path: str) -> List[str]:
+    def _enumerate_path(self, path: str) -> list[str]:
         """Recursively walk the file system to enumerate files at provided path."""
         self.logger.info(f"Enumerating all files in {path}")
         # enumerate all of the files on disk to be checked
@@ -71,11 +71,11 @@ class RateLimiter(Component):
         self.logger.info(f"Found {len(disk_files)} entries in {path}")
         return disk_files
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
-    def _get_files_and_size(self, path: str) -> Tuple[List[str], int]:
+    def _get_files_and_size(self, path: str) -> tuple[list[str], int]:
         """Recursively walk and add the files of files in the file system."""
         # enumerate all of the files on disk to be checked
         disk_files = self._enumerate_path(path)
@@ -172,7 +172,7 @@ class RateLimiter(Component):
         self.logger.info("Bundle is not ready to be staged; will unclaim it.")
         bundle_id = bundle["uuid"]
         right_now = now()
-        patch_body: Dict[str, Any] = {
+        patch_body: dict[str, Any] = {
             "claimed": False,
             "update_timestamp": right_now,
             "work_priority_timestamp": right_now,

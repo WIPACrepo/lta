@@ -5,40 +5,39 @@ Run with `python -m lta.rest_server`.
 """
 
 import asyncio
-import time
 import logging
 import os
 import sys
-from typing import Any, cast, List, Optional, Tuple, Union
+import time
+from typing import Any, cast
 from urllib.parse import quote_plus
 from uuid import uuid1
 
-from pymongo import AsyncMongoClient
-from pymongo.asynchronous.database import AsyncDatabase
 import prometheus_client
 import pymongo
-from pymongo import MongoClient
-from rest_tools.utils.json_util import json_decode
+import tornado.web
+from pymongo import AsyncMongoClient, MongoClient
+from pymongo.asynchronous.database import AsyncDatabase
 from rest_tools.server import (
+    ArgumentHandler,
+    ArgumentSource,
     RestHandler,
     RestHandlerSetup,
     RestServer,
-    ArgumentHandler,
-    ArgumentSource,
 )
 from rest_tools.server.decorators import keycloak_role_auth
-import tornado.web
+from rest_tools.utils.json_util import json_decode
 from wipac_dev_tools import from_environment, strtobool
 from wipac_dev_tools.string_tools import regex_named_groups_to_template
 
 from .rest_server_utils.status_poller import status_poller
 from .rest_server_utils.utils import (
     BUNDLES,
-    DatabaseType,
     PROMETHEUS_BUNDLE_CLAIMS_TOTAL,
     PROMETHEUS_HISTOGRAM,
     STATUS_POLLER_INTERVAL_MINIMUM,
     TRANSFER_REQUESTS,
+    DatabaseType,
     prometheus_record_status_write,
 )
 from .utils import now
@@ -80,7 +79,7 @@ REMOVE_ID = {"_id": False}
 # -----------------------------------------------------------------------------
 
 # these are the indexes we expect in our backing MongoDB
-MONGO_INDEXES: List[Tuple[str, str, str, Optional[bool]]] = [
+MONGO_INDEXES: list[tuple[str, str, str, bool | None]] = [
     # (collection,       field,                     index_name,                                        unique)
     ("Bundles",          "create_timestamp",        "bundles_create_timestamp_index",                  False),  # noqa: E241
     ("Bundles",          "request",                 "bundles_request_index",                           None),   # noqa: E241
@@ -123,7 +122,7 @@ class BaseLTAHandler(RestHandler):
             *args: Any,
             **kwargs: Any) -> None:
         """Initialize a BaseLTAHandler object."""
-        super(BaseLTAHandler, self).initialize(*args, **kwargs)
+        super().initialize(*args, **kwargs)
         self.db = db
         self.prometheus_route_name = prometheus_route_name
 
@@ -300,8 +299,8 @@ class BundlesActionsPopHandler(BaseLTAHandler):
     @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
     async def post(self) -> None:
         """Handle POST /Bundles/actions/pop."""
-        dest: Optional[str] = self.get_argument('dest', default=None)
-        source: Optional[str] = self.get_argument('source', default=None)
+        dest: str | None = self.get_argument('dest', default=None)
+        source: str | None = self.get_argument('source', default=None)
         status: str = self.get_argument('status')
         if (not dest) and (not source):
             raise tornado.web.HTTPError(400, reason="missing source and dest fields")
@@ -745,7 +744,7 @@ def ensure_mongo_indexes(mongo_url: str, mongo_db: str) -> None:
         existing_indexes = collection.index_information()
         if index_name not in existing_indexes:
             logging.info(f"Creating index for {mongo_db}.{collection_name}.{field}")
-            kwargs: dict[str, Union[str, bool]] = {"name": index_name}
+            kwargs: dict[str, str | bool] = {"name": index_name}
             if unique is not None:
                 kwargs["unique"] = unique
             collection.create_index(field, **kwargs)
@@ -777,7 +776,7 @@ def start(
     """Start a LTA DB service."""
 
     # configure auth
-    auth: dict[str, Union[str, int, float, bool]] = {}
+    auth: dict[str, str | int | float | bool] = {}
     if config["CI_TEST"] == "TRUE":
         auth = {
             "secret": "secret",

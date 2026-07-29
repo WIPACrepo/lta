@@ -5,13 +5,22 @@
 
 import asyncio
 import base64
-from enum import Enum
-from functools import wraps
 import hashlib
 import logging
-from pathlib import Path
-from typing import Any, Awaitable, Callable, cast, Concatenate, Coroutine, Optional, ParamSpec, TypeVar, Union
 import xml.etree.ElementTree as ET
+from collections.abc import Awaitable, Callable, Coroutine
+from enum import Enum
+from functools import wraps
+from pathlib import Path
+from typing import (
+    Any,
+    Concatenate,
+    Optional,
+    ParamSpec,
+    TypeVar,
+    Union,
+    cast,
+)
 from xml.etree.ElementTree import Element
 
 import pycurl
@@ -59,7 +68,7 @@ def convert_checksum_from_dcache(checksum: str) -> str:
     return base64.b64decode(checksum).hex()
 
 
-def _decode_if_necessary(value: Optional[Union[str, bytes]]) -> Optional[str]:
+def _decode_if_necessary(value: str | bytes | None) -> str | None:
     if value is None:
         return None
     if isinstance(value, str):

@@ -6,22 +6,25 @@
 import asyncio
 import logging
 import os
-from subprocess import PIPE, run
 import sys
-from typing import Any, Dict, List, Optional
+from subprocess import PIPE, run
+from typing import Any
 
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .utils import InvalidBundlePathException, InvalidChecksumException
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .crypto import sha512sum
 from .joiner import join_smart
 from .lta_tools import from_environment
 from .lta_types import BundleType
-
+from .utils import (
+    InvalidBundlePathException,
+    InvalidChecksumException,
+    now,
+    quarantine_now,
+)
 
 Logger = logging.Logger
 
@@ -42,7 +45,7 @@ OLD_MTIME_EPOCH_SEC = 30 * 60  # 30 MINUTES * 60 SEC_PER_MIN
 QUARANTINE_THEN_KEEP_WORKING: list[type[Exception]] = [InvalidChecksumException]
 
 
-def as_nonempty_columns(s: str) -> List[str]:
+def as_nonempty_columns(s: str) -> list[str]:
     """Split the provided string into columns and return the non-empty ones."""
     cols = s.split(" ")
     nonempty = list(filter(discard_empty, cols))
@@ -56,7 +59,7 @@ def discard_empty(s: str) -> bool:
     return False
 
 
-def parse_myquota(s: str) -> List[Dict[str, str]]:
+def parse_myquota(s: str) -> list[dict[str, str]]:
     """Split the provided string into columns and return the non-empty ones."""
     results = []
     lines = s.split("\n")
@@ -82,21 +85,21 @@ class SiteMoveVerifier(Component):
     been copied faithfully.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a SiteMoveVerifier component.
 
         config - A dictionary of required configuration values.
         logger - The object the site_move_verifier should use for logging.
         """
-        super(SiteMoveVerifier, self).__init__("site_move_verifier", config, logger)
+        super().__init__("site_move_verifier", config, logger)
         self.dest_root_path = config["DEST_ROOT_PATH"]
         self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         pass
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Provide additional status for the SiteMoveVerifier."""
         quota = []
         stdout = self._execute_myquota()
@@ -104,7 +107,7 @@ class SiteMoveVerifier(Component):
             quota = parse_myquota(stdout)
         return {"quota": quota}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
@@ -192,9 +195,9 @@ class SiteMoveVerifier(Component):
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
-    def _execute_myquota(self) -> Optional[str]:
+    def _execute_myquota(self) -> str | None:
         """Run the myquota command to determine disk usage at the site."""
-        completed_process = run(MYQUOTA_ARGS, stdout=PIPE, stderr=PIPE)
+        completed_process = run(MYQUOTA_ARGS, capture_output=True)
         # if our command failed
         if completed_process.returncode != 0:
             self.logger.info(f"Command to check quota failed: {completed_process.args}")

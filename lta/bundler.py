@@ -3,17 +3,17 @@
 
 # fmt:off
 
-import aiofiles
 import asyncio
 import json
 import logging
 import os
-from pathlib import Path
 import shutil
 import sys
+from pathlib import Path
 from typing import Any
 from zipfile import ZIP_STORED, ZipFile
 
+import aiofiles
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 

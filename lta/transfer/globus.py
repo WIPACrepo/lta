@@ -2,12 +2,12 @@
 """Tools to help manage Globus proxies."""
 
 import asyncio
-import uuid
+import dataclasses
 import datetime
-from pathlib import Path
 import logging
 import os
-import dataclasses
+import uuid
+from pathlib import Path
 from typing import Any
 
 import globus_sdk
@@ -85,7 +85,7 @@ class GlobusTransfer:
         #   we'll use dict-kwargs unpacking.
         optionals: dict[str, Any] = {}
         if self._env.GLOBUS_HARD_DEADLINE_SECONDS:
-            now = datetime.datetime.now(datetime.timezone.utc)
+            now = datetime.datetime.now(datetime.UTC)
             deadline_dt = now + datetime.timedelta(
                 seconds=self._env.GLOBUS_HARD_DEADLINE_SECONDS
             )

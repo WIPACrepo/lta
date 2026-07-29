@@ -6,20 +6,24 @@
 import asyncio
 import logging
 import os
+import sys
 from pathlib import Path
 from subprocess import PIPE, run
-import sys
-from typing import Any, Dict, Optional
+from typing import Any
 
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException, InvalidChecksumException, \
-    log_completed_process_outputs
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
+from .utils import (
+    HSICommandFailedException,
+    InvalidChecksumException,
+    log_completed_process_outputs,
+    now,
+    quarantine_now,
+)
 
 Logger = logging.Logger
 
@@ -56,24 +60,24 @@ class NerscVerifier(Component):
     See: http://www.mgleicher.us/index.html/hsi/hsi_reference_manual_2/hsi_commands/
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a NerscVerifier component.
 
         config - A dictionary of required configuration values.
         logger - The object the nersc_verifier should use for logging.
         """
-        super(NerscVerifier, self).__init__("nersc_verifier", config, logger)
+        super().__init__("nersc_verifier", config, logger)
         self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """NerscVerifier has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """NerscVerifier provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
@@ -86,7 +90,7 @@ class NerscVerifier(Component):
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
         args = [self.hpss_avail_path, "archive"]
-        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+        completed_process = run(args, capture_output=True)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
@@ -164,7 +168,7 @@ class NerscVerifier(Component):
         #                      disabling verbose response messages, and disabling interactive file transfer messages
         #     hashlist      -> List checksum hash for HPSS file(s)
         args = ["/usr/bin/hsi", "-P", "hashlist", hpss_path]
-        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+        completed_process = run(args, capture_output=True)
         # if our command failed
         if completed_process.returncode != 0:
             raise HSICommandFailedException(
@@ -197,7 +201,7 @@ class NerscVerifier(Component):
         #     hashverify    -> Verify checksum hash for existing HPSS file(s)
         #     -A            -> enable auto-scheduling of retrievals
         args = ["/usr/bin/hsi", "-P", "hashverify", "-A", hpss_path]
-        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+        completed_process = run(args, capture_output=True)
         # if our command failed
         if completed_process.returncode != 0:
             raise HSICommandFailedException(

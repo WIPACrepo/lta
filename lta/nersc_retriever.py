@@ -6,18 +6,17 @@
 import asyncio
 import logging
 import os
-from subprocess import PIPE, run
 import sys
-from typing import Any, Dict, List, Optional
+from subprocess import PIPE, run
+from typing import Any
 
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
+from .utils import HSICommandFailedException, now, quarantine_now
 
 Logger = logging.Logger
 
@@ -53,25 +52,25 @@ class NerscRetriever(Component):
     See: http://www.hpss-collaboration.org/documentation.shtml
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a NerscRetriever component.
 
         config - A dictionary of required configuration values.
         logger - The object the nersc_retriever should use for logging.
         """
-        super(NerscRetriever, self).__init__("nersc_retriever", config, logger)
+        super().__init__("nersc_retriever", config, logger)
         self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.rse_base_path = config["RSE_BASE_PATH"]
         self.tape_base_path = config["TAPE_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """NerscRetriever has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """NerscRetriever provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
@@ -84,7 +83,7 @@ class NerscRetriever(Component):
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
         args = [self.hpss_avail_path, "archive"]
-        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+        completed_process = run(args, capture_output=True)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
@@ -147,8 +146,8 @@ class NerscRetriever(Component):
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
-    def _execute_hsi_command(self, args: List[str]) -> None:
-        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+    def _execute_hsi_command(self, args: list[str]) -> None:
+        completed_process = run(args, capture_output=True)
         # if our command failed
         if completed_process.returncode != 0:
             raise HSICommandFailedException(

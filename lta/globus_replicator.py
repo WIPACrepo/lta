@@ -6,18 +6,18 @@ import logging
 import sys
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import globus_sdk
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .transfer.globus import GlobusTransfer
+from .utils import now, quarantine_now
 
 # fmt:off
 
@@ -70,7 +70,7 @@ class GlobusReplicator(Component):
     corresponding TransferRequest in the LTA DB with a 'transferring' status.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a GlobusReplicator component.
 
@@ -86,11 +86,11 @@ class GlobusReplicator(Component):
 
         self.globus_transfer = GlobusTransfer()
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """GlobusReplicator has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """GlobusReplicator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 

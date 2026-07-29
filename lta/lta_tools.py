@@ -4,14 +4,14 @@
 # fmt:off
 
 import os
-from typing import cast, Dict, Optional
+from typing import cast
 
 
-def from_environment(keys: Dict[str, Optional[str]]) -> Dict[str, str]:
+def from_environment(keys: dict[str, str | None]) -> dict[str, str]:
     """Obtain configuration values from the OS environment."""
     # make sure we were given a dictionary of keys and defaults to work from
     if not isinstance(keys, dict):
-        raise TypeError("keys: Expected Dict[str, Optional[str]]")
+        raise TypeError("keys: Expected Dict[str, str | None]")
     # copy the configuration and defaults to an object we can modify
     config = keys.copy()
     # for each key that we'd like to pull from the environment (or default)
@@ -23,4 +23,4 @@ def from_environment(keys: Dict[str, Optional[str]]) -> Dict[str, str]:
         if config[key] is None:
             raise OSError(f"Missing environment variable '{key}'")
     # return the environment-populated configuration dictionary to the caller
-    return cast(Dict[str, str], config)
+    return cast(dict[str, str], config)

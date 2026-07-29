@@ -7,22 +7,21 @@ import asyncio
 import json
 import logging
 import os
-from pathlib import Path
 import shutil
 import sys
-from typing import Any, cast, Dict, Optional
+from pathlib import Path
+from typing import Any, cast
 from zipfile import ZipFile
 
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
 
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
 from .lta_types import BundleType
-
+from .utils import now, quarantine_now
 
 Logger = logging.Logger
 
@@ -55,14 +54,14 @@ class Unpacker(Component):
     unpacked and can now be deleted.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a Unpacker component.
 
         config - A dictionary of required configuration values.
         logger - The object the unpacker should use for logging.
         """
-        super(Unpacker, self).__init__("unpacker", config, logger)
+        super().__init__("unpacker", config, logger)
         self.clean_outbox = strtobool(config["CLEAN_OUTBOX"])
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
@@ -74,11 +73,11 @@ class Unpacker(Component):
         path_map_json = Path(config["PATH_MAP_JSON"]).read_text()
         self.path_map = json.loads(path_map_json)
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Unpacker has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Unpacker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
@@ -184,7 +183,7 @@ class Unpacker(Component):
         await self._update_bundle_in_lta_db(lta_rc, bundle)
 
     async def _add_location_to_file_catalog(self,
-                                            bundle_file: Dict[str, Any],
+                                            bundle_file: dict[str, Any],
                                             dest_path: str) -> bool:
         """Update File Catalog record with new Data Warehouse location."""
         # configure a RestClient to talk to the File Catalog
@@ -261,7 +260,7 @@ class Unpacker(Component):
                 return dest_path.replace(prefix, remap)
         return dest_path
 
-    def _read_manifest_metadata(self, bundle_uuid: str) -> Dict[str, Any]:
+    def _read_manifest_metadata(self, bundle_uuid: str) -> dict[str, Any]:
         """Read the bundle metadata from the manifest file."""
         # try with version 2
         metadata_dict = self._read_manifest_metadata_v2(bundle_uuid)
@@ -274,7 +273,7 @@ class Unpacker(Component):
         # whoops, we have no idea how to read the manifest
         raise Exception("Unknown bundle manifest version")
 
-    def _read_manifest_metadata_v2(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
+    def _read_manifest_metadata_v2(self, bundle_uuid: str) -> dict[str, Any] | None:
         """Read the bundle metadata from an older (version 2) manifest file."""
         metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.json")
         try:
@@ -282,9 +281,9 @@ class Unpacker(Component):
                 metadata_dict = json.load(metadata_file)
         except Exception:
             return None
-        return cast(Dict[str, Any], metadata_dict)
+        return cast(dict[str, Any], metadata_dict)
 
-    def _read_manifest_metadata_v3(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
+    def _read_manifest_metadata_v3(self, bundle_uuid: str) -> dict[str, Any] | None:
         """Read the bundle metadata from a newer (version 3) manifest file."""
         metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.ndjson")
         try:
@@ -301,7 +300,7 @@ class Unpacker(Component):
                     line = metadata_file.readline()
         except Exception:
             return None
-        return cast(Dict[str, Any], metadata_dict)
+        return cast(dict[str, Any], metadata_dict)
 
     async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is unpacked."""

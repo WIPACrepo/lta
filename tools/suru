@@ -37,12 +37,8 @@ function dist {
 }
 
 function lint {
-    flake8 lta
-    mypy --strict --allow-subclassing-any --namespace-packages lta
-    # flake8 resources
-    # mypy --strict --allow-subclassing-any resources
-    flake8 tests --ignore=E402,E501
-    mypy --strict --allow-subclassing-any tests
+    ruff check --select "I,UP,FA"
+    ty check
 }
 
 function lint_cicd {

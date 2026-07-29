@@ -13,12 +13,11 @@ from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 from wipac_dev_tools import strtobool
 
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
 from .transfer.sync import Sync
-
+from .utils import now, quarantine_now
 
 EXPECTED_CONFIG = COMMON_CONFIG.copy()
 EXPECTED_CONFIG.update({
@@ -59,7 +58,7 @@ class DesyMirrorReplicator(Component):
         config - A dictionary of required configuration values.
         logger - The object the replicator should use for logging.
         """
-        super(DesyMirrorReplicator, self).__init__("desy_mirror_replicator", config, logger)
+        super().__init__("desy_mirror_replicator", config, logger)
         self.ci_test = strtobool(config["CI_TEST"])
         self.dest_base_path = config["DEST_BASE_PATH"]
         self.dest_url = config["DEST_URL"]
@@ -69,7 +68,7 @@ class DesyMirrorReplicator(Component):
         """DesyMirrorReplicator has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """DesyMirrorReplicator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 

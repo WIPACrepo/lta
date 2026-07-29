@@ -7,15 +7,15 @@ import asyncio
 import logging
 import os
 import sys
-from typing import Any, Dict, Optional
+from typing import Any
 
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
+from .utils import now, quarantine_now
 
 Logger = logging.Logger
 
@@ -39,23 +39,23 @@ class Deleter(Component):
     the bundle is moved to another state.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a Deleter component.
 
         config - A dictionary of required configuration values.
         logger - The object the deleter should use for logging.
         """
-        super(Deleter, self).__init__("deleter", config, logger)
+        super().__init__("deleter", config, logger)
         self.disk_base_path = config["DISK_BASE_PATH"]
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Contribute no additional status."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 

@@ -17,7 +17,7 @@ def utcnow_isoformat(*, timespec: str | None = None) -> str:
 
     Note: 'datetime.datetime.utcnow()' is deprecated
     """
-    dt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    dt = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
     if timespec is None:
         return dt.isoformat()
     return dt.isoformat(timespec=timespec)

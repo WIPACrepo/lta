@@ -6,15 +6,15 @@
 import asyncio
 import logging
 import sys
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
+from .utils import now
 
 Logger = logging.Logger
 
@@ -45,25 +45,25 @@ class TransferRequestFinisher(Component):
     status 'completed' and the bundles are moved to status 'finished'.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a TransferRequestFinisher component.
 
         config - A dictionary of required configuration values.
         logger - The object the transfer_request_finisher should use for logging.
         """
-        super(TransferRequestFinisher, self).__init__("transfer_request_finisher", config, logger)
+        super().__init__("transfer_request_finisher", config, logger)
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Provide no additional status."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
@@ -227,7 +227,7 @@ class TransferRequestFinisher(Component):
             # put the bundle at the back of the line to be checked later
             bundle_id = bundle["uuid"]
             right_now = now()
-            patch_body: Dict[str, Union[bool, str]] = {
+            patch_body: dict[str, bool | str] = {
                 "claimed": False,
                 "update_timestamp": right_now,
                 "work_priority_timestamp": right_now,

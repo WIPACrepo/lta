@@ -6,18 +6,23 @@
 import asyncio
 import itertools
 import logging
-from logging import Logger
 import os
-from pathlib import Path
 import sys
 import time
+from logging import Logger
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from prometheus_client import Counter, Histogram
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
-from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels, HistogramBuckets, _MetricWrapper
+from wipac_dev_tools.prometheus_tools import (
+    AsyncPromWrapper,
+    GlobalLabels,
+    HistogramBuckets,
+    _MetricWrapper,
+)
 
 from .lta_const import drain_semaphore_filename
 
@@ -141,11 +146,11 @@ class Component:
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         # log the way this component has been configured
         self.logger.info(f"{self.type} '{self.name}' is configured:")
-        for name in config:
+        for name, value in config.items():
             if name in LOGGING_DENY_LIST:
                 self.logger.info(f"{name} = [秘密]")
             else:
-                self.logger.info(f"{name} = {config[name]}")
+                self.logger.info(f"{name} = {value}")
         # set up Prometheus metrics
         self.prometheus = GlobalLabels({
             # define everything identifiable to the component variety, but not the process
@@ -172,11 +177,10 @@ class Component:
             await self._do_work(lta_rc)
         except SystemExit:  # raised by sys.exit()
             raise
-        except Exception as e:
+        except Exception:
             # ut oh, something went wrong; log about it
-            self.logger.error(f"Error occurred during the {self.type} work cycle")
-            self.logger.error(f"Error was: '{e}'")
-            self.logger.exception(e)  # logs the stack trace
+            self.logger.exception("Error occurred during the %s work cycle", self.type)
+        # log about going on break
         self.logger.info(f"Ending {self.type} work cycle -- back in {self.work_sleep_duration_seconds}s")
         # if we are configured to run until no work, then die
         if self.run_until_no_work:
