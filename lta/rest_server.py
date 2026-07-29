@@ -414,7 +414,8 @@ class BundlesSingleHandler(BaseLTAHandler):
 class MainHandler(BaseLTAHandler):
     """MainHandler is a BaseLTAHandler that handles the root route."""
 
-    def get(self) -> None:
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    async def get(self) -> None:
         """Handle GET /."""
         self.write({})
 
