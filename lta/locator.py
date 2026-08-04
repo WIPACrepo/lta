@@ -110,7 +110,6 @@ class Locator(Component):
         try:
             await self._do_work_transfer_request(lta_rc, tr)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -121,7 +120,9 @@ class Locator(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            return True
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,
@@ -174,9 +175,7 @@ class Locator(Component):
                 bundle_uuids = self._reduce_unique_archive_uuid(bundle_uuids, catalog_record, source)
         # if we didn't get any bundle_uuids, this is bad mojo
         if not bundle_uuids:
-            raise NoFileCatalogFilesException(
-                "File Catalog returned zero files for the TransferRequest"
-            )
+            raise NoFileCatalogFilesException()
         # query the file catalog for the bundle records
         bundle_records = []
         for bundle_uuid in bundle_uuids:

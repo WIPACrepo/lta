@@ -104,7 +104,6 @@ class Picker(Component):
         try:
             await self._do_work_transfer_request(lta_rc, tr)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -115,7 +114,9 @@ class Picker(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            return True
 
     async def _do_work_transfer_request(
         self,
@@ -129,9 +130,7 @@ class Picker(Component):
         catalog_files = await self._get_files_from_file_catalog(tr)
         # if we didn't get any files, this is bad mojo
         if not catalog_files:
-            raise NoFileCatalogFilesException(
-                "File Catalog returned zero files for the TransferRequest"
-            )
+            raise NoFileCatalogFilesException()
 
         # step 2: group those files
         packing_spec = self._group_catalog_files_evenly(catalog_files)

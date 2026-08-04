@@ -16,6 +16,7 @@ from .lta_tools import from_environment
 from .lta_types import BundleType
 from .utils import now
 
+JSONType = Any
 Logger = logging.Logger
 
 LOG = logging.getLogger(__name__)
@@ -31,6 +32,23 @@ EXPECTED_CONFIG.update({
 
 # maximum number of Metadata UUIDs to work with at a time
 UPDATE_CHUNK_SIZE = 1000
+
+
+class MetadataDeleteMismatchError(Exception):
+    """
+    Raised when the database returns a different count of documents
+    deleted than the application is expecting.
+    """
+
+    def __init__(
+        self,
+        num_files: int,
+        delete_count: JSONType,
+    ) -> None:
+        super().__init__(
+            f"LTA DB gave us {num_files!r} records to process,"
+            f" but we only deleted {delete_count!r} records! BAD MOJO!"
+        )
 
 
 class TransferRequestFinisher(Component):
@@ -138,9 +156,8 @@ class TransferRequestFinisher(Component):
         try:
             self.logger.info(f"POST /api/files - {logical_name}")
             await fc_rc.request("POST", "/api/files", file_record)
-        except Exception as e:
-            self.logger.error(f"Error: POST /api/files - {logical_name}")
-            self.logger.error(f"Message: {e}")
+        except Exception:
+            self.logger.exception(f"Error: POST /api/files - {logical_name}")
             bundle_uuid = bundle["uuid"]
             self.logger.info(f"PATCH /api/files/{bundle_uuid}")
             await fc_rc.request("PATCH", f"/api/files/{bundle_uuid}", file_record)
@@ -197,7 +214,7 @@ class TransferRequestFinisher(Component):
                 delete_count = bulk_response['count']
                 self.logger.info(f"LTA DB reports {delete_count} Metadata records are deleted.")
                 if delete_count != num_files:
-                    raise Exception(f"LTA DB gave us {num_files} records to process, but we only deleted {delete_count} records! BAD MOJO!")
+                    raise MetadataDeleteMismatchError(num_files, delete_count)
 
     async def _update_transfer_request(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """

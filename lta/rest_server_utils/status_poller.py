@@ -157,7 +157,7 @@ async def status_poller(
                     )
 
         except asyncio.CancelledError:
-            LOGGER.error("Status poller cancelled")
+            LOGGER.exception("Status poller cancelled")
             raise
         except Exception:
             LOGGER.exception("Failed -- sleeping then restarting")

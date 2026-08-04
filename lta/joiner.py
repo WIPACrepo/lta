@@ -1,8 +1,6 @@
 # joiner.py
 """Module to implement the DesyVerifier component of the Long Term Archive."""
 
-# fmt:off
-
 import os
 
 
@@ -28,4 +26,4 @@ def join_smart_url(items: list[str]) -> str:
     items_str = join_smart(items)
     if items_str.startswith(os.path.sep):
         items_str = items_str[1:]
-    return "/".join([base, items_str])
+    return f"{base}/{items_str}"

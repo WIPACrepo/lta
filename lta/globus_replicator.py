@@ -116,7 +116,6 @@ class GlobusReplicator(Component):
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -127,7 +126,9 @@ class GlobusReplicator(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            return True
 
     def _extract_paths(self, bundle: BundleType) -> tuple[Path, Path]:
         """Get the source and destination paths for the supplied bundle."""

@@ -94,7 +94,6 @@ class DesyMirrorReplicator(Component):
         try:
             await self._replicate_bundle_to_destination_site(lta_rc, bundle)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -105,7 +104,9 @@ class DesyMirrorReplicator(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            return True
 
     async def _replicate_bundle_to_destination_site(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""
@@ -116,15 +117,15 @@ class DesyMirrorReplicator(Component):
         data_warehouse_path = bundle["path"]  # /data/exp/IceCube/2015/unbiased/PFRaw/0320
         basename = os.path.basename(bundle["bundle_path"])
         stupid_python_path = os.path.sep.join([data_warehouse_path, basename])
-        dest_path = os.path.normpath(stupid_python_path)
+        dest_path = os.path.normpath(stupid_python_path)  # noqa: ASYNC240 -- lexical path manipulation; no filesystem I/O
         # create Sync to transfer to DESY
         sync = Sync(self.config)
         try:
             LOG.info(f"Replicating {bundle_path} -> {dest_path}")
             await sync.put_path(bundle_path, dest_path, int(self.work_timeout_seconds))
-        except Exception as e:
-            self.logger.error(f'DESY Sync raised an Exception: {e}')
-            raise e
+        except Exception:
+            self.logger.exception('DESY Sync raised an Exception')
+            raise
         # update the Bundle in the LTA DB
         patch_body = {
             "status": self.output_status,

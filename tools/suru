@@ -37,7 +37,7 @@ function dist {
 }
 
 function lint {
-    ruff check --select "I,F,FA,UP"
+    ruff check --select "ASYNC,F,FA,FLY,I,PLW,TRY,UP"
     ty check
 }
 

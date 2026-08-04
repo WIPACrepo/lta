@@ -44,6 +44,10 @@ EXPECTED_CONFIG.update({
 })
 
 
+class BundleFileSanityCheckException(Exception):
+    """Raised when a bundle file fails a sanity check."""
+
+
 class BundleZipMissingFileDescriptorException(Exception):
     """Raised when a bundle zip file is missing a file descriptor."""
 
@@ -114,8 +118,6 @@ class Bundler(Component):
         # process the Bundle that we were given
         try:
             await self._do_work_bundle(fc_rc, lta_rc, bundle)
-            prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -126,7 +128,10 @@ class Bundler(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            prom_tracker.record_success()
+            return True
 
     async def _do_work_bundle(self, fc_rc: RestClient, lta_rc: RestClient, bundle: BundleType) -> None:
         # 0. Get our ducks in a row about what we're doing here
@@ -134,47 +139,50 @@ class Bundler(Component):
         dest = bundle["dest"]
         file_count = bundle["file_count"]
         source = bundle["source"]
-        self.logger.info(f"There are {file_count} Files to bundle from '{source}' to '{dest}'.")
-        self.logger.info(f"Bundle archive file will be '{bundle_uuid}.zip'")
+        self.logger.info("There are %s Files to bundle from '%s' to '%s'.", file_count, source, dest)
+        self.logger.info("Bundle archive file will be '%s.zip'", bundle_uuid)
+        workbox_path = Path(self.workbox_path)
+        outbox_path = Path(self.outbox_path)
         # 1. Create a manifest of the bundle, including all metadata
-        metadata_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.metadata.ndjson")
-        await self._create_metadata_file(fc_rc, lta_rc, bundle, metadata_file_path, file_count)
+        metadata_file_path = workbox_path / f"{bundle_uuid}.metadata.ndjson"
+        await self._create_metadata_file(fc_rc, lta_rc, bundle, os.fspath(metadata_file_path), file_count)
         # 2. Create a ZIP bundle by writing constituent files to it
-        bundle_file_path = os.path.join(self.workbox_path, f"{bundle_uuid}.zip")
-        await self._create_bundle_archive(fc_rc, lta_rc, bundle, bundle_file_path, metadata_file_path, file_count)
+        bundle_file_path = workbox_path / f"{bundle_uuid}.zip"
+        await self._create_bundle_archive(fc_rc, lta_rc, bundle, os.fspath(bundle_file_path), os.fspath(metadata_file_path), file_count)
         # 3. Clean up generated JSON metadata file
-        self.logger.info(f"Deleting bundle metadata file: '{metadata_file_path}'")
-        os.remove(metadata_file_path)
-        self.logger.info(f"Bundle metadata '{metadata_file_path}' was deleted.")
+        self.logger.info("Deleting bundle metadata file: '%s'", metadata_file_path)
+        await asyncio.to_thread(metadata_file_path.unlink)
+        self.logger.info("Bundle metadata '%s' was deleted.", metadata_file_path)
         # 4. Compute the size of the bundle
-        bundle_size = os.path.getsize(bundle_file_path)
-        self.logger.info(f"Archive bundle has size {bundle_size} bytes")
+        bundle_stat = await asyncio.to_thread(bundle_file_path.stat)
+        bundle_size = bundle_stat.st_size
+        self.logger.info("Archive bundle has size %s bytes", bundle_size)
         # 5. Compute the LTA checksums for the bundle
-        self.logger.info(f"Computing LTA checksums for bundle: '{bundle_file_path}'")
-        checksum = lta_checksums(bundle_file_path)
-        self.logger.info(f"Bundle '{bundle_file_path}' has adler32 checksum '{checksum['adler32']}'")
-        self.logger.info(f"Bundle '{bundle_file_path}' has SHA512 checksum '{checksum['sha512']}'")
+        self.logger.info("Computing LTA checksums for bundle: '%s'", bundle_file_path)
+        checksum = await asyncio.to_thread(lta_checksums, os.fspath(bundle_file_path))
+        self.logger.info("Bundle '%s' has adler32 checksum '%s'", bundle_file_path, checksum['adler32'])
+        self.logger.info("Bundle '%s' has SHA512 checksum '%s'", bundle_file_path, checksum['sha512'])
         # 6. Determine the final destination path of the bundle
         final_bundle_path = bundle_file_path
-        if self.outbox_path != self.workbox_path:
-            final_bundle_path = os.path.join(self.outbox_path, f"{bundle_uuid}.zip")
-        self.logger.info(f"Finished archive bundle will be located at: '{final_bundle_path}'")
+        if outbox_path != workbox_path:
+            final_bundle_path = outbox_path / f"{bundle_uuid}.zip"
+        self.logger.info("Finished archive bundle will be located at: '%s'", final_bundle_path)
         # 7. Update the bundle record we have with all the information we collected
         bundle["status"] = self.output_status
         bundle["reason"] = ""
         bundle["update_timestamp"] = now()
-        bundle["bundle_path"] = final_bundle_path
+        bundle["bundle_path"] = os.fspath(final_bundle_path)
         bundle["size"] = bundle_size
         bundle["checksum"] = checksum
         bundle["verified"] = False
         bundle["claimed"] = False
         # 8. Move the bundle from the work box to the outbox
         if final_bundle_path != bundle_file_path:
-            self.logger.info(f"Moving bundle from '{bundle_file_path}' to '{final_bundle_path}'")
-            shutil.move(bundle_file_path, final_bundle_path)
-        self.logger.info(f"Finished archive bundle now located at: '{final_bundle_path}'")
+            self.logger.info("Moving bundle from '%s' to '%s'", bundle_file_path, final_bundle_path)
+            await asyncio.to_thread(shutil.move, bundle_file_path, final_bundle_path)
+        self.logger.info("Finished archive bundle now located at: '%s'", final_bundle_path)
         # 9. Update the Bundle record in the LTA DB
-        self.logger.info(f"PATCH /Bundles/{bundle_uuid} - '{bundle}'")
+        self.logger.info("PATCH /Bundles/%s - '%s'", bundle_uuid, bundle)
         await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', bundle)
 
     async def _create_bundle_archive(self,
@@ -189,14 +197,15 @@ class Bundler(Component):
         while retry_count > 0:
             try:
                 await self._create_bundle_archive_once(fc_rc, lta_rc, bundle, bundle_file_path, metadata_file_path, file_count)
-                return
             except BlockingIOError:
                 retry_count = retry_count - 1
-                self.logger.error(f"Transient BlockingIOError; {retry_count} tries remain")
+                self.logger.exception("Transient BlockingIOError; %d tries remain", retry_count)
                 if retry_count == 0:
                     raise
                 self.logger.info(f"Sleeping for {self.blocking_io_sleep_seconds} seconds until retry.")
                 await asyncio.sleep(self.blocking_io_sleep_seconds)
+            else:
+                return
 
     async def _create_bundle_archive_once(self,
                                           fc_rc: RestClient,
@@ -207,7 +216,7 @@ class Bundler(Component):
                                           file_count: int) -> None:
         """Create the bundle archive ZIP file."""
         # 0. Remove an existing bundle, if we are re-trying
-        Path(bundle_file_path).unlink(missing_ok=True)
+        await asyncio.to_thread(Path(bundle_file_path).unlink, missing_ok=True)
 
         # 2. Create a ZIP bundle by writing constituent files to it
         bundle_uuid = bundle["uuid"]
@@ -216,33 +225,21 @@ class Bundler(Component):
         done = False
         limit = CREATE_CHUNK_SIZE
         skip = 0
-        self.logger.info(f"Creating bundle as ZIP archive at: {bundle_file_path}")
+        self.logger.info("Creating bundle as ZIP archive at: %s", bundle_file_path)
         with ZipFile(bundle_file_path, mode="x", compression=ZIP_STORED, allowZip64=True) as bundle_zip:
-            # ensure that bundle_zip has a file descriptor
-            fp = bundle_zip.fp
-            if not fp:
-                error_message = f"bundle_zip.fp: {fp} (== None)"
-                self.logger.error(error_message)
-                raise BundleZipMissingFileDescriptorException(error_message)
-            # ensure the file descriptor is in blocking mode
-            fd = fp.fileno()
-            self.logger.info(f"bundle fd:{fd} blocking before: {os.get_blocking(fd)}")
-            os.set_blocking(fd, True)
-            self.logger.info(f"bundle fd:{fd} blocking after: {os.get_blocking(fd)}")
-
             # write the metadata file to the bundle archive
-            self.logger.info(f"Adding bundle metadata '{metadata_file_path}' to bundle '{bundle_file_path}'")
-            bundle_zip.write(metadata_file_path, os.path.basename(metadata_file_path))
+            self.logger.info("Adding bundle metadata '%s' to bundle '%s'", metadata_file_path, bundle_file_path)
+            await asyncio.to_thread(bundle_zip.write, metadata_file_path, os.path.basename(metadata_file_path))
 
             # until we've finished processing all the Metadata records
             while not done:
                 # ask the LTA DB for the next chunk of Metadata records
-                self.logger.info(f"GET /Metadata?bundle_uuid={bundle_uuid}&limit={limit}&skip={skip}")
+                self.logger.info("GET /Metadata?bundle_uuid=%s&limit=%s&skip=%s", bundle_uuid, limit, skip)
                 lta_response = await lta_rc.request('GET', f'/Metadata?bundle_uuid={bundle_uuid}&limit={limit}&skip={skip}')
                 num_files = len(lta_response["results"])
                 done = (num_files == 0)
                 skip = skip + num_files
-                self.logger.info(f'LTA returned {num_files} Metadata documents to process.')
+                self.logger.info('LTA returned %s Metadata documents to process.', num_files)
 
                 # for each Metadata record returned by the LTA DB
                 for metadata_record in lta_response["results"]:
@@ -250,16 +247,17 @@ class Bundler(Component):
                     count = count + 1
                     file_catalog_uuid = metadata_record["file_catalog_uuid"]
                     fc_response = await fc_rc.request('GET', f'/api/files/{file_catalog_uuid}')
-                    bundle_me_path = fc_response["logical_name"]
-                    self.logger.info(f"Writing file {count}/{file_count}: '{bundle_me_path}' to bundle '{bundle_file_path}'")
-                    zip_path = os.path.relpath(bundle_me_path, request_path)
-                    bundle_zip.write(bundle_me_path, zip_path)
+                    bundle_me_path = os.fsdecode(fc_response["logical_name"])
+                    request_path_str = os.fsdecode(request_path)
+                    self.logger.info("Writing file %s/%s: '%s' to bundle '%s'", count, file_count, bundle_me_path, bundle_file_path)
+                    zip_path: str = os.path.relpath(bundle_me_path, request_path_str)  # noqa: ASYNC240 -- lexical path manipulation; no filesystem I/O
+                    await asyncio.to_thread(bundle_zip.write, bundle_me_path, zip_path)
 
         # do a last minute sanity check on our data
         if count != file_count:
             error_message = f'Bad mojo creating bundle archive file. Expected {file_count} Metadata records, but only processed {count} records.'
             self.logger.error(error_message)
-            raise Exception(error_message)
+            raise BundleFileSanityCheckException(error_message)
 
     async def _create_metadata_file(self,
                                     fc_rc: RestClient,
@@ -268,7 +266,7 @@ class Bundler(Component):
                                     metadata_file_path: str,
                                     file_count: int) -> None:
         # 0. Remove an existing manifest, if we are re-trying
-        Path(metadata_file_path).unlink(missing_ok=True)
+        await asyncio.to_thread(Path(metadata_file_path).unlink, missing_ok=True)
 
         # 1. Create a manifest of the bundle, including all metadata
         bundle_uuid = bundle["uuid"]

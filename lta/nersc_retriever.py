@@ -16,7 +16,7 @@ from rest_tools.client import RestClient
 from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
-from .utils import HSICommandFailedException, now, quarantine_now
+from .utils import HSICommandFailedException, HSIOperation, now, quarantine_now
 
 Logger = logging.Logger
 
@@ -83,7 +83,7 @@ class NerscRetriever(Component):
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
         args = [self.hpss_avail_path, "archive"]
-        completed_process = run(args, capture_output=True)
+        completed_process = await asyncio.to_thread(run, args, capture_output=True, check=False)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
@@ -103,7 +103,6 @@ class NerscRetriever(Component):
         try:
             await self._read_bundle_from_hpss(lta_rc, bundle)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -114,7 +113,9 @@ class NerscRetriever(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            return True
 
     async def _read_bundle_from_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Send a command to HPSS to retrieve the supplied bundle from tape."""
@@ -124,10 +125,10 @@ class NerscRetriever(Component):
         data_warehouse_path = bundle["path"]
         # determine the input path where it should be stored on hpss
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
-        hpss_path = os.path.normpath(stupid_python_path)
+        hpss_path = os.path.normpath(stupid_python_path)  # noqa: ASYNC240 -- lexical path manipulation; no filesystem I/O
         # determine the output path where we stage the bundle for transfer
         stupid_python_path = os.path.sep.join([self.rse_base_path, basename])
-        output_path = os.path.normpath(stupid_python_path)
+        output_path = os.path.normpath(stupid_python_path)  # noqa: ASYNC240 -- lexical path manipulation; no filesystem I/O
 
         # run an hsi command to get the file from tape
         #     get       -> read the source path from the hpss system to the dest path
@@ -147,11 +148,11 @@ class NerscRetriever(Component):
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
     def _execute_hsi_command(self, args: list[str]) -> None:
-        completed_process = run(args, capture_output=True)
+        completed_process = run(args, capture_output=True, check=False)
         # if our command failed
         if completed_process.returncode != 0:
             raise HSICommandFailedException(
-                "read bundle from HPSS", completed_process, self.logger
+                HSIOperation.READ_BUNDLE, completed_process, self.logger
             )
 
 

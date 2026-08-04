@@ -19,6 +19,7 @@ from .lta_tools import from_environment
 from .lta_types import BundleType
 from .utils import (
     HSICommandFailedException,
+    HSIOperation,
     InvalidChecksumException,
     log_completed_process_outputs,
     now,
@@ -90,7 +91,7 @@ class NerscVerifier(Component):
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
         args = [self.hpss_avail_path, "archive"]
-        completed_process = run(args, capture_output=True)
+        completed_process = await asyncio.to_thread(run, args, capture_output=True, check=False)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
@@ -112,7 +113,6 @@ class NerscVerifier(Component):
             hpss_path = self._verify_bundle_in_hpss(bundle)
             await self._update_bundle_in_lta_db(lta_rc, bundle, hpss_path)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -125,7 +125,9 @@ class NerscVerifier(Component):
             )
             if type(e) in QUARANTINE_THEN_KEEP_WORKING:
                 return True
-            raise e
+            raise
+        else:
+            return True
 
     async def _update_bundle_in_lta_db(
             self,
@@ -168,11 +170,11 @@ class NerscVerifier(Component):
         #                      disabling verbose response messages, and disabling interactive file transfer messages
         #     hashlist      -> List checksum hash for HPSS file(s)
         args = ["/usr/bin/hsi", "-P", "hashlist", hpss_path]
-        completed_process = run(args, capture_output=True)
+        completed_process = run(args, capture_output=True, check=False)
         # if our command failed
         if completed_process.returncode != 0:
             raise HSICommandFailedException(
-                "list checksum in HPSS (hashlist)", completed_process, self.logger
+                HSIOperation.LIST_CHECKSUM, completed_process, self.logger
             )
 
         # now, check that the checksum value retrieval was ok
@@ -201,11 +203,11 @@ class NerscVerifier(Component):
         #     hashverify    -> Verify checksum hash for existing HPSS file(s)
         #     -A            -> enable auto-scheduling of retrievals
         args = ["/usr/bin/hsi", "-P", "hashverify", "-A", hpss_path]
-        completed_process = run(args, capture_output=True)
+        completed_process = run(args, capture_output=True, check=False)
         # if our command failed
         if completed_process.returncode != 0:
             raise HSICommandFailedException(
-                "verify bundle in HPSS (hashverify)", completed_process, self.logger
+                HSIOperation.VERIFY_BUNDLE, completed_process, self.logger
             )
 
         # now, check that the stored checksum value is consistent with the actual value

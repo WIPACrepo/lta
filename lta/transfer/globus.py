@@ -7,6 +7,7 @@ import datetime
 import logging
 import os
 import uuid
+from os import PathLike
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,14 @@ import globus_sdk
 from wipac_dev_tools import from_environment_as_dataclass
 
 LOGGER = logging.getLogger(__name__)
+
+
+class RelativeSourcePathError(ValueError):
+    """Raised when a source path is not absolute."""
+
+    def __init__(self, source_path: str | PathLike[str]) -> None:
+        self.source_path = source_path
+        super().__init__(f"source_path must be absolute: {source_path}")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -138,7 +147,7 @@ class GlobusTransfer:
         :returns: Globus task_id for the submitted transfer.
         """
         if not os.path.isabs(source_path):
-            raise ValueError(f"source_path must be absolute: {source_path}")
+            raise RelativeSourcePathError(source_path)
 
         # do transfer
         tdata = self.make_transfer_document(source_path, dest_path)

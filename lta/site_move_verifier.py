@@ -134,7 +134,6 @@ class SiteMoveVerifier(Component):
             bundle_path = self._get_bundle_path(bundle)
             await self._verify_bundle(lta_rc, bundle, bundle_path)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -147,7 +146,9 @@ class SiteMoveVerifier(Component):
             )
             if type(e) in QUARANTINE_THEN_KEEP_WORKING:
                 return True
-            raise e
+            raise
+        else:
+            return True
 
     def _get_bundle_path(self, bundle: BundleType) -> str:
         """Get and validate the bundle path."""
@@ -160,9 +161,7 @@ class SiteMoveVerifier(Component):
         # validate bundle path
         transfer_dest_path = bundle.get("transfer_dest_path")  # new attr as of Jan 2026
         if transfer_dest_path and transfer_dest_path != bundle_path:
-            raise InvalidBundlePathException(
-                f"{bundle_path=} is not {transfer_dest_path=} ({self.dest_root_path=})"
-            )
+            raise InvalidBundlePathException(bundle_path, transfer_dest_path, self.dest_root_path)
 
         return bundle_path
 
@@ -197,7 +196,7 @@ class SiteMoveVerifier(Component):
 
     def _execute_myquota(self) -> str | None:
         """Run the myquota command to determine disk usage at the site."""
-        completed_process = run(MYQUOTA_ARGS, capture_output=True)
+        completed_process = run(MYQUOTA_ARGS, capture_output=True, check=False)
         # if our command failed
         if completed_process.returncode != 0:
             self.logger.info(f"Command to check quota failed: {completed_process.args}")

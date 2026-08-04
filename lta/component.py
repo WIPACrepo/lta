@@ -53,7 +53,21 @@ def unique_id() -> str:
     return str(uuid4())
 
 
-# fmt:on
+class MissingConfigurationParameterError(ValueError):
+    """Raised when a required configuration parameter is missing."""
+
+    def __init__(self, parameter: str) -> None:
+        self.parameter = parameter
+        super().__init__(
+            f"Missing expected configuration parameter: '{parameter}'"
+        )
+
+
+class ResultAlreadyRecordedError(RuntimeError):
+    """Raised when a Prometheus result is recorded more than once."""
+
+    def __init__(self) -> None:
+        super().__init__("Cannot record result twice.")
 
 
 class PrometheusResultTracker:
@@ -74,31 +88,28 @@ class PrometheusResultTracker:
         self._done = False
         self._logger = logging.getLogger(logger.name + ".prometheus_tracker")
 
-    def record_success(self):
+    def record_success(self) -> None:
         """Record a successful work -- this should only be called at the end."""
         if self._done:
-            raise RuntimeError("Cannot record result twice.")
+            raise ResultAlreadyRecordedError
         self._done = True
         self._success_counter.inc()
         self._histogram.observe(time.monotonic() - self._start_ts)
         self._logger.debug("recorded success.")
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         """Record a failed work -- this should only be called at the end."""
         if self._done:
-            raise RuntimeError("Cannot record result twice.")
+            raise ResultAlreadyRecordedError
         self._done = True
         self._failure_counter.inc()
-        # note - we don't record the latency here since it failed (would skew the data)
+        # do not record latency for failures because it would skew the data
         self._logger.debug("recorded failure.")
 
     @property
-    def done(self):
+    def done(self) -> bool:
         """Return whether the result has been recorded."""
         return self._done
-
-
-# fmt:off
 
 
 class Component:
@@ -191,17 +202,13 @@ class Component:
         """Validate the configuration provided to the component."""
         # these are the configuration variables required of all components
         for name in COMMON_CONFIG:
-            if name not in config:
-                raise ValueError(f"Missing expected configuration parameter: '{name}'")
-            if not config[name]:
-                raise ValueError(f"Missing expected configuration parameter: '{name}'")
+            if name not in config or not config[name]:
+                raise MissingConfigurationParameterError(name)
         # these are the configuration variables required by the subclass
         EXPECTED_CONFIG = self._expected_config()
         for name in EXPECTED_CONFIG:
-            if name not in config:
-                raise ValueError(f"Missing expected configuration parameter: '{name}'")
-            if not config[name]:
-                raise ValueError(f"Missing expected configuration parameter: '{name}'")
+            if name not in config or not config[name]:
+                raise MissingConfigurationParameterError(name)
 
     def _do_status(self) -> dict[str, Any]:
         """Override this to provide status updates."""

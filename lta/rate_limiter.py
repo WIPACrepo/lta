@@ -86,9 +86,9 @@ class RateLimiter(Component):
             try:
                 # determine the size of the file
                 size += os.path.getsize(disk_file)
-            except Exception as e:
+            except Exception:
                 # whoops, looks like somebody downstream moved it
-                self.logger.error(f"Skipped getsize() on missing file: {disk_file}", exc_info=e)
+                self.logger.exception("Skipped getsize() on missing file: %s", disk_file)
                 continue
             self.logger.debug(f"Size so far: {size} bytes")
         self.logger.info(f"Found {len(disk_files)} entries ({size} bytes) in {path}")
@@ -115,8 +115,6 @@ class RateLimiter(Component):
         try:
             await self._stage_bundle(lta_rc, bundle)
             prom_tracker.record_success()
-            # even if we are successful, take a break between each bundle
-            return False
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -127,7 +125,10 @@ class RateLimiter(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            # even if we are successful, take a break between each bundle
+            return False
 
     async def _stage_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Stage the Bundle to the output directory for transfer."""

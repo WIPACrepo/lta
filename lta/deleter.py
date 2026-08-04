@@ -80,7 +80,6 @@ class Deleter(Component):
         try:
             await self._delete_bundle(lta_rc, bundle)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -91,7 +90,9 @@ class Deleter(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            return True
 
     async def _delete_bundle(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Delete the provided Bundle and update the LTA DB."""
