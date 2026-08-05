@@ -142,8 +142,7 @@ def bind_setup_curl(config: dict[str, str]) -> Callable[[pycurl.Curl], None]:
 
 def convert_checksum_from_dcache(checksum: str) -> str:
     """DCache returns a binary checksum, but we want the hex digest"""
-    if checksum.startswith('sha-512='):
-        checksum = checksum[8:]
+    checksum = checksum.removeprefix('sha-512=')
     return base64.b64decode(checksum).hex()
 
 
