@@ -5,7 +5,6 @@ import logging
 
 import os
 from pathlib import Path
-from typing import Dict
 from unittest.mock import AsyncMock, call, mock_open, patch, MagicMock
 from uuid import uuid1
 
@@ -16,7 +15,7 @@ from tornado.web import HTTPError
 
 from lta.bundler import Bundler, main_sync
 
-TestConfig = Dict[str, str]
+TestConfig = dict[str, str]
 
 
 @pytest.fixture

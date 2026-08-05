@@ -125,7 +125,7 @@ class Unpacker(Component):
         else:
             return True
 
-    async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:  # noqa: PLR0915
+    async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""
         # 0. Get our ducks in a row about what we're doing here
         bundle_file = os.path.basename(bundle["bundle_path"])
