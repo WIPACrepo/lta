@@ -39,7 +39,7 @@ function dist {
 function lint {
     # maybe some day, when we're brave enough...
     # ruff check --select "ALL"
-    ruff check --select "ASYNC,F,FA,FLY,FURB,I,LOG,PIE,PLR,PLW,RUF,TRY,UP"
+    ruff check
     ty check
 }
 

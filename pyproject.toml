@@ -93,7 +93,8 @@ exclude = ["bin", "doc", "env", "lta/lta_cmd.py", "jadetools", "resources", "tes
 exclude = ["bin", "doc", "env", "lta/lta_cmd.py", "jadetools", "resources", "tests"]
 
 [tool.ruff.lint]
-ignore = ["E203", "E226", "E228", "E231", "E501" ]
+# ignore = ["E203", "E226", "E228", "E231", "E501" ]
+select = ["ASYNC", "F", "FA", "FLY", "FURB", "I", "LOG", "PIE", "PLR", "PLW", "RUF", "TRY", "UP"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
