@@ -81,20 +81,20 @@ REMOVE_ID = {"_id": False}
 # these are the indexes we expect in our backing MongoDB
 MONGO_INDEXES: list[tuple[str, str, str, bool | None]] = [
     # (collection,       field,                     index_name,                                        unique)
-    ("Bundles",          "create_timestamp",        "bundles_create_timestamp_index",                  False),  # noqa: E241
-    ("Bundles",          "request",                 "bundles_request_index",                           None),   # noqa: E241
-    ("Bundles",          "source",                  "bundles_source_index",                            None),   # noqa: E241
-    ("Bundles",          "status",                  "bundles_status_index",                            None),   # noqa: E241
-    ("Bundles",          "uuid",                    "bundles_uuid_index",                              True),   # noqa: E241
-    ("Bundles",          "verified",                "bundles_verified_index",                          None),   # noqa: E241
-    ("Bundles",          "work_priority_timestamp", "bundles_work_priority_timestamp_index",           False),  # noqa: E241
+    ("Bundles",          "create_timestamp",        "bundles_create_timestamp_index",                  False),
+    ("Bundles",          "request",                 "bundles_request_index",                           None),
+    ("Bundles",          "source",                  "bundles_source_index",                            None),
+    ("Bundles",          "status",                  "bundles_status_index",                            None),
+    ("Bundles",          "uuid",                    "bundles_uuid_index",                              True),
+    ("Bundles",          "verified",                "bundles_verified_index",                          None),
+    ("Bundles",          "work_priority_timestamp", "bundles_work_priority_timestamp_index",           False),
 
-    ("Metadata",         "bundle_uuid",             "metadata_bundle_uuid_index",                      None),   # noqa: E241
-    ("Metadata",         "uuid",                    "metadata_uuid_index",                             True),   # noqa: E241
+    ("Metadata",         "bundle_uuid",             "metadata_bundle_uuid_index",                      None),
+    ("Metadata",         "uuid",                    "metadata_uuid_index",                             True),
 
-    ("TransferRequests", "create_timestamp",        "transfer_requests_create_timestamp_index",        False),  # noqa: E241
-    ("TransferRequests", "uuid",                    "transfer_requests_uuid_index",                    True),   # noqa: E241
-    ("TransferRequests", "work_priority_timestamp", "transfer_requests_work_priority_timestamp_index", False),  # noqa: E241
+    ("TransferRequests", "create_timestamp",        "transfer_requests_create_timestamp_index",        False),
+    ("TransferRequests", "uuid",                    "transfer_requests_uuid_index",                    True),
+    ("TransferRequests", "work_priority_timestamp", "transfer_requests_work_priority_timestamp_index", False),
 ]
 
 # -----------------------------------------------------------------------------
@@ -860,11 +860,15 @@ async def main() -> None:
     # -- Prometheus metrics server (has handlers for '/metrics' endpoints)
     prometheus_client.start_http_server(int(config["PROMETHEUS_METRICS_PORT"]))
     # -- start background DB status-polling task
-    asyncio.create_task(
+    status_poller_task = asyncio.create_task(
         status_poller(mongo_db, int(config["STATUS_POLLER_INTERVAL"]))
     )
     # -- let the background tasks run
-    await asyncio.Event().wait()
+    try:
+        await asyncio.Event().wait()
+    finally:
+        status_poller_task.cancel()
+        await asyncio.gather(status_poller_task, return_exceptions=True)
 
 
 if __name__ == '__main__':

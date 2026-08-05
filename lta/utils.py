@@ -106,8 +106,8 @@ def log_completed_process_outputs(
         f"{completed_process.args}"
     )
     log_fn(f"returncode: {completed_process.returncode}")
-    log_fn(f"stdout: {str(completed_process.stdout)}")
-    log_fn(f"stderr: {str(completed_process.stderr)}")
+    log_fn(f"stdout: {completed_process.stdout!s}")
+    log_fn(f"stderr: {completed_process.stderr!s}")
 
 
 class HSICommandFailedException(Exception):
@@ -266,7 +266,7 @@ async def quarantine_now(
         elif lta_object_type == _LtaType.TYPE_BUNDLE:
             return await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
     except Exception as e:
-        err = f'Failed to quarantine {lta_object["type"]} uuid={lta_object["uuid"]}: {repr(e)}.'
+        err = f'Failed to quarantine {lta_object["type"]} uuid={lta_object["uuid"]}: {e!r}.'
         logger.exception(err)
         # all done (rainy day)
         raise RuntimeError(err) from e

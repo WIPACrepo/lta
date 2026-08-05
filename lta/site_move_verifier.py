@@ -201,8 +201,8 @@ class SiteMoveVerifier(Component):
         if completed_process.returncode != 0:
             self.logger.info(f"Command to check quota failed: {completed_process.args}")
             self.logger.info(f"returncode: {completed_process.returncode}")
-            self.logger.info(f"stdout: {str(completed_process.stdout)}")
-            self.logger.info(f"stderr: {str(completed_process.stderr)}")
+            self.logger.info(f"stdout: {completed_process.stdout!s}")
+            self.logger.info(f"stderr: {completed_process.stderr!s}")
             return None
         # otherwise, we succeeded
         return completed_process.stdout.decode("utf-8")
