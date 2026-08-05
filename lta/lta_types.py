@@ -3,8 +3,8 @@
 
 # fmt:off
 
-from typing import Any, Dict, List
+from typing import Any
 
-BundleType = Dict[str, Any]
-BundleList = List[BundleType]
-TransferRequestType = Dict[str, Any]
+BundleType = dict[str, Any]
+BundleList = list[BundleType]
+TransferRequestType = dict[str, Any]

@@ -6,16 +6,17 @@
 import asyncio
 import logging
 import sys
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
+from .utils import now
 
+JSONType = Any
 Logger = logging.Logger
 
 LOG = logging.getLogger(__name__)
@@ -33,6 +34,23 @@ EXPECTED_CONFIG.update({
 UPDATE_CHUNK_SIZE = 1000
 
 
+class MetadataDeleteMismatchError(Exception):
+    """
+    Raised when the database returns a different count of documents
+    deleted than the application is expecting.
+    """
+
+    def __init__(
+        self,
+        num_files: int,
+        delete_count: JSONType,
+    ) -> None:
+        super().__init__(
+            f"LTA DB gave us {num_files!r} records to process,"
+            f" but we only deleted {delete_count!r} records! BAD MOJO!"
+        )
+
+
 class TransferRequestFinisher(Component):
     """
     TransferRequestFinisher is a Long Term Archive component.
@@ -45,25 +63,25 @@ class TransferRequestFinisher(Component):
     status 'completed' and the bundles are moved to status 'finished'.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a TransferRequestFinisher component.
 
         config - A dictionary of required configuration values.
         logger - The object the transfer_request_finisher should use for logging.
         """
-        super(TransferRequestFinisher, self).__init__("transfer_request_finisher", config, logger)
+        super().__init__("transfer_request_finisher", config, logger)
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_rest_url = config["FILE_CATALOG_REST_URL"]
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Provide no additional status."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Provide expected configuration dictionary."""
         return EXPECTED_CONFIG
 
@@ -138,9 +156,8 @@ class TransferRequestFinisher(Component):
         try:
             self.logger.info(f"POST /api/files - {logical_name}")
             await fc_rc.request("POST", "/api/files", file_record)
-        except Exception as e:
-            self.logger.error(f"Error: POST /api/files - {logical_name}")
-            self.logger.error(f"Message: {e}")
+        except Exception:
+            self.logger.exception(f"Error: POST /api/files - {logical_name}")
             bundle_uuid = bundle["uuid"]
             self.logger.info(f"PATCH /api/files/{bundle_uuid}")
             await fc_rc.request("PATCH", f"/api/files/{bundle_uuid}", file_record)
@@ -197,7 +214,7 @@ class TransferRequestFinisher(Component):
                 delete_count = bulk_response['count']
                 self.logger.info(f"LTA DB reports {delete_count} Metadata records are deleted.")
                 if delete_count != num_files:
-                    raise Exception(f"LTA DB gave us {num_files} records to process, but we only deleted {delete_count} records! BAD MOJO!")
+                    raise MetadataDeleteMismatchError(num_files, delete_count)
 
     async def _update_transfer_request(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """
@@ -227,7 +244,7 @@ class TransferRequestFinisher(Component):
             # put the bundle at the back of the line to be checked later
             bundle_id = bundle["uuid"]
             right_now = now()
-            patch_body: Dict[str, Union[bool, str]] = {
+            patch_body: dict[str, bool | str] = {
                 "claimed": False,
                 "update_timestamp": right_now,
                 "work_priority_timestamp": right_now,

@@ -6,18 +6,17 @@
 import asyncio
 import logging
 import os
-from subprocess import PIPE, run
 import sys
-from typing import Any, Dict, List, Optional
+from subprocess import run
+from typing import Any
 
 from prometheus_client import start_http_server
 from rest_tools.client import RestClient
 
-from .utils import HSICommandFailedException
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType
+from .utils import HSICommandFailedException, HSIOperation, now, quarantine_now
 
 Logger = logging.Logger
 
@@ -54,14 +53,14 @@ class NerscMover(Component):
     See: http://www.mgleicher.us/index.html/hsi/hsi_reference_manual_2/hsi_commands/
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a NerscMover component.
 
         config - A dictionary of required configuration values.
         logger - The object the nersc_mover should use for logging.
         """
-        super(NerscMover, self).__init__("nersc_mover", config, logger)
+        super().__init__("nersc_mover", config, logger)
         self.hpss_avail_path = config["HPSS_AVAIL_PATH"]
         self.max_count = int(config["MAX_COUNT"])
         self.rse_base_path = config["RSE_BASE_PATH"]
@@ -69,11 +68,11 @@ class NerscMover(Component):
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """NerscMover has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """NerscMover provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
@@ -86,7 +85,7 @@ class NerscMover(Component):
         # 0. Do some pre-flight checks to ensure that we can do work
         # if the HPSS system is not available
         args = [self.hpss_avail_path, "archive"]
-        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+        completed_process = await asyncio.to_thread(run, args, capture_output=True, check=False)
         if completed_process.returncode != 0:
             # prevent this instance from claiming any work
             self.logger.error(f"Unable to do work; HPSS system not available (returncode: {completed_process.returncode})")
@@ -106,7 +105,6 @@ class NerscMover(Component):
         try:
             await self._write_bundle_to_hpss(lta_rc, bundle)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -117,7 +115,9 @@ class NerscMover(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            return True
 
     async def _write_bundle_to_hpss(self, lta_rc: RestClient, bundle: BundleType) -> None:
         """Replicate the supplied bundle using the configured transfer service."""
@@ -127,10 +127,10 @@ class NerscMover(Component):
         data_warehouse_path = bundle["path"]
         # determine the input path that contains the bundle
         stupid_python_path = os.path.sep.join([self.rse_base_path, basename])
-        input_path = os.path.normpath(stupid_python_path)
+        input_path = os.path.normpath(stupid_python_path)  # noqa: ASYNC240 -- lexical path manipulation; no filesystem I/O
         # determine the output path where it should be stored on hpss
         stupid_python_path = os.path.sep.join([self.tape_base_path, data_warehouse_path, basename])
-        hpss_path = os.path.normpath(stupid_python_path)
+        hpss_path = os.path.normpath(stupid_python_path)  # noqa: ASYNC240 -- lexical path manipulation; no filesystem I/O
 
         # run an hsi command to create the destination directory
         #     mkdir     -> create a directory to store the bundle on tape
@@ -157,12 +157,12 @@ class NerscMover(Component):
         self.logger.info(f"PATCH /Bundles/{bundle_id} - '{patch_body}'")
         await lta_rc.request('PATCH', f'/Bundles/{bundle_id}', patch_body)
 
-    def _execute_hsi_command(self, args: List[str]) -> None:
-        completed_process = run(args, stdout=PIPE, stderr=PIPE)
+    def _execute_hsi_command(self, args: list[str]) -> None:
+        completed_process = run(args, capture_output=True, check=False)
         # if our command failed
         if completed_process.returncode != 0:
             raise HSICommandFailedException(
-                "tape bundle to HPSS", completed_process, self.logger
+                HSIOperation.TAPE_BUNDLE, completed_process, self.logger
             )
 
 

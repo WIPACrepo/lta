@@ -6,22 +6,27 @@
 import asyncio
 import itertools
 import logging
+import os
+import sys
 import time
 from logging import Logger
-import os
 from pathlib import Path
-import sys
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import uuid4
 
 from prometheus_client import Counter, Histogram
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
-from wipac_dev_tools.prometheus_tools import AsyncPromWrapper, GlobalLabels, HistogramBuckets, _MetricWrapper
+from wipac_dev_tools.prometheus_tools import (
+    AsyncPromWrapper,
+    GlobalLabels,
+    HistogramBuckets,
+    _MetricWrapper,
+)
 
 from .lta_const import drain_semaphore_filename
 
-COMMON_CONFIG: Dict[str, Optional[str]] = {
+COMMON_CONFIG: dict[str, str | None] = {
     "CLIENT_ID": None,
     "CLIENT_SECRET": None,
     "COMPONENT_NAME": None,
@@ -48,7 +53,21 @@ def unique_id() -> str:
     return str(uuid4())
 
 
-# fmt:on
+class MissingConfigurationParameterError(ValueError):
+    """Raised when a required configuration parameter is missing."""
+
+    def __init__(self, parameter: str) -> None:
+        self.parameter = parameter
+        super().__init__(
+            f"Missing expected configuration parameter: '{parameter}'"
+        )
+
+
+class ResultAlreadyRecordedError(RuntimeError):
+    """Raised when a Prometheus result is recorded more than once."""
+
+    def __init__(self) -> None:
+        super().__init__("Cannot record result twice.")
 
 
 class PrometheusResultTracker:
@@ -69,31 +88,28 @@ class PrometheusResultTracker:
         self._done = False
         self._logger = logging.getLogger(logger.name + ".prometheus_tracker")
 
-    def record_success(self):
+    def record_success(self) -> None:
         """Record a successful work -- this should only be called at the end."""
         if self._done:
-            raise RuntimeError("Cannot record result twice.")
+            raise ResultAlreadyRecordedError
         self._done = True
         self._success_counter.inc()
         self._histogram.observe(time.monotonic() - self._start_ts)
         self._logger.debug("recorded success.")
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         """Record a failed work -- this should only be called at the end."""
         if self._done:
-            raise RuntimeError("Cannot record result twice.")
+            raise ResultAlreadyRecordedError
         self._done = True
         self._failure_counter.inc()
-        # note - we don't record the latency here since it failed (would skew the data)
+        # do not record latency for failures because it would skew the data
         self._logger.debug("recorded failure.")
 
     @property
-    def done(self):
+    def done(self) -> bool:
         """Return whether the result has been recorded."""
         return self._done
-
-
-# fmt:off
 
 
 class Component:
@@ -107,7 +123,7 @@ class Component:
 
     def __init__(self,
                  component_type: str,
-                 config: Dict[str, str],
+                 config: dict[str, str],
                  logger: Logger) -> None:
         """
         Create an LTA component.
@@ -141,11 +157,11 @@ class Component:
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
         # log the way this component has been configured
         self.logger.info(f"{self.type} '{self.name}' is configured:")
-        for name in config:
+        for name, value in config.items():
             if name in LOGGING_DENY_LIST:
                 self.logger.info(f"{name} = [秘密]")
             else:
-                self.logger.info(f"{name} = {config[name]}")
+                self.logger.info(f"{name} = {value}")
         # set up Prometheus metrics
         self.prometheus = GlobalLabels({
             # define everything identifiable to the component variety, but not the process
@@ -172,38 +188,33 @@ class Component:
             await self._do_work(lta_rc)
         except SystemExit:  # raised by sys.exit()
             raise
-        except Exception as e:
+        except Exception:
             # ut oh, something went wrong; log about it
-            self.logger.error(f"Error occurred during the {self.type} work cycle")
-            self.logger.error(f"Error was: '{e}'")
-            self.logger.exception(e)  # logs the stack trace
+            self.logger.exception("Error occurred during the %s work cycle", self.type)
+        # log about going on break
         self.logger.info(f"Ending {self.type} work cycle -- back in {self.work_sleep_duration_seconds}s")
         # if we are configured to run until no work, then die
         if self.run_until_no_work:
             self.logger.warning("Run until no work configured -- exiting.")
             sys.exit()
 
-    def validate_config(self, config: Dict[str, str]) -> None:
+    def validate_config(self, config: dict[str, str]) -> None:
         """Validate the configuration provided to the component."""
         # these are the configuration variables required of all components
         for name in COMMON_CONFIG:
-            if name not in config:
-                raise ValueError(f"Missing expected configuration parameter: '{name}'")
-            if not config[name]:
-                raise ValueError(f"Missing expected configuration parameter: '{name}'")
+            if name not in config or not config[name]:
+                raise MissingConfigurationParameterError(name)
         # these are the configuration variables required by the subclass
         EXPECTED_CONFIG = self._expected_config()
         for name in EXPECTED_CONFIG:
-            if name not in config:
-                raise ValueError(f"Missing expected configuration parameter: '{name}'")
-            if not config[name]:
-                raise ValueError(f"Missing expected configuration parameter: '{name}'")
+            if name not in config or not config[name]:
+                raise MissingConfigurationParameterError(name)
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Override this to provide status updates."""
         raise NotImplementedError()
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Override this to return expected configuration."""
         raise NotImplementedError()
 

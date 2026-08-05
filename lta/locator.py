@@ -8,15 +8,15 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .utils import NoFileCatalogFilesException, quarantine_now
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
+from .utils import NoFileCatalogFilesException, quarantine_now
 
 Logger = logging.Logger
 
@@ -33,7 +33,7 @@ EXPECTED_CONFIG.update({
 })
 
 
-def as_lta_record(catalog_record: Dict[str, Any]) -> Dict[str, Any]:
+def as_lta_record(catalog_record: dict[str, Any]) -> dict[str, Any]:
     """Cherry pick keys from a File Catalog record to include in Bundle metadata."""
     # As created by the nersc_verifier component...
     # ---------------------------------------------
@@ -66,14 +66,14 @@ class Locator(Component):
     file catalog to determine which bundles to add to the LTA DB.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a Locator component.
 
         config - A dictionary of required configuration values.
         logger - The object the locator should use for logging.
         """
-        super(Locator, self).__init__("locator", config, logger)
+        super().__init__("locator", config, logger)
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_page_size = int(config["FILE_CATALOG_PAGE_SIZE"])
@@ -81,11 +81,11 @@ class Locator(Component):
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Locator has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Locator provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
@@ -110,7 +110,6 @@ class Locator(Component):
         try:
             await self._do_work_transfer_request(lta_rc, tr)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -121,7 +120,9 @@ class Locator(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            return True
 
     async def _do_work_transfer_request(self,
                                         lta_rc: RestClient,
@@ -154,7 +155,7 @@ class Locator(Component):
             # },
         }
         query_json = json.dumps(query_dict)
-        bundle_uuids: List[str] = []
+        bundle_uuids: list[str] = []
         page_start = 0
         done = False
         # until we're finished processing file catalog records
@@ -174,9 +175,7 @@ class Locator(Component):
                 bundle_uuids = self._reduce_unique_archive_uuid(bundle_uuids, catalog_record, source)
         # if we didn't get any bundle_uuids, this is bad mojo
         if not bundle_uuids:
-            raise NoFileCatalogFilesException(
-                "File Catalog returned zero files for the TransferRequest"
-            )
+            raise NoFileCatalogFilesException()
         # query the file catalog for the bundle records
         bundle_records = []
         for bundle_uuid in bundle_uuids:
@@ -217,9 +216,9 @@ class Locator(Component):
         return uuid
 
     def _reduce_unique_archive_uuid(self,
-                                    bundle_uuids: List[str],
-                                    catalog_record: Dict[str, Any],
-                                    source: str) -> List[str]:
+                                    bundle_uuids: list[str],
+                                    catalog_record: dict[str, Any],
+                                    source: str) -> list[str]:
         """Obtain the set of archive bundle UUIDs that have the provided files."""
         bundle_paths = []
         # for each location in that record

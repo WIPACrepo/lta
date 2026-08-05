@@ -1,13 +1,11 @@
 """The Long Term Archive and tools."""
 
-from __future__ import absolute_import, division, print_function
-
 # exports
-from . import transfer, globus_replicator
+from . import globus_replicator, transfer
 
 __all__ = [
-    "transfer",
     "globus_replicator",
+    "transfer",
 ]
 
 # NOTE: `__version__` is not defined because this package is built using 'setuptools-scm' --

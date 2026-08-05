@@ -967,6 +967,7 @@ async def test_sync_put_file_src_dest_bad_checksum(config: TestConfig, mocker: M
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
     hc_mock = AsyncMock()
+    mocker.patch("lta.transfer.sync.SimpleAsyncHTTPClient", return_value=hc_mock)
     sync = Sync(config)
     sync.rc = rc_mock
     sync.http_client = hc_mock
@@ -997,6 +998,7 @@ async def test_sync_put_file_src_dest_readback_checksum_move(config: TestConfig,
     rc_mock = MagicMock()
     rc_mock.access_token = "Ash nazg durbatulûk, ash nazg gimbatul, ash nazg thrakatulûk, agh burzum-ishi krimpatul"
     hc_mock = AsyncMock()
+    mocker.patch("lta.transfer.sync.SimpleAsyncHTTPClient", return_value=hc_mock)
     sync = Sync(config)
     sync.rc = rc_mock
     sync.http_client = hc_mock

@@ -1,13 +1,10 @@
 # joiner.py
 """Module to implement the DesyVerifier component of the Long Term Archive."""
 
-# fmt:off
-
 import os
-from typing import List
 
 
-def join_smart(items: List[str]) -> str:
+def join_smart(items: list[str]) -> str:
     """Join paths together the way Node.js does it."""
     if not items:
         return "."
@@ -18,7 +15,7 @@ def join_smart(items: List[str]) -> str:
     return normal_path
 
 
-def join_smart_url(items: List[str]) -> str:
+def join_smart_url(items: list[str]) -> str:
     """Join URL items together."""
     if not items:
         return ""
@@ -29,4 +26,4 @@ def join_smart_url(items: List[str]) -> str:
     items_str = join_smart(items)
     if items_str.startswith(os.path.sep):
         items_str = items_str[1:]
-    return "/".join([base, items_str])
+    return f"{base}/{items_str}"
