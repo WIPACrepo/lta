@@ -4,6 +4,7 @@ import logging
 # fmt:off
 
 import os
+from pathlib import Path
 from typing import Dict
 from unittest.mock import AsyncMock, call, mock_open, patch, MagicMock
 from uuid import uuid1
@@ -269,93 +270,122 @@ async def test_bundler_do_work_yes_results(config: TestConfig, mocker: MockerFix
 
 
 @pytest.mark.asyncio
-async def test_bundler_do_work_dest_results(config: TestConfig, mocker: MockerFixture) -> None:
+async def test_bundler_do_work_dest_results(
+    config: TestConfig,
+    mocker: MockerFixture,
+    tmp_path: Path,
+) -> None:
     """Test that _do_work_bundle does the work of preparing an archive."""
-    BUNDLE_UUID = "f74db80e-9661-40cc-9f01-8d087af23f56"
-    FILE_CATALOG_UUID = "a8777703-6e9e-41a2-8776-c924a86d5f0f"
-    fc_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    fc_rc_mock.request.side_effect = [
-        {
-            "uuid": FILE_CATALOG_UUID,
-            "logical_name": "/path/to/some/data/warehouse/file.i3"
-        },
-        {
-            "uuid": FILE_CATALOG_UUID,
-            "logical_name": "/path/to/some/data/warehouse/file.i3"
-        },
-    ]
-    lta_rc_mock = mocker.patch("rest_tools.client.RestClient.request", new_callable=AsyncMock)
-    lta_rc_mock.request.side_effect = [
-        {
-            "results": [
-                {
-                    "uuid": uuid1().hex,
-                    "bundle_uuid": BUNDLE_UUID,
-                    "file_catalog_uuid": FILE_CATALOG_UUID,
-                }
-            ]
-        },
-        {
-            "results": []
-        },
-        {
-            "results": [
-                {
-                    "uuid": uuid1().hex,
-                    "bundle_uuid": BUNDLE_UUID,
-                    "file_catalog_uuid": FILE_CATALOG_UUID,
-                }
-            ]
-        },
-        {
-            "results": []
-        },
-        {
-            "uuid": BUNDLE_UUID,
-            "source": "WIPAC",
-            "dest": "NERSC",
-            "file_count": 1,
-            "path": "/path/to/some/data",
-            "status": "created",
-            "reason": "",
-            "bundle_path": "/path/to/bundler/outbox",
-            "size": 123456,
-            "checksum": "abcdef",
-            "verified": False,
-            "claimed": False,
-        },
-    ]
+    bundle_uuid = "f74db80e-9661-40cc-9f01-8d087af23f56"
+    file_catalog_uuid = "a8777703-6e9e-41a2-8776-c924a86d5f0f"
+
+    # Use real temporary directories so aiofiles.open() can create the
+    # metadata file.
+    workbox_path = tmp_path / "workbox"
+    outbox_path = tmp_path / "outbox"
+    workbox_path.mkdir()
+    outbox_path.mkdir()
+
+    bundler_config = config.copy()
+    bundler_config["BUNDLER_WORKBOX_PATH"] = str(workbox_path)
+    bundler_config["BUNDLER_OUTBOX_PATH"] = str(outbox_path)
+
+    fc_rc_mock = mocker.MagicMock()
+    fc_rc_mock.request = AsyncMock(
+        side_effect=[
+            {
+                "uuid": file_catalog_uuid,
+                "logical_name": "/path/to/some/data/warehouse/file.i3",
+            },
+            {
+                "uuid": file_catalog_uuid,
+                "logical_name": "/path/to/some/data/warehouse/file.i3",
+            },
+        ]
+    )
+
+    lta_rc_mock = mocker.MagicMock()
+    lta_rc_mock.request = AsyncMock(
+        side_effect=[
+            {
+                "results": [
+                    {
+                        "uuid": uuid1().hex,
+                        "bundle_uuid": bundle_uuid,
+                        "file_catalog_uuid": file_catalog_uuid,
+                    }
+                ]
+            },
+            {"results": []},
+            {
+                "results": [
+                    {
+                        "uuid": uuid1().hex,
+                        "bundle_uuid": bundle_uuid,
+                        "file_catalog_uuid": file_catalog_uuid,
+                    }
+                ]
+            },
+            {"results": []},
+            {
+                "uuid": bundle_uuid,
+                "source": "WIPAC",
+                "dest": "NERSC",
+                "file_count": 1,
+                "path": "/path/to/some/data",
+                "status": "created",
+                "reason": "",
+                "bundle_path": "/path/to/bundler/outbox",
+                "size": 123456,
+                "checksum": "abcdef",
+                "verified": False,
+                "claimed": False,
+            },
+        ]
+    )
+
     mock_zip_cls = mocker.patch("lta.bundler.ZipFile")
     mock_zip = mocker.MagicMock()
-    mock_zip_cls.return_value.__enter__.return_value = mock_zip
-    mock_fp = mocker.Mock()
-    mock_fp.fileno.return_value = 123
-    mock_zip.fp = mock_fp
-    mocker.patch("os.get_blocking", return_value=True)
-    mocker.patch("os.set_blocking", return_value=None)
-    mock_shutil_move = mocker.patch("shutil.move")
-    mock_shutil_move.return_value = None
-    mock_lta_checksums = mocker.patch("lta.bundler.lta_checksums")
-    mock_lta_checksums.return_value = {
-        "adler32": "89d5efeb",
-        "sha512": "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570",
-    }
-    mock_os_path_getsize = mocker.patch("os.path.getsize")
-    mock_os_path_getsize.return_value = 1048900
-    mock_os_remove = mocker.patch("os.remove")
-    mock_os_remove.return_value = None
-    p = Bundler(config, logging.getLogger())
-    BUNDLE_OBJ = {
-        "uuid": BUNDLE_UUID,
+    mock_zip_context = mock_zip_cls.return_value
+    mock_zip_context.__enter__.return_value = mock_zip
+
+    # ZipFile is mocked, so it would not normally create bundle_file_path.
+    # Create an empty file when the mocked constructor is called so that
+    # Path.stat() later succeeds.
+    def create_mock_zip(path: str, **_: object) -> MagicMock:
+        Path(path).touch()
+        return mock_zip_context
+
+    mock_zip_cls.side_effect = create_mock_zip
+
+    mocker.patch("lta.bundler.shutil.move")
+
+    mocker.patch(
+        "lta.bundler.lta_checksums",
+        return_value={
+            "adler32": "89d5efeb",
+            "sha512": (
+                "c919210281b72327c179e26be799b06cdaf48bf6efce56fb9d53f758c1b997099"
+                "831ad05453fdb1ba65be7b35d0b4c5cebfc439efbdf83317ba0e38bf6f42570"
+            ),
+        },
+    )
+
+    bundler = Bundler(bundler_config, logging.getLogger())
+    bundle = {
+        "uuid": bundle_uuid,
         "source": "WIPAC",
         "dest": "NERSC",
         "file_count": 1,
         "path": "/path/to/some/data",
     }
-    with patch("builtins.open", mock_open(read_data="data")) as metadata_mock:
-        await p._do_work_bundle(fc_rc_mock, lta_rc_mock, BUNDLE_OBJ)
-        metadata_mock.assert_called_with(mocker.ANY, mode="w")
-    mock_zip.write.assert_any_call('/path/to/some/data/warehouse/file.i3', 'warehouse/file.i3')
+
+    await bundler._do_work_bundle(fc_rc_mock, lta_rc_mock, bundle)
+
+    mock_zip.write.assert_any_call(
+        "/path/to/some/data/warehouse/file.i3",
+        "warehouse/file.i3",
+    )
 
 
 @pytest.mark.asyncio
