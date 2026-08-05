@@ -185,7 +185,7 @@ class Bundler(Component):
         self.logger.info("PATCH /Bundles/%s - '%s'", bundle_uuid, bundle)
         await lta_rc.request('PATCH', f'/Bundles/{bundle_uuid}', bundle)
 
-    async def _create_bundle_archive(self,
+    async def _create_bundle_archive(self,  # noqa: PLR0913
                                      fc_rc: RestClient,
                                      lta_rc: RestClient,
                                      bundle: BundleType,
@@ -207,7 +207,7 @@ class Bundler(Component):
             else:
                 return
 
-    async def _create_bundle_archive_once(self,
+    async def _create_bundle_archive_once(self,  # noqa: PLR0913
                                           fc_rc: RestClient,
                                           lta_rc: RestClient,
                                           bundle: BundleType,

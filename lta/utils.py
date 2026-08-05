@@ -187,7 +187,7 @@ class _LtaType:
 SUPPORTED_LTA_TYPES: set[str] = {_LtaType.TYPE_BUNDLE, _LtaType.TYPE_TRANSFER_REQUEST}
 
 
-async def quarantine_now(
+async def quarantine_now(  # noqa: PLR0913
     lta_rc: RestClient,
     lta_object: dict[str, Any],
     causal_exception: Exception,

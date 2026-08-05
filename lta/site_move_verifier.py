@@ -68,7 +68,7 @@ def parse_myquota(s: str) -> list[dict[str, str]]:
         if lines[i]:
             values = as_nonempty_columns(lines[i])
             quota_dict = {}
-            for j in range(0, len(keys)):
+            for j in range(len(keys)):
                 quota_dict[keys[j]] = values[j]
             results.append(quota_dict)
     return results
@@ -97,7 +97,6 @@ class SiteMoveVerifier(Component):
         self.use_full_bundle_path = strtobool(config["USE_FULL_BUNDLE_PATH"])
         self.work_retries = int(config["WORK_RETRIES"])
         self.work_timeout_seconds = float(config["WORK_TIMEOUT_SECONDS"])
-        pass
 
     def _do_status(self) -> dict[str, Any]:
         """Provide additional status for the SiteMoveVerifier."""

@@ -48,6 +48,9 @@ XMLNS = {
     'ns2': 'http://www.dcache.org/2013/webdav',
 }
 
+NUM_BYTES_LARGE_FILE = 2_000_000_000
+NUM_TRIVIAL_PROPS = 5
+
 
 class DirObject(Enum):
     Directory = 1
@@ -291,7 +294,7 @@ class Sync(ParallelAsync):
                 data = {'name': path.name, 'type': DirObject.Directory}
                 proplist = e.findall('./d:propstat/d:prop', XMLNS)
                 for props in proplist:
-                    if len(props) > 5:
+                    if len(props) > NUM_TRIVIAL_PROPS:
                         break
                 else:
                     props = None
@@ -575,9 +578,13 @@ class Sync(ParallelAsync):
 
                 # have pycurl do the dynamic setup stuff
                 # the setup stuff that depends on the file we're uploading
-                if file_size >= 2_000_000_000:
+                if file_size >= NUM_BYTES_LARGE_FILE:
+                    # NOTE: pycurl.INFILESIZE_LARGE and pycurl.INFILESIZE are exactly the same constant
+                    # we're making a distinction without a difference only because pycurl does
                     curl.setopt(pycurl.INFILESIZE_LARGE, file_size)
                 else:
+                    # NOTE: pycurl.INFILESIZE_LARGE and pycurl.INFILESIZE are exactly the same constant
+                    # we're making a distinction without a difference only because pycurl does
                     curl.setopt(pycurl.INFILESIZE, file_size)
                 curl.setopt(pycurl.READDATA, file)
                 curl.setopt(pycurl.SEEKFUNCTION, seek)
