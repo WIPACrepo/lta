@@ -273,7 +273,7 @@ class Sync(ParallelAsync):
         ret = await self.http_client.fetch(req)
 
         content = ret.body.decode('utf-8')
-        logging.debug(content)
+        LOG.debug(content)
         root = ET.fromstring(content)
         children = self._process_children(fullpath, root)
         return children
@@ -387,7 +387,7 @@ class Sync(ParallelAsync):
 
     @connection_semaphore
     async def rmfile(self, path: str, request_timeout: int = 600) -> None:
-        logging.info('RMFILE %s', path)
+        LOG.info('RMFILE %s', path)
         fullpath = Path(self.config["DEST_BASE_PATH"]) / path.lstrip('/')
         self.rc._get_token()
         token = _decode_if_necessary(self.rc.access_token)
@@ -404,10 +404,10 @@ class Sync(ParallelAsync):
 
     @connection_semaphore
     async def rmtree(self, path: Path, request_timeout: int = 600) -> None:
-        logging.info('RMTREE %s', path)
+        LOG.info('RMTREE %s', path)
         ret = await self.get_children(str(path.parent))
         if path.name not in ret:
-            logging.info("does not exist")
+            LOG.info("does not exist")
         elif ret[path.name]['type'] == DirObject.File:
             await self.rmfile(str(path))
         else:
@@ -422,7 +422,7 @@ class Sync(ParallelAsync):
 
     @connection_semaphore
     async def mkdir(self, path: str, request_timeout: int = 60) -> None:
-        logging.info('MKDIR %s', path)
+        LOG.info('MKDIR %s', path)
         fullpath = Path(self.config["DEST_BASE_PATH"]) / path.lstrip('/')
         self.rc._get_token()
         token = _decode_if_necessary(self.rc.access_token)
@@ -529,7 +529,7 @@ class Sync(ParallelAsync):
         Upload a file to a temporary name, verify its checksum, and then
         move it to its final location.
         """
-        logging.info("PUT %s", path)
+        LOG.info("PUT %s", path)
 
         # figure out source and destination filenames
         source_path = Path(path)
@@ -608,7 +608,7 @@ class Sync(ParallelAsync):
         # whoops, the remote system didn't provide a checksum
         else:
             # Plan B: Read it back and checksum what remote provides
-            logging.info(
+            LOG.info(
                 "PUT %s - no checksum in headers, so get manually",
                 path,
             )
@@ -635,7 +635,7 @@ class Sync(ParallelAsync):
         # if our local checksum DOES NOT match the remote checksum
         if expected_checksum != checksum:
             # tell the logs and raise an exception
-            logging.error(
+            LOG.error(
                 "PUT %s - bad checksum; expected %s, but received %s",
                 path,
                 expected_checksum,
@@ -648,7 +648,7 @@ class Sync(ParallelAsync):
             )
 
         # otherwise, yay our checksum matched; successful upload
-        logging.info("PUT %s complete - checksum successful!", path)
+        LOG.info("PUT %s complete - checksum successful!", path)
 
         # get the token again (it may need a refresh after a long upload and download)
         self.rc._get_token()
@@ -673,7 +673,7 @@ class Sync(ParallelAsync):
         children = {}
         for p in path.iterdir():
             if p.name.startswith("Run") and '_' in p.name:
-                logging.debug('skipping versioned run directory')
+                LOG.debug('skipping versioned run directory')
                 continue
             data: DataDict = {
                 'name': p.name,
@@ -685,7 +685,7 @@ class Sync(ParallelAsync):
         return children
 
     async def sync_dir(self, path: Path) -> None:
-        logging.info("SYNC %s", path)
+        LOG.info("SYNC %s", path)
         # check if dir exists
         ret = await self.get_children(str(path.parent))
         if path.name not in ret:
@@ -696,8 +696,8 @@ class Sync(ParallelAsync):
 
         # check contents
         expected_children = self.get_local_children(path)
-        logging.debug('expected children: %s', expected_children)
-        logging.debug('actual children: %s', children)
+        LOG.debug('expected children: %s', expected_children)
+        LOG.debug('actual children: %s', children)
 
         # delete prev failed uploads
         async with asyncio.TaskGroup() as tg:
@@ -713,13 +713,13 @@ class Sync(ParallelAsync):
                     e = expected_children[name]
                     c = children[name]
                     if e['type'] != c['type']:
-                        logging.error('Bad type on %s', path / name)
+                        LOG.error('Bad type on %s', path / name)
                         await self.rmtree(Path(path / name))
                     elif e['type'] == DirObject.File and e.get('size', -1) == c.get('size', -1):
-                        logging.info('verified %s', path / name)
+                        LOG.info('verified %s', path / name)
                         continue
                 else:
-                    logging.info('missing from dest: %s', path / name)
+                    LOG.info('missing from dest: %s', path / name)
 
                 if expected_children[name]['type'] == DirObject.Directory:
                     tg.create_task(_as_task(self.sync_dir(path / name)))
@@ -728,7 +728,7 @@ class Sync(ParallelAsync):
 
     @connection_semaphore
     async def mkdir_p(self, path: str, request_timeout: int = 60) -> None:
-        logging.info('MKDIR -p %s', path)
+        LOG.info('MKDIR -p %s', path)
         dest_base = Path(self.config["DEST_BASE_PATH"])
         #  fullpath = dest_base / path.lstrip('/')
         fullpath = Path(self.config["DEST_BASE_PATH"]) / path.lstrip('/')
@@ -782,11 +782,11 @@ class Sync(ParallelAsync):
             )
             try:
                 await self.http_client.fetch(req)
-                logging.info('Created directory %s', current)
+                LOG.info('Created directory %s', current)
             except HTTPError as e:
                 if e.code in (405, 409):
                     # Already exists or conflict—ignore
-                    logging.info('Directory %s already exists', current)
+                    LOG.info('Directory %s already exists', current)
                     continue
                 else:
                     raise MkdirDirectoryCreationError(current, e)
@@ -892,7 +892,7 @@ class Sync(ParallelAsync):
         Upload a file to a temporary name, verify its checksum, and move it
         to its final location.
         """
-        logging.info("PUT %s", dest_path)
+        LOG.info("PUT %s", dest_path)
 
         source = anyio.Path(src_path)
         fullpath = anyio.Path(self.config["DEST_BASE_PATH"]) / dest_path.lstrip("/")
@@ -944,7 +944,7 @@ class Sync(ParallelAsync):
         if checksum is not None:
             checksum = convert_checksum_from_dcache(checksum)
         else:
-            logging.info(
+            LOG.info(
                 "PUT %s - no checksum in headers, so get manually",
                 dest_path,
             )
@@ -964,7 +964,7 @@ class Sync(ParallelAsync):
             checksum = hasher.hexdigest()
 
         if expected_checksum != checksum:
-            logging.error(
+            LOG.error(
                 "PUT %s - bad checksum. expected %s, but received %s",
                 dest_path,
                 expected_checksum,
@@ -976,7 +976,7 @@ class Sync(ParallelAsync):
                 checksum,
             )
 
-        logging.info(
+        LOG.info(
             "PUT %s complete - checksum successful!",
             dest_path,
         )
