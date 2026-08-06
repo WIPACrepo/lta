@@ -44,6 +44,9 @@ from .utils import now
 
 # fmt:off
 
+# maximum number of Bundle UUIDs to look up when identifying distinct Bundle UUIDs in Metdata records
+BUNDLE_QUERY_CHUNK_SIZE = 100
+
 # maximum number of Metadata UUIDs to supply to MongoDB.deleteMany() during bulk_delete
 DELETE_CHUNK_SIZE = 1000
 
@@ -489,6 +492,106 @@ class MetadataActionsBulkDeleteHandler(BaseLTAHandler):
         self.write({'metadata': metadata, 'count': count})
 
 
+class MetadataActionsDistinctBundlesHandler(BaseLTAHandler):
+    """Return distinct Bundle UUIDs referenced by Metadata records."""
+
+    @lta_auth(prefix=LTA_AUTH_PREFIX, roles=LTA_AUTH_ROLES)
+    async def get(self) -> None:
+        """Handle GET /Metadata/actions/distinct_bundles."""
+        status = self.get_query_argument("status", default=None)
+
+        metadata_query: dict[str, Any] = {
+            "bundle_uuid": {
+                "$exists": True,
+                "$ne": None,
+            },
+        }
+
+        LOG.debug(
+            "MONGO-START: "
+            f"db.Metadata.distinct(key='bundle_uuid', filter={metadata_query})"
+        )
+        distinct_values = await self.db.Metadata.distinct(
+            "bundle_uuid",
+            metadata_query,
+        )
+        LOG.debug(
+            "MONGO-END:   "
+            "db.Metadata.distinct(key='bundle_uuid', filter)"
+        )
+
+        bundle_uuids = [
+            value
+            for value in distinct_values
+            if isinstance(value, str)
+        ]
+
+        missing_count = 0
+
+        if status is not None:
+            matching_bundle_uuids: list[str] = []
+            found_bundle_uuids: set[str] = set()
+
+            projection = {
+                "_id": False,
+                "uuid": True,
+                "status": True,
+            }
+
+            for offset in range(0, len(bundle_uuids), BUNDLE_QUERY_CHUNK_SIZE):
+                uuid_chunk = bundle_uuids[
+                    offset:offset + BUNDLE_QUERY_CHUNK_SIZE
+                ]
+
+                bundle_query = {
+                    "uuid": {
+                        "$in": uuid_chunk,
+                    },
+                }
+
+                LOG.debug(
+                    "MONGO-START: "
+                    f"db.Bundles.find(filter={bundle_query}, "
+                    f"projection={projection})"
+                )
+
+                async for bundle in self.db.Bundles.find(
+                    filter=bundle_query,
+                    projection=projection,
+                ):
+                    bundle_uuid = bundle["uuid"]
+                    found_bundle_uuids.add(bundle_uuid)
+
+                    if bundle["status"] == status:
+                        matching_bundle_uuids.append(bundle_uuid)
+
+                LOG.debug(
+                    "MONGO-END:   "
+                    "db.Bundles.find(filter, projection)"
+                )
+
+            missing_count = (
+                len(bundle_uuids) - len(found_bundle_uuids)
+            )
+
+            if missing_count:
+                LOG.warning(
+                    "%d distinct Metadata bundle_uuid values have no "
+                    "corresponding Bundle record",
+                    missing_count,
+                )
+
+            bundle_uuids = matching_bundle_uuids
+
+        bundle_uuids.sort()
+
+        self.write({
+            "missing_count": missing_count,
+            "count": len(bundle_uuids),
+            "results": bundle_uuids,
+        })
+
+
 class MetadataHandler(BaseLTAHandler):
     """MetadataHandler handles collection level routes for Metadata."""
 
@@ -810,6 +913,7 @@ def start(
         (r'/Metadata', MetadataHandler),
         (r'/Metadata/actions/bulk_create', MetadataActionsBulkCreateHandler),
         (r'/Metadata/actions/bulk_delete', MetadataActionsBulkDeleteHandler),
+        (r'/Metadata/actions/distinct_bundles', MetadataActionsDistinctBundlesHandler),
         (r'/Metadata/(?P<metadata_id>\w+)', MetadataSingleHandler),
         (r'/TransferRequests', TransferRequestsHandler),
         (r'/TransferRequests/(?P<request_id>\w+)', TransferRequestSingleHandler),

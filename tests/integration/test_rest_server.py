@@ -8,7 +8,8 @@ import logging
 import os
 import socket
 import tracemalloc
-from typing import Any, AsyncGenerator, Callable, Dict, List, cast
+from collections.abc import AsyncGenerator, Callable
+from typing import Any, cast
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
 
@@ -23,9 +24,15 @@ from rest_tools.client import RestClient
 from rest_tools.utils import Auth
 from wipac_dev_tools import from_environment, strtobool
 
-from lta.rest_server import EXPECTED_CONFIG, create_mongodb_client, main, start, unique_id
+from lta.rest_server import (
+    EXPECTED_CONFIG,
+    create_mongodb_client,
+    main,
+    start,
+    unique_id,
+)
 
-LtaCollection = Database[Dict[str, Any]]
+LtaCollection = Database[dict[str, Any]]
 RestClientFactory = Callable[[str, float], RestClient]
 
 DEFAULT_TIMEOUT = 0.5
@@ -35,7 +42,7 @@ RESP_TOTAL = "lta_responses_total"
 
 tracemalloc.start(1)
 
-ALL_DOCUMENTS: Dict[str, str] = {}
+ALL_DOCUMENTS: dict[str, str] = {}
 REMOVE_ID = {"_id": False}
 
 CONFIG = {
@@ -65,7 +72,7 @@ def mongo(monkeypatch: MonkeyPatch) -> LtaCollection:
     lta_mongodb_url = f"mongodb://{mongo_host}"
     if mongo_user and mongo_pass:
         lta_mongodb_url = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}"
-    client: MongoClient[Dict[str, Any]] = MongoClient(lta_mongodb_url, port=mongo_port)
+    client: MongoClient[dict[str, Any]] = MongoClient(lta_mongodb_url, port=mongo_port)
     db = client[CONFIG['LTA_MONGODB_DATABASE_NAME']]
     for collection in db.list_collection_names():
         if 'system' not in collection:
@@ -109,7 +116,7 @@ async def rest(monkeypatch: MonkeyPatch, port: int) -> AsyncGenerator[RestClient
         # into this Token he poured his cruelty, his malice and his will to
         # dominate all life. One Token to rule them all.
         auth = Auth("secret")  # type: ignore[no-untyped-call]
-        token_data: Dict[str, Any] = {
+        token_data: dict[str, Any] = {
             "resource_access": {
                 "long-term-archive": {
                     "roles": [role]
@@ -194,7 +201,7 @@ async def test_200_transfer_request_fail(rest: RestClientFactory) -> None:
     r = rest('system', DEFAULT_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {'dest': ['bar']}
+    request: dict[str, Any] = {'dest': ['bar']}
     with pytest.raises(HTTPError, match=r"missing source field") as exc:
         await r.request('POST', '/TransferRequests', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -444,7 +451,7 @@ async def test_410_bundles_actions_bulk_create_errors(rest: RestClientFactory) -
     r = rest('system', DEFAULT_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {}
+    request: dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"missing bundles field") as exc:
         await r.request('POST', '/Bundles/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -468,7 +475,7 @@ async def test_420_bundles_actions_bulk_delete_errors(rest: RestClientFactory) -
     r = rest('system', DEFAULT_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {}
+    request: dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"missing bundles field") as exc:
         await r.request('POST', '/Bundles/actions/bulk_delete', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -492,7 +499,7 @@ async def test_430_bundles_actions_bulk_update_errors(rest: RestClientFactory) -
     r = rest('system', DEFAULT_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {}
+    request: dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"missing update field") as exc:
         await r.request('POST', '/Bundles/actions/bulk_update', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -997,9 +1004,9 @@ async def test_520_bundles_actions_bulk_create_huge(mongo: LtaCollection, rest: 
 
     NUM_FILES_TO_MAKE_IT_HUGE = 16000  # 16000 file entries ~= 12 MB body data
 
-    r = rest(role='system', timeout=10.0)  # type: ignore[call-arg]
+    r = rest("system", 10.0)  # type: ignore[call-arg]
 
-    test_data: Dict[str, List[Dict[str, Any]]] = {
+    test_data: dict[str, list[dict[str, Any]]] = {
         'bundles': [
             {
                 "type": "Bundle",
@@ -1210,7 +1217,7 @@ async def test_630_metadata_actions_bulk_create_errors(rest: RestClientFactory) 
     r = rest('system', DEFAULT_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {}
+    request: dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"bundle_uuid") as exc:
         await r.request('POST', '/Metadata/actions/bulk_create', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -1241,7 +1248,7 @@ async def test_640_metadata_actions_bulk_delete_errors(rest: RestClientFactory) 
     r = rest('system', DEFAULT_TIMEOUT)  # type: ignore[call-arg]
 
     # request: POST
-    request: Dict[str, Any] = {}
+    request: dict[str, Any] = {}
     with pytest.raises(HTTPError, match=r"metadata") as exc:
         await r.request('POST', '/Metadata/actions/bulk_delete', request)
     assert exc.value.response.status_code == 400  # type: ignore[union-attr]
@@ -1304,3 +1311,128 @@ async def test_660_metadata_results_comprehension(rest: RestClientFactory) -> No
     for result in results:
         assert uuids[count] == result['uuid']
         count = count + 1
+
+
+@pytest.mark.asyncio
+async def test_670_metadata_distinct_bundle_uuids(
+    rest: RestClientFactory,
+) -> None:
+    """Check that distinct Metadata bundle UUIDs are returned."""
+    r = rest("system", DEFAULT_TIMEOUT)  # type: ignore[call-arg]
+
+    bundle_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    bundle_uuid1 = "05b7178b-82d0-428c-a0a6-d4add696de62"
+
+    # Create multiple Metadata records for each Bundle.
+    request = {
+        "bundle_uuid": bundle_uuid0,
+        "files": [
+            "7b5c1f76-e568-4ae7-94d2-5a31d1d2b081",
+            "125d2a44-a664-4166-bf4a-5d5cf13292d7",
+            "3a92d3d2-2e3e-4184-8d3a-25fb4337fd2f",
+        ],
+    }
+    ret = await r.request(
+        "POST",
+        "/Metadata/actions/bulk_create",
+        request,
+    )
+    assert ret["count"] == 3
+
+    request = {
+        "bundle_uuid": bundle_uuid1,
+        "files": [
+            "03ccb63e-32cf-4135-85b2-fd06b8c9137f",
+            "c65f2c58-a412-403c-9354-d25d7ae5cdeb",
+        ],
+    }
+    ret = await r.request(
+        "POST",
+        "/Metadata/actions/bulk_create",
+        request,
+    )
+    assert ret["count"] == 2
+
+    # Request distinct Bundle UUIDs without a status filter.
+    ret = await r.request(
+        "GET",
+        "/Metadata/actions/distinct_bundles",
+    )
+
+    assert ret["count"] == 2
+    assert set(ret["results"]) == {
+        bundle_uuid0,
+        bundle_uuid1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_680_metadata_distinct_finished_bundle_uuids(
+    mongo: LtaCollection,
+    rest: RestClientFactory,
+) -> None:
+    """Check that distinct Metadata Bundle UUIDs can be filtered by status."""
+    r = rest("system", DEFAULT_TIMEOUT)  # type: ignore[call-arg]
+
+    finished_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
+    finished_uuid1 = "05b7178b-82d0-428c-a0a6-d4add696de62"
+    deleted_uuid = "992ae5e1-017c-4a95-b552-bd385020ec27"
+
+    # Create the corresponding Bundle records with different statuses.
+    mongo.Bundles.insert_many([
+        {
+            "uuid": finished_uuid0,
+            "status": "finished",
+        },
+        {
+            "uuid": finished_uuid1,
+            "status": "finished",
+        },
+        {
+            "uuid": deleted_uuid,
+            "status": "deleted",
+        },
+    ])
+
+    # Create Metadata records for all three Bundles.
+    metadata_requests = [
+        {
+            "bundle_uuid": finished_uuid0,
+            "files": [
+                "7b5c1f76-e568-4ae7-94d2-5a31d1d2b081",
+                "125d2a44-a664-4166-bf4a-5d5cf13292d7",
+            ],
+        },
+        {
+            "bundle_uuid": finished_uuid1,
+            "files": [
+                "03ccb63e-32cf-4135-85b2-fd06b8c9137f",
+            ],
+        },
+        {
+            "bundle_uuid": deleted_uuid,
+            "files": [
+                "c65f2c58-a412-403c-9354-d25d7ae5cdeb",
+            ],
+        },
+    ]
+
+    for request in metadata_requests:
+        ret = await r.request(
+            "POST",
+            "/Metadata/actions/bulk_create",
+            request,
+        )
+        assert ret["count"] == len(request["files"])
+
+    # Only Metadata associated with finished Bundles should be returned.
+    ret = await r.request(
+        "GET",
+        "/Metadata/actions/distinct_bundles?status=finished",
+    )
+
+    assert ret["count"] == 2
+    assert set(ret["results"]) == {
+        finished_uuid0,
+        finished_uuid1,
+    }
