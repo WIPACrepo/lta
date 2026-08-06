@@ -507,7 +507,7 @@ class MetadataActionsDistinctBundlesHandler(BaseLTAHandler):
             },
         }
 
-        logging.debug(
+        LOG.debug(
             "MONGO-START: "
             f"db.Metadata.distinct(key='bundle_uuid', filter={metadata_query})"
         )
@@ -515,7 +515,7 @@ class MetadataActionsDistinctBundlesHandler(BaseLTAHandler):
             "bundle_uuid",
             metadata_query,
         )
-        logging.debug(
+        LOG.debug(
             "MONGO-END:   "
             "db.Metadata.distinct(key='bundle_uuid', filter)"
         )
@@ -549,7 +549,7 @@ class MetadataActionsDistinctBundlesHandler(BaseLTAHandler):
                     },
                 }
 
-                logging.debug(
+                LOG.debug(
                     "MONGO-START: "
                     f"db.Bundles.find(filter={bundle_query}, "
                     f"projection={projection})"
@@ -565,7 +565,7 @@ class MetadataActionsDistinctBundlesHandler(BaseLTAHandler):
                     if bundle["status"] == status:
                         matching_bundle_uuids.append(bundle_uuid)
 
-                logging.debug(
+                LOG.debug(
                     "MONGO-END:   "
                     "db.Bundles.find(filter, projection)"
                 )
@@ -575,7 +575,7 @@ class MetadataActionsDistinctBundlesHandler(BaseLTAHandler):
             )
 
             if missing_count:
-                logging.warning(
+                LOG.warning(
                     "%d distinct Metadata bundle_uuid values have no "
                     "corresponding Bundle record",
                     missing_count,
