@@ -7,22 +7,21 @@ import asyncio
 import json
 import logging
 import os
-from pathlib import Path
 import shutil
 import sys
-from typing import Any, cast, Dict, Optional
+from pathlib import Path
+from typing import Any, cast
 from zipfile import ZipFile
 
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import strtobool
 
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
-from .utils import now, quarantine_now
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .crypto import lta_checksums
 from .lta_tools import from_environment
 from .lta_types import BundleType
-
+from .utils import now, quarantine_now
 
 Logger = logging.Logger
 
@@ -42,6 +41,15 @@ EXPECTED_CONFIG.update({
 })
 
 
+class UnknownBundleManifestVersionError(Exception):
+    """
+    Raised when the metadata version is unknown.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("Unknown bundle manifest version")
+
+
 class Unpacker(Component):
     """
     Unpacker is a Long Term Archive component.
@@ -55,14 +63,14 @@ class Unpacker(Component):
     unpacked and can now be deleted.
     """
 
-    def __init__(self, config: Dict[str, str], logger: Logger) -> None:
+    def __init__(self, config: dict[str, str], logger: Logger) -> None:
         """
         Create a Unpacker component.
 
         config - A dictionary of required configuration values.
         logger - The object the unpacker should use for logging.
         """
-        super(Unpacker, self).__init__("unpacker", config, logger)
+        super().__init__("unpacker", config, logger)
         self.clean_outbox = strtobool(config["CLEAN_OUTBOX"])
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
@@ -74,11 +82,11 @@ class Unpacker(Component):
         path_map_json = Path(config["PATH_MAP_JSON"]).read_text()
         self.path_map = json.loads(path_map_json)
 
-    def _do_status(self) -> Dict[str, Any]:
+    def _do_status(self) -> dict[str, Any]:
         """Unpacker has no additional status to contribute."""
         return {}
 
-    def _expected_config(self) -> Dict[str, Optional[str]]:
+    def _expected_config(self) -> dict[str, str | None]:
         """Unpacker provides our expected configuration dictionary."""
         return EXPECTED_CONFIG
 
@@ -103,7 +111,6 @@ class Unpacker(Component):
         try:
             await self._do_work_bundle(lta_rc, bundle)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -114,9 +121,11 @@ class Unpacker(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            return True
 
-    async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:
+    async def _do_work_bundle(self, lta_rc: RestClient, bundle: BundleType) -> None:  # noqa: PLR0915
         """Unpack the bundle to the Data Warehouse and update the File Catalog and LTA DB."""
         # 0. Get our ducks in a row about what we're doing here
         bundle_file = os.path.basename(bundle["bundle_path"])
@@ -128,8 +137,9 @@ class Unpacker(Component):
         # 2. Extract the bundle's metadata manifest
         manifest_info = zip_info_list[0]  # assume metadata manifest at index 0
         if not manifest_info.filename.startswith(bundle_uuid):
-            self.logger.error(f"Error: zip_info_list[0] in Bundle '{bundle_file_path}' is not JSON/NDJSON metadata. Expected: '{bundle_uuid}.metadata.json' or '{bundle_uuid}.metadata.ndjson'. Found: '{manifest_info.filename}'")
-            raise ValueError(f"Error: zip_info_list[0] in Bundle '{bundle_file_path}' is not JSON/NDJSON metadata. Expected: '{bundle_uuid}.metadata.json' or '{bundle_uuid}.metadata.ndjson'. Found: '{manifest_info.filename}'")
+            message = f"Error: zip_info_list[0] in Bundle '{bundle_file_path}' is not JSON/NDJSON metadata. Expected: '{bundle_uuid}.metadata.json' or '{bundle_uuid}.metadata.ndjson'. Found: '{manifest_info.filename}'"
+            self.logger.error(message)
+            raise ValueError(message)
         self.logger.info(f"Extracting '{manifest_info.filename}' to {self.outbox_path}")
         bundle_zip_file.extract(manifest_info, path=self.outbox_path)
         # 3. Read the bundle's metadata manifest into a dictionary
@@ -148,21 +158,24 @@ class Unpacker(Component):
             file_path = os.path.join(self.outbox_path, file_basename)
             # do a sanity check to make sure our metadata matches in filename
             if file_zipinfo.filename != file_basename:
-                self.logger.error(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.filename:'{file_zipinfo.filename}' vs file_basename:'{file_basename}'.")
-                raise ValueError(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.filename:'{file_zipinfo.filename}' vs file_basename:'{file_basename}'.")
+                message = f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.filename:'{file_zipinfo.filename}' vs file_basename:'{file_basename}'."
+                self.logger.error(message)
+                raise ValueError(message)
             # extract the file from the bundle zip to the work directory
             self.logger.info(f"File {count_idx}/{count_max}: {file_basename} ({file_path})")
             bundle_zip_file.extract(file_zipinfo, path=self.outbox_path)
             # check that the size matches the expected size
             manifest_size = bundle_file["file_size"]
-            disk_size = os.path.getsize(file_path)
+            disk_size = await asyncio.to_thread(os.path.getsize, file_path)
             if disk_size != manifest_size:
-                self.logger.error(f"Error: File '{file_basename}' has size {disk_size} bytes on disk, but the bundle metadata supplied size is {manifest_size} bytes.")
-                raise ValueError(f"File:{file_basename} size Calculated:{disk_size} size Expected:{manifest_size}")
+                message = f"Error: File '{file_basename}' has size {disk_size} bytes on disk, but the bundle metadata supplied size is {manifest_size} bytes."
+                self.logger.error(message)
+                raise ValueError(message)
             # do a sanity check to make sure our metadata matches in file size
             if file_zipinfo.file_size != disk_size:
-                self.logger.error(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.file_size:'{file_zipinfo.file_size}' vs disk_size:'{disk_size}'.")
-                raise ValueError(f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.file_size:'{file_zipinfo.file_size}' vs disk_size:'{disk_size}'.")
+                message = f"Error: Unpacking metadata mismatch on index {count_idx}. ZipInfo.file_size:'{file_zipinfo.file_size}' vs disk_size:'{disk_size}'."
+                self.logger.error(message)
+                raise ValueError(message)
             # move the file to the appropriate location in the data warehouse
             self._ensure_dest_directory(logical_name)
             self.logger.info(f"Moving {file_basename} from {file_path} to the Data Warehouse at {logical_name}")
@@ -172,8 +185,9 @@ class Unpacker(Component):
             manifest_checksum = bundle_file["checksum"]["sha512"]
             disk_checksum = lta_checksums(logical_name)
             if disk_checksum["sha512"] != manifest_checksum:
-                self.logger.error(f"Error: File '{file_basename}' has sha512 checksum '{disk_checksum['sha512']}' but the bundle metadata supplied checksum '{manifest_checksum}'")
-                raise ValueError(f"File:{file_basename} sha512 Calculated:{disk_checksum['sha512']} sha512 Expected:{manifest_checksum}")
+                message = f"Error: File '{file_basename}' has sha512 checksum '{disk_checksum['sha512']}' but the bundle metadata supplied checksum '{manifest_checksum}'"
+                self.logger.error(message)
+                raise ValueError(message)
             # add the new location to the file catalog
             await self._add_location_to_file_catalog(bundle_file, logical_name)
         # 4. Clean up the metadata file
@@ -184,7 +198,7 @@ class Unpacker(Component):
         await self._update_bundle_in_lta_db(lta_rc, bundle)
 
     async def _add_location_to_file_catalog(self,
-                                            bundle_file: Dict[str, Any],
+                                            bundle_file: dict[str, Any],
                                             dest_path: str) -> bool:
         """Update File Catalog record with new Data Warehouse location."""
         # configure a RestClient to talk to the File Catalog
@@ -242,10 +256,7 @@ class Unpacker(Component):
             os.remove(metadata_file_path)
         except Exception:
             metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.ndjson")
-            try:
-                os.remove(metadata_file_path)
-            except Exception as e:
-                raise e
+            os.remove(metadata_file_path)
         self.logger.info(f"Bundle metadata '{metadata_file_path}' was deleted.")
 
     def _ensure_dest_directory(self, dest_path: str) -> None:
@@ -261,7 +272,7 @@ class Unpacker(Component):
                 return dest_path.replace(prefix, remap)
         return dest_path
 
-    def _read_manifest_metadata(self, bundle_uuid: str) -> Dict[str, Any]:
+    def _read_manifest_metadata(self, bundle_uuid: str) -> dict[str, Any]:
         """Read the bundle metadata from the manifest file."""
         # try with version 2
         metadata_dict = self._read_manifest_metadata_v2(bundle_uuid)
@@ -272,9 +283,9 @@ class Unpacker(Component):
         if metadata_dict:
             return metadata_dict
         # whoops, we have no idea how to read the manifest
-        raise Exception("Unknown bundle manifest version")
+        raise UnknownBundleManifestVersionError
 
-    def _read_manifest_metadata_v2(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
+    def _read_manifest_metadata_v2(self, bundle_uuid: str) -> dict[str, Any] | None:
         """Read the bundle metadata from an older (version 2) manifest file."""
         metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.json")
         try:
@@ -282,9 +293,9 @@ class Unpacker(Component):
                 metadata_dict = json.load(metadata_file)
         except Exception:
             return None
-        return cast(Dict[str, Any], metadata_dict)
+        return cast(dict[str, Any], metadata_dict)
 
-    def _read_manifest_metadata_v3(self, bundle_uuid: str) -> Optional[Dict[str, Any]]:
+    def _read_manifest_metadata_v3(self, bundle_uuid: str) -> dict[str, Any] | None:
         """Read the bundle metadata from a newer (version 3) manifest file."""
         metadata_file_path = os.path.join(self.outbox_path, f"{bundle_uuid}.metadata.ndjson")
         try:
@@ -301,7 +312,7 @@ class Unpacker(Component):
                     line = metadata_file.readline()
         except Exception:
             return None
-        return cast(Dict[str, Any], metadata_dict)
+        return cast(dict[str, Any], metadata_dict)
 
     async def _update_bundle_in_lta_db(self, lta_rc: RestClient, bundle: BundleType) -> bool:
         """Update the LTA DB to indicate the Bundle is unpacked."""

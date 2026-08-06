@@ -3,7 +3,8 @@
 import asyncio
 import dataclasses
 import logging
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from prometheus_client import Gauge
 from pymongo.asynchronous.database import AsyncDatabase
@@ -11,12 +12,12 @@ from wipac_dev_tools.timing_tools import IntervalTimer
 
 from .utils import (
     BUNDLES,
-    DatabaseType,
     PROMETHEUS_QUARANTINE_GAUGE,
     PROMETHEUS_STATUS_GAUGE,
     STATUS_POLLER_INTERVAL_LOGGING,
     STATUS_POLLER_INTERVAL_MINIMUM,
     TRANSFER_REQUESTS,
+    DatabaseType,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -156,7 +157,7 @@ async def status_poller(
                     )
 
         except asyncio.CancelledError:
-            LOGGER.error("Status poller cancelled")
+            LOGGER.exception("Status poller cancelled")
             raise
         except Exception:
             LOGGER.exception("Failed -- sleeping then restarting")

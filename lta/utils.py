@@ -3,6 +3,7 @@
 import datetime
 import traceback
 from collections.abc import Mapping
+from enum import StrEnum
 from logging import Logger
 from subprocess import CompletedProcess
 from typing import Any
@@ -12,12 +13,21 @@ from rest_tools.client import RestClient
 _MAX_QUARANTINE_TRACEBACK_LINES = 500
 
 
+class HSIOperation(StrEnum):
+    """Operations performed through HSI."""
+
+    LIST_CHECKSUM = "list checksum in HPSS (hashlist)"
+    READ_BUNDLE = "read bundle from HPSS"
+    TAPE_BUNDLE = "tape bundle to HPSS"
+    VERIFY_BUNDLE = "verify bundle in HPSS (hashverify)"
+
+
 def utcnow_isoformat(*, timespec: str | None = None) -> str:
     """Mimic exactly the result of 'datetime.datetime.utcnow().isoformat(timespec=...)'.
 
     Note: 'datetime.datetime.utcnow()' is deprecated
     """
-    dt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    dt = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
     if timespec is None:
         return dt.isoformat()
     return dt.isoformat(timespec=timespec)
@@ -29,11 +39,28 @@ def now() -> str:
 
 
 class NoFileCatalogFilesException(Exception):
-    """Raised when a query's files cannot be found in the File Catalog."""
+    """Raised when the File Catalog returns no files for a TransferRequest."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "File Catalog returned zero files for the TransferRequest"
+        )
 
 
 class InvalidBundlePathException(Exception):
     """Raised when a bundle path is invalid."""
+
+    def __init__(
+        self,
+        bundle_path: str,
+        transfer_dest_path: str,
+        dest_root_path: str,
+    ) -> None:
+        super().__init__(
+            f"bundle_path={bundle_path!r} is not within "
+            f"transfer_dest_path={transfer_dest_path!r} "
+            f"(dest_root_path={dest_root_path!r})"
+        )
 
 
 class InvalidChecksumException(Exception):
@@ -48,6 +75,17 @@ class InvalidChecksumException(Exception):
         super().__init__(
             f"Checksum mismatch between creation and destination: "
             f"{creation=} and {destination=}"
+        )
+
+
+class UnsupportedQuarantineException(Exception):
+    """Raised when attempting to quarantine an LTA object of unknown type."""
+
+    def __init__(self, lta_object_type: str, supported_types: set[str]):
+        super().__init__(
+            f"lta_object['type'] == '{lta_object_type}' appears in "
+            f"SUPPORTED_LTA_TYPES == '{supported_types}' "
+            f"but we don't have logic to handle it"
         )
 
 
@@ -68,8 +106,8 @@ def log_completed_process_outputs(
         f"{completed_process.args}"
     )
     log_fn(f"returncode: {completed_process.returncode}")
-    log_fn(f"stdout: {str(completed_process.stdout)}")
-    log_fn(f"stderr: {str(completed_process.stderr)}")
+    log_fn(f"stdout: {completed_process.stdout!s}")
+    log_fn(f"stderr: {completed_process.stderr!s}")
 
 
 class HSICommandFailedException(Exception):
@@ -77,16 +115,19 @@ class HSICommandFailedException(Exception):
 
     def __init__(
         self,
-        hsi_cmd_description: str,
+        operation: HSIOperation,
         completed_process: CompletedProcess,
         logger: Logger,
-    ):
+    ) -> None:
+        hsi_cmd_description = str(operation)
         log_completed_process_outputs(
             completed_process, hsi_cmd_description, logger, is_failure=True
         )
         super().__init__(
-            f"{hsi_cmd_description} - {completed_process.args} - {completed_process.returncode}"
-            f" - {str(completed_process.stdout)} - {str(completed_process.stderr)}"
+            f"{hsi_cmd_description} - {completed_process.args}"
+            f" - {completed_process.returncode}"
+            f" - {completed_process.stdout!r}"
+            f" - {completed_process.stderr!r}"
         )
 
 
@@ -179,7 +220,7 @@ async def quarantine_now(
             f"(got {type(lta_object).__name__}: {lta_object!r})."
         )
         logger.error(err)
-        raise ValueError(err)
+        raise TypeError(err)
 
     # 2) missing required keys
     for key in {"type", "uuid", "status"}:
@@ -191,6 +232,17 @@ async def quarantine_now(
             logger.error(err)
             raise ValueError(err)
 
+    # 3) type isn't a known LTA object type
+    if lta_object["type"] not in SUPPORTED_LTA_TYPES:
+        err = (
+            f"Cannot quarantine LTA object: unsupported 'type' value, "
+            f"'{lta_object['type']}' (supported={sorted(SUPPORTED_LTA_TYPES)!r}, "
+            f"uuid={lta_object.get('uuid')!r})."
+        )
+        logger.error(err)
+        raise ValueError(err)
+
+    # change the status of the object to `quarantined`
     reason_details = truncate_traceback(causal_exception)
     reason = repr(causal_exception)
 
@@ -205,23 +257,19 @@ async def quarantine_now(
         "work_priority_timestamp": now(),
     }
 
+    # TODO: this kind of poor man's type-dispatch is painful
+    # let's not follow this pattern in the rewrite, eh?
     try:
-        match lta_object["type"]:
-            case _LtaType.TYPE_TRANSFER_REQUEST:
-                await patch_transfer_request(
-                    lta_rc, lta_object["uuid"], patch_body, logger
-                )
-            case _LtaType.TYPE_BUNDLE:
-                await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
-            case _:
-                err = (
-                    f"Cannot quarantine LTA object: unsupported 'type' value, "
-                    f"'{lta_object['type']}' (supported={sorted(SUPPORTED_LTA_TYPES)!r}, "
-                    f"uuid={lta_object.get('uuid')!r})."
-                )
-                logger.error(err)
-                raise ValueError(err)
+        lta_object_type = lta_object["type"]
+        if lta_object_type == _LtaType.TYPE_TRANSFER_REQUEST:
+            return await patch_transfer_request(lta_rc, lta_object["uuid"], patch_body, logger)
+        elif lta_object_type == _LtaType.TYPE_BUNDLE:
+            return await patch_bundle(lta_rc, lta_object["uuid"], patch_body, logger)
     except Exception as e:
-        err = f'Failed to quarantine {lta_object["type"]} uuid={lta_object["uuid"]}: {repr(e)}.'
-        logger.error(err)
+        err = f'Failed to quarantine {lta_object["type"]} uuid={lta_object["uuid"]}: {e!r}.'
+        logger.exception(err)
+        # all done (rainy day)
         raise RuntimeError(err) from e
+
+    # whoops, somehow a 'supported' type wasn't all that well supported...
+    raise UnsupportedQuarantineException(lta_object_type, SUPPORTED_LTA_TYPES)

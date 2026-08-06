@@ -4,7 +4,6 @@
 # fmt:off
 
 import hashlib
-from typing import Dict
 import zlib
 
 
@@ -35,7 +34,7 @@ def sha512sum(filename: str) -> str:
 
 
 # A combination of the adler32sum and sha512sum above; so we read the data once
-def lta_checksums(filename: str) -> Dict[str, str]:
+def lta_checksums(filename: str) -> dict[str, str]:
     """Compute the adler32 and SHA512 hash of the data in the specified file."""
     value = 1
     h = hashlib.sha512()

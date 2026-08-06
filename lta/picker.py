@@ -15,10 +15,10 @@ from binpacking import to_constant_bin_number
 from prometheus_client import start_http_server
 from rest_tools.client import ClientCredentialsAuth, RestClient
 
-from .utils import NoFileCatalogFilesException, quarantine_now
-from .component import COMMON_CONFIG, Component, work_loop, PrometheusResultTracker
+from .component import COMMON_CONFIG, Component, PrometheusResultTracker, work_loop
 from .lta_tools import from_environment
 from .lta_types import BundleType, TransferRequestType
+from .utils import NoFileCatalogFilesException, quarantine_now
 
 Logger = logging.Logger
 
@@ -66,7 +66,7 @@ class Picker(Component):
         config - A dictionary of required configuration values.
         logger - The object the picker should use for logging.
         """
-        super(Picker, self).__init__("picker", config, logger)
+        super().__init__("picker", config, logger)
         self.file_catalog_client_id = config["FILE_CATALOG_CLIENT_ID"]
         self.file_catalog_client_secret = config["FILE_CATALOG_CLIENT_SECRET"]
         self.file_catalog_page_size = int(config["FILE_CATALOG_PAGE_SIZE"])
@@ -104,7 +104,6 @@ class Picker(Component):
         try:
             await self._do_work_transfer_request(lta_rc, tr)
             prom_tracker.record_success()
-            return True
         except Exception as e:
             prom_tracker.record_failure()
             await quarantine_now(
@@ -115,7 +114,9 @@ class Picker(Component):
                 self.instance_uuid,
                 self.logger,
             )
-            raise e
+            raise
+        else:
+            return True
 
     async def _do_work_transfer_request(
         self,
@@ -129,9 +130,7 @@ class Picker(Component):
         catalog_files = await self._get_files_from_file_catalog(tr)
         # if we didn't get any files, this is bad mojo
         if not catalog_files:
-            raise NoFileCatalogFilesException(
-                "File Catalog returned zero files for the TransferRequest"
-            )
+            raise NoFileCatalogFilesException()
 
         # step 2: group those files
         packing_spec = self._group_catalog_files_evenly(catalog_files)
