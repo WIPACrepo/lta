@@ -1318,7 +1318,7 @@ async def test_670_metadata_distinct_bundle_uuids(
     rest: RestClientFactory,
 ) -> None:
     """Check that distinct Metadata bundle UUIDs are returned."""
-    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_TIMEOUT)  # type: ignore[call-arg]
 
     bundle_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
     bundle_uuid1 = "05b7178b-82d0-428c-a0a6-d4add696de62"
@@ -1372,7 +1372,7 @@ async def test_680_metadata_distinct_finished_bundle_uuids(
     rest: RestClientFactory,
 ) -> None:
     """Check that distinct Metadata Bundle UUIDs can be filtered by status."""
-    r = rest("system", DEFAULT_REST_TIMEOUT)  # type: ignore[call-arg]
+    r = rest("system", DEFAULT_TIMEOUT)  # type: ignore[call-arg]
 
     finished_uuid0 = "291afc8d-2a04-4d85-8669-dc8e2c2ab406"
     finished_uuid1 = "05b7178b-82d0-428c-a0a6-d4add696de62"
