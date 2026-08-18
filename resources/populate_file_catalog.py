@@ -15,18 +15,17 @@ the JSON file is moved to METADATA_OUTBOX_PATH.
 """
 
 import asyncio
-from dataclasses import dataclass
 import json
 import logging
-from pathlib import Path
 import shutil
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, cast
 
 import aiofiles
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import from_environment
-
 
 EXIT_FAILURE = 1
 

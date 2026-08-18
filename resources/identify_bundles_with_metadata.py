@@ -14,7 +14,6 @@ from typing import cast
 from rest_tools.client import ClientCredentialsAuth
 from wipac_dev_tools import from_environment
 
-
 EXPECTED_CONFIG = {
     "CLIENT_ID": None,
     "CLIENT_SECRET": None,

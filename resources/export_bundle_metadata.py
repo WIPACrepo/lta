@@ -6,18 +6,17 @@ Given a list of distinct Bundle UUIDs,
 export the Metadata records associated with those Bundles.
 """
 
-import aiofiles
 import asyncio
-from dataclasses import dataclass
 import json
 import logging
-from pathlib import Path
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, cast
 
+import aiofiles
 from rest_tools.client import ClientCredentialsAuth, RestClient
 from wipac_dev_tools import from_environment
-
 
 EXIT_FAILURE = 1
 
