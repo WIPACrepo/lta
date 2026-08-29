@@ -548,42 +548,59 @@ async def catalog_display(args: Namespace) -> ExitCode:
 
 
 async def catalog_path(args: Namespace) -> ExitCode:
-    """Display records by path from the File Catalog."""
+    """Display File Catalog records by path as NDJSON."""
     # if the user didn't specify a path
     if not args.path:
-        print("Missing path")
+        print("Missing path", file=sys.stderr)
         return EXIT_ERROR
 
-    # if the user specified a site
-    site = "WIPAC"
-    if args.site:
-        site = args.site
+    # if the user specified a site, use it, otherwise WIPAC
+    site = args.site or "WIPAC"
 
     # ask the file catalog about the records
     query_dict = {
         "locations.site": {
-            "$eq": site,
+            "$eq": site
         },
         "locations.path": {
             "$regex": f"^{args.path}"
         },
-        # this isn't going to work; searching 'logical_name' by regular expression
-        # "logical_name": {
-        #     "$regex": f"^{args.path}"
-        # }
     }
 
     # if the user asked us to also query the logical_name field
     if args.logical_name:
-        query_dict["logical_name"] = {
-            "$regex": f"^{args.path}"
-        }
+        query_dict["logical_name"] = {"$regex": f"^{args.path}"}
 
-    query_json = json.dumps(query_dict)
-    fc_response = await args.di["fc_rc"].request('GET', f'/api/files?query={query_json}')
-    for catalog_file in fc_response["files"]:
-        print(catalog_file)
+    # get all the records, 1000 records at a time
+    start = 0
+    limit = 1000
 
+    # until the File Catalog stops giving us records...
+    while True:
+        # query the catalog for the records
+        query_json = json.dumps(query_dict)
+        fc_response = await args.di["fc_rc"].request(
+            "GET",
+            f"/api/files?query={query_json}&start={start}&limit={limit}",
+        )
+
+        # make sure we got an intelligent response back
+        files = fc_response.get("files", [])
+        if not files:
+            break
+
+        # for each record, print it out in an NDJSON compatible way
+        for catalog_file in files:
+            print(json.dumps(catalog_file, separators=(",", ":")))
+
+        # and if we didn't get the full 1000, this is the last batch
+        if len(files) < limit:
+            break
+
+        # ask for the next batch of records
+        start += limit
+
+    # mission failed successfully
     return EXIT_OK
 
 
